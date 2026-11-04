@@ -1,4 +1,4 @@
-# Migrating from eFa 5.0 (MailScanner) to eFa-next 6.0.0.0
+# Migrating from eFa 5.0 (MailScanner) to eFa-next 6.0.0.1
 
 `efa-migrate` converts an existing eFa 5.0 in place. It replaces MailScanner, MailWatch, SpamAssassin, opendkim, opendmarc, sqlgrey and amavis with rspamd, nginx and the Python web interface. Apache, PHP and Perl stay installed on the host, Apache is only stopped.
 

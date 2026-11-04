@@ -19,7 +19,7 @@
 
 Name:      eFa-base
 Summary:   eFa-base files rpm
-Version:   6.0.0.0
+Version:   6.0.0.1
 Release:   1.eFa%{?dist}
 Epoch:     1
 Group:     Applications/System
@@ -69,6 +69,11 @@ mv * $RPM_BUILD_ROOT%{_usrsrc}/eFa
 
 
 %pre
+# Stops before any file is replaced: the post script runs too late to undo an upgrade.
+if [ -e /etc/MailScanner/MailScanner.conf ]; then
+    echo "ERROR: MailScanner is installed, nothing was changed. Use efa-migrate to upgrade this system." >&2
+    exit 1
+fi
 
 %preun
 
@@ -88,5 +93,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_datadir}/efa-init
 
 %changelog
+* Wed Nov 04 2026 MarkusLorber <351974646+MarkusLorber@users.noreply.github.com> - 6.0.0.1-1
+- Version follows eFa 6.0.0.1
+
 * Wed Nov 04 2026 MarkusLorber <351974646+MarkusLorber@users.noreply.github.com> - 6.0.0.0-1
 - Configure rspamd, nginx, redis and the Python services instead of the old filter stack

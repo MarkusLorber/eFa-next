@@ -2,7 +2,7 @@
 # Without pipefail, $? after "cmd | tee" reports tee and hides failures.
 set -o pipefail
 #-----------------------------------------------------------------------------#
-# eFa-next 6.0.0.0 build script
+# eFa-next 6.0.0.1 build script
 #-----------------------------------------------------------------------------#
 # Copyright (C) 2013~2024 https://efa-project.org
 #
