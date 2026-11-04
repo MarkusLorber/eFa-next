@@ -1,0 +1,581 @@
+#!/usr/bin/python3
+"""Migrates an original eFa 5.0 (MailScanner, MailWatch, Apache) to the rspamd/nginx eFa, in place.
+
+Without --execute-i-have-a-snapshot it only prints what would be carried over and changes nothing.
+There is no rollback besides the VM snapshot; the backup directory holds the old configuration and databases.
+Apache, PHP and Perl stay installed on the host, Apache is only stopped so nginx gets ports 80 and 443.
+"""
+import argparse
+import glob
+import ipaddress
+import json
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+CONFIG = '/etc/eFa/eFa-Config'
+MYSQL_CONFIG = '/etc/eFa/MySQL-Config'
+POSTFIX = '/etc/postfix'
+MAILSCANNER_CONF = '/etc/MailScanner/MailScanner.conf'
+MAILSCANNER_DEFAULTS = '/etc/MailScanner/defaults'
+MAILSCANNER_SPOOL = '/var/spool/MailScanner'
+KEY_TABLE = '/etc/opendkim/KeyTable'
+RSPAMD_ASC = 'https://rspamd.com/rpm/rspamd.asc'
+RELEASE_URL = 'https://github.com/MarkusLorber/eFa-next/releases/latest/download'
+RSPAMD_FINGERPRINT = '3FA347D5E599BE4595CA2576FFA232EDBF21E25E'
+RSPAMD_REPO = """[rspamd]
+name=Rspamd stable repository
+baseurl=https://rspamd.com/rpm-stable/centos-9/$basearch
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://rspamd.com/rpm/rspamd.asc
+"""
+# Milters of the old filter stack; everything else in the chain is site-specific and stays.
+OLD_MILTER_PORTS = {33333, 8891, 8893}
+RSPAMD_PORT, HEALTH_PORT = 11332, 8999
+QUEUES = ('deferred', 'hold', 'active', 'incoming', 'maildrop')
+TABLES = ('transport', 'virtual', 'sender_access', 'recipient_access', 'helo_access', 'access', 'canonical',
+          'generic', 'relocated', 'sender_canonical', 'recipient_canonical', 'sasl_passwd')
+KEPT_POSTCONF = ('smtp_sasl_auth_enable', 'smtp_sasl_password_maps', 'smtp_sasl_security_options',
+                 'smtp_sasl_tls_security_options', 'error_notice_recipient', 'smtpd_tls_cert_file',
+                 'smtpd_tls_key_file')
+BACKUP_PATHS = ('/etc/eFa', '/etc/sysconfig/eFa-Monitor', POSTFIX, '/etc/MailScanner', '/etc/opendkim', '/etc/opendkim.conf', '/etc/opendmarc',
+                '/etc/opendmarc.conf', '/etc/mail/spamassassin', '/etc/sqlgrey', '/etc/unbound', '/etc/fail2ban',
+                '/etc/letsencrypt', '/etc/dovecot', '/etc/clamd.d', '/etc/sysconfig/eFa_trusted_networks',
+                '/var/www/html/mailscanner/conf.php')
+# freshclam: hand-made unit on some systems, doubles clamav-freshclam
+OLD_SERVICES = ('freshclam', 'amavisd', 'clamd@amavisd', 'mailscanner', 'msmilter', 'httpd', 'php-fpm', 'opendkim', 'opendmarc', 'sqlgrey', 'adcc', 'spamassassin',
+                'postfix', 'dovecot', 'fail2ban', 'mariadb', 'clamd@scan', 'clamav-freshclam',
+                'clamav-unofficial-sigs')
+# Reinstalled by the new eFa with a fresh configuration. Packages built by the eFa project are found by their release.
+# Unbound stays: the system resolves through it, and dnf needs that to install the new eFa.
+FRESH_PACKAGES = ('amavis', 'opendkim', 'opendkim-tools', 'opendmarc', 'pyzor', 'mariadb', 'mariadb-server', 'clamav', 'clamd',
+                  'clamav-lib', 'clamav-data', 'clamav-freshclam', 'clamav-filesystem', 'clamav-update',
+                  'postfix', 'dovecot', 'fail2ban', 'fail2ban-server', 'certbot',
+                  'python3-certbot', 'python3-certbot-apache', 'dnf-automatic')
+REMOVED_PATHS = ('/etc/yum.repos.d/eFa5-release.repo', '/etc/yum.repos.d/eFa5-test.repo', '/etc/yum.repos.d/eFa5-dev.repo',
+                 '/etc/eFa-Version', '/etc/eFa', '/var/eFa', '/usr/src/eFa', '/var/lib/mysql', '/etc/my.cnf.d', '/var/log/mariadb', POSTFIX, '/var/spool/postfix', '/etc/clamd.d',
+                 '/var/lib/clamav', '/etc/dovecot', '/etc/fail2ban', '/var/lib/fail2ban', '/etc/MailScanner',
+                 '/etc/opendkim', '/etc/opendmarc', '/etc/sqlgrey', '/root/.my.cnf',
+                 # The old list would restart MailScanner and Apache every minute.
+                 '/etc/sysconfig/eFa-Monitor', '/etc/sysconfig/eFa-Monitor.rpmsave', '/etc/sysconfig/eFa-Monitor.rpmnew')
+OLD_CRON = ('/etc/cron.d/eFa-Monitor.cron', '/etc/cron.d/efapostinit', '/etc/cron.d/checkreboot',
+            '/etc/cron.d/certbotrenew', '/etc/cron.d/msre_reload', '/etc/cron.d/checkqueues')
+NOT_MIGRATED = ('spam score thresholds: rspamd scores differ from SpamAssassin, the rspamd defaults apply',
+                'MailWatch users: there is one web admin now',
+                'MailWatch trusted networks, SpamAssassin Bayes data and sqlgrey history',
+                'mail in the old quarantine: it is kept in the backup but cannot be released from the new interface')
+
+
+class Failed(Exception):
+    pass
+
+
+def run(cmd, **kwargs):
+    done = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    if done.returncode != 0:
+        raise Failed(f"{' '.join(cmd)}: {(done.stderr or done.stdout)[-400:]}")
+    return done.stdout
+
+
+def old_settings_file(path):
+    with open(path) as f:
+        return f.read()
+
+
+def key_values(text, sep=':'):
+    values = {}
+    for line in text.splitlines():
+        if sep in line and not line.lstrip().startswith('#'):
+            key, value = line.split(sep, 1)
+            values[key.strip()] = value.strip()
+    return values
+
+
+def parse_senders(rows):
+    """MailWatch list rows to entries for the new lists, which are global and hold addresses or domains."""
+    usable, skipped = [], []
+    for to_address, from_address in rows:
+        entry = from_address.strip().lower()
+        if entry.startswith('*@'):
+            entry = entry[2:]
+        if to_address != 'default' or not re.fullmatch(r'([a-z0-9._%+-]+@)?([a-z0-9-]+\.)+[a-z]{2,}', entry):
+            skipped.append(f'{from_address} for {to_address}')
+        else:
+            usable.append(entry)
+    return sorted(set(usable)), skipped
+
+
+def sender_rules(name, rows):
+    """What the plain lists cannot hold goes to the rules: IPs, patterns, single recipients."""
+    usable = parse_senders(rows)[0]
+    rules = []
+    for to_address, from_address in rows:
+        entry = from_address.strip().lower()
+        entry = entry[2:] if entry.startswith('*@') and '*' not in entry[2:] else entry
+        if to_address == 'default' and entry in usable or entry in ('', '::1', '127.0.0.1'):
+            continue
+        rules.append({'list': name, 'sender': entry, 'recipient': to_address.strip().lower()})
+    return rules
+
+
+def parse_key_table(text):
+    keys = []
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and not line.startswith('#') and fields[1].count(':') == 2:
+            domain, selector, path = fields[1].split(':')
+            keys.append({'domain': domain, 'selector': selector, 'path': path})
+    return keys
+
+
+def new_chain(milters):
+    """Keeps site-specific milters in place, rspamd takes the place of the first old filter, health comes last."""
+    ports = [int(p) for p in re.findall(r':(\d+)(?=[\s,]|$)', milters)]
+    chain = []
+    for port in ports:
+        if port in OLD_MILTER_PORTS:
+            if RSPAMD_PORT not in chain:
+                chain.append(RSPAMD_PORT)
+        elif port != HEALTH_PORT:
+            chain.append(port)
+    if RSPAMD_PORT not in chain:
+        chain.append(RSPAMD_PORT)
+    return chain + [HEALTH_PORT]
+
+
+def relay_networks(mynetworks):
+    return [n for n in mynetworks.replace(',', ' ').split() if n not in ('127.0.0.0/8', '[::1]/128')]
+
+
+def size_megabytes(limit):
+    return max(1, int(limit) // (1024 * 1024))
+
+
+def self_test():
+    assert parse_senders([('default', 'A@x.org'), ('default', '*@y.org'), ('default', 'z.org'), ('default', '1.2.3.4'),
+                          ('me@x.org', 'b@x.org'), ('default', '*.w.org')]) == (
+        ['a@x.org', 'y.org', 'z.org'], ['1.2.3.4 for default', 'b@x.org for me@x.org', '*.w.org for default'])
+    assert sender_rules('allow', [('default', 'a@x.org'), ('default', '10.0.0.1'), ('me@x.org', 'y.org'), ('default', '*w*'), ('default', '::1')]) == [
+        {'list': 'allow', 'sender': '10.0.0.1', 'recipient': 'default'}, {'list': 'allow', 'sender': 'y.org', 'recipient': 'me@x.org'},
+        {'list': 'allow', 'sender': '*w*', 'recipient': 'default'}]
+    assert parse_key_table('# c\nd._domainkey.x.org x.org:d:/k/x.private\nbad\n') == [
+        {'domain': 'x.org', 'selector': 'd', 'path': '/k/x.private'}]
+    assert new_chain('inet:127.0.0.1:33333') == [11332, 8999]
+    assert new_chain('inet:127.0.0.1:8901, inet:127.0.0.1:33333, inet:127.0.0.1:8891, inet:127.0.0.1:8899') == [
+        8901, 11332, 8899, 8999]
+    assert new_chain('') == [11332, 8999]
+    assert relay_networks('127.0.0.0/8 [::1]/128 10.0.0.0/8, 192.0.2.1') == ['10.0.0.0/8', '192.0.2.1']
+    assert size_megabytes('133169152') == 127 and size_megabytes('0') == 1
+    assert key_values('A:b:c\n# X:y\n') == {'A': 'b:c'}
+    assert dns_zones({'DNSIP1': '8.8.8.8', 'DNSIP2': '10.0.0.1', 'MAILSERVER': 'ex.corp.example'}) == {'corp.example': ['10.0.0.1']}
+    assert dns_zones({'DNSIP1': '8.8.8.8', 'DNSIP2': '', 'MAILSERVER': 'ex.corp.example'}) == {}
+    assert dns_zones({'DNSIP1': '10.0.0.1', 'MAILSERVER': '10.0.0.5'}) == {}
+    assert live_config({'HOSTNAME': 'OLD', 'DOMAINNAME': 'x.org', 'TZONE': ''}, 'NEW', '10.0.0.4/24', 'Europe/Vienna') == {
+        'HOSTNAME': 'NEW', 'DOMAINNAME': 'x.org', 'IPV4ADDRESS': '10.0.0.4', 'IPV4NETMASK': '24', 'TZONE': 'Europe/Vienna'}
+    print('self-test ok')
+
+
+def mysql_env():
+    env = dict(os.environ)
+    env['MYSQL_PWD'] = key_values(old_settings_file(MYSQL_CONFIG))['MYSQLROOTPWD']
+    return env
+
+
+def postconf(name):
+    return run(['postconf', '-h', name]).strip()
+
+
+def unit_of_port(port):
+    match = re.search(rf':{port}\s.*pid=(\d+)', run(['ss', '-ltnpH']))
+    if not match:
+        return None
+    with open(f'/proc/{match.group(1)}/cgroup') as f:
+        unit = re.search(r'/([A-Za-z0-9@_.-]+)\.service', f.read())
+    return unit.group(1) if unit else None
+
+
+def dns_zones(config):
+    """The new eFa resolves on its own: public forwarders get DNS blocklists blocked. Internal servers keep the mail server's zone."""
+    servers = [ip for ip in (config.get('DNSIP1'), config.get('DNSIP2'))
+               if ip and ipaddress.ip_address(ip).is_private]
+    mailserver = config.get('MAILSERVER', '')
+    if not servers or '.' not in mailserver or re.fullmatch(r'[0-9.]+', mailserver):
+        return {}
+    return {mailserver.split('.', 1)[1]: servers}
+
+
+def live_config(config, hostname, address, timezone):
+    """eFa-Config can be stale on cloned or renamed systems, the running system decides."""
+    values = dict(config)
+    values['HOSTNAME'] = hostname.split('.')[0]
+    if '.' in hostname:
+        values['DOMAINNAME'] = hostname.split('.', 1)[1]
+    values['IPV4ADDRESS'] = address.split('/')[0] if address else ''
+    values['IPV4NETMASK'] = address.split('/')[1] if address else ''
+    values['TZONE'] = values.get('TZONE') or timezone
+    return values
+
+
+def collect():
+    """Reads the old system and changes nothing."""
+    if os.geteuid() != 0:
+        raise Failed('Run as root.')
+    config = key_values(old_settings_file(CONFIG))
+    if config.get('CONFIGURED') != 'YES' or not os.path.exists(MAILSCANNER_CONF):
+        raise Failed('This is no configured original eFa 5.0.')
+    device = re.search(r' dev (\S+)', run(['ip', '-4', '-o', 'route', 'get', '1.1.1.1'])).group(1)
+    address = re.search(r' inet (\S+)', run(['ip', '-4', '-o', 'addr', 'show', 'dev', device])).group(1)
+    config = live_config(config, run(['hostname']).strip(), address,
+                         run(['timedatectl', 'show', '-p', 'Timezone', '--value']).strip())
+    config['INTERFACE'] = device
+    # Passwords must not reach the printed plan or plan.json.
+    config = {k: v for k, v in config.items() if not k.endswith('PWD')}
+    env = mysql_env()
+    lists = {}
+    rules = []
+    for name, table in (('allow', 'whitelist'), ('block', 'blacklist')):
+        out = run(['mysql', '--user=root', '-Ne', f'SELECT to_address, from_address FROM mailscanner.{table}'], env=env)
+        rows = [line.split('\t') for line in out.splitlines()]
+        lists[name], _ = parse_senders(rows)
+        rules += sender_rules(name, rows)
+    scanner = key_values(old_settings_file(MAILSCANNER_CONF), '=')
+    defaults = key_values(old_settings_file(MAILSCANNER_DEFAULTS), '=') if os.path.exists(MAILSCANNER_DEFAULTS) else {}
+    main_cf = old_settings_file(POSTFIX + '/main.cf')
+    chain = new_chain(postconf('smtpd_milters'))
+    keys = parse_key_table(old_settings_file(KEY_TABLE)) if os.path.exists(KEY_TABLE) else []
+    plan = {
+        'config': config,
+        'ipv6dns': 'do-ip6: no' not in old_settings_file('/etc/unbound/unbound.conf'),
+        'dns_zones': dns_zones(config),
+        'mynetworks': relay_networks(postconf('mynetworks')),
+        'relayhost': postconf('relayhost'),
+        'message_size_mb': size_megabytes(postconf('message_size_limit')),
+        'postconf': {name: postconf(name) for name in KEPT_POSTCONF},
+        'greylisting': 'check_policy_service inet:127.0.0.1:2501' in main_cf,
+        'recipient_verification': 'reject_unverified_recipient' in postconf('smtpd_recipient_restrictions'),
+        'fail2ban': subprocess.run(['systemctl', 'is-enabled', 'fail2ban'], capture_output=True).returncode == 0,
+        'quarantine': 'store' in scanner.get('Spam Actions', ''),
+        'quarantine_days': defaults.get('q_days', '30'),
+        'senders': lists,
+        'sender_rules': rules,
+        'dkim': [k for k in keys if os.path.exists(k['path'])],
+        'dkim_missing': [k['path'] for k in keys if not os.path.exists(k['path'])],
+        'milter_chain': chain,
+        'extra_services': [u for u in (unit_of_port(p) for p in chain if p not in (RSPAMD_PORT, HEALTH_PORT)) if u],
+        'tables': [t for t in TABLES if os.path.exists(f'{POSTFIX}/{t}')],
+        'letsencrypt': '/letsencrypt/' in postconf('smtpd_tls_cert_file') and os.path.exists(postconf('smtpd_tls_cert_file')),
+        'mailscanner_custom': sorted(f for f in glob.glob('/etc/MailScanner/conf.d/*') if not f.endswith('README')),
+        'not_migrated': NOT_MIGRATED,
+    }
+    # A missing certificate must not be configured again, eFa-Commit creates a self-signed one.
+    for name in ('smtpd_tls_cert_file', 'smtpd_tls_key_file'):
+        if not os.path.exists(plan['postconf'][name]):
+            del plan['postconf'][name]
+    return plan
+
+
+def fetch_rpms():
+    """Latest GitHub release into a new directory, verified against its SHA256SUMS."""
+    target = tempfile.mkdtemp(prefix='efa-rpms-', dir='/root')
+    run(['curl', '-fsSLO', f'{RELEASE_URL}/SHA256SUMS'], cwd=target)
+    with open(target + '/SHA256SUMS') as f:
+        names = [line.split()[1] for line in f if line.strip()]
+    for name in names:
+        run(['curl', '-fsSLO', f'{RELEASE_URL}/{name}'], cwd=target)
+    # shortcut: the checksums come from the same release and only catch damaged downloads, sign the packages if that ever matters
+    run(['sha256sum', '-c', 'SHA256SUMS'], cwd=target)
+    return target
+
+
+def preflight_rpms(rpm_dir):
+    rpms = glob.glob(rpm_dir + '/eFa-base-*.rpm') + [r for r in glob.glob(rpm_dir + '/eFa-[0-9]*.rpm')]
+    if len(rpms) != 2:
+        raise Failed(f'{rpm_dir} must hold one eFa-base and one eFa package.')
+    return rpms
+
+
+def preflight(rpm_dir):
+    rpms = preflight_rpms(rpm_dir)
+    db_size = int(run(['du', '-sb', '/var/lib/mysql']).split()[0])
+    free = shutil.disk_usage('/var').free
+    if free < db_size * 2:
+        raise Failed(f'Need {db_size * 2} bytes free on /var for the database backup, only {free} are free.')
+    return rpms
+
+
+def backup(target, plan):
+    os.makedirs(target, mode=0o700)
+    with open(target + '/plan.json', 'w') as f:
+        json.dump(plan, f, indent=2)
+    paths = [p for p in BACKUP_PATHS if os.path.exists(p)]
+    run(['tar', 'czf', target + '/config.tar.gz', '--ignore-failed-read', '-P'] + paths)
+    for key in plan['dkim']:
+        shutil.copyfile(key['path'], f"{target}/dkim-{key['domain']}.{key['selector']}.key")
+    env = mysql_env()
+    with open(target + '/all-databases.sql.gz', 'wb') as out:
+        dump = subprocess.Popen(['mysqldump', '--user=root', '--all-databases', '--single-transaction'], env=env,
+                                stdout=subprocess.PIPE)
+        gz = subprocess.Popen(['gzip'], stdin=dump.stdout, stdout=out)
+        dump.stdout.close()
+        if gz.wait() != 0 or dump.wait() != 0:
+            raise Failed('Database backup failed.')
+    run(['gzip', '-t', target + '/all-databases.sql.gz'])
+    # Fields in the order of efa.maillog, tab separated as LOAD DATA expects them.
+    query = ("SELECT timestamp, LEFT(COALESCE(id,''),64), LEFT(COALESCE(messageid,''),255), LEFT(COALESCE(from_address,''),255),"
+             " LEFT(COALESCE(to_address,''),1000), LEFT(COALESCE(clientip,''),64),"
+             " IF(virusinfected>0 OR nameinfected>0 OR otherinfected>0,'virus',IF(isspam>0,'add header','no action')),"
+             " COALESCE(sascore,0), LEFT(COALESCE(subject,''),500) FROM mailscanner.maillog")
+    with open(target + '/maillog.tsv', 'w') as out:
+        subprocess.run(['mysql', '--user=root', '--batch', '-N', '-e', query], env=env, stdout=out, check=True)
+
+
+def drain_scanner(seconds):
+    """Mail handed to MailScanner lives only in its spool, so it has to finish before the removal."""
+    run(['postconf', '-e', 'master_service_disable = inet'])
+    subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        # incoming itself holds locks and caches, mail only sits in its numbered worker directories
+        waiting = [f for d in ('milterin/*', 'milterout/*', 'incoming/[0-9]*/*') for f in glob.glob(f'{MAILSCANNER_SPOOL}/{d}')]
+        if not waiting:
+            return
+        time.sleep(5)
+    run(['postconf', '-e', 'master_service_disable ='])
+    subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
+    raise Failed(f'MailScanner still holds {len(waiting)} files, nothing was removed. Try again later.')
+
+
+def remove_old(target):
+    for service in OLD_SERVICES:
+        subprocess.run(['systemctl', 'disable', '--now', service], capture_output=True)
+    run(['tar', 'cf', target + '/postfix-queue.tar', '-C', '/var/spool/postfix', '--ignore-failed-read', *QUEUES])
+    if os.path.isdir(MAILSCANNER_SPOOL + '/quarantine'):
+        shutil.move(MAILSCANNER_SPOOL + '/quarantine', target + '/mailscanner-quarantine')
+    built = [line for line in run(['rpm', '-qa', '--qf', '%{NAME} %{RELEASE}\n']).splitlines() if '.eFa.' in line]
+    names = [line.split()[0] for line in built]
+    installed = names + [p for p in FRESH_PACKAGES if subprocess.run(['rpm', '-q', p], capture_output=True).returncode == 0]
+    for package in installed:
+        # A failing old removal script must not stop the migration half way.
+        if subprocess.run(['rpm', '-e', '--nodeps', package], capture_output=True).returncode != 0:
+            subprocess.run(['rpm', '-e', '--nodeps', '--noscripts', package], capture_output=True)
+    for path in REMOVED_PATHS:
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        elif os.path.exists(path):
+            os.remove(path)
+    for path in OLD_CRON:
+        if os.path.exists(path):
+            os.remove(path)
+    with open('/root/.bashrc') as f:
+        lines = f.readlines()
+    with open('/root/.bashrc', 'w') as f:
+        f.writelines(line for line in lines if 'eFa-Init' not in line)
+    run(['systemctl', 'daemon-reload'])
+    subprocess.run(['systemctl', 'reset-failed'], capture_output=True)
+
+
+def setup_repos():
+    asc = run(['curl', '-sSLf', RSPAMD_ASC])
+    fingerprints = subprocess.run(['gpg', '--show-keys', '--with-colons'], input=asc, capture_output=True, text=True).stdout
+    if f':{RSPAMD_FINGERPRINT}:' not in fingerprints:
+        raise Failed('The rspamd signing key has an unexpected fingerprint.')
+    with open('/tmp/efa-rspamd.asc', 'w') as f:
+        f.write(asc)
+    run(['rpm', '--import', '/tmp/efa-rspamd.asc'])
+    os.remove('/tmp/efa-rspamd.asc')
+    with open('/etc/yum.repos.d/rspamd.repo', 'w') as f:
+        f.write(RSPAMD_REPO)
+    for module in ('nginx', 'redis'):
+        # -y: repo_gpgcheck needs the rspamd key accepted even for this read
+        out = run(['dnf', '-y', '-q', 'module', 'list', module])
+        streams = re.findall(rf'^{module}\s+([0-9.]+)', out, re.M)
+        if not streams:
+            raise Failed(f'No {module} stream found.')
+        newest = max(streams, key=lambda v: [int(x) for x in v.split('.')])
+        run(['dnf', 'module', '-y', 'enable', f'{module}:{newest}'])
+
+
+def install_new(rpms):
+    run(['dnf', '-y', 'install'] + rpms)
+
+
+def commit(plan, password):
+    cfg = plan['config']
+    web_hash = subprocess.run(['python3', '-c', 'import os; from werkzeug.security import generate_password_hash as g; '
+                               "print(g(os.environ['EFA_PW'], method='pbkdf2:sha256'))"],
+                              env={**os.environ, 'EFA_PW': password}, capture_output=True, text=True, check=True).stdout.strip()
+    # No --commitall: host keys, addresses, the root lock and the CLI user with its home directory stay as they are.
+    run(['/usr/sbin/eFa-Commit', '--startmariadb', '--confighost', '--configdns', '--configtzone', '--configtransport',
+         '--configsasl', '--configmysql', '--configyumcron', '--configcert', '--finalize', '--verbose',
+         f"--hostname={cfg['HOSTNAME']}", f"--domainname={cfg['DOMAINNAME']}",
+         f"--ipv4address={cfg.get('IPV4ADDRESS', '')}", f"--ipv6address={cfg.get('IPV6ADDRESS', '')}",
+         '--dnsip1=', '--dnsip2=', '--enablerecursion=1', f"--interface={cfg.get('INTERFACE', '')}",
+         f"--ipv4netmask={cfg.get('IPV4NETMASK', '')}", f"--ipv4gateway={cfg.get('IPV4GATEWAY', '')}",
+         f"--ipv6mask={cfg.get('IPV6MASK', '')}", f"--ipv6gateway={cfg.get('IPV6GATEWAY', '')}",
+         f"--timezone={cfg.get('TZONE', '')}", f"--mailserver={cfg.get('MAILSERVER', '')}",
+         f"--adminemail={cfg.get('ADMINEMAIL', '')}", f'--efauserpwd={web_hash}', '--configvirtual=0',
+         f"--isutc={1 if cfg.get('ISUTC') in ('true', '1') else 0}", f"--ipv6dns={1 if plan['ipv6dns'] else 0}"])
+    # The new system reboots from this file; it has to wait until the settings are back.
+    if os.path.exists('/reboot.system'):
+        os.remove('/reboot.system')
+
+
+def restore_settings(plan, target, warnings):
+    def efactl(*args):
+        done = subprocess.run(['/usr/sbin/efactl', *args], capture_output=True, text=True,
+                              env={k: v for k, v in os.environ.items() if k != 'SUDO_USER'})
+        if done.returncode != 0:
+            warnings.append(f"efactl {args[0]} {' '.join(args[1:])}: {(done.stdout + done.stderr)[-200:].strip()}")
+
+    for service in ('mariadb', 'redis', 'rspamd', 'unbound', 'efa-milter-health'):
+        subprocess.run(['systemctl', 'start', service], capture_output=True)
+    subprocess.run(['systemctl', 'stop', 'postfix'], capture_output=True)
+
+    run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '--no-same-owner', '--overwrite', '--wildcards',
+         *[f'{POSTFIX}/{t}' for t in plan['tables']], POSTFIX + '/ssl/*'])
+    for table in plan['tables']:
+        run(['postmap', f'{POSTFIX}/{table}'])
+    if 'sasl_passwd' in plan['tables']:
+        os.chmod(POSTFIX + '/sasl_passwd', 0o600)
+        os.chmod(POSTFIX + '/sasl_passwd.db', 0o600)
+    for name, value in plan['postconf'].items():
+        run(['postconf', '-e', f'{name} = {value}'])
+    if plan['letsencrypt']:
+        run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '/etc/letsencrypt'])
+        warnings.append('Lets Encrypt: nginx uses a self-signed certificate. Run efactl letsencrypt-set to get a new one.')
+
+    if plan['mynetworks']:
+        efactl('relay-networks-set', '--networks', ' '.join(plan['mynetworks']))
+    if plan['relayhost']:
+        efactl('smarthost-set', '--host', plan['relayhost'])
+    efactl('message-size-set', '--megabytes', str(plan['message_size_mb']))
+    efactl('greylisting-set', '--mode', 'on' if plan['greylisting'] else 'off')
+    efactl('recipient-verification-set', '--mode', 'on' if plan['recipient_verification'] else 'off')
+    efactl('fail2ban-set', '--mode', 'on' if plan['fail2ban'] else 'off')
+    efactl('quarantine-days-set', '--days', plan['quarantine_days'])
+    efactl('quarantine-set', '--mode', 'on' if plan['quarantine'] else 'off')
+    for which, entries in plan['senders'].items():
+        for entry in entries:
+            efactl('sender-list-set', '--list', which, '--action', 'add', '--address', entry)
+    for rule in plan['sender_rules']:
+        efactl('sender-rule-set', '--list', rule['list'], '--action', 'add', '--sender', rule['sender'],
+               '--recipient', '' if rule['recipient'] == 'default' else rule['recipient'])
+    for key in plan['dkim']:
+        efactl('dkim-import', '--domain', key['domain'], '--selector', key['selector'],
+               '--key_file', f"{target}/dkim-{key['domain']}.{key['selector']}.key")
+    for zone, servers in plan['dns_zones'].items():
+        efactl('dns-zone-set', '--zone', zone, '--action', 'add', '--servers', ' '.join(servers))
+    efactl('milter-chain-set', '--ports', ' '.join(str(p) for p in plan['milter_chain']))
+    for service in plan['extra_services']:
+        efactl('extra-service-set', '--name', service, '--action', 'add')
+
+    run(['tar', 'xf', target + '/postfix-queue.tar', '-C', '/var/spool/postfix', '--same-owner'])
+    run(['postsuper', '-s'])
+    run(['systemctl', 'start', 'postfix'])
+
+    tsv = target + '/maillog.tsv'
+    new_env = mysql_env()
+    run(['mysql', '--user=root', '--local-infile=1', '-e',
+         f"LOAD DATA LOCAL INFILE '{tsv}' INTO TABLE efa.maillog (ts, qid, message_id, sender, rcpt, ip, action, score, subject)"],
+        env=new_env)
+    warnings.extend(f'DKIM key file missing, not migrated: {path}' for path in plan['dkim_missing'])
+    warnings.extend(f'Own MailScanner rules not migrated, see config.tar.gz: {path}' for path in plan['mailscanner_custom'])
+
+
+def finish(target, warnings, password):
+    with open(target + '/report.txt', 'w') as f:
+        f.write('\n'.join(warnings + list(NOT_MIGRATED)) + '\n')
+    print('Migration done. Check these points:')
+    for line in warnings + list(NOT_MIGRATED):
+        print(' - ' + line)
+    print(f'Report and backup: {target}')
+    print(f'New web admin password, shown only now: {password}')
+    print('The system reboots within a minute.')
+    open('/reboot.system', 'w').close()
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--rpm-dir', help='Directory with the new eFa-base and eFa packages; default: latest GitHub release')
+    parser.add_argument('--execute-i-have-a-snapshot', action='store_true', help='Really migrate. Without it nothing changes.')
+    parser.add_argument('--drain-seconds', type=int, default=600)
+    parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--resume', metavar='BACKUP_DIR', help='Continue after a failure during installing, from this backup')
+    args = parser.parse_args()
+    # A stricter umask would make config files unreadable for the services that use them.
+    os.umask(0o022)
+    if args.self_test:
+        self_test()
+        return 0
+    step = 'reading the old system'
+    target = None
+    removing = bool(args.resume)
+    try:
+        if args.resume:
+            target = args.resume.rstrip('/')
+            with open(target + '/plan.json') as f:
+                plan = json.load(f)
+            rpms = preflight_rpms(os.path.abspath(args.rpm_dir or fetch_rpms()))
+            password = secrets.token_urlsafe(18)
+            warnings = []
+            step = 'installing'
+            print('Installing the new eFa', flush=True)
+            setup_repos()
+            install_new(rpms)
+            step = 'configuring'
+            print('Configuring', flush=True)
+            commit(plan, password)
+            step = 'restoring settings'
+            print('Restoring settings', flush=True)
+            restore_settings(plan, target, warnings)
+            return finish(target, warnings, password)
+        plan = collect()
+        if not args.execute_i_have_a_snapshot:
+            print(json.dumps(plan, indent=2))
+            print('Nothing was changed. Take a VM snapshot, then run again with --execute-i-have-a-snapshot.')
+            return 0
+        # Downloaded before anything is removed: a failed download leaves the old system untouched.
+        rpms = preflight(os.path.abspath(args.rpm_dir or fetch_rpms()))
+        target = time.strftime('/root/efa-migration-%Y%m%d-%H%M%S')
+        password = secrets.token_urlsafe(18)
+        warnings = []
+        step = 'backup'
+        print(f'Backup to {target}', flush=True)
+        backup(target, plan)
+        step = 'emptying MailScanner'
+        print('Stopping mail intake, waiting for MailScanner', flush=True)
+        drain_scanner(args.drain_seconds)
+        step = 'removing the old stack'
+        removing = True
+        print('Removing the old stack', flush=True)
+        remove_old(target)
+        step = 'installing'
+        print('Installing the new eFa', flush=True)
+        setup_repos()
+        install_new(rpms)
+        step = 'configuring'
+        print('Configuring', flush=True)
+        commit(plan, password)
+        step = 'restoring settings'
+        print('Restoring settings', flush=True)
+        restore_settings(plan, target, warnings)
+    except (Failed, OSError, subprocess.CalledProcessError) as err:
+        print(f'FAILED during {step}: {err}', file=sys.stderr)
+        if removing:
+            print(f'Old configuration and databases are in {target}. Roll back with the VM snapshot.', file=sys.stderr)
+        elif target:
+            print(f'The old system is unchanged. Partial backup in {target}.', file=sys.stderr)
+        return 1
+    return finish(target, warnings, password)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

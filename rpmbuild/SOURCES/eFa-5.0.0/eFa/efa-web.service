@@ -1,0 +1,16 @@
+[Unit]
+Description=eFa web interface
+After=network-online.target
+
+[Service]
+Type=simple
+User=efa-web
+Group=efa-web
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-web.py
+Restart=always
+RestartSec=5
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
