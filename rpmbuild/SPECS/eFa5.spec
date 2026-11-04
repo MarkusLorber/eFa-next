@@ -21,7 +21,7 @@
 
 Name:      eFa
 Summary:   eFa Maintenance rpm
-Version:   6.0.0.0
+Version:   6.0.0.1
 Release:   %{releasenum}.eFa%{?dist}
 Group:     Applications/System
 URL:       https://efa-project.org
@@ -117,7 +117,7 @@ Requires:  tmpwatch >= 2.11-20
     # spamassassin                               # eFa     # MailScanner
 Requires: clamav-unofficial-sigs
     # clamav-unofficial-sigs                     # eFa     # clamav
-Requires: eFa-base >= 1:6.0.0.0
+Requires: eFa-base >= 1:6.0.0.1
     # perl-DBD-mysql                             # base    # spamassassin
 Requires: chkconfig >= 1.20-2
     #                                            # base    # dcc
@@ -282,6 +282,11 @@ mkdir -p $RPM_BUILD_ROOT%{_usrsrc}/eFa/mariadb
 mv updates $RPM_BUILD_ROOT%{_usrsrc}/eFa
 
 %pre
+# Stops before any file is replaced: the post script runs too late to undo an upgrade.
+if [ -e /etc/MailScanner/MailScanner.conf ]; then
+    echo "ERROR: MailScanner is installed, nothing was changed. Use efa-migrate to upgrade this system." >&2
+    exit 1
+fi
 
 %preun
 
@@ -293,6 +298,7 @@ mv updates $RPM_BUILD_ROOT%{_usrsrc}/eFa
 
 %post
 
+status=0
 flag=0
 if [ "$1" = "1" ]; then
     # Perform Installation tasks
@@ -305,21 +311,19 @@ if [ "$1" = "1" ]; then
     else
         echo -e "\nPreparing to install eFa"
 
-        /bin/sh %{_usrsrc}/eFa/postfix-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/nginx-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/efa-web-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/clamav-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/clamav-unofficial-sigs-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/mariadb-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/unbound-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/rspamd-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/yum-cron-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/service-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/eFa-config-5.0.0.sh
-        /bin/sh %{_usrsrc}/eFa/eFaInit-config-5.0.0.sh
+        # A failed step does not stop the others, so the admin sees every failed step at once.
+        failed=""
+        for script in postfix-config-5.0.0.sh nginx-config-5.0.0.sh efa-web-config-5.0.0.sh clamav-config-5.0.0.sh clamav-unofficial-sigs-config-5.0.0.sh mariadb-config-5.0.0.sh unbound-config-5.0.0.sh rspamd-config-5.0.0.sh yum-cron-config-5.0.0.sh service-config-5.0.0.sh eFa-config-5.0.0.sh eFaInit-config-5.0.0.sh; do
+            /bin/sh %{_usrsrc}/eFa/$script || failed="$failed $script"
+        done
 
-        echo "eFa-%{version}-%{releasenum}" > %{_sysconfdir}/eFa-Version
-        echo "Build completed!"
+        if [ -z "$failed" ]; then
+            echo "eFa-%{version}-%{releasenum}" > %{_sysconfdir}/eFa-Version
+            echo "Build completed!"
+        else
+            echo "ERROR: eFa build incomplete, these steps failed:$failed"
+            status=1
+        fi
     fi
 fi
 if [[ "$1" == "2" || "$flag" == "1" ]]; then
@@ -327,22 +331,26 @@ if [[ "$1" == "2" || "$flag" == "1" ]]; then
     echo -e "\nPreparing to update eFa..."
 
     # v5 cumulative fixes
-    {
-      /bin/sh %{_usrsrc}/eFa/updates/update.sh
-      [[ $? -ne 0 ]] && echo "Error while updating eFa, Please visit https://efa-project.org to report the commands executed above." && exit 0
-    } 2>&1 | tee -a /var/log/eFa/update.log
-       
-    # cleanup if sucessful
-    rm -rf /usr/src/eFa
-    echo "eFa-%{version}-%{releasenum}" > %{_sysconfdir}/eFa-Version
+    mkdir -p /var/log/eFa
+    /bin/sh %{_usrsrc}/eFa/updates/update.sh 2>&1 | tee -a /var/log/eFa/update.log
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+        echo "ERROR: eFa update failed, the version was not changed. See /var/log/eFa/update.log."
+        status=1
+    else
+        # cleanup if sucessful
+        rm -rf /usr/src/eFa
+        echo "eFa-%{version}-%{releasenum}" > %{_sysconfdir}/eFa-Version
 
-    echo "Update completed successfully!"
+        echo "Update completed successfully!"
+    fi
 fi
 
 systemctl daemon-reload >/dev/null 2>&1 || :
 systemctl enable --now redis >/dev/null 2>&1 || :
 systemctl enable --now efa-milter-health >/dev/null 2>&1 || :
-systemctl try-restart efa-milter-health >/dev/null 2>&1 || :
+# Not efa-init: restarting it would lose a running first-run wizard.
+systemctl try-restart efa-milter-health efa-maillog efa-web >/dev/null 2>&1 || :
+exit $status
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -370,6 +378,11 @@ rm -rf $RPM_BUILD_ROOT
 %attr(0644, root, root) %{_sysconfdir}/logrotate.d/eFa-logrotate
 
 %changelog
+* Wed Nov 04 2026 MarkusLorber <351974646+MarkusLorber@users.noreply.github.com> - 6.0.0.1-1
+- Restart efa-web and efa-maillog on upgrade, so they do not keep running the old code
+- Refuse the package before any file changes where MailScanner is installed
+- Report a failed update or build step as failed, not as completed
+
 * Wed Nov 04 2026 MarkusLorber <351974646+MarkusLorber@users.noreply.github.com> - 6.0.0.0-1
 - Replace MailScanner, MailWatch, SpamAssassin, opendkim, opendmarc, sqlgrey, Apache, PHP and Perl modules with rspamd and nginx
 - Add Python web interface on waitress and efactl with the same functions in CLI and web
