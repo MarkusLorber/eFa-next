@@ -1,0 +1,1381 @@
+#!/usr/bin/python3
+"""eFa control tool. Every eFa function lives here once; CLI and web both call it.
+
+The COMMANDS table is the single source of the options: `efactl schema` hands it to
+the web interface, which builds its forms from it, so CLI and web cannot drift apart.
+Runs as root. Input is validated here because the web interface passes user input on.
+"""
+import argparse
+import getpass
+import glob
+import ipaddress
+import json
+import os
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.request
+
+ETC = os.environ.get('EFA_ETC', '/etc')
+RSPAMD_DIR = ETC + '/rspamd'
+DKIM_DIR = RSPAMD_DIR + '/dkim'
+DKIM_CONF = RSPAMD_DIR + '/local.d/dkim_signing.conf'
+DKIM_IMPORTED = DKIM_DIR + '/imported'
+SUBJECT_TAG = RSPAMD_DIR + '/efa-auth-subject-tag'
+OPENDKIM_KEYS = ETC + '/opendkim/keys'
+ACTIONS_CONF = RSPAMD_DIR + '/local.d/actions.conf'
+GREYLIST_CONF = RSPAMD_DIR + '/local.d/greylist.conf'
+# override.d: local.d would only add to rspamd's default, which trusts all private networks.
+OPTIONS_INC = RSPAMD_DIR + '/override.d/options.inc'
+SENDER_MAPS = {'allow': RSPAMD_DIR + '/local.d/maps.d/efa-sender-allow.map',
+               'block': RSPAMD_DIR + '/local.d/maps.d/efa-sender-block.map'}
+SENDER_RULES = RSPAMD_DIR + '/local.d/maps.d/efa-sender-rules.map'
+MONITOR_CRON = ETC + '/cron.d/eFa-Monitor.cron'
+QUARANTINE_RULES = ETC + '/postfix/efa-quarantine'
+QUARANTINE_DAYS_FILE = ETC + '/eFa/quarantine-days'
+QUARANTINE_DEFAULT_DAYS = 30
+DMARC_CONF = RSPAMD_DIR + '/local.d/dmarc.conf'
+DMARC_CRON = ETC + '/cron.d/efa-dmarc-report'
+REQUIRED_MILTERS = (11332, 8999)
+DNS_ZONES = ETC + '/unbound/conf.d/efa-zones.conf'
+HEALTH_EXTRA = ETC + '/sysconfig/efa-milter-health'
+MAILLOG_DAYS_FILE = ETC + '/eFa/maillog-days'
+MAILLOG_DEFAULT_DAYS = 30
+MAILLOG_SIZE_FILE = ETC + '/eFa/maillog-max-mb'
+BACKUP_DIR = os.environ.get('EFA_BACKUP_DIR', '/var/eFa/backup')
+BACKUP_KEEP_DAYS = 5
+BACKUP_PATHS = ('/etc/rspamd/local.d', '/etc/rspamd/dkim', '/etc/rspamd/efa-auth-subject-tag', '/etc/postfix',
+                '/etc/nginx/conf.d', '/etc/nginx/ssl', '/etc/letsencrypt', '/etc/efa-web', '/etc/eFa',
+                '/etc/unbound/conf.d', '/etc/sysconfig/efa-milter-health', '/etc/aliases')
+MYSQL_CONFIG = ETC + '/eFa/MySQL-Config'
+HOSTS = ETC + '/hosts'
+TRANSPORT = ETC + '/postfix/transport'
+EFA_CONFIG = ETC + '/eFa/eFa-Config'
+ALIASES = ETC + '/aliases'
+FAIL2BAN_JAIL = ETC + '/fail2ban/jail.d/efa.local'
+BACKUP_DISABLED = ETC + '/eFa/eFa-Backup.disabled'
+DEFAULT_ACTIONS = {'greylist': '4', 'rewrite_subject': '6', 'reject': '15'}
+WEB_DIR = ETC + '/efa-web'
+PASSWORD_FILE = WEB_DIR + '/admin.pw'
+MAILLOG_PW = WEB_DIR + '/maillog.pw'
+HEALTH_URL = 'http://127.0.0.1:8905/health'
+
+DKIM_MIN_BITS = 2048
+DKIM_MAX_BITS = 4096
+RSA_SELECTOR = 'efa-rsa'
+ED_SELECTOR = 'efa-ed25519'
+DOMAIN_RE = re.compile(r'^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$')
+SMARTHOST_RE = re.compile(r'^\[?[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?\]?(:[0-9]{1,5})?$')
+SENDER_RE = re.compile(r'^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$')
+HOST_RE = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$')
+BACKUP_NAME_RE = re.compile(r'^efa-backup-\d{8}-\d{6}\.tar\.gz$')
+SERVICE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9@._-]{0,100}$')
+SELECTOR_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$')
+RULE_FROM_RE = re.compile(r'^[A-Za-z0-9._%+=@:*-]{1,255}$')
+QUEUE_ID_RE = re.compile(r'^[A-Za-z0-9]{6,32}$')
+ORG_RE = re.compile(r'^[A-Za-z0-9 ]{1,64}$')
+TAG_RE = re.compile(r'^[\]\[A-Za-z0-9 _:.*!-]{1,40}$')
+
+
+class EfaError(Exception):
+    pass
+
+
+def _rspamd_user():
+    return '_rspamd'
+
+
+def _dkim_paths(domain):
+    return (f'{DKIM_DIR}/{domain}.{RSA_SELECTOR}.key', f'{DKIM_DIR}/{domain}.{ED_SELECTOR}.key')
+
+
+def _reload_rspamd():
+    subprocess.run(['systemctl', 'reload', 'rspamd'], check=False, capture_output=True)
+
+
+def _postconf(name):
+    return subprocess.run(['postconf', '-h', name], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def _postconf_set(name, value):
+    main_cf = subprocess.run(['postconf', '-h', 'config_directory'], capture_output=True, text=True,
+                             check=True).stdout.strip() + '/main.cf'
+    backup = main_cf + '.efactl'
+    shutil.copy2(main_cf, backup)
+    try:
+        subprocess.run(['postconf', '-e', f'{name} = {value}'], check=True)
+        done = subprocess.run(['postfix', 'check'], capture_output=True, text=True)
+        if done.returncode != 0:
+            # A broken main.cf would stop mail at the next reload, so keep the working one.
+            shutil.copy2(backup, main_cf)
+            raise EfaError(f'postfix check failed, nothing changed: {done.stderr.strip()[:300]}')
+    finally:
+        os.remove(backup)
+    subprocess.run(['systemctl', 'reload', 'postfix'], check=False, capture_output=True)
+
+
+def _write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        f.write(text)
+    os.chmod(path, 0o644)
+
+
+def _read_lines(path):
+    try:
+        with open(path) as f:
+            return [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        return []
+
+
+def status(_args):
+    """Service and milter state from the health service."""
+    try:
+        with urllib.request.urlopen(HEALTH_URL, timeout=5) as reply:
+            return json.load(reply)
+    except urllib.error.HTTPError as err:
+        return json.load(err)
+    except OSError as err:
+        raise EfaError(f'health service not reachable: {err}')
+
+
+def subject_get(_args):
+    """Text put in front of the subject of mail with a hard SPF, DKIM or DMARC failure."""
+    try:
+        with open(SUBJECT_TAG) as f:
+            return {'subject_tag': f.readline().strip()}
+    except FileNotFoundError:
+        return {'subject_tag': ''}
+
+
+def subject_set(args):
+    """Set the subject marking; an empty text turns it off."""
+    tag = args.text.strip()
+    if not tag:
+        if os.path.exists(SUBJECT_TAG):
+            os.remove(SUBJECT_TAG)
+        return {'subject_tag': ''}
+    if not TAG_RE.match(tag):
+        raise EfaError('Text: up to 40 letters, digits, spaces or [ ] _ : . * ! -')
+    with open(SUBJECT_TAG, 'w') as f:
+        f.write(tag + '\n')
+    os.chmod(SUBJECT_TAG, 0o644)
+    return {'subject_tag': tag}
+
+
+def _write_dkim_conf():
+    # Rebuilt from the key files so the config cannot drift from what is on disk.
+    domains = {}
+    for key in sorted(glob.glob(f'{DKIM_IMPORTED}/*.key')):
+        domain, selector = os.path.basename(key)[:-4].rsplit('.', 1)
+        domains.setdefault(domain, []).append((key, selector))
+    for key in sorted(glob.glob(f'{DKIM_DIR}/*.{RSA_SELECTOR}.key')):
+        domain = os.path.basename(key)[:-len(f'.{RSA_SELECTOR}.key')]
+        rsa_key, ed_key = _dkim_paths(domain)
+        domains.setdefault(domain, []).extend([(rsa_key, RSA_SELECTOR), (ed_key, ED_SELECTOR)])
+    if not domains:
+        text = 'enabled = false;\n'
+    else:
+        lines = ['allow_username_mismatch = true;', 'use_domain = "header";',
+                 '# Keys belong to the exact domain, also for subdomains.', 'use_esld = false;', 'domain {']
+        for domain, selectors in sorted(domains.items()):
+            items = [f'      {{ path = "{key}"; selector = "{selector}"; }}' for key, selector in selectors]
+            lines += [f'  {domain} {{', '    selectors [', ',\n'.join(items), '    ]', '  }']
+        lines.append('}')
+        text = '\n'.join(lines) + '\n'
+    with open(DKIM_CONF, 'w') as f:
+        f.write(text)
+
+
+def dkim_generate(args):
+    """Create an RSA key and the mandatory ED25519 key for a domain."""
+    domain = args.domain.strip().lower()
+    if not DOMAIN_RE.match(domain):
+        raise EfaError('Invalid domain.')
+    try:
+        bits = int(args.bits)
+    except ValueError:
+        raise EfaError('RSA key size must be a number.')
+    if not DKIM_MIN_BITS <= bits <= DKIM_MAX_BITS:
+        raise EfaError(f'RSA keys must have {DKIM_MIN_BITS} to {DKIM_MAX_BITS} bits.')
+    rsa_key, ed_key = _dkim_paths(domain)
+    if os.path.exists(rsa_key) or os.path.exists(ed_key):
+        raise EfaError(f'Keys for {domain} already exist, nothing changed.')
+
+    os.makedirs(DKIM_DIR, mode=0o750, exist_ok=True)
+    shutil.chown(DKIM_DIR, 'root', _rspamd_user())
+    records = {}
+    try:
+        for selector, key, extra in ((RSA_SELECTOR, rsa_key, ['-t', 'rsa', '-b', str(bits)]),
+                                     (ED_SELECTOR, ed_key, ['-t', 'ed25519'])):
+            done = subprocess.run(['rspamadm', 'dkim_keygen', '-d', domain, '-s', selector, '-k', key] + extra,
+                                  capture_output=True, text=True, check=True)
+            shutil.chown(key, 'root', _rspamd_user())
+            os.chmod(key, 0o640)
+            records[selector] = done.stdout.strip()
+    except (subprocess.CalledProcessError, OSError) as err:
+        # ED25519 is mandatory: never keep one key without the other.
+        for key in (rsa_key, ed_key):
+            if os.path.exists(key):
+                os.remove(key)
+        raise EfaError(f'Key generation failed, no keys were kept: {err}')
+    _write_dkim_conf()
+    _reload_rspamd()
+    return {'domain': domain, 'dns_records': records}
+
+
+def _key_bits(path):
+    done = subprocess.run(['openssl', 'pkey', '-in', path, '-noout', '-text'], capture_output=True, text=True)
+    match = re.search(r'Private-Key: \((\d+) bit', done.stdout)
+    return int(match.group(1)) if match else None
+
+
+def dkim_import(args):
+    """Take over an existing key with its selector. Used by the migration; dkim-check warns about weak keys."""
+    domain, selector = args.domain.strip().lower(), args.selector.strip()
+    if not DOMAIN_RE.match(domain):
+        raise EfaError('Invalid domain.')
+    if not SELECTOR_RE.match(selector):
+        raise EfaError('Invalid selector.')
+    if _key_bits(args.key_file) is None:
+        raise EfaError(f'{args.key_file} is no readable key.')
+    os.makedirs(DKIM_IMPORTED, mode=0o750, exist_ok=True)
+    shutil.chown(DKIM_DIR, 'root', _rspamd_user())
+    shutil.chown(DKIM_IMPORTED, 'root', _rspamd_user())
+    key = f'{DKIM_IMPORTED}/{domain}.{selector}.key'
+    shutil.copyfile(args.key_file, key)
+    shutil.chown(key, 'root', _rspamd_user())
+    os.chmod(key, 0o640)
+    _write_dkim_conf()
+    _reload_rspamd()
+    return {'imported': key}
+
+
+def dkim_check(_args):
+    """List DKIM keys. Existing keys below the rules only warn, signing keeps working."""
+    warnings = []
+    keys = []
+    for key in sorted(glob.glob(f'{DKIM_DIR}/*.{RSA_SELECTOR}.key')):
+        domain = os.path.basename(key)[:-len(f'.{RSA_SELECTOR}.key')]
+        bits = _key_bits(key)
+        has_ed = os.path.exists(_dkim_paths(domain)[1])
+        keys.append({'domain': domain, 'rsa_bits': bits, 'ed25519': has_ed})
+        if bits is None:
+            warnings.append(f'{key} cannot be read.')
+        elif bits < DKIM_MIN_BITS:
+            warnings.append(f'{domain}: RSA key has only {bits} bits, generate a new key.')
+        if not has_ed:
+            warnings.append(f'{domain}: no ED25519 key.')
+    for key in sorted(glob.glob(f'{DKIM_IMPORTED}/*.key')):
+        domain, selector = os.path.basename(key)[:-4].rsplit('.', 1)
+        bits = _key_bits(key)
+        keys.append({'domain': domain, 'selector': selector, 'rsa_bits': bits, 'imported': True})
+        if bits is not None and bits < DKIM_MIN_BITS:
+            warnings.append(f'{domain}: imported key {selector} has only {bits} bits, generate a new key.')
+        if not os.path.exists(_dkim_paths(domain)[1]):
+            warnings.append(f'{domain}: no ED25519 key.')
+    old = glob.glob(f'{OPENDKIM_KEYS}/*.private') + glob.glob(f'{OPENDKIM_KEYS}/*/*.private')
+    for key in sorted(old):
+        bits = _key_bits(key)
+        warnings.append(f'{key}: opendkim key ({bits} bits) without ED25519, generate new keys.')
+    return {'keys': keys, 'warnings': warnings}
+
+
+def _actions():
+    values = dict(DEFAULT_ACTIONS)
+    for line in _read_lines(ACTIONS_CONF):
+        match = re.match(r'^(greylist|rewrite_subject|reject) = ([0-9.]+);', line)
+        if match:
+            values[match.group(1)] = match.group(2)
+    return values
+
+
+def settings(_args):
+    """Current values of the settings below."""
+    return {
+        'maintenance_mode': not os.path.exists(MONITOR_CRON),
+        'relay_networks': _postconf('mynetworks').split(),
+        'smarthost': _postconf('relayhost'),
+        'message_size_limit_mb': int(_postconf('message_size_limit')) // (1024 * 1024),
+        'spam_scores': _actions(),
+        'greylisting': 'enabled = false;' not in _read_lines(GREYLIST_CONF),
+        'sender_allow': _read_lines(SENDER_MAPS['allow']),
+        'sender_block': _read_lines(SENDER_MAPS['block']),
+        'transports': _read_transports(),
+        'admin_email': _admin_email(),
+        'recipient_verification': 'reject_unverified_recipient' in _postconf('smtpd_recipient_restrictions'),
+        'fail2ban': os.path.exists(FAIL2BAN_JAIL),
+        'auto_backup': not os.path.exists(BACKUP_DISABLED),
+        'smtpd_milters': _postconf('smtpd_milters'),
+        'dns_zones': _dns_zones(),
+        'extra_services': _read_lines(HEALTH_EXTRA),
+        'maillog_days': _maillog_days(),
+        'quarantine': bool(_postconf('milter_header_checks')),
+        'quarantine_days': _quarantine_days(),
+        'dmarc_reports': os.path.exists(DMARC_CRON),
+        'maillog_max_mb': _maillog_max_mb(),
+    }
+
+
+def _on_off(value):
+    value = value.strip().lower()
+    if value not in ('on', 'off'):
+        raise EfaError("Value must be 'on' or 'off'.")
+    return value == 'on'
+
+
+def maintenance_set(args):
+    """Maintenance mode stops the service monitor from restarting services."""
+    if _on_off(args.mode):
+        if os.path.exists(MONITOR_CRON):
+            os.remove(MONITOR_CRON)
+    else:
+        _write(MONITOR_CRON, '* * * * * root /usr/sbin/eFa-Monitor-cron >/dev/null 2>&1\n')
+    return {'maintenance_mode': not os.path.exists(MONITOR_CRON)}
+
+
+def relay_networks_set(args):
+    """Networks allowed to relay; rspamd treats them as internal."""
+    nets = []
+    for item in args.networks.replace(',', ' ').split():
+        try:
+            net = ipaddress.ip_network(item, strict=False)
+        except ValueError:
+            raise EfaError(f'Invalid network: {item}')
+        if net.prefixlen == 0:
+            raise EfaError(f'Refusing open relay network: {item}')
+        nets.append(str(net))
+    postfix_nets = ['127.0.0.0/8', '[::1]/128'] + [f'[{n.split("/")[0]}]/{n.split("/")[1]}' if ':' in n else n
+                                                  for n in nets]
+    _postconf_set('mynetworks', ' '.join(postfix_nets))
+    quoted = ','.join(f'"{n}"' for n in ['127.0.0.0/8', '::1/128'] + nets)
+    _write(OPTIONS_INC, f'local_addrs = [{quoted}];\n')
+    _reload_rspamd()
+    return {'relay_networks': postfix_nets}
+
+
+def smarthost_set(args):
+    """Outbound smarthost, for example [mail.example.org]:587; empty sends directly."""
+    host = args.host.strip()
+    if host and not SMARTHOST_RE.match(host):
+        raise EfaError('Invalid smarthost.')
+    _postconf_set('relayhost', host)
+    return {'smarthost': host}
+
+
+def message_size_set(args):
+    """Largest accepted message in MB."""
+    try:
+        size = int(args.megabytes)
+    except ValueError:
+        raise EfaError('Size must be a number.')
+    if not 1 <= size <= 1024:
+        raise EfaError('Size must be 1 to 1024 MB.')
+    _postconf_set('message_size_limit', str(size * 1024 * 1024))
+    return {'message_size_limit_mb': size}
+
+
+def spam_scores_set(args):
+    """Scores for greylisting, spam marking and rejecting; each must be higher than the one before."""
+    try:
+        values = [float(args.greylist), float(args.mark), float(args.reject)]
+    except ValueError:
+        raise EfaError('Scores must be numbers.')
+    if not 0 < values[0] < values[1] < values[2]:
+        raise EfaError('Scores must rise: greylist < mark < reject.')
+    _write(ACTIONS_CONF, f'greylist = {values[0]:g};\nrewrite_subject = {values[1]:g};\nreject = {values[2]:g};\n'
+                         'subject = "{Spam?} %s";\n')
+    _reload_rspamd()
+    return {'spam_scores': _actions()}
+
+
+def greylisting_set(args):
+    """Turn rspamd greylisting on or off."""
+    enabled = _on_off(args.mode)
+    _write(GREYLIST_CONF, 'enabled = true;\n' if enabled else 'enabled = false;\n')
+    _reload_rspamd()
+    return {'greylisting': enabled}
+
+
+def sender_list_set(args):
+    """Add or remove a sender. Allow only lowers the score; DMARC and virus checks still apply."""
+    which, action, address = args.list.strip(), args.action.strip(), args.address.strip().lower()
+    if which not in SENDER_MAPS or action not in ('add', 'remove'):
+        raise EfaError("List must be 'allow' or 'block', action 'add' or 'remove'.")
+    if not SENDER_RE.match(address) and not DOMAIN_RE.match(address):
+        raise EfaError('Invalid sender address or domain.')
+    entries = _read_lines(SENDER_MAPS[which])
+    if action == 'add' and address not in entries:
+        entries.append(address)
+    elif action == 'remove' and address in entries:
+        entries.remove(address)
+    _write(SENDER_MAPS[which], ''.join(e + '\n' for e in entries))
+    _reload_rspamd()
+    return {f'sender_{which}': entries}
+
+
+def _read_transports():
+    entries = {}
+    for line in _read_lines(TRANSPORT):
+        match = re.match(r'^(\S+)\s+smtp:\[?([^\]\s]+)\]?(:\d+)?$', line)
+        if match:
+            entries[match.group(1)] = match.group(2) + (match.group(3) or '')
+    return entries
+
+
+def sender_rule_set(args):
+    """Rules beyond the lists: IP addresses, patterns with *, or only for one recipient or domain. A word without . @ : matches anywhere."""
+    which, action = args.list.strip(), args.action.strip()
+    sender, recipient = args.sender.strip().lower(), (args.recipient.strip().lower() or 'default')
+    if which not in SENDER_MAPS or action not in ('add', 'remove'):
+        raise EfaError("List must be 'allow' or 'block', action 'add' or 'remove'.")
+    if not RULE_FROM_RE.match(sender) or sender.strip('*') == '':
+        raise EfaError('Invalid sender, IP address or pattern.')
+    if recipient != 'default' and not SENDER_RE.match(recipient) and not DOMAIN_RE.match(recipient):
+        raise EfaError('Recipient must be an address, a domain or empty.')
+    line = f'{which}|{sender}|{recipient}'
+    entries = [e for e in _read_lines(SENDER_RULES) if e != line]
+    if action == 'add':
+        entries.append(line)
+    _write(SENDER_RULES, ''.join(e + '\n' for e in entries))
+    _reload_rspamd()
+    return {'sender_rules': entries}
+
+
+def transport_set(args):
+    """Inbound mail route: which internal server receives mail for a domain."""
+    domain, action, dest = args.domain.strip().lower(), args.action.strip(), args.destination.strip()
+    if not DOMAIN_RE.match(domain):
+        raise EfaError('Invalid domain.')
+    if action not in ('add', 'remove'):
+        raise EfaError("Action must be 'add' or 'remove'.")
+    if action == 'add' and not HOST_RE.match(dest):
+        raise EfaError('Invalid destination host.')
+    backup = open(TRANSPORT).read() if os.path.exists(TRANSPORT) else ''
+    lines = [line for line in backup.splitlines() if line.split()[:1] != [domain]]
+    if action == 'add':
+        host, _, port = dest.partition(':')
+        lines.append(f'{domain}  smtp:[{host}]' + (f':{port}' if port else ''))
+    _write(TRANSPORT, '\n'.join(lines) + '\n')
+    try:
+        subprocess.run(['postmap', TRANSPORT], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        _write(TRANSPORT, backup)
+        subprocess.run(['postmap', TRANSPORT], check=False, capture_output=True)
+        raise EfaError('postmap failed, nothing changed.')
+    subprocess.run(['systemctl', 'reload', 'postfix'], check=False, capture_output=True)
+    return {'transports': _read_transports()}
+
+
+def _admin_email():
+    for line in _read_lines(EFA_CONFIG):
+        if line.startswith('ADMINEMAIL:'):
+            return line.split(':', 1)[1]
+    return ''
+
+
+def admin_email_set(args):
+    """Address for system alerts; root mail goes there too."""
+    email = args.email.strip().lower()
+    if not SENDER_RE.match(email):
+        raise EfaError('Invalid email address.')
+    lines = [line for line in _read_lines(EFA_CONFIG) if not line.startswith('ADMINEMAIL:')]
+    _write(EFA_CONFIG, '\n'.join(lines + [f'ADMINEMAIL:{email}']) + '\n')
+    # Keep the raw lines: alias continuation lines depend on their leading whitespace.
+    with open(ALIASES) as f:
+        aliases = [line for line in f if not line.startswith('root:')]
+    _write(ALIASES, ''.join(aliases) + f'root: {email}\n')
+    subprocess.run(['newaliases'], check=True, capture_output=True)
+    return {'admin_email': email}
+
+
+def recipient_verification_set(args):
+    """Ask the internal mail server if a recipient exists before accepting mail."""
+    enabled = _on_off(args.mode)
+    items = [i.strip() for i in _postconf('smtpd_recipient_restrictions').split(',') if i.strip()]
+    items = [i for i in items if i != 'reject_unverified_recipient']
+    if enabled:
+        items.append('reject_unverified_recipient')
+        _postconf_set('unverified_recipient_reject_reason', 'No user at this address')
+        _postconf_set('unverified_recipient_reject_code', '550')
+    _postconf_set('smtpd_recipient_restrictions', ', '.join(items))
+    return {'recipient_verification': enabled}
+
+
+def fail2ban_set(args):
+    """Ban addresses after failed SSH and SMTP logins."""
+    enabled = _on_off(args.mode)
+    if shutil.which('fail2ban-client') is None:
+        raise EfaError('fail2ban is not installed.')
+    if enabled:
+        _write(FAIL2BAN_JAIL, '[sshd]\nenabled = true\n\n[postfix-sasl]\nenabled = true\nfilter = postfix[mode=auth]\n')
+        subprocess.run(['systemctl', 'enable', '--now', 'fail2ban'], check=True, capture_output=True)
+        subprocess.run(['systemctl', 'restart', 'fail2ban'], check=True, capture_output=True)
+    else:
+        if os.path.exists(FAIL2BAN_JAIL):
+            os.remove(FAIL2BAN_JAIL)
+        subprocess.run(['systemctl', 'disable', '--now', 'fail2ban'], check=True, capture_output=True)
+    return {'fail2ban': enabled}
+
+
+def backup_set(args):
+    """Turn the automatic daily backup on or off."""
+    enabled = _on_off(args.mode)
+    if enabled:
+        if os.path.exists(BACKUP_DISABLED):
+            os.remove(BACKUP_DISABLED)
+    else:
+        _write(BACKUP_DISABLED, '')
+    return {'auto_backup': enabled}
+
+
+def _confirm(args):
+    if args.confirm.strip() != 'yes':
+        raise EfaError("Type 'yes' to confirm.")
+
+
+def update_now(args):
+    """Install all available updates. Runs in the background; progress is in the journal of unit efa-update."""
+    _confirm(args)
+    subprocess.run(['systemd-run', '--unit=efa-update', '--collect', 'dnf', '-y', 'update'], check=True,
+                   capture_output=True)
+    return {'update': 'started', 'log': 'journalctl -u efa-update'}
+
+
+def reboot_host(args):
+    """Restart the host in one minute."""
+    _confirm(args)
+    subprocess.run(['shutdown', '-r', '+1'], check=True, capture_output=True)
+    return {'reboot': 'in one minute', 'cancel': 'shutdown -c'}
+
+
+def halt_host(args):
+    """Shut the host down in one minute."""
+    _confirm(args)
+    subprocess.run(['shutdown', '-h', '+1'], check=True, capture_output=True)
+    return {'halt': 'in one minute', 'cancel': 'shutdown -c'}
+
+
+def _mysql_env():
+    env = dict(os.environ)
+    for line in _read_lines(MYSQL_CONFIG):
+        if line.startswith('MYSQLROOTPWD:'):
+            env['MYSQL_PWD'] = line.split(':', 1)[1]
+    return env
+
+
+def backup_now(_args):
+    """Back up eFa settings, DKIM keys and the database; backups older than 5 days are removed."""
+    os.makedirs(BACKUP_DIR, mode=0o700, exist_ok=True)
+    os.chmod(BACKUP_DIR, 0o700)
+    # A name used twice would overwrite a backup, for example the one about to be restored.
+    while True:
+        name = time.strftime('efa-backup-%Y%m%d-%H%M%S.tar.gz')
+        if not os.path.exists(f'{BACKUP_DIR}/{name}'):
+            break
+        time.sleep(1)
+    with tempfile.TemporaryDirectory(dir=BACKUP_DIR) as tmp:
+        dump = None
+        if shutil.which('mysqldump'):
+            dump = tmp + '/backup.sql'
+            with open(dump, 'w') as f:
+                subprocess.run(['mysqldump', '--user=root', '--all-databases', '--events', '--single-transaction'],
+                               stdout=f, env=_mysql_env(), check=True, stderr=subprocess.PIPE)
+        path = f'{BACKUP_DIR}/{name}'
+        with tarfile.open(path + '.tmp', 'w:gz') as tar:
+            os.chmod(path + '.tmp', 0o600)
+            for item in BACKUP_PATHS:
+                if os.path.exists(item):
+                    tar.add(item, arcname=item.lstrip('/'))
+            if dump:
+                tar.add(dump, arcname='backup.sql')
+        os.replace(path + '.tmp', path)
+    cutoff = time.time() - BACKUP_KEEP_DAYS * 86400
+    for old in glob.glob(f'{BACKUP_DIR}/efa-backup-*.tar.gz'):
+        if os.path.getmtime(old) < cutoff:
+            os.remove(old)
+    return {'backup': name, 'size': os.path.getsize(path), 'database': bool(dump)}
+
+
+def backup_list(_args):
+    """List available backups."""
+    return {'backups': sorted(os.path.basename(b) for b in glob.glob(f'{BACKUP_DIR}/efa-backup-*.tar.gz'))}
+
+
+def restore(args):
+    """Restore a backup. A backup of the current state is made first."""
+    _confirm(args)
+    name = args.name.strip()
+    if not BACKUP_NAME_RE.match(name) or not os.path.exists(f'{BACKUP_DIR}/{name}'):
+        raise EfaError('Unknown backup.')
+    safety = backup_now(None)['backup']
+    allowed = tuple(item.lstrip('/') for item in BACKUP_PATHS)
+    with tempfile.TemporaryDirectory(dir=BACKUP_DIR) as tmp:
+        with tarfile.open(f'{BACKUP_DIR}/{name}') as tar:
+            members = [m for m in tar.getmembers()
+                       if m.name == 'backup.sql' or any(m.name == x or m.name.startswith(x + '/') for x in allowed)]
+            tar.extractall(tmp, members=members, filter='tar')
+        for member in members:
+            if member.name == 'backup.sql' or member.isdir():
+                continue
+            target = '/' + member.name
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            # Copying a symlink fails when the target already exists.
+            if member.issym() and os.path.lexists(target):
+                os.remove(target)
+            shutil.copy2(f'{tmp}/{member.name}', target, follow_symlinks=False)
+            os.chown(target, member.uid, member.gid, follow_symlinks=False)
+        dump = tmp + '/backup.sql'
+        if os.path.exists(dump):
+            with open(dump) as f:
+                subprocess.run(['mysql', '--user=root'], stdin=f, env=_mysql_env(), check=True, capture_output=True)
+    # Copied files keep the label of the temp directory, and SELinux would lock services out of them.
+    subprocess.run(['restorecon', '-R'] + [item for item in BACKUP_PATHS if os.path.exists(item)], check=False,
+                   capture_output=True)
+    for service in ('postfix', 'rspamd', 'nginx', 'unbound'):
+        subprocess.run(['systemctl', 'reload-or-restart', service], check=False, capture_output=True)
+    return {'restored': name, 'safety_backup': safety, 'files': len(members)}
+
+
+def mariadb_repair(args):
+    """Repair and optimize all databases. Mail stays queued meanwhile."""
+    _confirm(args)
+    env = _mysql_env()
+    subprocess.run(['systemctl', 'stop', 'postfix'], check=False, capture_output=True)
+    try:
+        for mode in ('--repair', '--optimize'):
+            done = subprocess.run(['mysqlcheck', '--user=root', mode, '--all-databases'], env=env,
+                                  capture_output=True, text=True, check=True)
+    finally:
+        subprocess.run(['systemctl', 'start', 'postfix'], check=False, capture_output=True)
+    return {'mariadb_repair': 'done', 'output': done.stdout[-500:]}
+
+
+def network_show(_args):
+    """Current hostname and network settings."""
+    device = _network_device()
+    done = subprocess.run(['nmcli', '-t', '-f', 'ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns',
+                           'connection', 'show', device], capture_output=True, text=True, check=True)
+    return dict(line.split(':', 1) for line in done.stdout.splitlines()) | {
+        'connection': device, 'hostname': subprocess.run(['hostname', '-f'], capture_output=True, text=True).stdout.strip()}
+
+
+def _network_device():
+    done = subprocess.run(['nmcli', '-t', '-f', 'NAME,TYPE', 'connection', 'show', '--active'],
+                          capture_output=True, text=True, check=True)
+    for line in done.stdout.splitlines():
+        name, _, kind = line.rpartition(':')
+        if kind == '802-3-ethernet':
+            return name
+    raise EfaError('No active ethernet connection.')
+
+
+def network_set(args):
+    """Set hostname and IPv4 address. Takes effect after the next reboot so a typo cannot cut the session."""
+    _confirm(args)
+    fqdn = args.hostname.strip().lower()
+    if not DOMAIN_RE.match(fqdn):
+        raise EfaError('Hostname must be a full name, for example mx1.example.org.')
+    method = args.method.strip()
+    if method not in ('auto', 'manual'):
+        raise EfaError("Method must be 'auto' or 'manual'.")
+    # Validate everything first: nmcli only runs once all input is known to be good.
+    if method == 'manual':
+        try:
+            iface = ipaddress.IPv4Interface(args.address.strip())
+            gateway = ipaddress.IPv4Address(args.gateway.strip())
+        except ValueError:
+            raise EfaError('Address must look like 192.0.2.10/24 and the gateway like 192.0.2.1.')
+        if gateway not in iface.network:
+            raise EfaError('Gateway is not in the network of the address.')
+        ipv4 = ['ipv4.method', 'manual', 'ipv4.addresses', str(iface), 'ipv4.gateway', str(gateway)]
+        address = str(iface.ip)
+    else:
+        ipv4 = ['ipv4.method', 'auto', 'ipv4.addresses', '', 'ipv4.gateway', '']
+        address = None
+    method6 = args.ipv6_method.strip() or 'ignore'
+    if method6 not in ('auto', 'manual', 'ignore'):
+        raise EfaError("IPv6 method must be 'auto', 'manual' or 'ignore'.")
+    address6 = None
+    if method6 == 'manual':
+        try:
+            iface6 = ipaddress.IPv6Interface(args.ipv6_address.strip())
+            gateway6 = ipaddress.IPv6Address(args.ipv6_gateway.strip())
+        except ValueError:
+            raise EfaError('IPv6 address must look like 2001:db8::10/64 and the gateway like 2001:db8::1.')
+        ipv6 = ['ipv6.method', 'manual', 'ipv6.addresses', str(iface6), 'ipv6.gateway', str(gateway6), 'ipv6.dns', '::1']
+        address6 = str(iface6.ip)
+    else:
+        ipv6 = ['ipv6.method', method6, 'ipv6.addresses', '', 'ipv6.gateway', '']
+    device = _network_device()
+    subprocess.run(['nmcli', 'connection', 'modify', device] + ipv4 + ['ipv4.dns', '127.0.0.1'] + ipv6, check=True,
+                   capture_output=True)
+    short = fqdn.split('.')[0]
+    shutil.copy2(HOSTS, HOSTS + '.bak')
+    lines = ['127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4',
+             '::1         localhost localhost.localdomain localhost6 localhost6.localdomain6']
+    if address:
+        lines.append(f'{address}    {fqdn}   {short}')
+    if address6:
+        lines.append(f'{address6}    {fqdn}   {short}')
+    _write(HOSTS, '\n'.join(lines) + '\n')
+    _write(ETC + '/hostname', fqdn + '\n')
+    _postconf_set('myhostname', fqdn)
+    return {'hostname': fqdn, 'method': method, 'address': args.address.strip(), 'ipv6_method': method6,
+            'ipv6_address': args.ipv6_address.strip(), 'effective': 'after reboot'}
+
+
+def letsencrypt_set(args):
+    """Request a Let's Encrypt certificate for nginx and postfix. Port 80 must be reachable from outside."""
+    domain = args.domain.strip().lower()
+    email = args.email.strip().lower()
+    if not DOMAIN_RE.match(domain):
+        raise EfaError('Invalid domain.')
+    if not SENDER_RE.match(email):
+        raise EfaError('Invalid email address.')
+    if args.accept_tos.strip() != 'yes':
+        raise EfaError("Type 'yes' to accept the Let's Encrypt terms of service.")
+    done = subprocess.run(['certbot', '--nginx', '--non-interactive', '--agree-tos', '-m', email, '--domains', domain],
+                          capture_output=True, text=True)
+    if done.returncode != 0:
+        raise EfaError('certbot failed: ' + (done.stderr or done.stdout)[-400:])
+    live = f'{ETC}/letsencrypt/live/{domain}'
+    _postconf_set('smtpd_tls_key_file', f'{live}/privkey.pem')
+    _postconf_set('smtpd_tls_cert_file', f'{live}/fullchain.pem')
+    _write(ETC + '/cron.d/certbotrenew',
+           '0 0,12 * * * root certbot renew --quiet --deploy-hook "systemctl reload nginx postfix"\n')
+    return {'letsencrypt': domain}
+
+
+def _maillog_db():
+    import pymysql
+    with open(MAILLOG_PW) as f:
+        password = f.read().strip()
+    return pymysql.connect(unix_socket='/var/lib/mysql/mysql.sock', user='efa_log', password=password, database='efa',
+                           charset='utf8mb4', autocommit=True, cursorclass=pymysql.cursors.DictCursor)
+
+
+def maillog_setup(_args):
+    """Create the mail log database and its restricted user. Safe to run again."""
+    os.makedirs(WEB_DIR, mode=0o750, exist_ok=True)
+    if os.path.exists(MAILLOG_PW):
+        with open(MAILLOG_PW) as f:
+            password = f.read().strip()
+    else:
+        password = secrets.token_urlsafe(32)
+        fd = os.open(MAILLOG_PW, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+        with os.fdopen(fd, 'w') as f:
+            f.write(password + '\n')
+    shutil.chown(MAILLOG_PW, 'root', 'efa-web')
+    sql = f"""CREATE DATABASE IF NOT EXISTS efa CHARACTER SET utf8mb4;
+CREATE TABLE IF NOT EXISTS efa.maillog (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  ts DATETIME NOT NULL, qid VARCHAR(64), message_id VARCHAR(255), sender VARCHAR(255), rcpt VARCHAR(1000),
+  ip VARCHAR(64), action VARCHAR(32), score FLOAT, subject VARCHAR(500),
+  KEY ts (ts), KEY sender (sender), KEY qid (qid));
+CREATE USER IF NOT EXISTS 'efa_log'@'localhost' IDENTIFIED BY '{password}';
+ALTER USER 'efa_log'@'localhost' IDENTIFIED BY '{password}';
+GRANT SELECT, INSERT, DELETE ON efa.maillog TO 'efa_log'@'localhost';"""
+    subprocess.run(['mysql', '--user=root'], input=sql, text=True, env=_mysql_env(), check=True, capture_output=True)
+    return {'maillog_setup': 'done'}
+
+
+def maillog_search(args):
+    """Search the mail log by sender, recipient, subject, queue ID or IP."""
+    try:
+        limit = int(args.limit)
+    except ValueError:
+        raise EfaError('Limit must be a number.')
+    if not 1 <= limit <= 1000:
+        raise EfaError('Limit must be 1 to 1000.')
+    needle = '%' + args.text.strip().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+    db = _maillog_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute('SELECT CAST(ts AS CHAR) AS ts, qid, sender, rcpt, ip, action, score, subject FROM maillog '
+                        'WHERE sender LIKE %s OR rcpt LIKE %s OR subject LIKE %s OR qid LIKE %s OR ip LIKE %s '
+                        'ORDER BY ts DESC, id DESC LIMIT %s', (needle, needle, needle, needle, needle, limit))
+            return {'mails': cur.fetchall()}
+    finally:
+        db.close()
+
+
+def _maillog_days():
+    for line in _read_lines(MAILLOG_DAYS_FILE):
+        if line.isdigit():
+            return int(line)
+    return MAILLOG_DEFAULT_DAYS
+
+
+def maillog_retention_set(args):
+    """Days to keep the mail log. It holds personal data, so keep it as short as you can."""
+    try:
+        days = int(args.days)
+    except ValueError:
+        raise EfaError('Days must be a number.')
+    if not 1 <= days <= 3650:
+        raise EfaError('Days must be 1 to 3650.')
+    _write(MAILLOG_DAYS_FILE, f'{days}\n')
+    return {'maillog_days': days}
+
+
+def _maillog_max_mb():
+    for line in _read_lines(MAILLOG_SIZE_FILE):
+        if line.isdigit():
+            return int(line)
+    return 0
+
+
+def maillog_size_set(args):
+    """Largest size of the mail log in MB; the oldest entries go first. 0 turns the limit off."""
+    try:
+        megabytes = int(args.megabytes)
+    except ValueError:
+        raise EfaError('Size must be a number.')
+    if not 0 <= megabytes <= 10485760:
+        raise EfaError('Size must be 0 to 10485760 MB.')
+    _write(MAILLOG_SIZE_FILE, f'{megabytes}\n')
+    return {'maillog_max_mb': megabytes}
+
+
+def maillog_purge(_args):
+    """Delete entries older than the retention period and, if set, the oldest ones above the size limit."""
+    days, max_mb = _maillog_days(), _maillog_max_mb()
+    db = _maillog_db()
+    try:
+        with db.cursor() as cur:
+            deleted = cur.execute('DELETE FROM maillog WHERE ts < NOW() - INTERVAL %s DAY', (days,))
+            deleted_size = 0
+            if max_mb:
+                cur.execute("SELECT data_length + index_length AS size FROM information_schema.tables "
+                            "WHERE table_schema = 'efa' AND table_name = 'maillog'")
+                size = cur.fetchone()['size'] or 0
+                cur.execute('SELECT COUNT(*) AS n FROM maillog')
+                rows = cur.fetchone()['n']
+                limit = max_mb * 1024 * 1024
+                if size > limit and rows:
+                    # shortcut: row sizes are averaged, so the result is close to the limit, not exact.
+                    keep = int(rows * limit / size)
+                    cur.execute('SELECT id FROM maillog ORDER BY id DESC LIMIT 1 OFFSET %s', (keep,))
+                    found = cur.fetchone()
+                    if found:
+                        deleted_size = cur.execute('DELETE FROM maillog WHERE id <= %s', (found['id'],))
+    finally:
+        db.close()
+    if deleted or deleted_size:
+        # InnoDB keeps freed space in its file until the table is rebuilt.
+        subprocess.run(['mysqlcheck', '--user=root', '--optimize', 'efa', 'maillog'], env=_mysql_env(),
+                       check=True, capture_output=True)
+    return {'deleted_by_age': deleted, 'deleted_by_size': deleted_size, 'maillog_days': days, 'maillog_max_mb': max_mb}
+
+
+def _port_listening(port):
+    with socket.socket() as probe:
+        probe.settimeout(2)
+        return probe.connect_ex(('127.0.0.1', port)) == 0
+
+
+def milter_chain_set(args):
+    """Order of the milters by port, for site-specific milters. rspamd (11332) and the health milter must stay in."""
+    try:
+        ports = [int(item) for item in args.ports.replace(',', ' ').split()]
+    except ValueError:
+        raise EfaError('Ports must be numbers.')
+    if not ports or len(set(ports)) != len(ports) or not all(1 <= port <= 65535 for port in ports):
+        raise EfaError('Give each port once, 1 to 65535.')
+    for required in REQUIRED_MILTERS:
+        if required not in ports:
+            raise EfaError(f'Port {required} must stay in the chain.')
+    # A wrong port delays every mail until its timeout, so refuse what does not answer.
+    closed = [port for port in ports if not _port_listening(port)]
+    if closed:
+        raise EfaError(f'Nothing listens on port {closed}, nothing changed.')
+    chain = ', '.join(f'inet:127.0.0.1:{port}' for port in ports)
+    _postconf_set('smtpd_milters', chain)
+    return {'smtpd_milters': chain}
+
+
+def dns_zone_set(args):
+    """Send one DNS zone to internal servers, for example a company domain. Everything else resolves directly."""
+    zone, action = args.zone.strip().lower().rstrip('.'), args.action.strip()
+    if not DOMAIN_RE.match(zone):
+        raise EfaError('Invalid zone.')
+    if action not in ('add', 'remove'):
+        raise EfaError("Action must be 'add' or 'remove'.")
+    zones = _dns_zones()
+    if action == 'add':
+        servers = args.servers.replace(',', ' ').split()
+        try:
+            servers = [str(ipaddress.ip_address(server)) for server in servers]
+        except ValueError:
+            raise EfaError('Servers must be IP addresses.')
+        if not servers:
+            raise EfaError('Give at least one server.')
+        zones[zone] = servers
+    else:
+        zones.pop(zone, None)
+    lines = []
+    for name, servers in sorted(zones.items()):
+        # Internal zones are usually unsigned and would fail DNSSEC validation.
+        lines += ['server:', f'  domain-insecure: "{name}"', 'forward-zone:', f'  name: "{name}"']
+        lines += [f'  forward-addr: {server}' for server in servers]
+    previous = open(DNS_ZONES).read() if os.path.exists(DNS_ZONES) else None
+    _write(DNS_ZONES, '\n'.join(lines) + '\n')
+    done = subprocess.run(['unbound-checkconf'], capture_output=True, text=True)
+    if done.returncode != 0:
+        if previous is None:
+            os.remove(DNS_ZONES)
+        else:
+            _write(DNS_ZONES, previous)
+        raise EfaError('unbound rejected the change, nothing changed: ' + done.stdout.strip()[-200:])
+    subprocess.run(['systemctl', 'restart', 'unbound'], check=False, capture_output=True)
+    return {'dns_zones': zones}
+
+
+def _dns_zones():
+    zones = {}
+    name = None
+    for line in _read_lines(DNS_ZONES):
+        if line.startswith('name:'):
+            name = line.split('"')[1]
+            zones[name] = []
+        elif line.startswith('forward-addr:') and name:
+            zones[name].append(line.split()[1])
+    return zones
+
+
+def extra_service_set(args):
+    """Site-specific systemd services the health service also watches. They show in status, not in mail."""
+    name, action = args.name.strip(), args.action.strip()
+    if not SERVICE_RE.match(name):
+        raise EfaError('Invalid service name.')
+    if action not in ('add', 'remove'):
+        raise EfaError("Action must be 'add' or 'remove'.")
+    entries = [e for e in _read_lines(HEALTH_EXTRA) if e != name]
+    if action == 'add':
+        entries.append(name)
+    _write(HEALTH_EXTRA, ''.join(e + '\n' for e in entries))
+    return {'extra_services': entries}
+
+
+def quarantine_set(args):
+    """Hold mail rspamd marks as spam instead of delivering it. It waits in the mail server until released or deleted."""
+    enabled = _on_off(args.mode)
+    if enabled:
+        _write(QUARANTINE_RULES, '/^X-Spam: Yes/ HOLD eFa quarantine\n/^X-Spam-Status: Yes/ HOLD eFa quarantine\n')
+        _postconf_set('milter_header_checks', f'regexp:{QUARANTINE_RULES}')
+    else:
+        _postconf_set('milter_header_checks', '')
+    return {'quarantine': enabled}
+
+
+def _held_mail():
+    done = subprocess.run(['postqueue', '-j'], capture_output=True, text=True, check=True)
+    mails = []
+    for line in done.stdout.splitlines():
+        item = json.loads(line)
+        if item.get('queue_name') == 'hold':
+            mails.append({'id': item['queue_id'], 'sender': item.get('sender', ''),
+                          'recipients': [r['address'] for r in item.get('recipients', [])],
+                          'arrived': item.get('arrival_time'), 'size': item.get('message_size')})
+    return mails
+
+
+def quarantine_list(_args):
+    """List quarantined mail."""
+    return {'quarantine': _held_mail(), 'quarantine_days': _quarantine_days()}
+
+
+def _held_id(args):
+    queue_id = args.id.strip()
+    if not QUEUE_ID_RE.match(queue_id):
+        raise EfaError('Invalid queue ID.')
+    if queue_id not in [m['id'] for m in _held_mail()]:
+        raise EfaError('This mail is not in quarantine.')
+    return queue_id
+
+
+def quarantine_show(args):
+    """Show the headers of a quarantined mail."""
+    queue_id = _held_id(args)
+    done = subprocess.run(['postcat', '-hq', queue_id], capture_output=True, text=True, check=True)
+    return {'id': queue_id, 'headers': done.stdout[:20000]}
+
+
+def quarantine_release(args):
+    """Deliver a quarantined mail."""
+    queue_id = _held_id(args)
+    # -r, not -H: released mail gets a new arrival time, so old mail does not bounce
+    subprocess.run(['postsuper', '-r', queue_id], check=True, capture_output=True)
+    return {'released': queue_id}
+
+
+def quarantine_delete(args):
+    """Delete a quarantined mail for good."""
+    _confirm(args)
+    queue_id = _held_id(args)
+    subprocess.run(['postsuper', '-d', queue_id], check=True, capture_output=True)
+    return {'deleted': queue_id}
+
+
+def _quarantine_days():
+    for line in _read_lines(QUARANTINE_DAYS_FILE):
+        if line.isdigit():
+            return int(line)
+    return QUARANTINE_DEFAULT_DAYS
+
+
+def quarantine_days_set(args):
+    """Days until quarantined mail is deleted."""
+    try:
+        days = int(args.days)
+    except ValueError:
+        raise EfaError('Days must be a number.')
+    if not 1 <= days <= 3650:
+        raise EfaError('Days must be 1 to 3650.')
+    _write(QUARANTINE_DAYS_FILE, f'{days}\n')
+    return {'quarantine_days': days}
+
+
+def quarantine_purge(_args):
+    """Delete quarantined mail older than the set number of days."""
+    cutoff = time.time() - _quarantine_days() * 86400
+    deleted = [m['id'] for m in _held_mail() if (m['arrived'] or 0) < cutoff]
+    for queue_id in deleted:
+        subprocess.run(['postsuper', '-d', queue_id], check=True, capture_output=True)
+    return {'deleted': len(deleted)}
+
+
+def dmarc_reports_set(args):
+    """Send DMARC reports to the addresses domains publish. Needs Redis and outgoing mail."""
+    enabled = _on_off(args.mode)
+    text = open(DMARC_CONF).read() if os.path.exists(DMARC_CONF) else ''
+    text = re.sub(r'reporting \{.*?\n\}\n?', '', text, flags=re.S)
+    if enabled:
+        domain, email, org = (args.domain or '').strip().lower(), (args.email or '').strip().lower(), (args.org or '').strip()
+        if not DOMAIN_RE.match(domain):
+            raise EfaError('Invalid domain.')
+        if not SENDER_RE.match(email):
+            raise EfaError('Invalid email address.')
+        if not ORG_RE.match(org):
+            raise EfaError('Organization: up to 64 letters, digits or spaces.')
+        text += (f'reporting {{\n  enabled = true;\n  email = "{email}";\n  domain = "{domain}";\n'
+                 f'  org_name = "{org}";\n  smtp = "127.0.0.1";\n}}\n')
+    _write(DMARC_CONF, text)
+    done = subprocess.run(['rspamadm', 'configtest'], capture_output=True, text=True)
+    if done.returncode != 0:
+        raise EfaError('rspamd rejected the setting: ' + (done.stdout + done.stderr)[-200:])
+    _reload_rspamd()
+    if enabled:
+        _write(DMARC_CRON, '0 3 * * * root /usr/bin/rspamadm dmarc_report yesterday >/dev/null 2>&1\n')
+    elif os.path.exists(DMARC_CRON):
+        os.remove(DMARC_CRON)
+    return {'dmarc_reports': enabled}
+
+
+def admin_password(args):
+    """Set the web admin password; only from the CLI, the web cannot change it."""
+    from werkzeug.security import generate_password_hash
+    password = args.password if args.password is not None else getpass.getpass('New password: ')
+    if len(password) < 12:
+        raise EfaError('Password needs at least 12 characters.')
+    os.makedirs(WEB_DIR, mode=0o750, exist_ok=True)
+    shutil.chown(WEB_DIR, 'root', 'efa-web')
+    fd, tmp = tempfile.mkstemp(dir=WEB_DIR)
+    with os.fdopen(fd, 'w') as f:
+        f.write(generate_password_hash(password, method='pbkdf2:sha256:600000'))
+    shutil.chown(tmp, 'root', 'efa-web')
+    os.chmod(tmp, 0o640)
+    os.replace(tmp, PASSWORD_FILE)
+    return {'admin_password': 'set'}
+
+
+# Each entry becomes one CLI subcommand and one web form.
+COMMANDS = {
+    'status': {'func': status, 'title': 'Status', 'args': [], 'writes': False},
+    'subject-get': {'func': subject_get, 'title': 'Subject marking: show', 'args': [], 'writes': False},
+    'subject-set': {'func': subject_set, 'title': 'Subject marking: set', 'writes': True,
+                    'args': [{'name': 'text', 'label': 'Text, empty turns it off', 'required': False}]},
+    'dkim-check': {'func': dkim_check, 'title': 'DKIM keys', 'args': [], 'writes': False},
+    'dkim-generate': {'func': dkim_generate, 'title': 'DKIM: generate keys (RSA and ED25519)', 'writes': True,
+                      'args': [{'name': 'domain', 'label': 'Domain', 'required': True},
+                               {'name': 'bits', 'label': 'RSA bits', 'required': False,
+                                'default': str(DKIM_MIN_BITS)}]},
+    'settings': {'func': settings, 'title': 'Settings: show', 'args': [], 'writes': False},
+    'maintenance-set': {'func': maintenance_set, 'title': 'Maintenance mode', 'writes': True,
+                        'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'relay-networks-set': {'func': relay_networks_set, 'title': 'Relay networks', 'writes': True,
+                           'args': [{'name': 'networks', 'label': 'Networks, space separated', 'required': False}]},
+    'smarthost-set': {'func': smarthost_set, 'title': 'Outbound smarthost', 'writes': True,
+                      'args': [{'name': 'host', 'label': 'Host, empty sends directly', 'required': False}]},
+    'message-size-set': {'func': message_size_set, 'title': 'Maximum message size', 'writes': True,
+                         'args': [{'name': 'megabytes', 'label': 'MB', 'required': True}]},
+    'spam-scores-set': {'func': spam_scores_set, 'title': 'Spam scores', 'writes': True,
+                        'args': [{'name': 'greylist', 'label': 'Greylist from', 'required': True, 'default': '4'},
+                                 {'name': 'mark', 'label': 'Mark as spam from', 'required': True, 'default': '6'},
+                                 {'name': 'reject', 'label': 'Reject from', 'required': True, 'default': '15'}]},
+    'greylisting-set': {'func': greylisting_set, 'title': 'Greylisting', 'writes': True,
+                        'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'sender-list-set': {'func': sender_list_set, 'title': 'Sender allow and block lists', 'writes': True,
+                        'args': [{'name': 'list', 'label': 'allow or block', 'required': True},
+                                 {'name': 'action', 'label': 'add or remove', 'required': True},
+                                 {'name': 'address', 'label': 'Sender address', 'required': True}]},
+    'sender-rule-set': {'func': sender_rule_set, 'title': 'Sender rules: IP, pattern, per recipient', 'writes': True,
+                        'args': [{'name': 'list', 'label': 'allow or block', 'required': True},
+                                 {'name': 'action', 'label': 'add or remove', 'required': True},
+                                 {'name': 'sender', 'label': 'Sender, IP or pattern with *', 'required': True},
+                                 {'name': 'recipient', 'label': 'Only for this address or domain', 'required': False}]},
+    'transport-set': {'func': transport_set, 'title': 'Domains and their mail servers', 'writes': True,
+                      'args': [{'name': 'domain', 'label': 'Domain', 'required': True},
+                               {'name': 'action', 'label': 'add or remove', 'required': True},
+                               {'name': 'destination', 'label': 'Mail server, for add', 'required': False}]},
+    'admin-email-set': {'func': admin_email_set, 'title': 'Admin email', 'writes': True,
+                        'args': [{'name': 'email', 'label': 'Address', 'required': True}]},
+    'recipient-verification-set': {'func': recipient_verification_set, 'title': 'Recipient verification',
+                                   'writes': True, 'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'fail2ban-set': {'func': fail2ban_set, 'title': 'Fail2Ban', 'writes': True,
+                     'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'backup-set': {'func': backup_set, 'title': 'Automatic backup', 'writes': True,
+                   'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'update-now': {'func': update_now, 'title': 'Update now', 'writes': True, 'args': [{'name': 'confirm', 'label': "Type yes to confirm", 'required': True}]},
+    'reboot': {'func': reboot_host, 'title': 'Reboot', 'writes': True, 'args': [{'name': 'confirm', 'label': "Type yes to confirm", 'required': True}]},
+    'halt': {'func': halt_host, 'title': 'Halt', 'writes': True, 'args': [{'name': 'confirm', 'label': "Type yes to confirm", 'required': True}]},
+    'backup-now': {'func': backup_now, 'title': 'Backup: run now', 'args': [], 'writes': True},
+    'backup-list': {'func': backup_list, 'title': 'Backup: list', 'args': [], 'writes': False},
+    'restore': {'func': restore, 'title': 'Restore a backup', 'writes': True,
+                'args': [{'name': 'name', 'label': 'Backup file name', 'required': True}, {'name': 'confirm', 'label': 'Type yes to confirm', 'required': True}]},
+    'mariadb-repair': {'func': mariadb_repair, 'title': 'Repair databases', 'writes': True,
+                       'args': [{'name': 'confirm', 'label': 'Type yes to confirm', 'required': True}]},
+    'network-show': {'func': network_show, 'title': 'Network: show', 'args': [], 'writes': False},
+    'network-set': {'func': network_set, 'title': 'Network: set (after reboot)', 'writes': True,
+                    'args': [{'name': 'hostname', 'label': 'Full host name', 'required': True},
+                             {'name': 'method', 'label': 'auto or manual', 'required': True},
+                             {'name': 'address', 'label': 'IPv4 address/prefix, for manual', 'required': False},
+                             {'name': 'gateway', 'label': 'IPv4 gateway, for manual', 'required': False},
+                             {'name': 'ipv6_method', 'label': 'IPv6: auto, manual or ignore', 'required': False,
+                              'default': 'ignore'},
+                             {'name': 'ipv6_address', 'label': 'IPv6 address/prefix, for manual', 'required': False},
+                             {'name': 'ipv6_gateway', 'label': 'IPv6 gateway, for manual', 'required': False},
+                             {'name': 'confirm', 'label': 'Type yes to confirm', 'required': True}]},
+    'letsencrypt-set': {'func': letsencrypt_set, 'title': "Let's Encrypt certificate", 'writes': True,
+                        'args': [{'name': 'domain', 'label': 'Host name', 'required': True},
+                                 {'name': 'email', 'label': 'Contact email', 'required': True},
+                                 {'name': 'accept_tos', 'label': 'Type yes to accept the terms of service',
+                                  'required': True}]},
+    'maillog-search': {'func': maillog_search, 'title': 'Mail log: search', 'writes': False,
+                       'args': [{'name': 'text', 'label': 'Sender, recipient, subject, queue ID or IP',
+                                 'required': False},
+                                {'name': 'limit', 'label': 'Results', 'required': False, 'default': '100'}]},
+    'maillog-retention-set': {'func': maillog_retention_set, 'title': 'Mail log: days to keep', 'writes': True,
+                              'args': [{'name': 'days', 'label': 'Days', 'required': True}]},
+    'maillog-size-set': {'func': maillog_size_set, 'title': 'Mail log: size limit', 'writes': True,
+                         'args': [{'name': 'megabytes', 'label': 'MB, 0 turns the limit off', 'required': True}]},
+    'maillog-purge': {'func': maillog_purge, 'title': 'Mail log: delete old entries now', 'args': [], 'writes': True},
+    'milter-chain-set': {'func': milter_chain_set, 'title': 'Milter order', 'writes': True,
+                         'args': [{'name': 'ports', 'label': 'Ports in order, must include 11332 and 8999',
+                                   'required': True}]},
+    'dns-zone-set': {'func': dns_zone_set, 'title': 'Internal DNS zones', 'writes': True,
+                     'args': [{'name': 'zone', 'label': 'Zone', 'required': True},
+                              {'name': 'action', 'label': 'add or remove', 'required': True},
+                              {'name': 'servers', 'label': 'DNS servers, for add', 'required': False}]},
+    'extra-service-set': {'func': extra_service_set, 'title': 'Watch an extra service', 'writes': True,
+                          'args': [{'name': 'name', 'label': 'Service name', 'required': True},
+                                   {'name': 'action', 'label': 'add or remove', 'required': True}]},
+    'quarantine-set': {'func': quarantine_set, 'title': 'Quarantine for spam', 'writes': True,
+                       'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+    'quarantine-list': {'func': quarantine_list, 'title': 'Quarantine: list', 'args': [], 'writes': False},
+    'quarantine-show': {'func': quarantine_show, 'title': 'Quarantine: show headers', 'writes': False,
+                        'args': [{'name': 'id', 'label': 'Queue ID', 'required': True}]},
+    'quarantine-release': {'func': quarantine_release, 'title': 'Quarantine: deliver', 'writes': True,
+                           'args': [{'name': 'id', 'label': 'Queue ID', 'required': True}]},
+    'quarantine-delete': {'func': quarantine_delete, 'title': 'Quarantine: delete', 'writes': True,
+                          'args': [{'name': 'id', 'label': 'Queue ID', 'required': True}, {'name': 'confirm', 'label': 'Type yes to confirm',
+                                                   'required': True}]},
+    'quarantine-days-set': {'func': quarantine_days_set, 'title': 'Quarantine: days to keep', 'writes': True,
+                            'args': [{'name': 'days', 'label': 'Days', 'required': True}]},
+    'quarantine-purge': {'func': quarantine_purge, 'title': 'Quarantine: delete old mail now', 'args': [],
+                         'writes': True},
+    'dmarc-reports-set': {'func': dmarc_reports_set, 'title': 'DMARC reports', 'writes': True,
+                          'args': [{'name': 'mode', 'label': 'on or off', 'required': True},
+                                   {'name': 'domain', 'label': 'Reporting domain, for on', 'required': False},
+                                   {'name': 'email', 'label': 'Sender address, for on', 'required': False},
+                                   {'name': 'org', 'label': 'Organization, for on', 'required': False}]},
+}
+CLI_ONLY = {
+    'maillog-setup': {'func': maillog_setup, 'args': []},
+    'admin-password': {'func': admin_password, 'args': [{'name': 'password', 'required': False}]},
+    'dkim-import': {'func': dkim_import, 'args': [{'name': 'domain', 'required': True},
+                                                  {'name': 'selector', 'required': True},
+                                                  {'name': 'key_file', 'required': True}]},
+}
+
+
+def schema(_args):
+    return {name: {key: cmd.get(key) for key in ('title', 'args', 'writes')} for name, cmd in COMMANDS.items()}
+
+
+def menu():
+    """Interactive menu of eFa-Configure, built from the same table as the web forms."""
+    entries = list(COMMANDS.items()) + [('admin-password', {**CLI_ONLY['admin-password'], 'title': 'Web admin password',
+                                                            'writes': True})]
+    while True:
+        print('\n--- eFa configuration ---')
+        for number, (_, cmd) in enumerate(entries, 1):
+            print(f'{number:>3}) {cmd["title"]}')
+        print('  s) Shell\n  l) Log out')
+        try:
+            choice = input('[eFa] : ').strip()
+        except EOFError:
+            return 0
+        if choice == 's':
+            return 0
+        if choice == 'l':
+            subprocess.run(['pkill', '-KILL', '-t', os.ttyname(0).replace('/dev/', '')], check=False)
+            return 0
+        if not choice.isdigit() or not 1 <= int(choice) <= len(entries):
+            print(f'Error "{choice}" is not an option...')
+            continue
+        name, cmd = entries[int(choice) - 1]
+        values = {}
+        for arg in cmd['args']:
+            if name == 'admin-password':
+                values[arg['name']] = None
+                continue
+            default = arg.get('default', '')
+            label = arg.get('label', arg['name']) + (f' [{default}]' if default else '')
+            values[arg['name']] = input(f'{label}: ').strip() or default
+        try:
+            print(json.dumps(cmd['func'](argparse.Namespace(**values)), indent=2))
+        except (EfaError, subprocess.CalledProcessError, OSError) as err:
+            print(f'ERROR: {err}')
+
+
+def self_test():
+    global RSPAMD_DIR, DKIM_DIR, DKIM_CONF, SUBJECT_TAG, OPENDKIM_KEYS
+    with tempfile.TemporaryDirectory() as tmp:
+        RSPAMD_DIR, DKIM_DIR = tmp, tmp + '/dkim'
+        os.makedirs(tmp + '/local.d')
+        DKIM_CONF, SUBJECT_TAG, OPENDKIM_KEYS = tmp + '/local.d/d.conf', tmp + '/tag', tmp + '/none'
+        ns = argparse.Namespace
+        assert subject_get(ns())['subject_tag'] == ''
+        assert subject_set(ns(text='[X]'))['subject_tag'] == '[X]'
+        assert subject_get(ns())['subject_tag'] == '[X]'
+        assert subject_set(ns(text=''))['subject_tag'] == ''
+        for call, bad in ((subject_set, ns(text='a"b')), (dkim_generate, ns(domain='x;rm', bits='2048')),
+                          (dkim_generate, ns(domain='a.example', bits='1024')),
+                          (dkim_generate, ns(domain='a.example', bits='4097')),
+                          (dkim_generate, ns(domain='a.example', bits='abc'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        for call, bad in ((relay_networks_set, ns(networks='0.0.0.0/0')), (relay_networks_set, ns(networks='x y')),
+                          (smarthost_set, ns(host='a b;id')), (message_size_set, ns(megabytes='0')),
+                          (spam_scores_set, ns(greylist='9', mark='6', reject='15')),
+                          (greylisting_set, ns(mode='maybe')), (maintenance_set, ns(mode='')),
+                          (sender_list_set, ns(list='x', action='add', address='a@b.de')),
+                          (sender_list_set, ns(list='allow', action='add', address='a b@c.de'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        for call, bad in ((transport_set, ns(domain='x;id', action='add', destination='a.example')),
+                          (transport_set, ns(domain='a.example', action='add', destination='a b')),
+                          (transport_set, ns(domain='a.example', action='x', destination='b.example')),
+                          (admin_email_set, ns(email='not an address')), (reboot_host, ns(confirm='no')),
+                          (halt_host, ns(confirm='')), (update_now, ns(confirm='y'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        for call, bad in ((restore, ns(name='../../etc/passwd', confirm='yes')), (restore, ns(name='x', confirm='no')),
+                          (network_set, ns(hostname='bad name', method='auto', address='', gateway='', ipv6_method='',
+                                           ipv6_address='', ipv6_gateway='', confirm='yes')),
+                          (letsencrypt_set, ns(domain='a.example', email='a@b.example', accept_tos='no')),
+                          (letsencrypt_set, ns(domain='x;id', email='a@b.example', accept_tos='yes'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        for call, bad in ((maillog_search, ns(text='', limit='x')), (maillog_search, ns(text='', limit='0')),
+                          (maillog_retention_set, ns(days='0')), (maillog_retention_set, ns(days='x')),
+                          (maillog_retention_set, ns(days='3651')), (maillog_size_set, ns(megabytes='-1'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        for call, bad in ((milter_chain_set, ns(ports='x')), (milter_chain_set, ns(ports='11332')),
+                          (milter_chain_set, ns(ports='11332 8999 11332')), (dns_zone_set, ns(zone='x;id', action='add', servers='1.1.1.1')),
+                          (dns_zone_set, ns(zone='a.example', action='add', servers='nope')),
+                          (dns_zone_set, ns(zone='a.example', action='add', servers='')),
+                          (extra_service_set, ns(name='a;b', action='add')), (extra_service_set, ns(name='ok', action='x'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        global DMARC_CONF
+        DMARC_CONF = tmp + '/local.d/dmarc.conf'
+        for call, bad in ((quarantine_set, ns(mode='x')), (quarantine_days_set, ns(days='0')),
+                          (sender_rule_set, ns(list='x', action='add', sender='a.example', recipient='')),
+                          (sender_rule_set, ns(list='allow', action='add', sender='a|b', recipient='')),
+                          (sender_rule_set, ns(list='allow', action='add', sender='***', recipient='')),
+                          (sender_rule_set, ns(list='allow', action='add', sender='a.example', recipient='x|y')),
+                          (dkim_import, ns(domain='x;id', selector='a', key_file='/nonexistent')),
+                          (dkim_import, ns(domain='a.example', selector='../a', key_file='/nonexistent')),
+                          (dkim_import, ns(domain='a.example', selector='a', key_file='/nonexistent')),
+                          (dmarc_reports_set, ns(mode='on', domain='x;id', email='a@b.example', org='A')),
+                          (dmarc_reports_set, ns(mode='on', domain='a.example', email='x', org='A')),
+                          (dmarc_reports_set, ns(mode='on', domain='a.example', email='a@b.example', org='x"y'))):
+            try:
+                call(bad)
+            except EfaError:
+                continue
+            raise AssertionError(bad)
+        assert set(schema(None)) == set(COMMANDS)
+    print('self-test ok')
+
+
+def main():
+    if '--self-test' in sys.argv:
+        self_test()
+        return 0
+    parser = argparse.ArgumentParser(prog='efactl', description='eFa control tool')
+    sub = parser.add_subparsers(dest='command', required=True)
+    sub.add_parser('schema').set_defaults(func=schema)
+    sub.add_parser('menu')
+    for name, cmd in {**COMMANDS, **CLI_ONLY}.items():
+        cmd_parser = sub.add_parser(name, help=cmd.get('title'))
+        cmd_parser.set_defaults(func=cmd['func'])
+        for arg in cmd['args']:
+            cmd_parser.add_argument('--' + arg['name'], default=arg.get('default', None if name in CLI_ONLY else ''),
+                                    required=arg.get('required', False))
+    args = parser.parse_args()
+    # A compromised web process must not reach CLI-only commands through its sudo rule.
+    if args.command in (*CLI_ONLY, 'menu') and os.environ.get('SUDO_USER') == 'efa-web':
+        print(json.dumps({'error': 'not allowed from the web interface'}))
+        return 1
+    if args.command == 'menu':
+        return menu()
+    try:
+        print(json.dumps(args.func(args), indent=2))
+    except (EfaError, subprocess.CalledProcessError, OSError) as err:
+        print(json.dumps({'error': str(err)}))
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
