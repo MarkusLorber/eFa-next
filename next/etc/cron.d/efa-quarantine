@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# eFa: remove quarantined mail older than the configured number of days.
+MAILTO=""
+50 3 * * * root /usr/sbin/efactl quarantine-purge >/dev/null

@@ -1,0 +1,129 @@
+#!/usr/bin/python3
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Reads the settings of an original eFa 5.0 and writes them as an encrypted eFa-next backup, for a fresh eFa-next host.
+
+Only reads: nothing on this host changes. Needs efa5_convert.py next to this script, and gpg.
+On the new host: upload the file under Backup and restore it there (or efactl restore --file). The restore applies the
+settings once and shows what was taken over, what was adjusted and what could not be taken over. There is no way back
+to eFa 5.0, and nothing goes back to this host.
+"""
+import argparse
+import getpass
+import hashlib
+import io
+import json
+import os
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+for folder in (HERE, '/usr/lib/eFa/python', os.path.join(HERE, '..', 'next', 'usr', 'lib', 'eFa', 'python')):
+    if os.path.exists(os.path.join(folder, 'efa5_convert.py')):
+        sys.path.insert(0, folder)
+        break
+from efa5_convert import IMPORT_DIR, POSTFIX, Failed, collect, dkim_name, fresh_report, plan_json, report_text  # noqa: E402
+from efa5_convert import self_test as convert_self_test  # noqa: E402
+
+MIN_PASSWORD = 12
+
+
+def password_twice():
+    """Asked twice, against typing errors: on a terminal, or as two lines on stdin."""
+    if sys.stdin.isatty():
+        first, second = getpass.getpass('Backup password: '), getpass.getpass('Repeat it: ')
+    else:
+        first, second = sys.stdin.readline().rstrip('\n'), sys.stdin.readline().rstrip('\n')
+    if first != second:
+        raise Failed('The two entries are not the same. Nothing was written.')
+    if len(first) < MIN_PASSWORD:
+        raise Failed(f'Backup password: at least {MIN_PASSWORD} characters. Nothing was written.')
+    return first
+
+
+def archive(plan, report, read=lambda path: open(path, 'rb').read()):
+    """The settings as an eFa-next backup: only below the import folder, all files for root only."""
+    files = {'plan.json': plan_json(plan).encode(), 'report.txt': report_text(report).encode()}
+    for key in plan['dkim']:
+        files[dkim_name(key)] = read(key['path'])
+    for table in plan['tables']:
+        files[f'postfix/{table}'] = read(f'{POSTFIX}/{table}')
+    data = io.BytesIO()
+    with tarfile.open(fileobj=data, mode='w:gz') as tar:
+        for folder in (IMPORT_DIR, IMPORT_DIR + '/postfix'):
+            info = tarfile.TarInfo(folder)
+            info.type, info.mode, info.mtime = tarfile.DIRTYPE, 0o700, int(time.time())
+            tar.addfile(info)
+        for name, content in sorted(files.items()):
+            info = tarfile.TarInfo(f'{IMPORT_DIR}/{name}')
+            info.size, info.mode, info.mtime = len(content), 0o600, int(time.time())
+            tar.addfile(info, io.BytesIO(content))
+    return data.getvalue()
+
+
+def encrypt(data, password, output):
+    """The same encryption as the backups of eFa-next: gpg, symmetric AES256, in a temporary home without any keyring."""
+    with tempfile.TemporaryDirectory() as home:
+        os.chmod(home, 0o700)
+        plain = home + '/backup.tar.gz'
+        fd = os.open(plain, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+        done = subprocess.run(['gpg', '--homedir', home, '--batch', '--yes', '--pinentry-mode', 'loopback', '--passphrase-fd', '0',
+                               '--symmetric', '--cipher-algo', 'AES256', '--output', output + '.tmp', plain],
+                              input=password + '\n', text=True, capture_output=True)
+    if done.returncode != 0:
+        raise Failed('Encryption failed, nothing was written: ' + done.stderr[-200:])
+    os.chmod(output + '.tmp', 0o600)
+    os.replace(output + '.tmp', output)
+
+
+def self_test():
+    convert_self_test()
+    plan = {'dkim': [{'domain': 'x.org', 'selector': 's1', 'path': '/k'}], 'tables': ['transport'], 'config': {}}
+    data = archive(plan, {'taken': ['a'], 'adjusted': [], 'not_possible': []}, lambda path: b'content of ' + path.encode())
+    with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+        members = {m.name: m for m in tar.getmembers()}
+        assert set(members) == {IMPORT_DIR, IMPORT_DIR + '/postfix', IMPORT_DIR + '/plan.json', IMPORT_DIR + '/report.txt',
+                                IMPORT_DIR + '/dkim-x.org.s1.key', IMPORT_DIR + '/postfix/transport'}, members
+        assert all(m.uid == 0 and m.mode & 0o077 == 0 for m in members.values())
+        assert tar.extractfile(IMPORT_DIR + '/postfix/transport').read() == b'content of /etc/postfix/transport'
+        assert json.loads(tar.extractfile(IMPORT_DIR + '/plan.json').read())['tables'] == ['transport']
+    print('self-test ok')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--output', default='/root', help='Folder for the backup file; default /root')
+    parser.add_argument('--preview', action='store_true', help='Only show what would be taken over, write nothing')
+    parser.add_argument('--self-test', action='store_true')
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+    try:
+        plan = collect()
+        report = fresh_report(plan)
+        print(report_text(report), end='')
+        if args.preview:
+            print('Nothing was written.')
+            return 0
+        password = password_twice()
+        output = os.path.join(args.output, time.strftime('efa-backup-config-%Y%m%d-%H%M%S.tar.gz.gpg'))
+        encrypt(archive(plan, report), password, output)
+    except (Failed, OSError) as err:
+        print(f'FAILED: {err}', file=sys.stderr)
+        return 1
+    with open(output, 'rb') as f:
+        checksum = hashlib.sha256(f.read()).hexdigest()
+    print(f'Written: {output}\nSHA256: {checksum}')
+    print('On the new eFa-next host: upload it under Backup, then restore it with the same password.')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

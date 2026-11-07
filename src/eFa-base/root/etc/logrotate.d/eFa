@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# eFa: rotate every file in /var/log/eFa (install, apply, monitor, backup,
+# audit, firewall and any later log). Rotated copies go to a folder outside
+# /var/log/eFa, so the wildcard never matches an old copy again.
+/var/log/eFa/* {
+    monthly
+    rotate 4
+    compress
+    missingok
+    notifempty
+    copytruncate
+    su root root
+    olddir /var/log/eFa-archive
+    createolddir 0750 root root
+}

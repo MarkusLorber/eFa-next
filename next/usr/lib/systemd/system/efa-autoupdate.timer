@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa automatic update job, hourly for the maintenance window
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

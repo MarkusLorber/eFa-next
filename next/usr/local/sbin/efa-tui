@@ -1,0 +1,570 @@
+#!/usr/bin/python3 -I
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""The text interface of eFa-next, for the console and SSH: like nmtui, keyboard only, 80x24 and up.
+
+Built from the same command table as the web forms (efactl schema) and the same menu (efa_nav): a new command shows up here
+by itself. Every change runs through efactl with its checks, its permissions and its audit log; nothing is decided here.
+    efa-tui [--mono] [--as USER]
+"""
+import curses
+import json
+import os
+import subprocess
+import sys
+import time
+
+# The source tree first, so a self test there uses its own libraries, not the installed ones.
+sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../lib/eFa/python'), '/usr/lib/eFa/python']
+from efa_nav import FORM_SOURCE, NAV, form_value  # noqa: E402
+
+EFACTL = os.environ.get('EFA_TUI_EFACTL', '/usr/sbin/efactl')
+# Destructive: a second question before efactl runs them, besides the confirmation field of the command.
+DANGER = {'dkim-remove', 'reboot', 'halt', 'restore', 'quarantine-delete', 'quarantine-purge', 'maillog-purge', 'tenant-delete', 'user-set', 'group-remove'}
+EMERGENCY = [('Status', 'status'), ('Network and IP', 'network-show'), ('Firewall guard', 'firewall-guard-status'), ('Repair the firewall now', 'firewall-guard-run'),
+             ('Maintenance mode', 'maintenance-set'), ('Restart a service', 'service-restart'), ('Show a log', 'log-show')]
+TEXT = {'title': 'eFa-next', 'keys': 'Arrows move  Enter choose  Tab next  / search  Esc back  F10 quit', 'small': 'The window needs at least 80x24.',
+        'login': 'Log in', 'root': 'root: all permissions', 'user': 'eFa user: the permissions of that user', 'name': 'User name', 'password': 'Password',
+        'emergency': 'Emergency', 'views': 'Views', 'menu': 'Menu', 'other': 'Other', 'sure': 'Really do this?', 'yes': 'Yes', 'no': 'No'}
+
+
+class Efactl:
+    """Runs efactl as root, or for an eFa user with --as: the same rights as in the web interface."""
+
+    def __init__(self, user=None):
+        self.user = user
+
+    def run(self, *args, secrets=()):
+        command = [EFACTL, *(['--as', self.user] if self.user else []), *args]
+        try:
+            done = subprocess.run(command, capture_output=True, text=True, timeout=300, input=''.join(line + '\n' for line in secrets))
+        except subprocess.TimeoutExpired:
+            return False, {'error': 'efactl did not answer within 5 minutes.'}
+        try:
+            data = json.loads(done.stdout)
+        except ValueError:
+            data = {'error': (done.stdout + done.stderr).strip()[-500:] or 'no answer'}
+        return done.returncode == 0 and 'error' not in data, data
+
+
+def menu_tree(schema):
+    """[(group, [(page title, [command names])])] for what this login may run, in the order of the web interface; the rest under Other."""
+    tree, listed = [], set()
+    for group, pages in NAV:
+        found = []
+        for page in pages:
+            names = [name for name in page['commands'] if name in schema]
+            listed.update(page['commands'])
+            if names:
+                found.append((page['title'], names))
+        if found:
+            tree.append((group, found))
+    rest = sorted(name for name in schema if name not in listed)
+    if rest:
+        tree.append((TEXT['other'], [(TEXT['other'], rest)]))
+    return tree
+
+
+def notes_of(name):
+    for _group, pages in NAV:
+        for page in pages:
+            if name in page.get('notes', {}):
+                return page['notes'][name]
+    return ''
+
+
+def field_kind(arg):
+    if arg.get('secret'):
+        return 'secret'
+    if arg.get('kind') == 'confirm':
+        return 'confirm'
+    if arg.get('choices'):
+        return 'choice'
+    if arg.get('label', '').endswith('on or off'):
+        return 'switch'
+    return 'text'
+
+
+def field_label(arg):
+    label = arg.get('label', arg['name'])
+    if field_kind(arg) == 'switch':
+        label = label[:-len(': on or off')] if label.endswith(': on or off') else 'Active'
+    return label
+
+
+def command_args(cmd, values):
+    """efactl arguments and the lines for stdin from the values of a form: secrets never on the command line."""
+    args, secrets = [], []
+    for arg in cmd['args']:
+        if arg.get('web') is False:
+            continue
+        value = values.get(arg['name'], '')
+        if arg.get('secret'):
+            secrets.append(value)
+        else:
+            args.append(f"--{arg['name']}={value}")
+    return args, secrets
+
+
+def show_text(data, indent=0):
+    """A result as readable lines: key: value, lists one per line."""
+    lines, pad = [], '  ' * indent
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, (dict, list)) and value:
+                lines.append(f'{pad}{key.replace("_", " ")}:')
+                lines += show_text(value, indent + 1)
+            else:
+                lines.append(f'{pad}{key.replace("_", " ")}: {"" if value is None else value}')
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, (dict, list)):
+                lines += show_text(item, indent)
+                lines.append('')
+            else:
+                lines.append(f'{pad}{item}')
+    else:
+        lines.append(f'{pad}{data}')
+    return lines
+
+
+class Screen:
+    """Drawing with the eFa-next colours where the terminal can, the nearest of 8 colours otherwise, or none with --mono."""
+    GREY, GREEN = (392, 396, 388), (753, 812, 282)
+
+    def __init__(self, window, mono):
+        self.window, self.mono = window, mono
+        curses.curs_set(0)
+        self.window.keypad(True)
+        self.normal = self.bar = self.select = self.dim = self.error = curses.A_NORMAL
+        if not mono and curses.has_colors():
+            curses.start_color()
+            try:
+                curses.use_default_colors()
+                background = -1
+            except curses.error:
+                background = curses.COLOR_BLACK
+            green, grey = curses.COLOR_GREEN, curses.COLOR_WHITE
+            if curses.can_change_color() and curses.COLORS >= 16:
+                curses.init_color(10, *self.GREY)
+                curses.init_color(11, *self.GREEN)
+                grey, green = 10, 11
+            curses.init_pair(1, curses.COLOR_BLACK, green)
+            curses.init_pair(2, curses.COLOR_WHITE, grey if grey != curses.COLOR_WHITE else curses.COLOR_BLACK)
+            curses.init_pair(3, curses.COLOR_RED, background)
+            self.bar, self.select, self.error = curses.color_pair(1), curses.color_pair(1) | curses.A_BOLD, curses.color_pair(3) | curses.A_BOLD
+            self.dim = curses.color_pair(2)
+        else:
+            self.bar, self.select, self.error = curses.A_REVERSE, curses.A_REVERSE | curses.A_BOLD, curses.A_BOLD
+
+    def size_ok(self):
+        lines, cols = self.window.getmaxyx()
+        return lines >= 24 and cols >= 80
+
+    def frame(self, title, footer=TEXT['keys']):
+        self.window.erase()
+        lines, cols = self.window.getmaxyx()
+        if not self.size_ok():
+            self.put(0, 0, TEXT['small'][:cols - 1], self.error)
+            return False
+        self.put(0, 0, f' {TEXT["title"]} | {title} '.ljust(cols - 1)[:cols - 1], self.bar)
+        self.put(lines - 1, 0, f' {footer} '.ljust(cols - 1)[:cols - 1], self.bar)
+        return True
+
+    def put(self, row, col, text, attr=None):
+        lines, cols = self.window.getmaxyx()
+        if 0 <= row < lines and col < cols:
+            try:
+                self.window.addnstr(row, col, text, max(0, cols - col - 1), self.normal if attr is None else attr)
+            except curses.error:
+                pass
+
+    def key(self):
+        key = self.window.get_wch()
+        if key == curses.KEY_RESIZE:
+            curses.update_lines_cols()
+        return key
+
+
+def pick(screen, title, items, hint=''):
+    """A list with search: returns the index of the chosen item or None. items: list of text lines."""
+    chosen, search, top = 0, '', 0
+    while True:
+        shown = [index for index, item in enumerate(items) if search.lower() in item.lower()]
+        chosen = min(chosen, max(0, len(shown) - 1))
+        if screen.frame(title + (f'  search: {search}' if search else '')):
+            lines, cols = screen.window.getmaxyx()
+            height = lines - 4
+            top = min(max(top, chosen - height + 1), chosen)
+            if hint:
+                screen.put(1, 2, hint[:cols - 4], screen.dim)
+            for row, index in enumerate(shown[top:top + height]):
+                screen.put(2 + row, 2, items[index][:cols - 6].ljust(cols - 6), screen.select if top + row == chosen else None)
+        key = screen.key()
+        if key in (curses.KEY_DOWN, '\t'):
+            chosen = min(chosen + 1, len(shown) - 1)
+        elif key == curses.KEY_UP:
+            chosen = max(chosen - 1, 0)
+        elif key == curses.KEY_NPAGE:
+            chosen = min(chosen + 10, len(shown) - 1)
+        elif key == curses.KEY_PPAGE:
+            chosen = max(chosen - 10, 0)
+        elif key in ('\n', '\r', curses.KEY_ENTER) and shown:
+            return shown[chosen]
+        elif key == '\x1b' or key == curses.KEY_F10:
+            if search:
+                search = ''
+                continue
+            return None if key == '\x1b' else 'quit'
+        elif key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
+            search = search[:-1]
+        elif key == '/':
+            search = ''
+        elif isinstance(key, str) and key.isprintable():
+            search += key
+            chosen = 0
+
+
+def view(screen, title, lines):
+    """A scrollable text: arrows, page keys, / to search, Esc back."""
+    top, search = 0, ''
+    while True:
+        if screen.frame(title):
+            height = screen.window.getmaxyx()[0] - 3
+            for row, line in enumerate(lines[top:top + height]):
+                screen.put(1 + row, 1, line, screen.select if search and search.lower() in line.lower() else None)
+        key = screen.key()
+        if key == curses.KEY_DOWN:
+            top = min(top + 1, max(0, len(lines) - 1))
+        elif key == curses.KEY_UP:
+            top = max(top - 1, 0)
+        elif key in (curses.KEY_NPAGE, ' '):
+            top = min(top + 15, max(0, len(lines) - 1))
+        elif key == curses.KEY_PPAGE:
+            top = max(top - 15, 0)
+        elif key == '/':
+            search = ask(screen, 'Search', '')
+            found = [index for index, line in enumerate(lines) if search and search.lower() in line.lower()]
+            top = found[0] if found else top
+        elif key in ('\x1b', 'q', '\n', '\r', curses.KEY_F10):
+            return
+
+
+def ask(screen, label, value, secret=False):
+    """One line of input in a box."""
+    curses.curs_set(1)
+    try:
+        while True:
+            lines, cols = screen.window.getmaxyx()
+            row = lines // 2
+            screen.put(row - 1, 4, f' {label} '.ljust(cols - 8), screen.bar)
+            shown = '*' * len(value) if secret else value
+            screen.put(row, 4, (shown[-(cols - 10):] + ' ').ljust(cols - 8), screen.select)
+            screen.window.move(row, min(4 + len(shown[-(cols - 10):]), cols - 2))
+            key = screen.key()
+            if key in ('\n', '\r', curses.KEY_ENTER):
+                return value
+            if key == '\x1b':
+                return None
+            if key in (curses.KEY_BACKSPACE, '\x7f', '\b'):
+                value = value[:-1]
+            elif isinstance(key, str) and key.isprintable():
+                value += key
+    finally:
+        curses.curs_set(0)
+
+
+def confirm(screen, text):
+    choice = pick(screen, TEXT['sure'], [TEXT['no'], TEXT['yes']], text)
+    return choice == 1
+
+
+def form(screen, efactl, name, cmd):
+    """The form of a command, like nmtui: fields, then <OK> <Cancel>. Returns the result to show, or None."""
+    args = [arg for arg in cmd['args'] if arg.get('web') is not False]
+    values = {arg['name']: arg.get('preselect') or arg.get('default') or '' for arg in args}
+    # Each field starts at what is set now, as in the web; secrets and confirmations stay empty.
+    status, keys = FORM_SOURCE.get(name, (None, {}))
+    ok, now = efactl.run(status) if status else (False, None)
+    for arg in args:
+        found = form_value(now, keys.get(arg['name'])) if ok and not arg.get('secret') else None
+        if found is not None and (not arg.get('choices') or found in [item['value'] for item in arg['choices']]):
+            values[arg['name']] = found
+    chosen, help_text = 0, notes_of(name)
+    while True:
+        if screen.frame(cmd['title']):
+            lines, cols = screen.window.getmaxyx()
+            screen.put(1, 2, help_text[:cols - 4], screen.dim)
+            for row, arg in enumerate(args):
+                kind, value = field_kind(arg), values[arg['name']]
+                shown = {'secret': '*' * len(value), 'switch': '[x] on' if value == 'on' else '[ ] off', 'confirm': '[x] yes' if value == 'yes' else '[ ] no',
+                         'choice': next((item['text'] for item in arg.get('choices', []) if item['value'] == value), value) + '  <>'}.get(kind, value)
+                mark = '*' if arg.get('required') else ' '
+                screen.put(3 + row, 2, f'{mark}{field_label(arg)[:34]:34} ')
+                screen.put(3 + row, 38, f' {shown[:cols - 42]} '.ljust(cols - 42), screen.select if row == chosen else screen.dim)
+            buttons = 3 + len(args) + 1
+            screen.put(buttons, 38, '<OK>', screen.select if chosen == len(args) else None)
+            screen.put(buttons, 46, '<Cancel>', screen.select if chosen == len(args) + 1 else None)
+        key = screen.key()
+        if key in (curses.KEY_DOWN, '\t'):
+            chosen = (chosen + 1) % (len(args) + 2)
+        elif key in (curses.KEY_UP, curses.KEY_BTAB):
+            chosen = (chosen - 1) % (len(args) + 2)
+        elif key == '\x1b' or (key in ('\n', '\r', curses.KEY_ENTER) and chosen == len(args) + 1):
+            return None
+        elif chosen < len(args):
+            arg = args[chosen]
+            kind = field_kind(arg)
+            if kind == 'choice' and key in (curses.KEY_LEFT, curses.KEY_RIGHT, ' ', '\n', '\r'):
+                options = [item['value'] for item in arg['choices']]
+                step = -1 if key == curses.KEY_LEFT else 1
+                current = options.index(values[arg['name']]) if values[arg['name']] in options else -1
+                values[arg['name']] = options[(current + step) % len(options)]
+            elif kind in ('switch', 'confirm') and key in (' ', '\n', '\r', curses.KEY_LEFT, curses.KEY_RIGHT):
+                on, off = ('on', 'off') if kind == 'switch' else ('yes', '')
+                values[arg['name']] = off if values[arg['name']] == on else on
+            elif key in ('\n', '\r', curses.KEY_ENTER):
+                entered = ask(screen, field_label(arg), '' if kind == 'secret' else values[arg['name']], kind == 'secret')
+                if entered is not None:
+                    values[arg['name']] = entered
+        elif key in ('\n', '\r', curses.KEY_ENTER) and chosen == len(args):
+            secrets = [arg for arg in args if arg.get('secret')]
+            if len(secrets) == 2 and values[secrets[0]['name']] != values[secrets[1]['name']]:
+                view(screen, cmd['title'], ['The two entries are not the same. Nothing was changed.'])
+                continue
+            if (name in DANGER or any(field_kind(arg) == 'confirm' for arg in args)) and not confirm(screen, cmd['title']):
+                continue
+            line_args, secret_lines = command_args(cmd, values)
+            return efactl.run(name, *line_args, secrets=secret_lines)
+
+
+def run_command(screen, efactl, name, cmd):
+    if cmd['args']:
+        result = form(screen, efactl, name, cmd)
+        if result is None:
+            return
+    else:
+        if cmd.get('writes') and not confirm(screen, cmd['title']):
+            return
+        result = efactl.run(name)
+    ok, data = result
+    view(screen, cmd['title'] + ('' if ok else ': error'), [str(data.get('error'))] if not ok else show_text(data) or ['Done.'])
+
+
+def live_log(screen, efactl):
+    """New mail as it comes, every 2 seconds; any key ends it."""
+    rows, last = [], ''
+    screen.window.timeout(2000)
+    try:
+        while True:
+            ok, data = efactl.run('maillog-live', f'--after_id={last}')
+            if ok and data.get('mails'):
+                rows = data['mails'] + rows
+                rows = rows[:500]
+                last = str(rows[0].get('id', last))
+            if screen.frame('Live log', 'Any key: back'):
+                lines, cols = screen.window.getmaxyx()
+                screen.put(1, 1, f'{"Time":19} {"Sender":26} {"Recipient":26} {"Result":12} Subject'[:cols - 2], screen.dim)
+                for row, mail in enumerate(rows[:lines - 3]):
+                    text = f"{str(mail.get('ts', ''))[:19]:19} {str(mail.get('sender', ''))[:26]:26} {str(mail.get('rcpt', ''))[:26]:26} " \
+                           f"{str(mail.get('action', ''))[:12]:12} {mail.get('subject') or ''}"
+                    screen.put(2 + row, 1, text[:cols - 2])
+            try:
+                if screen.key() != curses.KEY_RESIZE:
+                    return
+            except curses.error:
+                continue
+    finally:
+        screen.window.timeout(-1)
+
+
+def quarantine(screen, efactl, schema, held):
+    """The held mail or the quarantine of the queue, with its actions."""
+    list_name, key = ('uq-list', 'mails') if held else ('quarantine-list', 'quarantine')
+    actions = [('uq-show', 'Headers'), ('uq-content', 'Text'), ('uq-release', 'Release'), ('uq-delete', 'Delete')] if held else \
+        [('quarantine-show', 'Headers'), ('quarantine-content', 'Text'), ('quarantine-release', 'Deliver'), ('quarantine-delete', 'Delete')]
+    while True:
+        ok, data = efactl.run(list_name)
+        if not ok:
+            return view(screen, 'Quarantine', [str(data.get('error'))])
+        mails = data.get(key, [])
+        lines = [f"{str(mail.get('ts') or mail.get('arrived', ''))[:19]:19} {str(mail.get('sender', ''))[:28]:28} {str(mail.get('subject', '') or mail.get('id', ''))[:30]}"
+                 for mail in mails] or ['(empty)']
+        index = pick(screen, 'Held mail' if held else 'Quarantine', lines)
+        if index in (None, 'quit') or not mails:
+            return
+        mail = mails[index]
+        possible = [(name, label) for name, label in actions if name in schema]
+        choice = pick(screen, str(mail.get('id')), [label for _name, label in possible])
+        if choice in (None, 'quit'):
+            continue
+        name = possible[choice][0]
+        if name.endswith('delete') and not confirm(screen, possible[choice][1]):
+            continue
+        extra = ['--confirm=yes'] if any(arg['name'] == 'confirm' for arg in schema[name]['args']) else []
+        ok, result = efactl.run(name, f"--id={mail.get('id')}", *extra)
+        view(screen, possible[choice][1], show_text(result) if ok else [str(result.get('error'))])
+
+
+def admin_password(screen, efactl):
+    first = ask(screen, 'New web admin password, at least 12 characters', '', True)
+    second = ask(screen, 'Repeat the password', '', True) if first else None
+    if not first or first != second:
+        return view(screen, 'Web admin password', ['The two entries are not the same, or empty. Nothing was changed.'])
+    ok, data = efactl.run('admin-password', secrets=[first, second])
+    view(screen, 'Web admin password', ['Done.'] if ok else [str(data.get('error'))])
+
+
+def login(screen):
+    """root works with all permissions; an eFa user with exactly those of the web interface."""
+    if os.geteuid() != 0:
+        view(screen, TEXT['login'], ['efa-tui needs root: start it with sudo, then log in as root or as an eFa user.'])
+        return None
+    forced = sys.argv[sys.argv.index('--as') + 1] if '--as' in sys.argv[:-1] else None
+    if forced:
+        return Efactl(forced)
+    choice = pick(screen, TEXT['login'], [TEXT['root'], TEXT['user']])
+    if choice in (None, 'quit'):
+        return None
+    if choice == 0:
+        return Efactl()
+    name = ask(screen, TEXT['name'], '')
+    password = ask(screen, TEXT['password'], '', True) if name else None
+    if not name or password is None:
+        return None
+    ok, who = Efactl().run('user-verify', f'--username={name}', secrets=[password])
+    if not ok:
+        view(screen, TEXT['login'], [str(who.get('error'))])
+        return None
+    return Efactl(who['username'])
+
+
+def main_menu(screen, efactl):
+    ok, schema = efactl.run('schema')
+    if not ok:
+        return view(screen, TEXT['menu'], [str(schema.get('error'))])
+    tree = menu_tree(schema)
+    entries = []
+    for label, name in EMERGENCY:
+        if name in schema:
+            entries.append((f'{TEXT["emergency"]}: {label}', ('command', name)))
+    if efactl.user is None:
+        entries.append((f'{TEXT["emergency"]}: Web admin password', ('password', None)))
+    for label, kind in (('Dashboard', 'status'), ('Live log', 'live'), ('Held mail', 'held'), ('Quarantine', 'quar')):
+        if {'status': 'status', 'live': 'maillog-live', 'held': 'uq-list', 'quar': 'quarantine-list'}[kind] in schema:
+            entries.append((f'{TEXT["views"]}: {label}', ('view', kind)))
+    for group, pages in tree:
+        entries.append((f'{group}', ('group', pages)))
+    while True:
+        index = pick(screen, TEXT['menu'] + (f' ({efactl.user})' if efactl.user else ' (root)'), [label for label, _ in entries])
+        if index in (None, 'quit'):
+            return
+        kind, value = entries[index][1]
+        if kind == 'command':
+            run_command(screen, efactl, value, schema[value])
+        elif kind == 'password':
+            admin_password(screen, efactl)
+        elif kind == 'view':
+            if value == 'status':
+                run_command(screen, efactl, 'status', schema['status'])
+            elif value == 'live':
+                live_log(screen, efactl)
+            else:
+                quarantine(screen, efactl, schema, value == 'held')
+        else:
+            while True:
+                page = pick(screen, entries[index][0], [title for title, _names in value])
+                if page in (None, 'quit'):
+                    break
+                names = value[page][1]
+                while True:
+                    picked = pick(screen, value[page][0], [f"{schema[name]['title']}{'' if schema[name]['args'] or not schema[name]['writes'] else ' (runs at once)'}"
+                                                           for name in names], notes_of(names[0])[:200] if len(names) == 1 else '')
+                    if picked in (None, 'quit'):
+                        break
+                    run_command(screen, efactl, names[picked], schema[names[picked]])
+
+
+def start(window):
+    screen = Screen(window, '--mono' in sys.argv)
+    efactl = login(screen)
+    if efactl:
+        main_menu(screen, efactl)
+
+
+def self_test():
+    # Every command of efactl that has a form or changes something is reachable from the menu of the text interface.
+    schema = json.loads(subprocess.run([EFACTL, 'schema'], capture_output=True, text=True).stdout) if os.path.exists(EFACTL) else {}
+    reachable = {name for _group, pages in menu_tree(schema) for _title, names in pages for name in names}
+    missing = [name for name, cmd in schema.items() if (cmd['args'] or cmd['writes']) and name not in reachable]
+    assert not missing, missing
+    assert [label for label, _name in EMERGENCY] and all(name in schema for _label, name in EMERGENCY if schema), 'the emergency commands exist'
+    sample = {'args': [{'name': 'user', 'label': 'User'}, {'name': 'password', 'label': 'P', 'secret': True}, {'name': 'out', 'label': 'O', 'web': False},
+                       {'name': 'mode', 'label': 'Active: on or off'}, {'name': 'proto', 'label': 'Protocol', 'choices': [{'value': 'tcp', 'text': 'TCP'}]},
+                       {'name': 'confirm', 'label': 'Type yes to confirm', 'kind': 'confirm'}]}
+    args, secrets = command_args(sample, {'user': 'a b', 'password': 's3cret', 'mode': 'on', 'proto': 'tcp', 'confirm': 'yes'})
+    assert args == ['--user=a b', '--mode=on', '--proto=tcp', '--confirm=yes'] and secrets == ['s3cret'], (args, secrets)
+    assert [field_kind(arg) for arg in sample['args']] == ['text', 'secret', 'text', 'switch', 'choice', 'confirm'] and field_label(sample['args'][3]) == 'Active'
+    assert show_text({'a': 1, 'b': [1, 2], 'c': {'d': None}}) == ['a: 1', 'b:', '  1', '  2', 'c:', '  d: ']
+    tree = menu_tree({'status': {}, 'reboot': {}, 'brand-new': {}})
+    assert tree[0][0] == 'Overview' and tree[-1] == (TEXT['other'], [(TEXT['other'], ['brand-new'])])
+    if os.geteuid() == 0:
+        pty_test()
+    print('self-test ok')
+
+
+def pty_test():
+    """The real program in a pseudo-terminal of 80x24, driven by keys, against a stand-in for efactl that records its calls."""
+    import pty
+    import select
+    import struct
+    import tempfile
+    import termios
+    import fcntl
+    folder = tempfile.mkdtemp()
+    fake, calls = f'{folder}/efactl', f'{folder}/calls'
+    schema = {'status': {'title': 'Status', 'args': [], 'writes': False},
+              'greylisting-set': {'title': 'Greylisting', 'writes': True, 'args': [{'name': 'mode', 'label': 'on or off', 'required': True}]},
+              'maillog-live': {'title': 'Live', 'args': [], 'writes': False}}
+    with open(fake, 'w') as f:
+        f.write('#!/usr/bin/python3\nimport json, sys\nopen(%r, "a").write(" ".join(sys.argv[1:]) + "\\n")\n'
+                'print(json.dumps(%r if sys.argv[1] == "schema" else {"status": "ok", "down": []}))\n' % (calls, schema))
+    os.chmod(fake, 0o700)
+    pid, master = pty.fork()
+    if pid == 0:
+        os.environ.update(EFA_TUI_EFACTL=fake, TERM='xterm-256color')
+        os.execv(sys.executable, [sys.executable, '-I', os.path.abspath(__file__)])
+    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
+    output = b''
+
+    def read(seconds):
+        nonlocal output
+        end = time.time() + seconds
+        while time.time() < end:
+            ready, _w, _x = select.select([master], [], [], 0.1)
+            if ready:
+                try:
+                    output += os.read(master, 65536)
+                except OSError:
+                    return
+    # root, the first emergency entry (Status), back; then the group of greylisting, its page, the form: switch on, OK.
+    for keys, wait in ((b'', 1.5), (b'\r', 1), (b'\r', 1.5), (b'\x1b', 0.5), (b'Prot', 0.5), (b'\r', 0.5), (b'\r', 0.5), (b'\r', 0.8),
+                       (b' ', 0.3), (b'\t', 0.3), (b'\r', 1.5), (b'\x1b', 0.3), (b'\x1b', 0.3), (b'\x1b', 0.3), (b'\x1b', 0.3), (b'\x1b', 0.5)):
+        if keys:
+            os.write(master, keys)
+        read(wait)
+    os.kill(pid, 9)
+    os.waitpid(pid, 0)
+    screen = output.decode('utf-8', 'replace')
+    recorded = open(calls).read().splitlines()
+    assert 'Emergency: Status' in screen and 'status: ok' in screen, screen[-500:]
+    assert 'schema' in recorded and 'status' in recorded and 'greylisting-set --mode=on' in recorded, recorded
+
+
+if __name__ == '__main__':
+    if '--self-test' in sys.argv:
+        self_test()
+        sys.exit(0)
+    os.environ.setdefault('ESCDELAY', '25')
+    curses.wrapper(start)

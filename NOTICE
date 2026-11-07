@@ -1,0 +1,16 @@
+eFa-next
+A private open source project: https://github.com/MarkusLorber/eFa-next
+Based on eFa, the email filter appliance: https://efa-project.org
+Copyright (C) 2026 Markus Lorber and eFa-next contributors. Author: Markus Lorber, Lukasz Galusinski.
+Sponsored by IT-World ITW GmbH, which holds no rights to it. See AUTHORS.md
+
+LICENSE
+Everything that comes from eFa-next is under the GNU Affero General Public License, version 3 or later (LICENSE).
+Third-party components that eFa-next uses keep their own licenses: THIRD-PARTY-NOTICES.md and the SBOM of each release.
+
+SOURCE CODE
+Whoever distributes eFa-next provides its source code, and whoever runs a changed version for users over a network offers
+those users its source code, as the AGPL requires (section 13). The web interface links to the source code.
+
+NO WARRANTY
+As sections 15 and 16 of the AGPL say. See DISCLAIMER.md.

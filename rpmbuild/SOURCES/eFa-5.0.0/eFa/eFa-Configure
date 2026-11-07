@@ -1,7 +1,0 @@
-#!/bin/bash
-# eFa configuration menu. All functions live in efactl, shared with the web interface.
-if [ "$(whoami)" != root ]; then
-  echo "Please become root first."
-  exit 1
-fi
-exec /usr/sbin/efactl menu

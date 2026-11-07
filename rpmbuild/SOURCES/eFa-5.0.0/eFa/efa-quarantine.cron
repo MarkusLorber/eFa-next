@@ -1,3 +1,0 @@
-#!/bin/sh
-# Removes quarantined mail older than the configured number of days.
-/usr/sbin/efactl quarantine-purge >/dev/null

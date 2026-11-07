@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa first-run wizard
+After=network-online.target
+
+[Service]
+Type=simple
+# efa-apply is allowed through sudo for this user only; the group reads the session key.
+User=efa-init
+Group=efa-web
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-init.py
+Restart=always
+RestartSec=5
+PrivateTmp=yes
+# The setup code of the console (efa-init.py), readable by root only.
+RuntimeDirectory=efa-init
+RuntimeDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

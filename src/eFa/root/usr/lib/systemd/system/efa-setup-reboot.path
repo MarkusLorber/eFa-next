@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa: watch for the reboot request at the end of the setup
+
+[Path]
+PathExists=/var/lib/eFa/setup-reboot
+
+[Install]
+WantedBy=multi-user.target
