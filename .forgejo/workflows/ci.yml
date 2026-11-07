@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# The checks of scripts/ci.sh on each push and pull request. Needs a Forgejo Actions runner on an EL9 host
+# with the label el9 and the build dependencies (rpmbuild, python3-pymysql, python3-flask). Until it exists, run scripts/ci.sh by hand.
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  checks:
+    runs-on: el9
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh scripts/ci.sh

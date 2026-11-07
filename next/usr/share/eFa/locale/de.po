@@ -1,0 +1,3296 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# de texts of the eFa-next interfaces. Written by scripts/i18n_extract.py:
+# fill in msgstr, then run it again; texts that are gone are dropped.
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Overview"
+msgstr "Übersicht"
+
+msgid "Dashboard"
+msgstr "Dashboard"
+
+msgid "Current state of this server."
+msgstr "Aktueller Zustand dieses Servers."
+
+msgid "Details"
+msgstr "Details"
+
+msgid "Mail & quarantine"
+msgstr "Mail & Quarantäne"
+
+msgid "Mail routing"
+msgstr "Mail-Routing"
+
+msgid "Which domains this server takes mail for, where it goes, and who may send through it."
+msgstr "Für welche Domains dieser Server Mail annimmt, wohin sie geht und wer über ihn senden darf."
+
+msgid "Domains & destinations"
+msgstr "Domains & Ziele"
+
+msgid "Relay networks & smarthost"
+msgstr "Relay-Netze & Smarthost"
+
+msgid "Submitters"
+msgstr "Einlieferer"
+
+msgid "Limits & recipient check"
+msgstr "Limits & Empfängerprüfung"
+
+msgid "Changes wait in the list above until you apply them."
+msgstr "Änderungen warten in der Liste oben, bis Sie sie übernehmen."
+
+msgid "Internal mail systems such as Exchange, Microsoft 365 or an application that send through this server. Each one may send only for its own domains and with the empty sender of bounces, Postfix rejects everything else. Without a submitter everything stays as it was."
+msgstr "Interne Mailsysteme wie Exchange, Microsoft 365 oder eine Anwendung, die über diesen Server senden. Jedes darf nur für seine eigenen Domains senden und mit dem leeren Absender von Unzustellbarkeitsberichten, alles andere weist Postfix ab. Ohne Einlieferer bleibt alles wie bisher."
+
+msgid "Against taken over accounts: a sender over the limit within one hour is logged, throttled, held or rejected, and the admin and the sender get a notice once."
+msgstr "Gegen übernommene Konten: Ein Absender über der Grenze innerhalb einer Stunde wird protokolliert, gebremst, zurückgehalten oder abgewiesen, Admin und Absender bekommen einmal eine Mitteilung."
+
+msgid "Held mail"
+msgstr "Zurückgehaltene Mail"
+
+msgid "Mail stored for its recipients until someone releases it."
+msgstr "Mail, die für ihre Empfänger aufbewahrt wird, bis jemand sie freigibt."
+
+msgid "Spam reports"
+msgstr "Spam-Meldungen"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "My settings"
+msgstr "Meine Einstellungen"
+
+msgid "Off by default: mail is then rejected as before. A virus only gets out through a super-admin. A released mail does not pass the filters again."
+msgstr "Standardmäßig aus: Mail wird dann wie bisher abgewiesen. Ein Virus kommt nur über einen Super-Admin heraus. Eine freigegebene Mail läuft nicht noch einmal durch die Filter."
+
+msgid "Quarantine"
+msgstr "Quarantäne"
+
+msgid "Spam held back in the mail queue instead of delivered."
+msgstr "Spam, der in der Warteschlange zurückgehalten statt zugestellt wird."
+
+msgid "Mail queue"
+msgstr "Mail-Warteschlange"
+
+msgid "Mail Postfix holds: being delivered, waiting, held. Every action asks first and is logged."
+msgstr "Mail, die Postfix hält: in Zustellung, wartend, zurückgehalten. Jede Aktion fragt vorher und wird protokolliert."
+
+msgid "Queue"
+msgstr "Warteschlange"
+
+msgid "Spooling and receiving servers"
+msgstr "Zwischenspeicher und empfangende Server"
+
+msgid "Alarm"
+msgstr "Alarm"
+
+msgid "After a server is back, Postfix starts with this many connections and raises them while delivery works."
+msgstr "Wenn ein Server wieder erreichbar ist, beginnt Postfix mit so vielen Verbindungen und erhöht sie, solange die Zustellung klappt."
+
+msgid "Mail log"
+msgstr "Mail-Log"
+
+msgid "Search delivered and rejected mail."
+msgstr "Zugestellte und abgewiesene Mail durchsuchen."
+
+msgid "Search"
+msgstr "Suche"
+
+msgid "Export headers"
+msgstr "Header exportieren"
+
+msgid "Storage & privacy"
+msgstr "Speicherung & Datenschutz"
+
+msgid "Protection"
+msgstr "Schutz"
+
+msgid "Spam & virus"
+msgstr "Spam & Viren"
+
+msgid "When mail is greylisted, marked or rejected, and the extra virus signatures."
+msgstr "Wann Mail per Greylisting verzögert, markiert oder abgewiesen wird, und die zusätzlichen Virensignaturen."
+
+msgid "Spam"
+msgstr "Spam"
+
+msgid "Virus signatures"
+msgstr "Virensignaturen"
+
+msgid "Attachments"
+msgstr "Anhänge"
+
+msgid "Content disarm"
+msgstr "Entschärfung von Inhalten"
+
+msgid "Link check"
+msgstr "Linkprüfung"
+
+msgid "Phishing reports and banner"
+msgstr "Phishing-Meldungen und Warnbanner"
+
+msgid "Neural network"
+msgstr "Neuronales Netz"
+
+msgid "Symbol scores"
+msgstr "Symbol-Scores"
+
+msgid "Own model"
+msgstr "Eigenes Modell"
+
+msgid "Put in front of the subject of mail with a hard SPF, DKIM or DMARC failure."
+msgstr "Wird dem Betreff von Mail mit hartem SPF-, DKIM- oder DMARC-Fehler vorangestellt."
+
+msgid "Read only. Bayes counts once it has learned min_learns spam and as many ham mails."
+msgstr "Nur lesen. Bayes zählt, sobald es min_learns Spam- und ebenso viele erwünschte Mails gelernt hat."
+
+msgid "Runs by itself every 2 hours and fetches only what changed."
+msgstr "Läuft alle 2 Stunden von selbst und holt nur, was sich geändert hat."
+
+msgid "Blocklists"
+msgstr "Blocklisten"
+
+msgid "DNS blocklists, asked through the own resolver of this server."
+msgstr "DNS-Blocklisten, abgefragt über den eigenen Resolver dieses Servers."
+
+msgid "Hits and errors count from the last rspamd start. Lists that are only free for low volume or non-commercial use stay off until you switch them on. Read the terms first."
+msgstr "Treffer und Fehler zählen ab dem letzten Start von rspamd. Listen, die nur für geringe Mengen oder nicht kommerziell frei sind, bleiben aus, bis Sie sie einschalten. Lesen Sie zuerst die Bedingungen."
+
+msgid "An error answer of a list never counts as a listing, whether you name return codes or not."
+msgstr "Eine Fehlerantwort einer Liste zählt nie als Eintrag, ob Sie Rückgabecodes nennen oder nicht."
+
+msgid "IP blocklists"
+msgstr "IP-Sperrlisten"
+
+msgid "Block mail servers by their address, in the firewall of this server: feeds such as Talos, and own lists."
+msgstr "Mailserver nach Adresse sperren, in der Firewall dieses Servers: Feeds wie Talos und eigene Listen."
+
+msgid "A feed stays off until you accept its terms. Relay networks, allowed admin addresses, cluster nodes and the own addresses are never blocked. Firewall reloads of package updates keep every list."
+msgstr "Ein Feed bleibt aus, bis du seine Nutzungsbedingungen bestätigst. Relay-Netze, erlaubte Admin-Adressen, Cluster-Knoten und die eigenen Adressen werden nie gesperrt. Firewall-Reloads bei Paket-Updates lassen alle Listen bestehen."
+
+msgid "Sender lists"
+msgstr "Absenderlisten"
+
+msgid "Always allow or block senders, by address, domain, IP or pattern."
+msgstr "Absender immer erlauben oder sperren, nach Adresse, Domain, IP oder Muster."
+
+msgid "A rule for one recipient or domain only. Other rules are managed above."
+msgstr "Eine Regel nur für einen Empfänger oder eine Domain. Andere Regeln werden oben verwaltet."
+
+msgid "Rules"
+msgstr "Regeln"
+
+msgid "Other spam limits, quarantine or another route, by sender, recipient, domain, tenant or group."
+msgstr "Andere Spam-Grenzen, Quarantäne oder ein anderer Weg, nach Absender, Empfänger, Domain, Mandant oder Gruppe."
+
+msgid "One verdict per mail: with several recipients, a rule counts if one of them fits. Quarantine needs the quarantine switched on. A virus is rejected in any case. Tenants and groups are read again every hour."
+msgstr "Ein Urteil je Mail: Bei mehreren Empfängern gilt eine Regel, wenn einer davon passt. Quarantäne braucht die eingeschaltete Quarantäne. Ein Virus wird immer abgewiesen. Mandanten und Gruppen werden stündlich neu gelesen."
+
+msgid "Impersonation & BEC"
+msgstr "Identitätsbetrug & BEC"
+
+msgid "Fake names of VIPs, lookalike domains, first contacts and senders that suddenly write differently."
+msgstr "Gefälschte Namen von VIPs, ähnlich aussehende Domains, Erstkontakte und Absender, die plötzlich anders schreiben."
+
+msgid "Off by default. Each check adds its score, so a lookalike domain at a first contact counts more. Runs in rspamd, the relations and sender profiles are kept in Redis for the days set."
+msgstr "Standardmäßig aus. Jede Prüfung addiert ihren Score, eine ähnliche Domain beim Erstkontakt zählt also mehr. Läuft in rspamd, die Beziehungen und Absenderprofile werden für die eingestellten Tage in Redis gehalten."
+
+msgid "Own domains are protected anyway: those of the routes, the DKIM keys and the tenants."
+msgstr "Eigene Domains sind ohnehin geschützt: die der Routen, der DKIM-Schlüssel und der Mandanten."
+
+msgid "Domains & tenants"
+msgstr "Domains & Mandanten"
+
+msgid "DKIM, ARC & DMARC"
+msgstr "DKIM, ARC & DMARC"
+
+msgid "Signing keys, their rotation, ARC sealing and the DMARC record of your domains."
+msgstr "Signaturschlüssel, ihre Rotation, ARC-Siegel und der DMARC-Eintrag Ihrer Domains."
+
+msgid "DKIM keys"
+msgstr "DKIM-Schlüssel"
+
+msgid "Key rotation"
+msgstr "Schlüsselrotation"
+
+msgid "Managed externally"
+msgstr "Extern verwaltet"
+
+msgid "ARC"
+msgstr "ARC"
+
+msgid "DMARC record"
+msgstr "DMARC-Eintrag"
+
+msgid "Reports received"
+msgstr "Empfangene Berichte"
+
+msgid "Take over the key another system signs with, so each mail is signed once. The private key never leaves this server again: export gives the public DNS records only."
+msgstr "Den Schlüssel übernehmen, mit dem ein anderes System signiert, damit jede Mail nur einmal signiert wird. Der private Schlüssel verlässt diesen Server nicht mehr: der Export liefert nur die öffentlichen DNS-Einträge."
+
+msgid "Public DNS records as a zone file. As CSV, on the console: efactl dkim-export --format csv"
+msgstr "Öffentliche DNS-Einträge als Zonendatei. Als CSV an der Konsole: efactl dkim-export --format csv"
+
+msgid "Empty by default. A valid ARC chain of a sealer named here counts for the checks and softens a DMARC reject of mail it forwarded, for example microsoft.com, google.com or yahoo.com."
+msgstr "Standardmäßig leer. Eine gültige ARC-Kette eines hier genannten Sealers zählt für die Prüfungen und mildert ein DMARC-Reject weitergeleiteter Mail, zum Beispiel microsoft.com, google.com oder yahoo.com."
+
+msgid "ARC seals mail this server passes on, so the next server can trust its checks. RFC 8617 defines RSA only, Ed25519 is not used for ARC."
+msgstr "ARC versiegelt Mail, die dieser Server weitergibt, damit der nächste Server seinen Prüfungen trauen kann. RFC 8617 kennt nur RSA, Ed25519 wird für ARC nicht verwendet."
+
+msgid "Future keys are made in advance; a key rotates from its date on, once enough DNS servers show its record. Publish the records of future keys in advance: the DNS export above contains them. The check runs every 2 hours."
+msgstr "Künftige Schlüssel werden im Voraus erzeugt; ein Schlüssel rotiert ab seinem Datum, sobald genug DNS-Server seinen Eintrag zeigen. Veröffentlichen Sie die Einträge künftiger Schlüssel vorab: der DNS-Export oben enthält sie. Die Prüfung läuft alle 2 Stunden."
+
+msgid "Use external servers. Empty fields are not asked. A key never rotates before its date."
+msgstr "Externe Server verwenden. Leere Felder werden nicht gefragt. Ein Schlüssel rotiert nie vor seinem Datum."
+
+msgid "Also applies to domains added later. Switching off keeps the future keys."
+msgstr "Gilt auch für später hinzugefügte Domains. Ausschalten behält die künftigen Schlüssel."
+
+msgid "Shown as override in the status above. Mode default removes it again."
+msgstr "Wird oben im Status als Abweichung gezeigt. Modus default entfernt sie wieder."
+
+msgid "Builds the _dmarc record after RFC 9989; eFa only stores it, you publish it. Start with p=none and read the reports. Move to quarantine and then reject once all legitimate mail passes."
+msgstr "Baut den _dmarc-Eintrag nach RFC 9989; eFa speichert ihn nur, Sie veröffentlichen ihn. Beginnen Sie mit p=none und lesen Sie die Berichte. Gehen Sie auf quarantine und dann reject, sobald alle legitime Mail durchkommt."
+
+msgid "Names tags that RFC 9989 removed, such as pct. Saves nothing."
+msgstr "Nennt Tags, die RFC 9989 entfernt hat, etwa pct. Speichert nichts."
+
+msgid "Data loss prevention"
+msgstr "Schutz vor Datenabfluss"
+
+msgid "Outgoing mail with card numbers, IBANs, tax or social security numbers or own search patterns: log, encrypt, hold or reject."
+msgstr "Ausgehende Mails mit Kartennummern, IBANs, Steuer- oder SV-Nummern oder eigenen Suchmustern: protokollieren, verschlüsseln, zurückhalten oder ablehnen."
+
+msgid "Only mail of logged in users and of the relay networks. Card numbers count with a right check digit, IBANs with a right check sum, tax and social security numbers with their check digit and a word like Steuer or SV before them. Held mail waits in the queue (Queue page) until an admin releases or deletes it."
+msgstr "Nur Mails angemeldeter Benutzer und der Relay-Netze. Kartennummern zählen nur mit richtiger Prüfziffer, IBANs nur mit richtiger Prüfsumme, Steuer- und SV-Nummern mit Prüfziffer und einem Wort wie Steuer oder SV davor. Zurückgehaltene Mails warten in der Warteschlange (Seite Warteschlange), bis ein Admin sie freigibt oder löscht."
+
+msgid "Searched are the subject, the text and HTML parts and text attachments, up to 2 MB per mail. PDF, Office files and archives are not searched."
+msgstr "Durchsucht werden Betreff, Text- und HTML-Teile und Textanhänge, bis 2 MB je Mail. PDF, Office-Dateien und Archive werden nicht durchsucht."
+
+msgid "Bulk mail"
+msgstr "Massenversand"
+
+msgid "Newsletters and other bulk mail through their own slower transport, checked against what the big providers ask."
+msgstr "Newsletter und andere Massenmails über einen eigenen, langsameren Transport, geprüft gegen die Vorgaben der großen Provider."
+
+msgid "Bulk mail goes out more slowly per target domain and does not count for the sending limits. Only mail whose recipients are all outside this server takes the bulk transport. Checked: a one-click unsubscribe link (List-Unsubscribe with List-Unsubscribe-Post, RFC 8058), a DKIM key here for the sender domain, SPF and DMARC in DNS."
+msgstr "Massenmails gehen je Zieldomain langsamer hinaus und zählen nicht für die Versandgrenzen. Nur Mails, deren Empfänger alle außerhalb dieses Servers liegen, nehmen den Massenversand-Transport. Geprüft werden: ein Abmeldelink mit einem Klick (List-Unsubscribe mit List-Unsubscribe-Post, RFC 8058), ein DKIM-Schlüssel hier für die Absender-Domain, SPF und DMARC im DNS."
+
+msgid "Archive handover"
+msgstr "Archiv-Weitergabe"
+
+msgid "A copy of each mail to an external archive such as MailStore or piler, by SMTP."
+msgstr "Eine Kopie jeder Mail an ein externes Archiv wie MailStore oder piler, per SMTP."
+
+msgid "MailStore: set up MailStore Gateway (free) as journal target, or a journal mailbox that MailStore fetches, and give its address here. piler takes the copies on its own SMTP port. Copies of mail that is held wait with it; rejected mail is not archived. A copy that cannot be delivered waits in the queue, nothing is lost; the queue alarm (Queue page) reports a backlog. A commercial archive is never needed."
+msgstr "MailStore: MailStore Gateway (kostenlos) als Journal-Ziel einrichten oder ein Journal-Postfach, das MailStore abholt, und dessen Adresse hier eintragen. piler nimmt die Kopien über seinen eigenen SMTP-Port an. Kopien zurückgehaltener Mails warten mit ihnen; abgewiesene Mails werden nicht archiviert. Eine Kopie, die nicht zugestellt werden kann, wartet in der Warteschlange, nichts geht verloren; der Warteschlangen-Alarm (Seite Warteschlange) meldet einen Rückstau. Ein kommerzielles Archiv ist nie nötig."
+
+msgid "Encrypted PDF mail"
+msgstr "Verschlüsselte PDF-Mail"
+
+msgid "Outgoing mail and its attachments in a PDF encrypted with AES-256, without a web portal."
+msgstr "Ausgehende Mails samt Anhängen in einem mit AES-256 verschlüsselten PDF, ohne Webportal."
+
+msgid "A mail with the keyword in its subject goes out as encrypted PDF, the keyword is taken out of the subject. DLP rules with the action encrypt do the same. The subject itself stays readable."
+msgstr "Eine Mail mit dem Stichwort im Betreff geht als verschlüsseltes PDF hinaus, das Stichwort wird aus dem Betreff entfernt. DLP-Regeln mit der Aktion verschlüsseln tun dasselbe. Der Betreff selbst bleibt lesbar."
+
+msgid "Without an agreed password the sender gets a new password for each mail in a mail of its own, and gives it to the recipients another way, by phone for instance."
+msgstr "Ohne vereinbartes Passwort bekommt der Absender für jede Mail ein neues Passwort in einer eigenen Mail und gibt es den Empfängern auf einem anderen Weg weiter, etwa per Telefon."
+
+msgid "Disclaimers"
+msgstr "Disclaimer"
+
+msgid "A text or HTML with pictures and attachments at the end of outgoing mail, added before the mail is signed."
+msgstr "Ein Text oder HTML mit Bildern und Anhängen am Ende ausgehender Mails, eingefügt bevor die Mail signiert wird."
+
+msgid "Each mail gets one disclaimer: the most specific that fits its sender (group, then domain, then tenant, then all domains), within a level the lowest priority. Groups: eFa-next group names or ldap:<DN>; their members are read when a disclaimer is saved, the mail never waits for the directory."
+msgstr "Jede Mail bekommt einen Disclaimer: den spezifischsten, der zum Absender passt (Gruppe, dann Domain, dann Mandant, dann alle Domains), innerhalb einer Stufe die niedrigste Priorität. Gruppen: Gruppennamen von eFa-next oder ldap:<DN>; ihre Mitglieder werden beim Speichern gelesen, die Mail wartet nie auf das Verzeichnis."
+
+msgid "A ZIP with manifest.json, body.html and/or body.txt, media/ (pictures, named in the HTML as cid:<file>) and attachments/ (png, jpg, gif, pdf, vcf). Checked whole before anything changes (docs/api-disclaimer.md)."
+msgstr "Ein ZIP mit manifest.json, body.html und/oder body.txt, media/ (Bilder, im HTML als cid:<Datei>) und attachments/ (png, jpg, gif, pdf, vcf). Wird vollständig geprüft, bevor sich etwas ändert (docs/api-disclaimer.md)."
+
+msgid "The last three versions are kept."
+msgstr "Die letzten drei Versionen bleiben erhalten."
+
+msgid "The older way, one text per domain; a template of the domain wins over it. Only mail of logged in users and of the relay networks. Signed or encrypted mail stays as it is, and a reply that quotes the disclaimer does not get it twice."
+msgstr "Der ältere Weg, ein Text je Domain; eine Vorlage der Domain hat Vorrang. Nur Mails angemeldeter Benutzer und der Relay-Netze. Signierte oder verschlüsselte Mails bleiben unverändert, eine Antwort, die den Disclaimer zitiert, bekommt ihn nicht doppelt."
+
+msgid "Domain settings"
+msgstr "Domain-Einstellungen"
+
+msgid "Values of a tenant or a domain over the global ones; the domain wins over its tenant."
+msgstr "Werte eines Mandanten oder einer Domain statt der globalen; die Domain gewinnt vor ihrem Mandanten."
+
+msgid "Each value with its source: domain, tenant or global."
+msgstr "Jeder Wert mit seiner Quelle: Domain, Mandant oder global."
+
+msgid "Type inherit to take the value of the tenant or global again. Rules for a sender or recipient still win."
+msgstr "inherit eingeben, um wieder den Wert des Mandanten oder den globalen zu nehmen. Regeln für einen Absender oder Empfänger gewinnen weiterhin."
+
+msgid "The mail server of a domain is on the page Mail routing."
+msgstr "Der Mailserver einer Domain steht auf der Seite Mail-Routing."
+
+msgid "Tenants"
+msgstr "Mandanten"
+
+msgid "Tenants with their domains, login directory, look, limits and usage."
+msgstr "Mandanten mit ihren Domains, Anmeldeverzeichnis, Aussehen, Limits und Nutzung."
+
+msgid "Tenants & domains"
+msgstr "Mandanten & Domains"
+
+msgid "Usage & limits"
+msgstr "Nutzung & Limits"
+
+msgid "Look"
+msgstr "Aussehen"
+
+msgid "Login directory"
+msgstr "Anmeldeverzeichnis"
+
+msgid "Lock & delete"
+msgstr "Sperren & löschen"
+
+msgid "A tenant admin gets a TXT record to publish; the domain counts after domain-verify finds it. A super admin adds it at once."
+msgstr "Ein Mandanten-Admin bekommt einen TXT-Eintrag zum Veröffentlichen; die Domain zählt, wenn domain-verify ihn findet. Ein Super-Admin fügt sie sofort hinzu."
+
+msgid "From 80 % the admin gets a mail. At 100 % no new domain or user, and no new quarantine for the tenant; mail still flows."
+msgstr "Ab 80 % bekommt der Admin eine Mail. Bei 100 % keine neue Domain, kein neuer Benutzer und keine neue Quarantäne für den Mandanten; Mail fließt weiter."
+
+msgid "Locked: its users are logged out and cannot log in. Mail flows on, or waits in the queue."
+msgstr "Gesperrt: seine Benutzer werden abgemeldet und können sich nicht anmelden. Mail fließt weiter oder wartet in der Warteschlange."
+
+msgid "Deletes users that are only in this tenant, its groups, settings, DKIM keys, quarantine and mail log. The audit log stays."
+msgstr "Löscht Benutzer, die nur in diesem Mandanten sind, seine Gruppen, Einstellungen, DKIM-Schlüssel, Quarantäne und Mail-Log. Das Audit-Log bleibt."
+
+msgid "The login page then asks for the mail domain. Only addresses of the domains of the tenant can log in through it."
+msgstr "Die Anmeldeseite fragt dann nach der Maildomain. Nur Adressen der Domains des Mandanten können sich darüber anmelden."
+
+msgid "Users & access"
+msgstr "Benutzer & Zugriff"
+
+msgid "Users"
+msgstr "Benutzer"
+
+msgid "Users with their groups, your sessions, API tokens and the audit log."
+msgstr "Benutzer mit ihren Gruppen, Ihre Sitzungen, API-Tokens und das Audit-Log."
+
+msgid "My login"
+msgstr "Meine Anmeldung"
+
+msgid "API tokens"
+msgstr "API-Tokens"
+
+msgid "Audit log"
+msgstr "Audit-Log"
+
+msgid "Strict audit mode"
+msgstr "Strenger Audit-Modus"
+
+msgid "Off by default. The API is at /api/v1/ with the header Authorization: Bearer <token>, /api/v1/schema lists the commands."
+msgstr "Standardmäßig aus. Die API liegt unter /api/v1/ mit dem Header Authorization: Bearer <token>, /api/v1/schema listet die Befehle."
+
+msgid "A user can be in several groups; the permissions add up. Tenant and domain are the scope of the predefined groups (tenant admin needs a tenant, domain admin a domain). You cannot hand out what you do not have, or change your own groups."
+msgstr "Ein Benutzer kann in mehreren Gruppen sein; die Rechte addieren sich. Mandant und Domain sind der Bereich der vordefinierten Gruppen (Mandanten-Admin braucht einen Mandanten, Domain-Admin eine Domain). Sie können nicht vergeben, was Sie nicht haben, und Ihre eigenen Gruppen nicht ändern."
+
+msgid "The effective permissions, each with where it counts."
+msgstr "Die wirksamen Rechte, jeweils mit ihrem Geltungsbereich."
+
+msgid "Locked users are logged out within 15 seconds and cannot log in; their API tokens stop."
+msgstr "Gesperrte Benutzer werden binnen 15 Sekunden abgemeldet und können sich nicht anmelden; ihre API-Tokens enden."
+
+msgid "Your own sessions on other devices too. The browser is logged out within 15 seconds."
+msgstr "Auch Ihre eigenen Sitzungen auf anderen Geräten. Der Browser wird binnen 15 Sekunden abgemeldet."
+
+msgid "Groups"
+msgstr "Gruppen"
+
+msgid "Groups with their permissions and scope, and which directory group gets which eFa group."
+msgstr "Gruppen mit ihren Rechten und ihrem Bereich, und welche Verzeichnisgruppe welche eFa-Gruppe bekommt."
+
+msgid "Directory groups"
+msgstr "Verzeichnisgruppen"
+
+msgid "The predefined groups cannot be changed or removed; copy one and change the copy. Scope: global, or the tenants or domains named. Permissions marked global_only need a global group."
+msgstr "Die vordefinierten Gruppen lassen sich nicht ändern oder entfernen; kopieren Sie eine und ändern Sie die Kopie. Bereich: global oder die genannten Mandanten oder Domains. Rechte mit global_only brauchen eine globale Gruppe."
+
+msgid "For LDAP the full DN or the CN, for OIDC the name or ID of the group. A login gets one eFa group per mapped directory group."
+msgstr "Für LDAP der volle DN oder der CN, für OIDC der Name oder die ID der Gruppe. Eine Anmeldung bekommt je zugeordneter Verzeichnisgruppe eine eFa-Gruppe."
+
+msgid "Security"
+msgstr "Sicherheit"
+
+msgid "Admin access, the firewall and its test."
+msgstr "Admin-Zugang, die Firewall und ihr Test."
+
+msgid "Address harvesting"
+msgstr "Adress-Ausspähung"
+
+msgid "Admin access"
+msgstr "Admin-Zugang"
+
+msgid "Firewall"
+msgstr "Firewall"
+
+msgid "Firewall test"
+msgstr "Firewall-Test"
+
+msgid "Security self check"
+msgstr "Sicherheits-Selbstprüfung"
+
+msgid "Milter health"
+msgstr "Milter-Gesundheit"
+
+msgid "TLS profile"
+msgstr "TLS-Profil"
+
+msgid "SSH profile"
+msgstr "SSH-Profil"
+
+msgid "Hardening report"
+msgstr "Härtungsbericht"
+
+msgid "Cluster"
+msgstr "Cluster"
+
+msgid "Cluster: all nodes"
+msgstr "Cluster: alle Knoten"
+
+msgid "Off also stops the SSH keys of root: only other users can log in then, with sudo. Key-only keeps root keys and stops passwords. Off refuses unless another user has full sudo rights and an SSH key or a password login. Log in as that user first, in a second session."
+msgstr "Aus sperrt auch die SSH-Schlüssel von root: dann melden sich nur andere Benutzer an, mit sudo. Nur-Schlüssel behält die root-Schlüssel und sperrt Passwörter. Aus wird verweigert, solange kein anderer Benutzer volle sudo-Rechte und einen SSH-Schlüssel oder Passwort-Login hat. Melden Sie sich zuerst in einer zweiten Sitzung als dieser Benutzer an."
+
+msgid "To change the web password, on the console: efactl admin-password"
+msgstr "Um das Web-Passwort zu ändern, an der Konsole: efactl admin-password"
+
+msgid "Off: /rspamd/ is not reachable. Read only: the main admin can look for 15 minutes to 4 hours, then it closes by itself. Changes go through eFa (rights, audit, cluster). Only with an eFa login; the rspamd password is not used."
+msgstr "Aus: /rspamd/ ist nicht erreichbar. Nur lesen: der Hauptadmin kann 15 Minuten bis 4 Stunden lang schauen, dann schließt es sich selbst. Änderungen gehen über eFa (Rechte, Audit, Cluster). Nur mit eFa-Anmeldung; das rspamd-Passwort wird nicht verwendet."
+
+msgid "Reverts after 5 minutes unless you confirm. Keep your own network in the list."
+msgstr "Wird nach 5 Minuten zurückgenommen, wenn Sie nicht bestätigen. Lassen Sie Ihr eigenes Netz in der Liste."
+
+msgid "Restores missing eFa rules every 5 minutes and starts firewalld if it is down. Never changes other rules, ports or zones."
+msgstr "Stellt fehlende eFa-Regeln alle 5 Minuten wieder her und startet firewalld, wenn es nicht läuft. Ändert nie andere Regeln, Ports oder Zonen."
+
+msgid "Checks whether eFa gets out on all ports and answers from outside. No mail is sent."
+msgstr "Prüft, ob eFa auf allen Ports hinauskommt und von außen antwortet. Es wird keine Mail gesendet."
+
+msgid "Missing security updates (those of listening packages first), open ports, firewall, SSH, TLS, open relay, file modes, certificate. Reads only, changes nothing."
+msgstr "Fehlende Sicherheitsupdates (zuerst die lauschender Pakete), offene Ports, Firewall, SSH, TLS, offenes Relay, Dateirechte, Zertifikat. Liest nur, ändert nichts."
+
+msgid "efa-probe runs on a server of yours and connects back only to the address that asks it. eFa uses no third-party check services."
+msgstr "efa-probe läuft auf einem Ihrer Server und verbindet sich nur zur fragenden Adresse zurück. eFa nutzt keine Prüfdienste Dritter."
+
+msgid "Monitoring & reports"
+msgstr "Überwachung & Berichte"
+
+msgid "Mail report"
+msgstr "Mail-Bericht"
+
+msgid "Summary of the mail log, updated once an hour."
+msgstr "Zusammenfassung des Mail-Logs, stündlich aktualisiert."
+
+msgid "Report"
+msgstr "Bericht"
+
+msgid "Today"
+msgstr "Heute"
+
+msgid "Yesterday"
+msgstr "Gestern"
+
+msgid "Last 7 days"
+msgstr "Letzte 7 Tage"
+
+msgid "Daily mail"
+msgstr "Tägliche Mail"
+
+msgid "Opens as a page. To get a PDF, use Print in the browser."
+msgstr "Öffnet sich als Seite. Für ein PDF verwenden Sie Drucken im Browser."
+
+msgid "Tenant admins with an email address get the report of their tenant."
+msgstr "Mandanten-Admins mit E-Mail-Adresse bekommen den Bericht ihres Mandanten."
+
+msgid "Monitoring"
+msgstr "Überwachung"
+
+msgid "Send logs and events to a SIEM or an OTLP collector, and values to Prometheus."
+msgstr "Logs und Ereignisse an ein SIEM oder einen OTLP-Collector senden, Werte an Prometheus."
+
+msgid "SIEM export"
+msgstr "SIEM-Export"
+
+msgid "OTLP"
+msgstr "OTLP"
+
+msgid "Prometheus"
+msgstr "Prometheus"
+
+msgid "OTLP/HTTP with JSON, gzip, a disk buffer that drops the oldest data when full, and retries that wait longer each time. The token is never shown again: the status only says set or not set."
+msgstr "OTLP/HTTP mit JSON, gzip, einem Plattenpuffer, der bei vollem Speicher die ältesten Daten verwirft, und Wiederholungen mit wachsendem Abstand. Der Token wird nie wieder angezeigt: der Status sagt nur gesetzt oder nicht gesetzt."
+
+msgid "Sends one test record now and shows the HTTP status."
+msgstr "Sendet jetzt einen Testeintrag und zeigt den HTTP-Status."
+
+msgid "Sends mail, audit, firewall, event and Fail2Ban lines through rsyslog."
+msgstr "Sendet Mail-, Audit-, Firewall-, Ereignis- und Fail2Ban-Zeilen über rsyslog."
+
+msgid "Wazuh"
+msgstr "Wazuh"
+
+msgid "The Wazuh agent: install, connect to a manager, update and remove."
+msgstr "Der Wazuh-Agent: installieren, mit einem Manager verbinden, aktualisieren und entfernen."
+
+msgid "Agent"
+msgstr "Agent"
+
+msgid "Install & update"
+msgstr "Installieren & aktualisieren"
+
+msgid "The Wazuh agent is a third-party program and runs as root, as its package sets it up."
+msgstr "Der Wazuh-Agent ist ein Fremdprogramm und läuft als root, so wie sein Paket ihn einrichtet."
+
+msgid "From packages.wazuh.com, with the key fingerprint checked. The package scripts are checked first: if they would touch the firewall, nothing is installed. Updates come only from this page."
+msgstr "Von packages.wazuh.com, mit geprüftem Schlüssel-Fingerabdruck. Die Paketskripte werden vorher geprüft: würden sie die Firewall berühren, wird nichts installiert. Updates kommen nur über diese Seite."
+
+msgid "Active response stays off unless you turn it on: the manager could then change firewalld at any time. An agent that eFa did not install is only read; eFa takes it over only with adopt and the confirmation."
+msgstr "Active Response bleibt aus, bis Sie es einschalten: der Manager könnte dann jederzeit firewalld ändern. Einen Agent, den eFa nicht installiert hat, liest eFa nur; es übernimmt ihn nur mit adopt und Bestätigung."
+
+msgid "System"
+msgstr "System"
+
+msgid "Network & certificate"
+msgstr "Netzwerk & Zertifikat"
+
+msgid "Changes to the network apply after a reboot."
+msgstr "Änderungen am Netzwerk gelten nach einem Neustart."
+
+msgid "Main interface"
+msgstr "Hauptschnittstelle"
+
+msgid "More interfaces"
+msgstr "Weitere Schnittstellen"
+
+msgid "DNS and certificate"
+msgstr "DNS und Zertifikat"
+
+msgid "DANE"
+msgstr "DANE"
+
+msgid "MTA-STS"
+msgstr "MTA-STS"
+
+msgid "For internal mail servers or a second uplink. The interface of the default route is changed above, not here. Reverts after 5 minutes unless you keep the change; a firewall zone changes only between minute 20 and 50."
+msgstr "Für interne Mailserver oder einen zweiten Uplink. Die Schnittstelle der Default-Route wird oben geändert, nicht hier. Wird nach 5 Minuten zurückgenommen, wenn Sie die Änderung nicht behalten; eine Firewall-Zone ändert sich nur zwischen Minute 20 und 50."
+
+msgid "Backup & restore"
+msgstr "Sicherung & Wiederherstellung"
+
+msgid "Backups hold the database and private keys; encrypted ones need their password to restore."
+msgstr "Sicherungen enthalten die Datenbank und private Schlüssel; verschlüsselte brauchen zum Wiederherstellen ihr Passwort."
+
+msgid "Automatic backups are encrypted with it. It is stored for root only and never shown again. If you lose it, those backups are unusable."
+msgstr "Automatische Sicherungen werden damit verschlüsselt. Es wird nur für root gespeichert und nie wieder angezeigt. Wenn Sie es verlieren, sind diese Sicherungen unbrauchbar."
+
+msgid "Only encrypted backups leave this host, right after each backup. For SFTP, compare the host key shown with the one of the server before the first backup goes there."
+msgstr "Nur verschlüsselte Sicherungen verlassen diesen Host, direkt nach jeder Sicherung. Vergleichen Sie bei SFTP den angezeigten Host-Schlüssel mit dem des Servers, bevor die erste Sicherung dorthin geht."
+
+msgid "Maintenance & update"
+msgstr "Wartung & Update"
+
+msgid "Updates, maintenance mode and power. Actions that interrupt mail ask first."
+msgstr "Updates, Wartungsmodus und Ein/Aus. Aktionen, die den Mailfluss unterbrechen, fragen vorher."
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Maintenance"
+msgstr "Wartung"
+
+msgid "Power"
+msgstr "Ein/Aus"
+
+msgid "Advanced"
+msgstr "Erweitert"
+
+msgid "Stops the service monitor from restarting services."
+msgstr "Hält die Dienstüberwachung davon ab, Dienste neu zu starten."
+
+msgid "First a backup and an export of the eFa configuration, encrypted if a backup password is set. It starts only between minute 20 and 50, and leaves out packages whose scripts reload or restart firewalld. Operating system updates cannot be rolled back automatically."
+msgstr "Zuerst eine Sicherung und ein Export der eFa-Konfiguration, verschlüsselt, wenn ein Sicherungspasswort gesetzt ist. Startet nur zwischen Minute 20 und 50 und lässt Pakete aus, deren Skripte firewalld neu laden oder starten. Betriebssystem-Updates lassen sich nicht automatisch zurücknehmen."
+
+msgid "Auto installs in the window with a backup, a health check and a rollback if that fails. The packages are not signed: auto trusts the release account. RPM signing is recommended before using it in production."
+msgstr "Auto installiert im Zeitfenster mit Sicherung, Gesundheitsprüfung und Rücknahme bei Fehlern. Die Pakete sind nicht signiert: auto vertraut dem Release-Konto. RPM-Signierung wird vor dem Produktiveinsatz empfohlen."
+
+msgid "BSI TR-02102-2 (default)"
+msgstr "BSI TR-02102-2 (Standard)"
+
+msgid "RFC 9325 (BCP 195)"
+msgstr "RFC 9325 (BCP 195)"
+
+msgid "Mozilla modern (TLS 1.3 only for web and logins)"
+msgstr "Mozilla modern (nur TLS 1.3 für Web und Anmeldungen)"
+
+msgid "Sanesecurity signatures"
+msgstr "Sanesecurity-Signaturen"
+
+msgid "Sanesecurity signatures: switch"
+msgstr "Sanesecurity-Signaturen: schalten"
+
+msgid "on or off"
+msgstr "an oder aus"
+
+msgid "Update signatures now"
+msgstr "Signaturen jetzt aktualisieren"
+
+msgid "Sanesecurity: background job"
+msgstr "Sanesecurity: Hintergrundjob"
+
+msgid "Change a blocklist"
+msgstr "Eine Blockliste ändern"
+
+msgid "List ID from the table"
+msgstr "Listen-ID aus der Tabelle"
+
+msgid "Score, empty keeps it"
+msgstr "Score, leer behält ihn"
+
+msgid "Spamhaus DQS key, optional"
+msgstr "Spamhaus-DQS-Schlüssel, optional"
+
+msgid "I have read and accept the terms of use of this list. eFa-next, everyone involved in the project and its sponsors, including IT-World ITW GmbH, have no influence on this list or its use and are not liable for it. For any problem with the list I contact its provider directly."
+msgstr "Ich habe die Nutzungsbedingungen dieser Liste gelesen und akzeptiere sie. eFa-next, alle am Projekt Beteiligten und seine Sponsoren, darunter die IT-World ITW GmbH, haben keinen Einfluss auf diese Liste und ihre Nutzung und haften nicht dafür. Bei Problemen mit der Liste wende ich mich direkt an ihren Anbieter."
+
+msgid "Your own blocklist"
+msgstr "Eigene Blockliste"
+
+msgid "add or remove"
+msgstr "hinzufügen oder entfernen"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "DNS zone"
+msgstr "DNS-Zone"
+
+msgid "Blocklist type"
+msgstr "Art der Blockliste"
+
+msgid "Score"
+msgstr "Score"
+
+msgid "Return codes that count, empty for all real listings"
+msgstr "Rückgabecodes, die zählen, leer für alle echten Einträge"
+
+msgid "Website, optional"
+msgstr "Webseite, optional"
+
+msgid "Type yes to confirm"
+msgstr "Zum Bestätigen yes eingeben"
+
+msgid "Root login through SSH"
+msgstr "Root-Login über SSH"
+
+msgid "Root login through SSH: switch"
+msgstr "Root-Login über SSH: schalten"
+
+msgid "Root login"
+msgstr "Root-Login"
+
+msgid "Message search"
+msgstr "Mailsuche"
+
+msgid "Sender, * as wildcard"
+msgstr "Absender, * als Platzhalter"
+
+msgid "Recipient, * as wildcard"
+msgstr "Empfänger, * als Platzhalter"
+
+msgid "Words in the subject"
+msgstr "Wörter im Betreff"
+
+msgid "IP address"
+msgstr "IP-Adresse"
+
+msgid "Queue ID"
+msgstr "Queue-ID"
+
+msgid "Result, for example reject"
+msgstr "Ergebnis, zum Beispiel reject"
+
+msgid "From, like 2026-11-05"
+msgstr "Von, etwa 2026-11-05"
+
+msgid "To, like 2026-11-05 14:30"
+msgstr "Bis, etwa 2026-11-05 14:30"
+
+msgid "Message-ID, * as wildcard"
+msgstr "Message-ID, * als Platzhalter"
+
+msgid "From header, * as wildcard"
+msgstr "From-Header, * als Platzhalter"
+
+msgid "Reply-To, * as wildcard"
+msgstr "Reply-To, * als Platzhalter"
+
+msgid "Return-Path, * as wildcard"
+msgstr "Return-Path, * als Platzhalter"
+
+msgid "X-Mailer, * as wildcard"
+msgstr "X-Mailer, * als Platzhalter"
+
+msgid "Results"
+msgstr "Ergebnisse"
+
+msgid "Empty, or csv for a file"
+msgstr "Leer, oder csv für eine Datei"
+
+msgid "SIEM export: settings"
+msgstr "SIEM-Export: Einstellungen"
+
+msgid "Target host or IP"
+msgstr "Zielhost oder IP"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Protocol"
+msgstr "Protokoll"
+
+msgid "rfc5424 or json"
+msgstr "rfc5424 oder json"
+
+msgid "CA of the SIEM (PEM file on this host), empty for the public CAs"
+msgstr "CA des SIEM (PEM-Datei auf diesem Host), leer für die öffentlichen CAs"
+
+msgid "Values for Prometheus"
+msgstr "Werte für Prometheus"
+
+msgid "Bayes classifier"
+msgstr "Bayes-Klassifikator"
+
+msgid "My settings: change"
+msgstr "Meine Einstellungen: ändern"
+
+msgid "Language"
+msgstr "Sprache"
+
+msgid "Time zone, such as Europe/Vienna; server for the time of the server"
+msgstr "Zeitzone, etwa Europe/Vienna; server für die Zeit des Servers"
+
+msgid "Rows per page"
+msgstr "Zeilen pro Seite"
+
+msgid "Report mails to me: on or off"
+msgstr "Berichts-Mails an mich: an oder aus"
+
+msgid "View of the web interface"
+msgstr "Ansicht des Webinterface"
+
+msgid "Dashboard values"
+msgstr "Werte des Dashboards"
+
+msgid "Security self check: run now"
+msgstr "Sicherheits-Selbstprüfung: jetzt starten"
+
+msgid "Switches: what is set now"
+msgstr "Schalter: was gerade eingestellt ist"
+
+msgid "Forms: current values (check)"
+msgstr "Formulare: aktuelle Werte (Prüfung)"
+
+msgid "Cluster: make this node the master"
+msgstr "Cluster: diesen Knoten zum Master machen"
+
+msgid "Name of this node, such as mx-1"
+msgstr "Name dieses Knotens, etwa mx-1"
+
+msgid "Mode: master-client (settings only here) or ha (settings on every node)"
+msgstr "Betriebsart: master-client (Einstellungen nur hier) oder ha (Einstellungen auf jedem Knoten)"
+
+msgid "Cluster: master/client or HA"
+msgstr "Cluster: Master/Client oder HA"
+
+msgid "Mode: master-client or ha"
+msgstr "Betriebsart: master-client oder ha"
+
+msgid "Type yes to confirm: every node takes all settings anew"
+msgstr "Zum Bestätigen yes eintippen: jeder Knoten übernimmt alle Einstellungen neu"
+
+msgid "Cluster: one-time token for a new node"
+msgstr "Cluster: Einmal-Token für einen neuen Knoten"
+
+msgid "Cluster: join a master"
+msgstr "Cluster: einem Master beitreten"
+
+msgid "Master: host, and :port if not 8460"
+msgstr "Master: Host, und :Port, wenn nicht 8460"
+
+msgid "Name of this node, such as mx-2"
+msgstr "Name dieses Knotens, etwa mx-2"
+
+msgid "Address under which the master reaches this node"
+msgstr "Adresse, unter der der Master diesen Knoten erreicht"
+
+msgid "Fingerprint of the CA, as the master showed it"
+msgstr "Fingerabdruck der CA, wie ihn der Master angezeigt hat"
+
+msgid "Cluster port of this node, default 8460"
+msgstr "Cluster-Port dieses Knotens, Standard 8460"
+
+msgid "One-time token from the master"
+msgstr "Einmal-Token vom Master"
+
+msgid "Cluster: remove a node"
+msgstr "Cluster: Knoten entfernen"
+
+msgid "Node"
+msgstr "Knoten"
+
+msgid "Cluster: this client becomes the master (the old one is gone)"
+msgstr "Cluster: dieser Client wird Master (der alte ist weg)"
+
+msgid "Type yes to confirm: only when the master is gone for good"
+msgstr "Zum Bestätigen yes eintippen: nur wenn der Master endgültig weg ist"
+
+msgid "Cluster: leave it"
+msgstr "Cluster: verlassen"
+
+msgid "Cluster: mail log of all nodes"
+msgstr "Cluster: Mail-Log aller Knoten"
+
+msgid "Search text"
+msgstr "Suchtext"
+
+msgid "At most"
+msgstr "Höchstens"
+
+msgid "Cluster: held mail of all nodes"
+msgstr "Cluster: zurückgehaltene Mails aller Knoten"
+
+msgid "Cluster: mail queues of all nodes"
+msgstr "Cluster: Warteschlangen aller Knoten"
+
+msgid "Cluster: act on a mail of a node"
+msgstr "Cluster: Aktion für eine Mail eines Knotens"
+
+msgid "Action"
+msgstr "Aktion"
+
+msgid "Cluster: lift a ban on all nodes"
+msgstr "Cluster: Sperre auf allen Knoten aufheben"
+
+msgid "Logins of port 587: apply"
+msgstr "Anmeldungen auf Port 587: anwenden"
+
+msgid "Cluster: MX records and failover"
+msgstr "Cluster: MX-Einträge und Ausfallsicherheit"
+
+msgid "Cluster: take all settings of the master anew"
+msgstr "Cluster: alle Einstellungen des Masters neu übernehmen"
+
+msgid "Cluster: the shared settings of the master"
+msgstr "Cluster: die gemeinsamen Einstellungen des Masters"
+
+msgid "Cluster: apply the DKIM keys of the master"
+msgstr "Cluster: DKIM-Schlüssel des Masters übernehmen"
+
+msgid "Cluster: apply the link key of the master"
+msgstr "Cluster: Link-Schlüssel des Masters übernehmen"
+
+msgid "Retention of the data"
+msgstr "Aufbewahrung der Daten"
+
+msgid "Retention: days to keep"
+msgstr "Aufbewahrung: Tage"
+
+msgid "Data"
+msgstr "Daten"
+
+msgid "Days"
+msgstr "Tage"
+
+msgid "Reason before mail content is shown"
+msgstr "Begründung vor dem Anzeigen von Mail-Inhalt"
+
+msgid "Ask for a reason before mail content is shown: on or off"
+msgstr "Vor dem Anzeigen von Mail-Inhalt nach einer Begründung fragen: an oder aus"
+
+msgid "Security self check: CVEs from OVAL data"
+msgstr "Sicherheits-Check: CVEs aus OVAL-Daten"
+
+msgid "Check the packages against the OVAL data of the distribution: on or off"
+msgstr "Pakete gegen die OVAL-Daten der Distribution prüfen: an oder aus"
+
+msgid "New passwords: check against known data breaches"
+msgstr "Neue Passwörter: gegen bekannte Datenlecks prüfen"
+
+msgid "Check against Have I Been Pwned (k-anonymity): on or off"
+msgstr "Gegen Have I Been Pwned prüfen (k-Anonymität): an oder aus"
+
+msgid "TLS profile for the web interface and mail"
+msgstr "TLS-Profil für Weboberfläche und Mail"
+
+msgid "Profile"
+msgstr "Profil"
+
+msgid "Custom only: OpenSSL cipher list, checked against the limit"
+msgstr "Nur bei Custom: OpenSSL-Cipherliste, gegen die Untergrenze geprüft"
+
+msgid "SSH profile: BSI TR-02102-4 or the system setting"
+msgstr "SSH-Profil: BSI TR-02102-4 oder die Systemeinstellung"
+
+msgid "SSH profile: bsi or system"
+msgstr "SSH-Profil: bsi oder system"
+
+msgid "SSH profile: keep it (after a new login worked)"
+msgstr "SSH-Profil: behalten (nachdem eine neue Anmeldung geklappt hat)"
+
+msgid "SSH profile: back unless confirmed (job)"
+msgstr "SSH-Profil: zurück, wenn nicht bestätigt (Job)"
+
+msgid "TLS profile: keep the limit after an update"
+msgstr "TLS-Profil: Untergrenze nach einem Update halten"
+
+msgid "SMTP: TLS 1.2 or newer only"
+msgstr "SMTP: nur TLS 1.2 oder neuer"
+
+msgid "TLS 1.2 or newer for all SMTP: on or off"
+msgstr "TLS 1.2 oder neuer für alle SMTP-Verbindungen: an oder aus"
+
+msgid "Kernel settings of the hardening report"
+msgstr "Kernel-Einstellungen des Härtungsberichts"
+
+msgid "No ICMP redirects, no core dumps of SUID programs: on or off"
+msgstr "Keine ICMP-Redirects, keine Core-Dumps von SUID-Programmen: an oder aus"
+
+msgid "Hardening report (CIS AlmaLinux 9, BSI TR-03108)"
+msgstr "Härtungsbericht (CIS AlmaLinux 9, BSI TR-03108)"
+
+msgid "Format"
+msgstr "Format"
+
+msgid "PDF file to write, - for stdout (command line)"
+msgstr "PDF-Datei, die geschrieben wird, - für die Standardausgabe (Kommandozeile)"
+
+msgid "Security self check: every day"
+msgstr "Sicherheits-Selbstprüfung: täglich"
+
+msgid "Every day: on or off"
+msgstr "Täglich: an oder aus"
+
+msgid "Network interfaces"
+msgstr "Netzwerkschnittstellen"
+
+msgid "Network interfaces: role and address"
+msgstr "Netzwerkschnittstellen: Rolle und Adresse"
+
+msgid "Interface, for example ens224"
+msgstr "Schnittstelle, zum Beispiel ens224"
+
+msgid "Role"
+msgstr "Rolle"
+
+msgid "IPv4 method"
+msgstr "IPv4-Methode"
+
+msgid "Address with prefix, for example 192.0.2.10/24"
+msgstr "Adresse mit Präfix, zum Beispiel 192.0.2.10/24"
+
+msgid "Gateway, only for an uplink"
+msgstr "Gateway, nur für einen Uplink"
+
+msgid "DNS servers, empty for none"
+msgstr "DNS-Server, leer für keine"
+
+msgid "VLAN ID, empty for none"
+msgstr "VLAN-ID, leer für keine"
+
+msgid "Network: no automatic profiles for new interfaces"
+msgstr "Netzwerk: keine automatischen Profile für neue Schnittstellen"
+
+msgid "Outgoing mail of a domain over an uplink"
+msgstr "Ausgehende Mail einer Domain über einen Uplink"
+
+msgid "Sender domain"
+msgstr "Absender-Domain"
+
+msgid "Uplink interface, or main for the main one"
+msgstr "Uplink-Schnittstelle, oder main für die Hauptschnittstelle"
+
+msgid "Network interfaces: keep the change"
+msgstr "Netzwerkschnittstellen: Änderung behalten"
+
+msgid "Network interfaces: take back"
+msgstr "Netzwerkschnittstellen: zurücknehmen"
+
+msgid "Restart a service"
+msgstr "Einen Dienst neu starten"
+
+msgid "Service"
+msgstr "Dienst"
+
+msgid "Show a log"
+msgstr "Ein Log zeigen"
+
+msgid "Log"
+msgstr "Log"
+
+msgid "Lines, default 100"
+msgstr "Zeilen, Standard 100"
+
+msgid "Held mail: text"
+msgstr "Zurückgehaltene Mail: Text"
+
+msgid "Held mail ID"
+msgstr "ID der zurückgehaltenen Mail"
+
+msgid "Up to 1 MB of text: yes, else empty"
+msgstr "Bis zu 1 MB Text: yes, sonst leer"
+
+msgid "Reason (needed when a reason is asked for)"
+msgstr "Begründung (nötig, wenn danach gefragt wird)"
+
+msgid "Quarantine: text"
+msgstr "Quarantäne: Text"
+
+msgid "Result"
+msgstr "Ergebnis"
+
+msgid "With the DNS evidence"
+msgstr "Mit dem DNS-Nachweis"
+
+msgid "Console only: /var/lib/eFa/exports/<name>.zip"
+msgstr "Nur an der Konsole: /var/lib/eFa/exports/<name>.zip"
+
+msgid "Job"
+msgstr "Job"
+
+msgid "Mail: details and headers"
+msgstr "Mail: Details und Header"
+
+msgid "Number in the mail log"
+msgstr "Nummer im Mail-Log"
+
+msgid "Empty, raw for the header file, evidence for the DNS evidence"
+msgstr "Leer, raw für die Header-Datei, evidence für den DNS-Nachweis"
+
+msgid "Headers of all mail"
+msgstr "Header aller Mails"
+
+msgid "Store the headers of all mail: on or off"
+msgstr "Header aller Mails speichern: an oder aus"
+
+msgid "Days to keep them, default 30"
+msgstr "Tage aufbewahren, Standard 30"
+
+msgid "Subjects in the mail log"
+msgstr "Betreffs im Mail-Log"
+
+msgid "Show subjects in the log and the search: on or off"
+msgstr "Betreffs im Log und in der Suche zeigen: an oder aus"
+
+msgid "Directory groups: give an eFa group"
+msgstr "Verzeichnisgruppen: eine eFa-Gruppe zuordnen"
+
+msgid "Group: OIDC name or ID, LDAP DN or CN"
+msgstr "Gruppe: OIDC-Name oder -ID, LDAP-DN oder -CN"
+
+msgid "set or remove"
+msgstr "setzen oder entfernen"
+
+msgid "eFa group"
+msgstr "eFa-Gruppe"
+
+msgid "Or a role of 6.0.0.3: super, tenant, domain, helpdesk, user"
+msgstr "Oder eine Rolle von 6.0.0.3: super, tenant, domain, helpdesk, user"
+
+msgid "Tenant name, for a predefined group"
+msgstr "Mandantenname, für eine vordefinierte Gruppe"
+
+msgid "Domain, for a predefined group"
+msgstr "Domain, für eine vordefinierte Gruppe"
+
+msgid "LDAP or Active Directory login"
+msgstr "Anmeldung über LDAP oder Active Directory"
+
+msgid "LDAP login: switch"
+msgstr "LDAP-Anmeldung: schalten"
+
+msgid "Address"
+msgstr "Adresse"
+
+msgid "Service account DN"
+msgstr "DN des Dienstkontos"
+
+msgid "Search base"
+msgstr "Suchbasis"
+
+msgid "User filter, empty fits Active Directory"
+msgstr "Benutzerfilter, leer passt für Active Directory"
+
+msgid "Service account password, empty keeps it"
+msgstr "Passwort des Dienstkontos, leer behält es"
+
+msgid "Single sign-on (OIDC)"
+msgstr "Single Sign-on (OIDC)"
+
+msgid "Single sign-on: switch"
+msgstr "Single Sign-on: schalten"
+
+msgid "Issuer address"
+msgstr "Adresse des Ausstellers"
+
+msgid "Client ID"
+msgstr "Client-ID"
+
+msgid "Redirect address"
+msgstr "Weiterleitungsadresse"
+
+msgid "Claim with the groups, default groups"
+msgstr "Claim mit den Gruppen, Standard groups"
+
+msgid "Client secret, empty keeps it"
+msgstr "Client-Secret, leer behält es"
+
+msgid "Single sign-on: start a login"
+msgstr "Single Sign-on: Anmeldung beginnen"
+
+msgid "Mail domain, for the single sign-on of a tenant"
+msgstr "Maildomain, für das Single Sign-on eines Mandanten"
+
+msgid "Single sign-on: finish a login"
+msgstr "Single Sign-on: Anmeldung abschließen"
+
+msgid "Code"
+msgstr "Code"
+
+msgid "Nonce"
+msgstr "Nonce"
+
+msgid "Verifier"
+msgstr "Verifier"
+
+msgid "Tenant ID"
+msgstr "Mandanten-ID"
+
+msgid "REST API"
+msgstr "REST-API"
+
+msgid "REST API: switch"
+msgstr "REST-API: schalten"
+
+msgid "Domain settings: show with their source"
+msgstr "Domain-Einstellungen: mit Quelle zeigen"
+
+msgid "Domain, or empty with a tenant"
+msgstr "Domain, oder leer mit Mandant"
+
+msgid "Tenant, or empty with a domain"
+msgstr "Mandant, oder leer mit Domain"
+
+msgid "Domain settings: spam limits"
+msgstr "Domain-Einstellungen: Spam-Grenzen"
+
+msgid "Mark as spam from this score; inherit for the value above"
+msgstr "Ab diesem Score als Spam markieren; inherit für den Wert darüber"
+
+msgid "Reject from this score; inherit for the value above"
+msgstr "Ab diesem Score abweisen; inherit für den Wert darüber"
+
+msgid "Domain settings: quarantine and digest"
+msgstr "Domain-Einstellungen: Quarantäne und Übersicht"
+
+msgid "Days to keep held mail; inherit for the value above"
+msgstr "Tage für zurückgehaltene Mail; inherit für den Wert darüber"
+
+msgid "Hour of the digest, 0 to 23; inherit for the value above"
+msgstr "Stunde der Übersicht, 0 bis 23; inherit für den Wert darüber"
+
+msgid "Text at the top of the digest; inherit for the value above"
+msgstr "Text oben in der Übersicht; inherit für den Wert darüber"
+
+msgid "Domain settings: TLS to the domain"
+msgstr "Domain-Einstellungen: TLS zur Domain"
+
+msgid "none, may, encrypt, dane, verify, secure; inherit for the value above"
+msgstr "none, may, encrypt, dane, verify, secure; inherit für den Wert darüber"
+
+msgid "Domain settings: language and stored headers"
+msgstr "Domain-Einstellungen: Sprache und gespeicherte Header"
+
+msgid "en or de; inherit for the value above"
+msgstr "en oder de; inherit für den Wert darüber"
+
+msgid "Store the headers of its mail"
+msgstr "Die Header ihrer Mail speichern"
+
+msgid "Days to keep them; inherit for the value above"
+msgstr "Tage aufbewahren; inherit für den Wert darüber"
+
+msgid "Tenants: add a domain"
+msgstr "Mandanten: eine Domain hinzufügen"
+
+msgid "Tenant name"
+msgstr "Mandantenname"
+
+msgid "Domain"
+msgstr "Domain"
+
+msgid "Tenants: check the TXT record of a domain"
+msgstr "Mandanten: den TXT-Eintrag einer Domain prüfen"
+
+msgid "Tenants: domains waiting for DNS"
+msgstr "Mandanten: Domains, die auf DNS warten"
+
+msgid "Tenant login directory"
+msgstr "Anmeldeverzeichnis des Mandanten"
+
+msgid "Tenant login directory: LDAP"
+msgstr "Anmeldeverzeichnis des Mandanten: LDAP"
+
+msgid "ldaps://dc1.example.org"
+msgstr "ldaps://dc1.example.org"
+
+msgid "Filter with {user}, empty for the default"
+msgstr "Filter mit {user}, leer für den Standard"
+
+msgid "Password of the service account, empty keeps it"
+msgstr "Passwort des Dienstkontos, leer behält es"
+
+msgid "Tenant login directory: OIDC"
+msgstr "Anmeldeverzeichnis des Mandanten: OIDC"
+
+msgid "Issuer URL"
+msgstr "URL des Ausstellers"
+
+msgid "Redirect address, ending in /login/oidc/callback"
+msgstr "Weiterleitungsadresse, endet auf /login/oidc/callback"
+
+msgid "Tenant login directory: give a group an eFa group"
+msgstr "Anmeldeverzeichnis des Mandanten: einer Gruppe eine eFa-Gruppe zuordnen"
+
+msgid "Or a role: tenant, domain, helpdesk, user"
+msgstr "Oder eine Rolle: tenant, domain, helpdesk, user"
+
+msgid "Tenant look"
+msgstr "Aussehen des Mandanten"
+
+msgid "Tenant look: name, colour, logo"
+msgstr "Aussehen des Mandanten: Name, Farbe, Logo"
+
+msgid "Name to show, none for the tenant name"
+msgstr "Angezeigter Name, none für den Mandantennamen"
+
+msgid "Colour like #1f6feb, none for the default"
+msgstr "Farbe wie #1f6feb, none für den Standard"
+
+msgid "PNG file on this server, none to remove"
+msgstr "PNG-Datei auf diesem Server, none zum Entfernen"
+
+msgid "Tenant usage"
+msgstr "Nutzung des Mandanten"
+
+msgid "Month like 2026-11, empty for this one"
+msgstr "Monat wie 2026-11, leer für diesen"
+
+msgid "Tenant limits"
+msgstr "Limits des Mandanten"
+
+msgid "Domains, none for no limit"
+msgstr "Domains, none für kein Limit"
+
+msgid "Users, none for no limit"
+msgstr "Benutzer, none für kein Limit"
+
+msgid "Mails per day (a warning only), none for no limit"
+msgstr "Mails pro Tag (nur eine Warnung), none für kein Limit"
+
+msgid "Quarantine in MB, none for no limit"
+msgstr "Quarantäne in MB, none für kein Limit"
+
+msgid "Tenant: lock or unlock"
+msgstr "Mandant: sperren oder entsperren"
+
+msgid "on (locked) or off"
+msgstr "on (gesperrt) oder off"
+
+msgid "flow (default) or defer: mail waits in the queue"
+msgstr "flow (Standard) oder defer: Mail wartet in der Warteschlange"
+
+msgid "Tenant: delete with all its data"
+msgstr "Mandant: mit allen Daten löschen"
+
+msgid "The name of the tenant again"
+msgstr "Der Name des Mandanten noch einmal"
+
+msgid "Tenants: add or remove"
+msgstr "Mandanten: hinzufügen oder entfernen"
+
+msgid "Tenants: domains"
+msgstr "Mandanten: Domains"
+
+msgid "Permissions"
+msgstr "Rechte"
+
+msgid "Users: effective permissions"
+msgstr "Benutzer: wirksame Rechte"
+
+msgid "User name"
+msgstr "Benutzername"
+
+msgid "Users: add, change or remove"
+msgstr "Benutzer: hinzufügen, ändern oder entfernen"
+
+msgid "Groups, separated by commas; empty keeps them"
+msgstr "Gruppen, durch Kommas getrennt; leer behält sie"
+
+msgid "Tenant name, scope of the predefined groups"
+msgstr "Mandantenname, Bereich der vordefinierten Gruppen"
+
+msgid "Domain, scope of the predefined groups"
+msgstr "Domain, Bereich der vordefinierten Gruppen"
+
+msgid "Email address, for reports"
+msgstr "E-Mail-Adresse, für Berichte"
+
+msgid "Password, at least 12 characters"
+msgstr "Passwort, mindestens 12 Zeichen"
+
+msgid "Repeat the password"
+msgstr "Passwort wiederholen"
+
+msgid "To remove: type yes"
+msgstr "Zum Entfernen: yes eingeben"
+
+msgid "Web login: record"
+msgstr "Web-Anmeldung: aufzeichnen"
+
+msgid "Hash of the session"
+msgstr "Hash der Sitzung"
+
+msgid "Browser"
+msgstr "Browser"
+
+msgid "Web login: still on"
+msgstr "Web-Anmeldung: noch aktiv"
+
+msgid "Active sessions"
+msgstr "Aktive Sitzungen"
+
+msgid "Active sessions: end one"
+msgstr "Aktive Sitzungen: eine beenden"
+
+msgid "Session ID"
+msgstr "Sitzungs-ID"
+
+msgid "Users: lock (off) or unlock (on)"
+msgstr "Benutzer: sperren (off) oder entsperren (on)"
+
+msgid "on (enabled) or off (disabled)"
+msgstr "on (aktiv) oder off (gesperrt)"
+
+msgid "Groups: add, change or copy"
+msgstr "Gruppen: hinzufügen, ändern oder kopieren"
+
+msgid "Group name"
+msgstr "Gruppenname"
+
+msgid "Copy from this group, a predefined one too"
+msgstr "Von dieser Gruppe kopieren, auch von einer vordefinierten"
+
+msgid "Description"
+msgstr "Beschreibung"
+
+msgid "Permissions, separated by spaces; empty keeps them"
+msgstr "Rechte, durch Leerzeichen getrennt; leer behält sie"
+
+msgid "global, tenants or domains"
+msgstr "global, tenants oder domains"
+
+msgid "Tenants or domains of the scope, separated by commas"
+msgstr "Mandanten oder Domains des Bereichs, durch Kommas getrennt"
+
+msgid "Groups: disable or enable"
+msgstr "Gruppen: deaktivieren oder aktivieren"
+
+msgid "Groups: remove"
+msgstr "Gruppen: entfernen"
+
+msgid "Check a login"
+msgstr "Eine Anmeldung prüfen"
+
+msgid "Password"
+msgstr "Passwort"
+
+msgid "User name, empty for all or your own"
+msgstr "Benutzername, leer für alle oder Ihre eigenen"
+
+msgid "API tokens: make one"
+msgstr "API-Tokens: einen erzeugen"
+
+msgid "User name, empty for your own"
+msgstr "Benutzername, leer für Ihren eigenen"
+
+msgid "What it is for"
+msgstr "Wofür er ist"
+
+msgid "Bind to this tenant only, empty for all of the user"
+msgstr "Nur an diesen Mandanten binden, leer für alle des Benutzers"
+
+msgid "Valid for days, default 365"
+msgstr "Gültig für Tage, Standard 365"
+
+msgid "API tokens: delete one"
+msgstr "API-Tokens: einen löschen"
+
+msgid "Token ID"
+msgstr "Token-ID"
+
+msgid "Check an API token"
+msgstr "Einen API-Token prüfen"
+
+msgid "Token"
+msgstr "Token"
+
+msgid "Search for"
+msgstr "Suchen nach"
+
+msgid "Rows, default 100"
+msgstr "Zeilen, Standard 100"
+
+msgid "Audit log: remove old entries"
+msgstr "Audit-Log: alte Einträge entfernen"
+
+msgid "Strict audit mode: switch"
+msgstr "Strenger Audit-Modus: schalten"
+
+msgid "Strict audit mode: on or off"
+msgstr "Strenger Audit-Modus: an oder aus"
+
+msgid "Reason for the switch"
+msgstr "Grund für das Umschalten"
+
+msgid "Ask for a reason before showing mail content: on or off"
+msgstr "Vor dem Anzeigen von Mail-Inhalt nach einem Grund fragen: an oder aus"
+
+msgid "Keep closed files for days (30 to 3650, default 365)"
+msgstr "Geschlossene Dateien aufbewahren für Tage (30 bis 3650, Standard 365)"
+
+msgid "Strict audit log: check the chain"
+msgstr "Strenges Audit-Log: die Kette prüfen"
+
+msgid "auditd rules for the eFa files"
+msgstr "auditd-Regeln für die eFa-Dateien"
+
+msgid "auditd rules: on or off"
+msgstr "auditd-Regeln: an oder aus"
+
+msgid "Strict audit log: an action of the web interface"
+msgstr "Strenges Audit-Log: eine Aktion der Web-Oberfläche"
+
+msgid "Object"
+msgstr "Objekt"
+
+msgid "Session"
+msgstr "Sitzung"
+
+msgid "Limit the memory of Redis"
+msgstr "Den Speicher von Redis begrenzen"
+
+msgid "Blocklists: write the rspamd settings"
+msgstr "Blocklisten: die rspamd-Einstellungen schreiben"
+
+msgid "Keep the lists rspamd uses now on: yes or empty"
+msgstr "Die Listen, die rspamd jetzt nutzt, an lassen: yes oder leer"
+
+msgid "Wazuh agent"
+msgstr "Wazuh-Agent"
+
+msgid "Wazuh agent: check the package"
+msgstr "Wazuh-Agent: das Paket prüfen"
+
+msgid "Version, empty for the newest"
+msgstr "Version, leer für die neueste"
+
+msgid "Wazuh agent: install"
+msgstr "Wazuh-Agent: installieren"
+
+msgid "Wazuh agent: settings"
+msgstr "Wazuh-Agent: Einstellungen"
+
+msgid "Manager host or IP"
+msgstr "Host oder IP des Managers"
+
+msgid "Port, default 1514"
+msgstr "Port, Standard 1514"
+
+msgid "Enrollment port, default 1515"
+msgstr "Registrierungsport, Standard 1515"
+
+msgid "Agent name, empty for the host name"
+msgstr "Agentname, leer für den Hostnamen"
+
+msgid "Agent groups, separated by commas"
+msgstr "Agentgruppen, durch Kommas getrennt"
+
+msgid "Send the eFa events: on or off"
+msgstr "Die eFa-Ereignisse senden: an oder aus"
+
+msgid "Active response: on or off"
+msgstr "Active Response: an oder aus"
+
+msgid "Enrollment password, empty keeps it"
+msgstr "Registrierungspasswort, leer behält es"
+
+msgid "Take over an agent eFa did not install: yes, else empty"
+msgstr "Einen Agent übernehmen, den eFa nicht installiert hat: yes, sonst leer"
+
+msgid "Type yes to confirm the take-over"
+msgstr "Zum Bestätigen der Übernahme yes eingeben"
+
+msgid "Wazuh agent: start, stop or restart"
+msgstr "Wazuh-Agent: starten, stoppen oder neu starten"
+
+msgid "start, stop or restart"
+msgstr "starten, stoppen oder neu starten"
+
+msgid "Wazuh agent: update"
+msgstr "Wazuh-Agent: aktualisieren"
+
+msgid "Wazuh agent: remove"
+msgstr "Wazuh-Agent: entfernen"
+
+msgid "Remove the Wazuh repository too: yes or no"
+msgstr "Auch das Wazuh-Repository entfernen: yes oder no"
+
+msgid "Events: background job"
+msgstr "Ereignisse: Hintergrundjob"
+
+msgid "OpenTelemetry export"
+msgstr "OpenTelemetry-Export"
+
+msgid "OpenTelemetry export: settings"
+msgstr "OpenTelemetry-Export: Einstellungen"
+
+msgid "Receiver base address"
+msgstr "Basisadresse des Empfängers"
+
+msgid "none, bearer or apikey"
+msgstr "none, bearer oder apikey"
+
+msgid "Header for the API key"
+msgstr "Header für den API-Schlüssel"
+
+msgid "Extra headers, Name: value; Name: value"
+msgstr "Zusätzliche Header, Name: Wert; Name: Wert"
+
+msgid "Signals: events, maillog and metrics, separated by spaces"
+msgstr "Signale: events, maillog und metrics, durch Leerzeichen getrennt"
+
+msgid "Check the certificate: on or off"
+msgstr "Das Zertifikat prüfen: an oder aus"
+
+msgid "Own CA file, optional"
+msgstr "Eigene CA-Datei, optional"
+
+msgid "Client certificate for mTLS, optional"
+msgstr "Client-Zertifikat für mTLS, optional"
+
+msgid "Client key for mTLS, optional"
+msgstr "Client-Schlüssel für mTLS, optional"
+
+msgid "Disk buffer in MB"
+msgstr "Plattenpuffer in MB"
+
+msgid "Token or API key, empty keeps it"
+msgstr "Token oder API-Schlüssel, leer behält ihn"
+
+msgid "Repeat the token"
+msgstr "Token wiederholen"
+
+msgid "OpenTelemetry export: connection test"
+msgstr "OpenTelemetry-Export: Verbindungstest"
+
+msgid "MTA-STS: policy of a domain"
+msgstr "MTA-STS: Richtlinie einer Domain"
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "MX names, separated by spaces; empty for the name of this server"
+msgstr "MX-Namen, durch Leerzeichen getrennt; leer für den Namen dieses Servers"
+
+msgid "max_age in seconds, default 604800 (a week)"
+msgstr "max_age in Sekunden, Standard 604800 (eine Woche)"
+
+msgid "DANE for outgoing mail"
+msgstr "DANE für ausgehende Mail"
+
+msgid "DANE for outgoing mail: switch"
+msgstr "DANE für ausgehende Mail: schalten"
+
+msgid "Check the TLSA records of receiving servers: on or off"
+msgstr "Die TLSA-Einträge empfangender Server prüfen: an oder aus"
+
+msgid "TLSA records of this server"
+msgstr "TLSA-Einträge dieses Servers"
+
+msgid "MX name of this server, empty for the host name"
+msgstr "MX-Name dieses Servers, leer für den Hostnamen"
+
+msgid "Sender, recipient or reason contains"
+msgstr "Absender, Empfänger oder Grund enthält"
+
+msgid "Mail queue: headers"
+msgstr "Mail-Warteschlange: Header"
+
+msgid "Mail queue: hold, release, requeue or delete"
+msgstr "Mail-Warteschlange: zurückhalten, freigeben, neu einreihen oder löschen"
+
+msgid "Queue ID, or ALL for all waiting (release: all held)"
+msgstr "Queue-ID, oder ALL für alle wartenden (bei Freigeben: alle zurückgehaltenen)"
+
+msgid "Mail queue: try all now"
+msgstr "Mail-Warteschlange: alle jetzt versuchen"
+
+msgid "Mail queue: alarm"
+msgstr "Mail-Warteschlange: Alarm"
+
+msgid "Alarm from this many mails, empty keeps it"
+msgstr "Alarm ab so vielen Mails, leer behält den Wert"
+
+msgid "Alarm when a mail waits this many hours, empty keeps it"
+msgstr "Alarm, wenn eine Mail so viele Stunden wartet, leer behält den Wert"
+
+msgid "Spooling: how long mail waits"
+msgstr "Zwischenspeicher: wie lange Mail wartet"
+
+msgid "Mail waits up to, like 5d"
+msgstr "Mail wartet bis zu, etwa 5d"
+
+msgid "Bounces wait up to, like 5d"
+msgstr "Unzustellbarkeitsmeldungen warten bis zu, etwa 5d"
+
+msgid "Connections when a server is back, 1 to 20"
+msgstr "Verbindungen, wenn ein Server zurück ist, 1 bis 20"
+
+msgid "External backup targets"
+msgstr "Externe Sicherungsziele"
+
+msgid "External backup targets: add or remove"
+msgstr "Externe Sicherungsziele: hinzufügen oder entfernen"
+
+msgid "Name of the target"
+msgstr "Name des Ziels"
+
+msgid "Kind"
+msgstr "Art"
+
+msgid "S3: https endpoint, such as https://s3.eu-central-1.amazonaws.com"
+msgstr "S3: https-Endpunkt, etwa https://s3.eu-central-1.amazonaws.com"
+
+msgid "S3: bucket"
+msgstr "S3: Bucket"
+
+msgid "S3: region"
+msgstr "S3: Region"
+
+msgid "S3: access key"
+msgstr "S3: Zugriffsschlüssel"
+
+msgid "S3: secret key"
+msgstr "S3: geheimer Schlüssel"
+
+msgid "Repeat the secret key"
+msgstr "Geheimen Schlüssel wiederholen"
+
+msgid "SFTP: host"
+msgstr "SFTP: Host"
+
+msgid "SFTP: port, default 22"
+msgstr "SFTP: Port, Standard 22"
+
+msgid "SFTP: user"
+msgstr "SFTP: Benutzer"
+
+msgid "SFTP: private key on this server, readable by root only"
+msgstr "SFTP: privater Schlüssel auf diesem Server, nur für root lesbar"
+
+msgid "Folder on the target (S3: prefix)"
+msgstr "Ordner auf dem Ziel (S3: Präfix)"
+
+msgid "Keep backups there for days, default 30"
+msgstr "Sicherungen dort aufbewahren für Tage, Standard 30"
+
+msgid "Bandwidth limit in kbit/s, 0 for none"
+msgstr "Bandbreitengrenze in kbit/s, 0 für keine"
+
+msgid "External backup targets: upload the newest backup now"
+msgstr "Externe Sicherungsziele: die neueste Sicherung jetzt hochladen"
+
+msgid "Received reports: the address"
+msgstr "Empfangene Berichte: die Adresse"
+
+msgid "Read the DMARC and TLS reports of other servers: on or off"
+msgstr "DMARC- und TLS-Berichte anderer Server einlesen: an oder aus"
+
+msgid "Address that receives them, such as dmarc-reports@example.org"
+msgstr "Adresse, die sie empfängt, etwa dmarc-reports@example.org"
+
+msgid "DMARC reports received"
+msgstr "Empfangene DMARC-Berichte"
+
+msgid "Only this domain, empty for all"
+msgstr "Nur diese Domain, leer für alle"
+
+msgid "Days, default 30"
+msgstr "Tage, Standard 30"
+
+msgid "TLS reports received"
+msgstr "Empfangene TLS-Berichte"
+
+msgid "Content disarm: switch"
+msgstr "Entschärfung von Inhalten: schalten"
+
+msgid "Disarm attachments: on or off"
+msgstr "Anhänge entschärfen: an oder aus"
+
+msgid "Bulk mail: settings"
+msgstr "Massenversand: Einstellungen"
+
+msgid "Bulk mode: on or off"
+msgstr "Massenversand: an oder aus"
+
+msgid "Detect by Precedence bulk or List-Unsubscribe: on or off"
+msgstr "Erkennen an Precedence bulk oder List-Unsubscribe: an oder aus"
+
+msgid "Bulk senders: addresses or domains, comma separated; - for none"
+msgstr "Massenversand-Absender: Adressen oder Domains, durch Komma getrennt; - für keine"
+
+msgid "Pace per target domain"
+msgstr "Tempo je Zieldomain"
+
+msgid "When provider requirements are missing"
+msgstr "Wenn Provider-Vorgaben fehlen"
+
+msgid "Archive handover: add or change a target"
+msgstr "Archiv-Weitergabe: Ziel hinzufügen oder ändern"
+
+msgid "Name, such as mailstore"
+msgstr "Name, etwa mailstore"
+
+msgid "Archive"
+msgstr "Archiv"
+
+msgid "Journal address of the archive"
+msgstr "Journal-Adresse des Archivs"
+
+msgid "Host that takes the copies by SMTP"
+msgstr "Host, der die Kopien per SMTP annimmt"
+
+msgid "Port, default 25"
+msgstr "Port, Standard 25"
+
+msgid "Which mail"
+msgstr "Welche Mails"
+
+msgid "Domains, comma separated; empty for all domains of this server"
+msgstr "Domains, durch Komma getrennt; leer für alle Domains dieses Servers"
+
+msgid "TLS"
+msgstr "TLS"
+
+msgid "Archive handover: remove a target"
+msgstr "Archiv-Weitergabe: Ziel entfernen"
+
+msgid "Submitter: add or change"
+msgstr "Einlieferer: hinzufügen oder ändern"
+
+msgid "Name, such as exchange or m365_tenant_a"
+msgstr "Name, etwa exchange oder m365_mandant_a"
+
+msgid "Known by"
+msgstr "Erkannt an"
+
+msgid "Network, login or SHA-256 fingerprint of the certificate"
+msgstr "Netz, Login oder SHA-256-Fingerabdruck des Zertifikats"
+
+msgid "Its sender domains, comma separated"
+msgstr "Seine Absender-Domains, durch Komma getrennt"
+
+msgid "Tenant, empty for domains without tenant"
+msgstr "Mandant, leer für Domains ohne Mandant"
+
+msgid "Login only: password, at least 12 characters; empty keeps it"
+msgstr "Nur bei Login: Passwort, mindestens 12 Zeichen; leer behält es"
+
+msgid "Port 587: logins of system accounts (PAM)"
+msgstr "Port 587: Anmeldung mit Systemkonten (PAM)"
+
+msgid "System accounts may log in on port 587: on or off"
+msgstr "Systemkonten dürfen sich auf Port 587 anmelden: an oder aus"
+
+msgid "Submitter: remove"
+msgstr "Einlieferer: entfernen"
+
+msgid "Sending limits per sender and hour"
+msgstr "Versandgrenzen je Absender und Stunde"
+
+msgid "Recipients per hour, 0 for no limit"
+msgstr "Empfänger je Stunde, 0 für keine Grenze"
+
+msgid "Target domains per hour, 0 for no limit"
+msgstr "Zieldomains je Stunde, 0 für keine Grenze"
+
+msgid "Over the limit"
+msgstr "Über der Grenze"
+
+msgid "Encrypted PDF mail: keyword in the subject"
+msgstr "Verschlüsselte PDF-Mail: Stichwort im Betreff"
+
+msgid "Keyword, such as [secure]; - for none"
+msgstr "Stichwort, etwa [secure]; - für keines"
+
+msgid "Encrypted PDF mail: agreed password of a recipient"
+msgstr "Verschlüsselte PDF-Mail: vereinbartes Passwort eines Empfängers"
+
+msgid "Recipient: mail address or domain"
+msgstr "Empfänger: Mailadresse oder Domain"
+
+msgid "Password, at least 10 characters; empty removes it"
+msgstr "Passwort, mindestens 10 Zeichen; leer entfernt es"
+
+msgid "Data loss prevention: card numbers and IBANs"
+msgstr "Schutz vor Datenabfluss: Kartennummern und IBANs"
+
+msgid "Card numbers"
+msgstr "Kartennummern"
+
+msgid "IBANs"
+msgstr "IBANs"
+
+msgid "Tax and social security numbers of Austria and Germany"
+msgstr "Steuer- und Sozialversicherungsnummern aus Österreich und Deutschland"
+
+msgid "Own IBANs that may leave, comma separated; - for none"
+msgstr "Eigene IBANs, die hinaus dürfen, durch Komma getrennt; - für keine"
+
+msgid "Data loss prevention: own rule"
+msgstr "Schutz vor Datenabfluss: eigene Regel"
+
+msgid "Name of the rule"
+msgstr "Name der Regel"
+
+msgid "Search pattern (regular expression, case does not matter); empty removes the rule"
+msgstr "Suchmuster (regulärer Ausdruck, Groß-/Kleinschreibung egal); leer entfernt die Regel"
+
+msgid "Disclaimer of a domain"
+msgstr "Disclaimer einer Domain"
+
+msgid "Text, \\n for a new line; empty removes the disclaimer"
+msgstr "Text, \\n für eine neue Zeile; leer entfernt den Disclaimer"
+
+msgid "HTML for HTML mail, optional; without it the text is used"
+msgstr "HTML für HTML-Mails, optional; ohne wird der Text verwendet"
+
+msgid "Disclaimer for all domains, a tenant, a domain or groups"
+msgstr "Disclaimer für alle Domains, einen Mandanten, eine Domain oder Gruppen"
+
+msgid "Id (small letters, digits, dashes)"
+msgstr "Id (Kleinbuchstaben, Ziffern, Bindestriche)"
+
+msgid "For: global (all domains), tenant, domain or group (groups of senders in a domain)"
+msgstr "Für: global (alle Domains), tenant (Mandant), domain oder group (Gruppen von Absendern einer Domain)"
+
+msgid "Tenant or domain; empty for all domains"
+msgstr "Mandant oder Domain; leer für alle Domains"
+
+msgid "Groups, separated by ; : eFa-next group names or ldap:<DN of a directory group>"
+msgstr "Gruppen, getrennt durch ; : Gruppennamen von eFa-next oder ldap:<DN einer Verzeichnisgruppe>"
+
+msgid "Format: html or text"
+msgstr "Format: html oder text"
+
+msgid "Text, \n for a new line (with HTML: the text version, empty makes one)"
+msgstr "Text, \n für eine neue Zeile (bei HTML: die Textfassung, leer erzeugt eine)"
+
+msgid "HTML; pictures as src=\"cid:<file>\" come with a ZIP"
+msgstr "HTML; Bilder als src=\"cid:<Datei>\" kommen mit einem ZIP"
+
+msgid "Priority within the same level, lower first"
+msgstr "Priorität innerhalb derselben Stufe, niedrigere zuerst"
+
+msgid "Enabled: on or off"
+msgstr "Aktiv: on oder off"
+
+msgid "Valid from (YYYY-MM-DD), empty for now"
+msgstr "Gültig ab (JJJJ-MM-TT), leer für sofort"
+
+msgid "Valid until (YYYY-MM-DD), empty for no end"
+msgstr "Gültig bis (JJJJ-MM-TT), leer für ohne Ende"
+
+msgid "Remove a disclaimer"
+msgstr "Disclaimer entfernen"
+
+msgid "Id"
+msgstr "Id"
+
+msgid "Disclaimer: back to the version before"
+msgstr "Disclaimer: zurück zur vorherigen Version"
+
+msgid "Disclaimer: import a ZIP"
+msgstr "Disclaimer: ZIP einspielen"
+
+msgid "ZIP file on this host"
+msgstr "ZIP-Datei auf diesem Host"
+
+msgid "ZIP as base64 on stdin"
+msgstr "ZIP als base64 auf stdin"
+
+msgid "Only check and show: on or off"
+msgstr "Nur prüfen und anzeigen: on oder off"
+
+msgid "Disclaimer: export as ZIP"
+msgstr "Disclaimer: als ZIP exportieren"
+
+msgid "ZIP file to write on this host, empty for base64"
+msgstr "ZIP-Datei, die auf diesem Host geschrieben wird, leer für base64"
+
+msgid "Disclaimer: take over the folder of the master (cluster)"
+msgstr "Disclaimer: Ordner des Masters übernehmen (Cluster)"
+
+msgid "Legal texts"
+msgstr "Rechtstexte"
+
+msgid "Legal texts: confirm"
+msgstr "Rechtstexte: bestätigen"
+
+msgid "Digest of the legal texts (legal-status)"
+msgstr "Prüfsumme der Rechtstexte (legal-status)"
+
+msgid "Qualified administrator, no consumer, texts read and accepted: type ja or yes"
+msgstr "Fachkundiger Administrator, kein Verbraucher, Texte gelesen und akzeptiert: ja oder yes eintippen"
+
+msgid "Disclaimer: which one a sender gets"
+msgstr "Disclaimer: welcher für einen Absender gilt"
+
+msgid "Sender address"
+msgstr "Absenderadresse"
+
+msgid "Link check: settings"
+msgstr "Linkprüfung: Einstellungen"
+
+msgid "Check links when clicked: on or off"
+msgstr "Links beim Klick prüfen: an oder aus"
+
+msgid "Public https address of this server, empty keeps it"
+msgstr "Öffentliche https-Adresse dieses Servers, leer behält sie"
+
+msgid "Let users go on after a warning: on or off"
+msgstr "Benutzer nach einer Warnung weitergehen lassen: an oder aus"
+
+msgid "When a link cannot be checked"
+msgstr "Wenn ein Link nicht geprüft werden kann"
+
+msgid "Domains to leave as they are, such as partner.example"
+msgstr "Domains, die unverändert bleiben, etwa partner.example"
+
+msgid "Remove domains from the exceptions"
+msgstr "Domains aus den Ausnahmen entfernen"
+
+msgid "Content disarm: originals"
+msgstr "Entschärfung von Inhalten: Originale"
+
+msgid "Content disarm: deliver the original"
+msgstr "Entschärfung von Inhalten: das Original zustellen"
+
+msgid "ID of the original"
+msgstr "ID des Originals"
+
+msgid "Attachments: settings"
+msgstr "Anhänge: Einstellungen"
+
+msgid "Attachment checks of eFa: on or off"
+msgstr "Anhangsprüfungen von eFa: an oder aus"
+
+msgid "Dangerous endings"
+msgstr "Gefährliche Dateiendungen"
+
+msgid "Encrypted archives"
+msgstr "Verschlüsselte Archive"
+
+msgid "Office files with macros"
+msgstr "Office-Dateien mit Makros"
+
+msgid "File names that hide what the file is (over 150 characters, {CLSID}, 10 spaces)"
+msgstr "Dateinamen, die verbergen, was die Datei ist (über 150 Zeichen, {CLSID}, 10 Leerzeichen)"
+
+msgid "Programs by their content (Windows, self-extracting, ELF), whatever the name"
+msgstr "Programme nach ihrem Inhalt (Windows, selbstentpackend, ELF), egal wie sie heißen"
+
+msgid "Add endings, such as exe js"
+msgstr "Endungen hinzufügen, etwa exe js"
+
+msgid "Remove endings"
+msgstr "Endungen entfernen"
+
+msgid "Neural network: settings"
+msgstr "Neuronales Netz: Einstellungen"
+
+msgid "Neural network: on or off"
+msgstr "Neuronales Netz: an oder aus"
+
+msgid "Mails of each kind before it learns, empty keeps it"
+msgstr "Mails je Art, bevor es lernt, leer behält den Wert"
+
+msgid "Times a network is used before it learns anew, empty keeps it"
+msgstr "Wie oft ein Netz verwendet wird, bevor es neu lernt, leer behält den Wert"
+
+msgid "Score of NEURAL_SPAM, empty keeps it"
+msgstr "Score von NEURAL_SPAM, leer behält ihn"
+
+msgid "Score of NEURAL_HAM, empty keeps it"
+msgstr "Score von NEURAL_HAM, leer behält ihn"
+
+msgid "Phishing reports: the address of a domain"
+msgstr "Phishing-Meldungen: die Adresse einer Domain"
+
+msgid "Report address, such as phishing@example.org"
+msgstr "Meldeadresse, etwa phishing@example.org"
+
+msgid "Phishing reports"
+msgstr "Phishing-Meldungen"
+
+msgid "Warning banner for mail from outside"
+msgstr "Warnbanner für Mail von außen"
+
+msgid "Warning banner: on or off"
+msgstr "Warnbanner: an oder aus"
+
+msgid "Text, empty keeps it"
+msgstr "Text, leer behält ihn"
+
+msgid "Only mail without a valid DKIM signature: on or off"
+msgstr "Nur Mail ohne gültige DKIM-Signatur: an oder aus"
+
+msgid "Sender domains without a banner, such as partner.example"
+msgstr "Absenderdomains ohne Banner, etwa partner.example"
+
+msgid "Warning banner"
+msgstr "Warnbanner"
+
+msgid "Milter health: accept or tempfail per milter"
+msgstr "Milter-Gesundheit: je Milter annehmen oder tempfail"
+
+msgid "Milter health: what happens when a milter is down"
+msgstr "Milter-Gesundheit: was geschieht, wenn ein Milter ausfällt"
+
+msgid "Milter port, see milter-health-status"
+msgstr "Milter-Port, siehe milter-health-status"
+
+msgid "accept (pass) or tempfail (turn away)"
+msgstr "accept (durchlassen) oder tempfail (abweisen)"
+
+msgid "Report as spam or as wanted"
+msgstr "Als Spam oder als erwünscht melden"
+
+msgid "Where the mail is"
+msgstr "Wo die Mail liegt"
+
+msgid "ID of the held mail or queue ID"
+msgstr "ID der zurückgehaltenen Mail oder Queue-ID"
+
+msgid "Spam or wanted"
+msgstr "Spam oder erwünscht"
+
+msgid "Waiting, done or rejected"
+msgstr "Wartend, erledigt oder abgelehnt"
+
+msgid "Spam reports: decide"
+msgstr "Spam-Meldungen: entscheiden"
+
+msgid "Report ID"
+msgstr "Meldungs-ID"
+
+msgid "Decision"
+msgstr "Entscheidung"
+
+msgid "Own model: settings"
+msgstr "Eigenes Modell: Einstellungen"
+
+msgid "Own model: on or off"
+msgstr "Eigenes Modell: an oder aus"
+
+msgid "Approved spam and ham reports it needs of each, empty keeps it"
+msgstr "Freigegebene Spam- und Ham-Meldungen, die es je Art braucht, leer behält den Wert"
+
+msgid "Score when it is very sure, empty keeps it"
+msgstr "Score, wenn es sehr sicher ist, leer behält ihn"
+
+msgid "Own model: learn now"
+msgstr "Eigenes Modell: jetzt lernen"
+
+msgid "Impersonation and BEC"
+msgstr "Identitätsbetrug und BEC"
+
+msgid "Impersonation and BEC: switch and scores"
+msgstr "Identitätsbetrug und BEC: schalten und Scores"
+
+msgid "BEC checks: on or off"
+msgstr "BEC-Prüfungen: an oder aus"
+
+msgid "Score: VIP name with another address, empty keeps it"
+msgstr "Score: VIP-Name mit anderer Adresse, leer behält ihn"
+
+msgid "Score: lookalike domain, empty keeps it"
+msgstr "Score: ähnlich aussehende Domain, leer behält ihn"
+
+msgid "Score: first contact, empty keeps it"
+msgstr "Score: Erstkontakt, leer behält ihn"
+
+msgid "Score: a known sender writes differently, empty keeps it"
+msgstr "Score: ein bekannter Absender schreibt anders, leer behält ihn"
+
+msgid "Days a mail relation counts, empty keeps it"
+msgstr "Tage, die eine Mailbeziehung zählt, leer behält sie"
+
+msgid "Score: the words of a BEC mail, 0 switches it off, empty keeps it"
+msgstr "Score: die Wörter einer BEC-Mail, 0 schaltet es aus, leer behält ihn"
+
+msgid "Score: a young domain by RDAP, 0 switches it off, empty keeps it"
+msgstr "Score: eine junge Domain laut RDAP, 0 schaltet es aus, leer behält ihn"
+
+msgid "Days a domain counts as young, empty keeps it"
+msgstr "Tage, die eine Domain als jung gilt, leer behält den Wert"
+
+msgid "Impersonation and BEC: VIPs"
+msgstr "Identitätsbetrug und BEC: VIPs"
+
+msgid "Name as in the display name, such as Jane Doe"
+msgstr "Name wie im Anzeigenamen, etwa Jane Doe"
+
+msgid "The real address, for add"
+msgstr "Die echte Adresse, beim Hinzufügen"
+
+msgid "Impersonation and BEC: partner domains"
+msgstr "Identitätsbetrug und BEC: Partner-Domains"
+
+msgid "Domain of a partner, such as bank.example"
+msgstr "Domain eines Partners, etwa bank.example"
+
+msgid "Quarantine for users"
+msgstr "Quarantäne für Benutzer"
+
+msgid "Quarantine for users: settings"
+msgstr "Quarantäne für Benutzer: Einstellungen"
+
+msgid "Keep mail from this score on, instead of rejecting it"
+msgstr "Mail ab diesem Score aufbewahren, statt sie abzuweisen"
+
+msgid "Keep for days"
+msgstr "Aufbewahren für Tage"
+
+msgid "Daily mail to each recipient: on or off"
+msgstr "Tägliche Mail an jeden Empfänger: an oder aus"
+
+msgid "Users may release alone: on or off"
+msgstr "Benutzer dürfen selbst freigeben: an oder aus"
+
+msgid "Public address of this server, for the links"
+msgstr "Öffentliche Adresse dieses Servers, für die Links"
+
+msgid "Search sender, recipient or subject"
+msgstr "Absender, Empfänger oder Betreff suchen"
+
+msgid "Held mail: headers"
+msgstr "Zurückgehaltene Mail: Header"
+
+msgid "ID"
+msgstr "ID"
+
+msgid "Held mail: release"
+msgstr "Zurückgehaltene Mail: freigeben"
+
+msgid "Held mail: ask an admin to release"
+msgstr "Zurückgehaltene Mail: einen Admin um Freigabe bitten"
+
+msgid "Held mail: delete"
+msgstr "Zurückgehaltene Mail: löschen"
+
+msgid "Held mail: allow or block the sender"
+msgstr "Zurückgehaltene Mail: den Absender erlauben oder sperren"
+
+msgid "allow or block"
+msgstr "erlauben oder sperren"
+
+msgid "Link in a digest: what it does"
+msgstr "Link in einer Übersicht: was er tut"
+
+msgid "Link in a digest: do it"
+msgstr "Link in einer Übersicht: ausführen"
+
+msgid "Rules: add, change or remove"
+msgstr "Regeln: hinzufügen, ändern oder entfernen"
+
+msgid "sender, sender_domain, recipient, domain, tenant or group"
+msgstr "sender, sender_domain, recipient, domain, tenant oder group"
+
+msgid "Address, domain, tenant name or group DN"
+msgstr "Adresse, Domain, Mandantenname oder Gruppen-DN"
+
+msgid "Priority, higher goes first"
+msgstr "Priorität, höhere zuerst"
+
+msgid "Reject from score"
+msgstr "Abweisen ab Score"
+
+msgid "Mark as spam from score"
+msgstr "Als Spam markieren ab Score"
+
+msgid "Greylist from score"
+msgstr "Greylisting ab Score"
+
+msgid "Quarantine instead of rejecting: on or empty"
+msgstr "Quarantäne statt Abweisen: on oder leer"
+
+msgid "Deliver to host:port, empty for the normal route"
+msgstr "Zustellen an host:port, leer für den normalen Weg"
+
+msgid "Notify these addresses when such mail comes, for a sender rule"
+msgstr "Diese Adressen benachrichtigen, wenn solche Mail kommt, bei einer Absenderregel"
+
+msgid "Spam filter off, the virus scan stays: on or off"
+msgstr "Spamfilter aus, Virenscan bleibt: ein oder aus"
+
+msgid "Encrypted archives allowed, everything else is still scanned: on or off"
+msgstr "Verschlüsselte Archive erlaubt, alles andere wird weiter geprüft: ein oder aus"
+
+msgid "Note for checking (efa-migrate)"
+msgstr "Hinweis zur Prüfung (efa-migrate)"
+
+msgid "Report: show or print"
+msgstr "Bericht: zeigen oder drucken"
+
+msgid "day, week or month"
+msgstr "day, week oder month"
+
+msgid "Only this domain (empty: all you may see)"
+msgstr "Nur diese Domain (leer: alle, die Sie sehen dürfen)"
+
+msgid "html for a page to print, empty for values"
+msgstr "html für eine Druckseite, leer für Werte"
+
+msgid "Reports by mail"
+msgstr "Berichte per Mail"
+
+msgid "Reports by mail: switch"
+msgstr "Berichte per Mail: schalten"
+
+msgid "On Mondays: on or off"
+msgstr "Montags: an oder aus"
+
+msgid "Mail yesterday's report to the admin: on or off"
+msgstr "Den Bericht von gestern an den Admin mailen: an oder aus"
+
+msgid "Mail report: background job"
+msgstr "Mail-Bericht: Hintergrundjob"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Subject marking: show"
+msgstr "Betreffmarkierung: zeigen"
+
+msgid "Subject marking: set"
+msgstr "Betreffmarkierung: setzen"
+
+msgid "Text, empty turns it off"
+msgstr "Text, leer schaltet sie aus"
+
+msgid "DKIM keys: generate"
+msgstr "DKIM-Schlüssel: erzeugen"
+
+msgid "Key type"
+msgstr "Schlüsseltyp"
+
+msgid "RSA bits"
+msgstr "RSA-Bits"
+
+msgid "RSA key: generate"
+msgstr "RSA-Schlüssel: erzeugen"
+
+msgid "Ed25519 key: generate"
+msgstr "Ed25519-Schlüssel: erzeugen"
+
+msgid "DKIM: remove a key"
+msgstr "DKIM: einen Schlüssel entfernen"
+
+msgid "Selector"
+msgstr "Selector"
+
+msgid "Rotation: status"
+msgstr "Rotation: Status"
+
+msgid "Auto-rotate all domains"
+msgstr "Alle Domains automatisch rotieren"
+
+msgid "Interval in months"
+msgstr "Abstand in Monaten"
+
+msgid "Months ahead, up to 24"
+msgstr "Monate im Voraus, bis 24"
+
+msgid "Own rotation settings for one domain"
+msgstr "Eigene Rotationseinstellungen für eine Domain"
+
+msgid "rsa, ed25519 or arc"
+msgstr "rsa, ed25519 oder arc"
+
+msgid "on, off or default"
+msgstr "on, off oder default"
+
+msgid "First rotation, empty after one interval"
+msgstr "Erste Rotation, leer nach einem Abstand"
+
+msgid "Rotation: create future keys now"
+msgstr "Rotation: künftige Schlüssel jetzt erzeugen"
+
+msgid "Domain, empty for all"
+msgstr "Domain, leer für alle"
+
+msgid "DNS servers for the rotation check"
+msgstr "DNS-Server für die Rotationsprüfung"
+
+msgid "IPv4 server 1"
+msgstr "IPv4-Server 1"
+
+msgid "IPv4 server 2"
+msgstr "IPv4-Server 2"
+
+msgid "IPv6 server 1"
+msgstr "IPv6-Server 1"
+
+msgid "IPv6 server 2"
+msgstr "IPv6-Server 2"
+
+msgid "DNS servers that must show the key"
+msgstr "DNS-Server, die den Schlüssel zeigen müssen"
+
+msgid "Rotation: check now"
+msgstr "Rotation: jetzt prüfen"
+
+msgid "Mail the admin on a failed check: yes or no"
+msgstr "Den Admin bei fehlgeschlagener Prüfung anmailen: yes oder no"
+
+msgid "ARC sealing"
+msgstr "ARC-Versiegelung"
+
+msgid "ARC: trusted sealers"
+msgstr "ARC: vertrauenswürdige Sealer"
+
+msgid "Domain of the sealer, such as microsoft.com"
+msgstr "Domain des Sealers, etwa microsoft.com"
+
+msgid "ARC for all domains"
+msgstr "ARC für alle Domains"
+
+msgid "ARC key"
+msgstr "ARC-Schlüssel"
+
+msgid "ARC for one domain"
+msgstr "ARC für eine Domain"
+
+msgid "Saved DMARC records"
+msgstr "Gespeicherte DMARC-Einträge"
+
+msgid "DMARC record: history"
+msgstr "DMARC-Eintrag: Verlauf"
+
+msgid "DMARC record generator"
+msgstr "DMARC-Eintrag erzeugen"
+
+msgid "Policy (p)"
+msgstr "Richtlinie (p)"
+
+msgid "Policy for subdomains (sp)"
+msgstr "Richtlinie für Subdomains (sp)"
+
+msgid "Policy for non-existent subdomains (np)"
+msgstr "Richtlinie für nicht existierende Subdomains (np)"
+
+msgid "DKIM alignment (adkim)"
+msgstr "DKIM-Ausrichtung (adkim)"
+
+msgid "SPF alignment (aspf)"
+msgstr "SPF-Ausrichtung (aspf)"
+
+msgid "Test mode (t)"
+msgstr "Testmodus (t)"
+
+msgid "Report service"
+msgstr "Berichtsdienst"
+
+msgid "Aggregate report addresses (rua)"
+msgstr "Adressen für Sammelberichte (rua)"
+
+msgid "Failure reports (ruf): on or off"
+msgstr "Fehlerberichte (ruf): an oder aus"
+
+msgid "Failure report addresses (ruf)"
+msgstr "Adressen für Fehlerberichte (ruf)"
+
+msgid "Failure report options (fo)"
+msgstr "Optionen der Fehlerberichte (fo)"
+
+msgid "I have read the privacy warning"
+msgstr "Ich habe den Datenschutzhinweis gelesen"
+
+msgid "Check an existing DMARC record"
+msgstr "Einen bestehenden DMARC-Eintrag prüfen"
+
+msgid "Record"
+msgstr "Eintrag"
+
+msgid "DKIM: export DNS records"
+msgstr "DKIM: DNS-Einträge exportieren"
+
+msgid "zone or csv"
+msgstr "zone oder csv"
+
+msgid "Settings: show"
+msgstr "Einstellungen: zeigen"
+
+msgid "Maintenance mode"
+msgstr "Wartungsmodus"
+
+msgid "Relay networks"
+msgstr "Relay-Netze"
+
+msgid "Networks, space separated"
+msgstr "Netze, durch Leerzeichen getrennt"
+
+msgid "Add networks"
+msgstr "Netze hinzufügen"
+
+msgid "Networks, one or several"
+msgstr "Netze, eines oder mehrere"
+
+msgid "Description, optional"
+msgstr "Beschreibung, optional"
+
+msgid "Remove a network"
+msgstr "Ein Netz entfernen"
+
+msgid "Network"
+msgstr "Netz"
+
+msgid "Apply relay network changes"
+msgstr "Änderungen der Relay-Netze übernehmen"
+
+msgid "Discard relay network changes"
+msgstr "Änderungen der Relay-Netze verwerfen"
+
+msgid "Add senders"
+msgstr "Absender hinzufügen"
+
+msgid "Senders, one or several"
+msgstr "Absender, einer oder mehrere"
+
+msgid "Comment, optional"
+msgstr "Kommentar, optional"
+
+msgid "Remove senders"
+msgstr "Absender entfernen"
+
+msgid "Senders"
+msgstr "Absender"
+
+msgid "Move a sender to the other list"
+msgstr "Einen Absender in die andere Liste verschieben"
+
+msgid "Sender"
+msgstr "Absender"
+
+msgid "rspamd web interface through eFa: read only, for a while"
+msgstr "rspamd-Weboberfläche über eFa: nur lesen, auf Zeit"
+
+msgid "off or read-only"
+msgstr "aus oder nur lesen"
+
+msgid "Closes again after"
+msgstr "Schließt wieder nach"
+
+msgid "Note an opening of rspamd"
+msgstr "Ein Öffnen von rspamd vermerken"
+
+msgid "Client address"
+msgstr "Client-Adresse"
+
+msgid "Apply web server hardening"
+msgstr "Härtung des Webservers anwenden"
+
+msgid "Admin web access"
+msgstr "Admin-Zugang zum Webinterface"
+
+msgid "Admin web access: allowed addresses"
+msgstr "Admin-Zugang: erlaubte Adressen"
+
+msgid "Allowed admin networks, each with a comment; - empties the list"
+msgstr "Erlaubte Admin-Netze, je mit Kommentar; - leert die Liste"
+
+msgid "Firewall: admin allowlist"
+msgstr "Firewall: Admin-Positivliste"
+
+msgid "Admin networks for SSH and web, empty allows all"
+msgstr "Admin-Netze für SSH und Web, leer erlaubt alle"
+
+msgid "Mail submission 587 and 465: on or off"
+msgstr "Mail-Einlieferung 587 und 465: an oder aus"
+
+msgid "Firewall: keep the change"
+msgstr "Firewall: Änderung behalten"
+
+msgid "Firewall: take back the change"
+msgstr "Firewall: Änderung zurücknehmen"
+
+msgid "Load warning limits"
+msgstr "Grenzen der Lastwarnung"
+
+msgid "Warn from percent"
+msgstr "Warnen ab Prozent"
+
+msgid "After minutes"
+msgstr "Nach Minuten"
+
+msgid "Mail a load warning"
+msgstr "Eine Lastwarnung mailen"
+
+msgid "Text"
+msgstr "Text"
+
+msgid "Firewall guard"
+msgstr "Firewall-Wächter"
+
+msgid "Firewall guard: status"
+msgstr "Firewall-Wächter: Status"
+
+msgid "Firewall guard: check now"
+msgstr "Firewall-Wächter: jetzt prüfen"
+
+msgid "Run firewall tests"
+msgstr "Firewall-Tests ausführen"
+
+msgid "Test group"
+msgstr "Testgruppe"
+
+msgid "Domain for the SMTP test"
+msgstr "Domain für den SMTP-Test"
+
+msgid "Outside probe"
+msgstr "Prüfstelle außen"
+
+msgid "Probe address, empty for none"
+msgstr "Adresse der Prüfstelle, leer für keine"
+
+msgid "Pending updates"
+msgstr "Ausstehende Updates"
+
+msgid "Last system update"
+msgstr "Letztes Systemupdate"
+
+msgid "Update system"
+msgstr "System aktualisieren"
+
+msgid "Reboot automatically after the update: on or off"
+msgstr "Nach dem Update automatisch neu starten: an oder aus"
+
+msgid "Type yes to accept the reboot risk"
+msgstr "yes eingeben, um das Neustart-Risiko zu akzeptieren"
+
+msgid "Only try it: yes or empty"
+msgstr "Nur ausprobieren: yes oder leer"
+
+msgid "Update system: background job"
+msgstr "System aktualisieren: Hintergrundjob"
+
+msgid "yes or no"
+msgstr "yes oder no"
+
+msgid "Update system: check after reboot"
+msgstr "System aktualisieren: Prüfung nach dem Neustart"
+
+msgid "Outbound smarthost"
+msgstr "Smarthost für ausgehende Mail"
+
+msgid "Host, empty sends directly"
+msgstr "Host, leer sendet direkt"
+
+msgid "Maximum message size"
+msgstr "Größte Mailgröße"
+
+msgid "MB"
+msgstr "MB"
+
+msgid "Spam scores"
+msgstr "Spam-Scores"
+
+msgid "Greylist from"
+msgstr "Greylisting ab"
+
+msgid "Mark as spam from"
+msgstr "Als Spam markieren ab"
+
+msgid "Reject from"
+msgstr "Abweisen ab"
+
+msgid "Greylisting"
+msgstr "Greylisting"
+
+msgid "Sender allow and block lists"
+msgstr "Erlaubte und gesperrte Absender"
+
+msgid "Sender rules: IP, pattern, per recipient"
+msgstr "Absenderregeln: IP, Muster, je Empfänger"
+
+msgid "Sender, IP or pattern with *"
+msgstr "Absender, IP oder Muster mit *"
+
+msgid "Only for this address or domain"
+msgstr "Nur für diese Adresse oder Domain"
+
+msgid "Domains and their mail servers"
+msgstr "Domains und ihre Mailserver"
+
+msgid "Mail server, for add"
+msgstr "Mailserver, beim Hinzufügen"
+
+msgid "Admin email"
+msgstr "Admin-E-Mail"
+
+msgid "Recipient verification"
+msgstr "Empfängerprüfung"
+
+msgid "Fail2Ban"
+msgstr "Fail2Ban"
+
+msgid "Automatic backup"
+msgstr "Automatische Sicherung"
+
+msgid "Update now"
+msgstr "Jetzt aktualisieren"
+
+msgid "Reboot"
+msgstr "Neu starten"
+
+msgid "Halt"
+msgstr "Herunterfahren"
+
+msgid "Back up now"
+msgstr "Jetzt sichern"
+
+msgid "Encrypt: on or off"
+msgstr "Verschlüsseln: an oder aus"
+
+msgid "Password for automatic backups"
+msgstr "Passwort für automatische Sicherungen"
+
+msgid "Backup: where it is"
+msgstr "Sicherung: wo sie liegt"
+
+msgid "Backup file name"
+msgstr "Dateiname der Sicherung"
+
+msgid "Backup: raw download"
+msgstr "Sicherung: Rohdownload"
+
+msgid "Backup: store an uploaded file"
+msgstr "Sicherung: eine hochgeladene Datei ablegen"
+
+msgid "File, empty reads stdin"
+msgstr "Datei, leer liest stdin"
+
+msgid "eFa updates"
+msgstr "eFa-Updates"
+
+msgid "Automatic eFa updates"
+msgstr "Automatische eFa-Updates"
+
+msgid "off, notify or auto"
+msgstr "off, notify oder auto"
+
+msgid "Maintenance days"
+msgstr "Wartungstage"
+
+msgid "Maintenance time"
+msgstr "Wartungszeit"
+
+msgid "Update: back to the version before"
+msgstr "Update: zurück auf die Version davor"
+
+msgid "Only show what would happen: yes or empty"
+msgstr "Nur zeigen, was passieren würde: yes oder leer"
+
+msgid "Restore the backup taken before the update: on or off"
+msgstr "Die Sicherung von vor dem Update wiederherstellen: an oder aus"
+
+msgid "Check for an eFa update now"
+msgstr "Jetzt nach einem eFa-Update suchen"
+
+msgid "Install the eFa update now"
+msgstr "Das eFa-Update jetzt installieren"
+
+msgid "Automatic update job"
+msgstr "Job für automatische Updates"
+
+msgid "Install now: yes or empty"
+msgstr "Jetzt installieren: yes oder leer"
+
+msgid "Backup: list"
+msgstr "Sicherung: Liste"
+
+msgid "Restore a backup"
+msgstr "Eine Sicherung wiederherstellen"
+
+msgid "Backup password, only for encrypted backups"
+msgstr "Sicherungspasswort, nur für verschlüsselte Sicherungen"
+
+msgid "Or a file on this server"
+msgstr "Oder eine Datei auf diesem Server"
+
+msgid "Repair databases"
+msgstr "Datenbanken reparieren"
+
+msgid "Host name: change it everywhere"
+msgstr "Hostname: überall ändern"
+
+msgid "New full host name, such as mx2.example.org"
+msgstr "Neuer vollständiger Hostname, z. B. mx2.example.org"
+
+msgid "Network: show"
+msgstr "Netzwerk: zeigen"
+
+msgid "Network: set (after reboot)"
+msgstr "Netzwerk: setzen (nach Neustart)"
+
+msgid "Full host name"
+msgstr "Vollständiger Hostname"
+
+msgid "auto or manual"
+msgstr "auto oder manual"
+
+msgid "IPv4 address/prefix, for manual"
+msgstr "IPv4-Adresse/Präfix, für manual"
+
+msgid "IPv4 gateway, for manual"
+msgstr "IPv4-Gateway, für manual"
+
+msgid "IPv6: auto, manual or ignore"
+msgstr "IPv6: auto, manual oder ignore"
+
+msgid "IPv6 address/prefix, for manual"
+msgstr "IPv6-Adresse/Präfix, für manual"
+
+msgid "IPv6 gateway, for manual"
+msgstr "IPv6-Gateway, für manual"
+
+msgid "Let's Encrypt certificate"
+msgstr "Let's-Encrypt-Zertifikat"
+
+msgid "Host name"
+msgstr "Hostname"
+
+msgid "Contact email"
+msgstr "Kontakt-E-Mail"
+
+msgid "Type yes to accept the terms of service"
+msgstr "yes eingeben, um die Nutzungsbedingungen zu akzeptieren"
+
+msgid "Mail log: search"
+msgstr "Mail-Log: suchen"
+
+msgid "Sender, recipient, subject, queue ID or IP"
+msgstr "Absender, Empfänger, Betreff, Queue-ID oder IP"
+
+msgid "Mail log: live"
+msgstr "Mail-Log: live"
+
+msgid "Only entries after this ID"
+msgstr "Nur Einträge nach dieser ID"
+
+msgid "Mail log: days to keep"
+msgstr "Mail-Log: Aufbewahrung in Tagen"
+
+msgid "Mail log: size limit"
+msgstr "Mail-Log: Größengrenze"
+
+msgid "MB, 0 turns the limit off"
+msgstr "MB, 0 schaltet die Grenze aus"
+
+msgid "Mail log: delete old entries now"
+msgstr "Mail-Log: alte Einträge jetzt löschen"
+
+msgid "Milter order"
+msgstr "Reihenfolge der Milter"
+
+msgid "Ports in order, must include 11332 and 8999"
+msgstr "Ports in Reihenfolge, müssen 11332 und 8999 enthalten"
+
+msgid "Internal DNS zones"
+msgstr "Interne DNS-Zonen"
+
+msgid "Zone"
+msgstr "Zone"
+
+msgid "DNS servers, for add"
+msgstr "DNS-Server, beim Hinzufügen"
+
+msgid "Watch an extra service"
+msgstr "Einen zusätzlichen Dienst überwachen"
+
+msgid "Service name"
+msgstr "Dienstname"
+
+msgid "Quarantine for spam"
+msgstr "Quarantäne für Spam"
+
+msgid "Quarantine: list"
+msgstr "Quarantäne: Liste"
+
+msgid "Quarantine: show headers"
+msgstr "Quarantäne: Header zeigen"
+
+msgid "Quarantine: deliver"
+msgstr "Quarantäne: zustellen"
+
+msgid "Quarantine: delete"
+msgstr "Quarantäne: löschen"
+
+msgid "Quarantine: days to keep"
+msgstr "Quarantäne: Aufbewahrung in Tagen"
+
+msgid "Quarantine: delete old mail now"
+msgstr "Quarantäne: alte Mail jetzt löschen"
+
+msgid "DKIM: managed externally"
+msgstr "DKIM: extern verwaltet"
+
+msgid "DKIM: provisioning API on port 8463"
+msgstr "DKIM: Provisioning-API auf Port 8463"
+
+msgid "DKIM: a source that delivers keys"
+msgstr "DKIM: eine Quelle, die Schlüssel liefert"
+
+msgid "Name of the source"
+msgstr "Name der Quelle"
+
+msgid "Client certificate of the source (PEM file on this host)"
+msgstr "Client-Zertifikat der Quelle (PEM-Datei auf diesem Host)"
+
+msgid "Domains it may deliver, separated by commas"
+msgstr "Domains, die sie liefern darf, mit Komma getrennt"
+
+msgid "Allowed addresses or networks, empty for any"
+msgstr "Erlaubte Adressen oder Netze, leer für alle"
+
+msgid "Calls per minute"
+msgstr "Aufrufe pro Minute"
+
+msgid "A new token: yes, else empty"
+msgstr "Neuer Token: yes, sonst leer"
+
+msgid "Rights: dkim and/or disclaimer, separated by commas; empty keeps them (new: dkim)"
+msgstr "Rechte: dkim und/oder disclaimer, durch Kommas getrennt; leer behält sie (neu: dkim)"
+
+msgid "DKIM: remove a source"
+msgstr "DKIM: eine Quelle entfernen"
+
+msgid "DKIM: take a domain back from its source"
+msgstr "DKIM: eine Domain von ihrer Quelle zurückholen"
+
+msgid "Check a mail: the verdict of rspamd, nothing is kept or learned"
+msgstr "Mail prüfen: das Urteil von rspamd, nichts wird gespeichert oder gelernt"
+
+msgid "Mail as .eml (base64 on stdin)"
+msgstr "Mail als .eml (base64 über stdin)"
+
+msgid "Symbol scores of rspamd"
+msgstr "Symbol-Scores von rspamd"
+
+msgid "Part of the name or description, empty for all"
+msgstr "Teil des Namens oder der Beschreibung, leer für alle"
+
+msgid "Symbol scores: own score of a symbol"
+msgstr "Symbol-Scores: eigener Score eines Symbols"
+
+msgid "Symbol, such as FORGED_SENDER"
+msgstr "Symbol, z. B. FORGED_SENDER"
+
+msgid "Score from -50 to 50"
+msgstr "Score von -50 bis 50"
+
+msgid "Back to the score of rspamd: on or off"
+msgstr "Zurück zum Score von rspamd: ein oder aus"
+
+msgid "IP blocklists: add or change a list"
+msgstr "IP-Sperrlisten: Liste anlegen oder ändern"
+
+msgid "Name, such as talos or own"
+msgstr "Name, z. B. talos oder eigene"
+
+msgid "Ports, such as 25 or 25,465,587"
+msgstr "Ports, z. B. 25 oder 25,465,587"
+
+msgid "Feed address (https), empty for a known feed"
+msgstr "Feed-Adresse (https), leer bei einem bekannten Feed"
+
+msgid "Fetch every"
+msgstr "Abrufen alle"
+
+msgid "I have read the terms of this feed and accept them"
+msgstr "Ich habe die Nutzungsbedingungen dieses Feeds gelesen und akzeptiere sie"
+
+msgid "IP blocklists: own entries"
+msgstr "IP-Sperrlisten: eigene Einträge"
+
+msgid "List"
+msgstr "Liste"
+
+msgid "Addresses or networks, separated by spaces"
+msgstr "Adressen oder Netze, durch Leerzeichen getrennt"
+
+msgid "For hours, empty for good"
+msgstr "Für Stunden, leer für dauerhaft"
+
+msgid "IP blocklists: remove a list"
+msgstr "IP-Sperrlisten: Liste entfernen"
+
+msgid "IP blocklists: background job"
+msgstr "IP-Sperrlisten: Hintergrundjob"
+
+msgid "Address harvesting: ban senders that try many unknown recipients"
+msgstr "Adress-Ausspähung: Absender sperren, die viele unbekannte Empfänger probieren"
+
+msgid "Unknown recipients until the ban (3 to 100)"
+msgstr "Unbekannte Empfänger bis zur Sperre (3 bis 100)"
+
+msgid "Within minutes"
+msgstr "Innerhalb von Minuten"
+
+msgid "Ban for hours"
+msgstr "Sperre für Stunden"
+
+msgid "Addresses or networks never banned for it, - for none"
+msgstr "Adressen oder Netze, die dafür nie gesperrt werden, - für keine"
+
+msgid "Mail flow picture"
+msgstr "Bild des Mailflusses"
+
+msgid "Mail flow picture: moving letters"
+msgstr "Bild des Mailflusses: wandernde Briefe"
+
+msgid "DMARC reports"
+msgstr "DMARC-Berichte"
+
+msgid "Reporting domain (when active)"
+msgstr "Berichtende Domain (wenn aktiv)"
+
+msgid "Sender address (when active)"
+msgstr "Absenderadresse (wenn aktiv)"
+
+msgid "Organization (when active)"
+msgstr "Organisation (wenn aktiv)"
+
+msgid "IP blocklists: import a file (efa-migrate)"
+msgstr "IP-Sperrlisten: Datei importieren (efa-migrate)"
+
+msgid "File"
+msgstr "Datei"
+
+msgid "Ports, or all"
+msgstr "Ports, oder all für alle"
+
+msgid "DKIM: one call of a source (efa-dkim-api)"
+msgstr "DKIM: ein Aufruf einer Quelle (efa-dkim-api)"
+
+msgid "Source"
+msgstr "Quelle"
+
+msgid "Disclaimer: one call of a source (efa-dkim-api)"
+msgstr "Disclaimer: ein Aufruf einer Quelle (efa-dkim-api)"
+
+msgid "DKIM: import a key"
+msgstr "DKIM: Schlüssel importieren"
+
+msgid "Selector, as in DNS"
+msgstr "Selektor, wie im DNS"
+
+msgid "Key file on this server; empty to give the key below"
+msgstr "Schlüsseldatei auf diesem Server; leer, um den Schlüssel unten anzugeben"
+
+msgid "Private key: the PEM file in base64, on one line"
+msgstr "Privater Schlüssel: die PEM-Datei in Base64, in einer Zeile"
+
+msgid "Web admin password"
+msgstr "Web-Admin-Passwort"
+
+msgid "Made in Europe, Austria"
+msgstr "Made in Europe, Österreich"
+
+msgid "eFa-next is a private open source project:"
+msgstr "eFa-next ist ein privates Open-Source-Projekt:"
+
+msgid "Source code"
+msgstr "Quellcode"
+
+msgid "For qualified administrators, not for consumers. No warranty, no liability as far as the law allows:"
+msgstr "Für fachkundige Administratoren, nicht für Verbraucher. Keine Gewährleistung, keine Haftung, soweit gesetzlich zulässig:"
+
+msgid "Disclaimer"
+msgstr "Haftungsausschluss"
+
+msgid "Authors"
+msgstr "Autoren"
+
+msgid "Third-party notices"
+msgstr "Hinweise zu Fremdsoftware"
+
+msgid "This account logs in at the user portal."
+msgstr "Dieses Konto meldet sich im Benutzerportal an."
+
+msgid "To the user portal"
+msgstr "Zum Benutzerportal"
+
+msgid "Mail address"
+msgstr "Mail-Adresse"
+
+msgid "User name, empty for the main admin"
+msgstr "Benutzername, leer für den Haupt-Admin"
+
+msgid "Quarantine of your own mailbox:"
+msgstr "Quarantäne des eigenen Postfachs:"
+
+msgid "user portal"
+msgstr "Benutzerportal"
+
+msgid "text"
+msgstr "Text"
+
+msgid "All legal texts"
+msgstr "Alle Rechtstexte"
+
+msgid "The legal texts of this version are not confirmed yet. Admin pages open after the confirmation; the user portal and the mail flow are not affected."
+msgstr "Die Rechtstexte dieser Version sind noch nicht bestätigt. Die Admin-Seiten öffnen sich nach der Bestätigung; Benutzerportal und Mailfluss sind nicht betroffen."
+
+msgid "Confirm"
+msgstr "Bestätigen"
+
+msgid "Why this result"
+msgstr "Warum dieses Ergebnis"
+
+msgid "Path over the servers"
+msgstr "Weg über die Server"
+
+msgid "Checks: authentication, ARC, DKIM"
+msgstr "Prüfungen: Authentifizierung, ARC, DKIM"
+
+msgid "DNS evidence"
+msgstr "DNS-Nachweis"
+
+msgid "Headers"
+msgstr "Header"
+
+msgid "Content"
+msgstr "Inhalt"
+
+msgid "Load"
+msgstr "Last"
+
+msgid "Collecting: the first value comes after a minute."
+msgstr "Wird gesammelt: der erste Wert kommt nach einer Minute."
+
+msgid "Now"
+msgstr "Jetzt"
+
+msgid "24 h max"
+msgstr "24 h max."
+
+msgid "Last hour"
+msgstr "Letzte Stunde"
+
+msgid "Show all"
+msgstr "Alle anzeigen"
+
+msgid "View"
+msgstr "Ansicht"
+
+msgid "Standard"
+msgstr "Standard"
+
+msgid "Expert"
+msgstr "Experte"
+
+msgid "Turn off"
+msgstr "Ausschalten"
+
+msgid "Turn on"
+msgstr "Einschalten"
+
+msgid "Yes, take it over"
+msgstr "Ja, übernehmen"
+
+msgid "Yes, do it"
+msgstr "Ja, ausführen"
+
+msgid "Yes, remove"
+msgstr "Ja, entfernen"
+
+msgid "Yes, I accept the reboot risk"
+msgstr "Ja, ich nehme das Risiko des Neustarts an"
+
+msgid "Yes, I accept the terms of service"
+msgstr "Ja, ich nehme die Nutzungsbedingungen an"
+
+msgid "Current:"
+msgstr "Aktuell:"
+
+msgid "read only, until"
+msgstr "nur lesen, bis"
+
+msgid "Last hour per minute"
+msgstr "Letzte Stunde je Minute"
+
+msgid "Needs attention"
+msgstr "Braucht Aufmerksamkeit"
+
+msgid "Open"
+msgstr "Öffnen"
+
+msgid "No DKIM keys yet: generate them above."
+msgstr "Noch keine DKIM-Schlüssel: oben erzeugen."
+
+msgid "Time"
+msgstr "Zeit"
+
+msgid "Recipient"
+msgstr "Empfänger"
+
+msgid "Subject"
+msgstr "Betreff"
+
+msgid "Nothing held."
+msgstr "Nichts zurückgehalten."
+
+msgid "Terms of use"
+msgstr "Nutzungsbedingungen"
+
+msgid "no published terms"
+msgstr "keine veröffentlichten Bedingungen"
+
+msgid "Your password, to confirm"
+msgstr "Ihr Passwort zur Bestätigung"
+
+msgid "Run"
+msgstr "Ausführen"
+
+msgid "Apply"
+msgstr "Übernehmen"
+
+msgid "Show"
+msgstr "Anzeigen"
+
+msgid "Download PDF"
+msgstr "PDF herunterladen"
+
+msgid "Check a mail"
+msgstr "Mail prüfen"
+
+msgid "The verdict of rspamd for one .eml file: action, score and every rule that counted. Nothing is stored or learned."
+msgstr "Das Urteil von rspamd für eine .eml-Datei: Aktion, Score und jede Regel, die gezählt hat. Nichts wird gespeichert oder gelernt."
+
+msgid "Mail (.eml, up to 10 MB)"
+msgstr "Mail (.eml, bis 10 MB)"
+
+msgid "Check"
+msgstr "Prüfen"
+
+msgid "manifest.json, body.html and/or body.txt, media/ and attachments/. Checked whole before anything changes."
+msgstr "manifest.json, body.html und/oder body.txt, media/ und attachments/. Wird vollständig geprüft, bevor sich etwas ändert."
+
+msgid "ZIP, up to 5 MB"
+msgstr "ZIP, bis 5 MB"
+
+msgid "Only check and show"
+msgstr "Nur prüfen und anzeigen"
+
+msgid "Import"
+msgstr "Einspielen"
+
+msgid "Export as ZIP"
+msgstr "Als ZIP exportieren"
+
+msgid "Download ZIP"
+msgstr "ZIP herunterladen"
+
+msgid "More on this page in the expert view:"
+msgstr "Mehr auf dieser Seite in der Expertenansicht:"
+
+msgid "The link could not be checked just now"
+msgstr "Der Link konnte gerade nicht geprüft werden"
+
+msgid "It leads to this address:"
+msgstr "Er führt zu dieser Adresse:"
+
+msgid "This link may be dangerous"
+msgstr "Dieser Link kann gefährlich sein"
+
+msgid "The address is listed as dangerous or as phishing:"
+msgstr "Die Adresse ist als gefährlich oder als Phishing gelistet:"
+
+msgid "Go on anyway"
+msgstr "Trotzdem weiter"
+
+msgid "If you did not expect this mail, delete it."
+msgstr "Wenn Sie diese Mail nicht erwartet haben, löschen Sie sie."
+
+msgid "{} is down"
+msgstr "{} läuft nicht"
+
+msgid "Security self check: {} problems"
+msgstr "Sicherheitsprüfung: {} Probleme"
+
+msgid "No backup yet"
+msgstr "Noch keine Sicherung"
+
+msgid "Automatic backup is off"
+msgstr "Automatische Sicherung ist aus"
+
+msgid "Maintenance mode is on"
+msgstr "Wartungsmodus ist an"
+
+msgid "Last hour: {} mails, {} spam, {} viruses; most in one minute: {}."
+msgstr "Letzte Stunde: {} Mails, {} Spam, {} Viren; höchstens in einer Minute: {}."
+
+msgid "Mail system"
+msgstr "Mailsystem"
+
+msgid "Milters"
+msgstr "Milter"
+
+msgid "Queues"
+msgstr "Warteschlangen"
+
+msgid "Last backup"
+msgstr "Letzte Sicherung"
+
+msgid "DKIM rotation check"
+msgstr "DKIM-Rotationsprüfung"
+
+msgid "Next rotation check"
+msgstr "Nächste Rotationsprüfung"
+
+msgid "Security check"
+msgstr "Sicherheitsprüfung"
+
+msgid "Bayes"
+msgstr "Bayes"

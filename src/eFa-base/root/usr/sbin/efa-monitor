@@ -1,0 +1,11 @@
+#!/usr/bin/python3 -Is
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+"""eFa-next service monitor. See the module efa_monitor for the interface."""
+import sys
+
+sys.path.insert(0, "/usr/lib/eFa/python")
+import efa_monitor  # noqa: E402
+
+sys.exit(efa_monitor.main())

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa content milter: disarm and link check
+After=network-online.target
+Before=postfix.service
+
+[Service]
+Type=simple
+User=efa-mail
+Group=efa-mail
+# Reads the settings of root:efa-web 0640; as its own user it gets no root efactl through efactl-runner.
+SupplementaryGroups=efa-web
+StateDirectory=efa-cdr
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-cdr.py
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

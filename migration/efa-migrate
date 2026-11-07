@@ -1,4 +1,7 @@
 #!/usr/bin/python3
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Migrates an original eFa 5.0 (MailScanner, MailWatch, Apache) to the rspamd/nginx eFa, in place.
 
 Without --execute-i-have-a-snapshot it only prints what would be carried over and changes nothing.
@@ -18,15 +21,22 @@ import sys
 import tempfile
 import time
 
-CONFIG = '/etc/eFa/eFa-Config'
-MYSQL_CONFIG = '/etc/eFa/MySQL-Config'
-POSTFIX = '/etc/postfix'
-MAILSCANNER_CONF = '/etc/MailScanner/MailScanner.conf'
-MAILSCANNER_DEFAULTS = '/etc/MailScanner/defaults'
+# The conversion is shared with efa5-export. Next to this script, installed by eFa-next, or in the source tree.
+HERE = os.path.dirname(os.path.abspath(__file__))
+for folder in (HERE, '/usr/lib/eFa/python', os.path.join(HERE, '..', 'next', 'usr', 'lib', 'eFa', 'python')):
+    if os.path.exists(os.path.join(folder, 'efa5_convert.py')):
+        sys.path.insert(0, folder)
+        break
+from efa5_convert import (CONFIG, KEPT_POSTCONF, NOT_MIGRATED, OLD_SERVICES, POSTFIX, Failed, carried_master,  # noqa: E402
+                          carried_postconf, collect, dkim_name, key_values, lost_postconf, mysql_env, run, settings_steps)
+from efa5_convert import self_test as convert_self_test  # noqa: E402
+
 MAILSCANNER_SPOOL = '/var/spool/MailScanner'
-KEY_TABLE = '/etc/opendkim/KeyTable'
 RSPAMD_ASC = 'https://rspamd.com/rpm/rspamd.asc'
+# 9k: the own signed repository first, the GitHub releases as a mirror; both only with SHA256SUMS signed by the pinned key.
+REPO_URL = 'https://repo.efa-next.eu/el9/latest'
 RELEASE_URL = 'https://github.com/MarkusLorber/eFa-next/releases/latest/download'
+KEY_URLS = ('https://repo.efa-next.eu/RPM-GPG-KEY-efa-next', RELEASE_URL + '/RPM-GPG-KEY-efa-next')
 RSPAMD_FINGERPRINT = '3FA347D5E599BE4595CA2576FFA232EDBF21E25E'
 RSPAMD_REPO = """[rspamd]
 name=Rspamd stable repository
@@ -36,262 +46,584 @@ gpgcheck=1
 repo_gpgcheck=1
 gpgkey=https://rspamd.com/rpm/rspamd.asc
 """
-# Milters of the old filter stack; everything else in the chain is site-specific and stays.
-OLD_MILTER_PORTS = {33333, 8891, 8893}
-RSPAMD_PORT, HEALTH_PORT = 11332, 8999
 QUEUES = ('deferred', 'hold', 'active', 'incoming', 'maildrop')
-TABLES = ('transport', 'virtual', 'sender_access', 'recipient_access', 'helo_access', 'access', 'canonical',
-          'generic', 'relocated', 'sender_canonical', 'recipient_canonical', 'sasl_passwd')
-KEPT_POSTCONF = ('smtp_sasl_auth_enable', 'smtp_sasl_password_maps', 'smtp_sasl_security_options',
-                 'smtp_sasl_tls_security_options', 'error_notice_recipient', 'smtpd_tls_cert_file',
-                 'smtpd_tls_key_file')
+POSTFIX_NOT_RESTORED = ('main.cf', 'main.cf.proto', 'master.cf', 'master.cf.proto', 'dynamicmaps.cf', 'dynamicmaps.cf.d',
+                        'postfix-files', 'postfix-files.d')
 BACKUP_PATHS = ('/etc/eFa', '/etc/sysconfig/eFa-Monitor', POSTFIX, '/etc/MailScanner', '/etc/opendkim', '/etc/opendkim.conf', '/etc/opendmarc',
                 '/etc/opendmarc.conf', '/etc/mail/spamassassin', '/etc/sqlgrey', '/etc/unbound', '/etc/fail2ban',
                 '/etc/letsencrypt', '/etc/dovecot', '/etc/clamd.d', '/etc/sysconfig/eFa_trusted_networks',
-                '/var/www/html/mailscanner/conf.php')
-# freshclam: hand-made unit on some systems, doubles clamav-freshclam
-OLD_SERVICES = ('freshclam', 'amavisd', 'clamd@amavisd', 'mailscanner', 'msmilter', 'httpd', 'php-fpm', 'opendkim', 'opendmarc', 'sqlgrey', 'adcc', 'spamassassin',
-                'postfix', 'dovecot', 'fail2ban', 'mariadb', 'clamd@scan', 'clamav-freshclam',
-                'clamav-unofficial-sigs')
+                '/var/www/html/mailscanner', '/var/www/html/sgwi', '/etc/fstab')
+SKIP_MONITOR = '/var/eFa/skipmonitor'
+# What the normal setup does with its last step, without its reboot: that has to wait until the settings are back.
+EFA_SERVICES = ('dovecot', 'efa-milter-health', 'efa-maillog', 'efa-web', 'efa-post-boot')
 # Reinstalled by the new eFa with a fresh configuration. Packages built by the eFa project are found by their release.
 # Unbound stays: the system resolves through it, and dnf needs that to install the new eFa.
-FRESH_PACKAGES = ('amavis', 'opendkim', 'opendkim-tools', 'opendmarc', 'pyzor', 'mariadb', 'mariadb-server', 'clamav', 'clamd',
+FRESH_PACKAGES = ('clamav-unofficial-sigs', 'amavis', 'opendkim', 'opendkim-tools', 'opendmarc', 'pyzor', 'mariadb', 'mariadb-server', 'clamav', 'clamd',
                   'clamav-lib', 'clamav-data', 'clamav-freshclam', 'clamav-filesystem', 'clamav-update',
-                  'postfix', 'dovecot', 'fail2ban', 'fail2ban-server', 'certbot',
+                  'postfix', 'postfix-ldap', 'postfix-pcre', 'postfix-mysql', 'dovecot', 'fail2ban', 'fail2ban-server', 'certbot',
                   'python3-certbot', 'python3-certbot-apache', 'dnf-automatic')
 REMOVED_PATHS = ('/etc/yum.repos.d/eFa5-release.repo', '/etc/yum.repos.d/eFa5-test.repo', '/etc/yum.repos.d/eFa5-dev.repo',
                  '/etc/eFa-Version', '/etc/eFa', '/var/eFa', '/usr/src/eFa', '/var/lib/mysql', '/etc/my.cnf.d', '/var/log/mariadb', POSTFIX, '/var/spool/postfix', '/etc/clamd.d',
                  '/var/lib/clamav', '/etc/dovecot', '/etc/fail2ban', '/var/lib/fail2ban', '/etc/MailScanner',
                  '/etc/opendkim', '/etc/opendmarc', '/etc/sqlgrey', '/root/.my.cnf',
                  # The old list would restart MailScanner and Apache every minute.
-                 '/etc/sysconfig/eFa-Monitor', '/etc/sysconfig/eFa-Monitor.rpmsave', '/etc/sysconfig/eFa-Monitor.rpmnew')
+                 '/etc/sysconfig/eFa-Monitor', '/etc/sysconfig/eFa-Monitor.rpmsave', '/etc/sysconfig/eFa-Monitor.rpmnew',
+                 # Not owned by any package, so removing the packages leaves them behind.
+                 '/var/www/html/mailscanner', '/var/www/html/sgwi', '/usr/bin/mailwatch', '/etc/sudoers.d/mailwatch',
+                 '/etc/dnf/plugins/post-transaction-actions.d/mailscanner-patch.action', '/etc/mail/spamassassin',
+                 '/etc/systemd/system/msmilter.service.d', '/etc/systemd/system/sqlgrey.service.d', '/etc/amavisd',
+                 '/usr/sbin/checkreboot.sh', '/etc/sudoers.d/eFa-Services', '/etc/sysconfig/eFa_trusted_networks',
+                 '/etc/opendkim.conf.rpmsave', '/etc/opendmarc.conf.rpmsave', MAILSCANNER_SPOOL, '/var/spool/opendmarc',
+                 '/var/spool/amavisd', '/var/lib/spamassassin', '/etc/clamav-unofficial-sigs', '/var/lib/clamav-unofficial-sigs')
 OLD_CRON = ('/etc/cron.d/eFa-Monitor.cron', '/etc/cron.d/efapostinit', '/etc/cron.d/checkreboot',
-            '/etc/cron.d/certbotrenew', '/etc/cron.d/msre_reload', '/etc/cron.d/checkqueues')
-NOT_MIGRATED = ('spam score thresholds: rspamd scores differ from SpamAssassin, the rspamd defaults apply',
-                'MailWatch users: there is one web admin now',
-                'MailWatch trusted networks, SpamAssassin Bayes data and sqlgrey history',
-                'mail in the old quarantine: it is kept in the backup but cannot be released from the new interface')
+            '/etc/cron.d/certbotrenew', '/etc/cron.d/msre_reload', '/etc/cron.d/checkqueues',
+            '/etc/cron.daily/cron-dccd', '/etc/cron.daily/eFa-Daily-DMARC', '/etc/cron.daily/eFa-SAClean',
+            '/etc/cron.daily/learn_new_spam', '/etc/cron.daily/ms-patch-splice', '/etc/cron.daily/trim-txrep',
+            '/etc/cron.weekly/eFa-Weekly-DMARC', '/etc/cron.weekly/opendmarc-psl')
 
 
-class Failed(Exception):
-    pass
+# 9m: blockers of other people's scripts (firewalld rich rules with a source address, kept up by cron jobs) become eFa
+# IP blocklists. Rules with "source NOT address", as for services of the host owner, are not blockers and stay.
+BLOCK_RULE = re.compile(r'^rule family="ipv[46]" source address="([^"]+)"(?: port port="(\d+)" protocol="tcp"| service name="([a-z-]+)")? '
+                        r'(?:reject|drop)\b')
+SERVICE_PORTS = {'smtp': '25', 'smtps': '465', 'submission': '587', 'ssh': '22', 'http': '80', 'https': '443', 'imaps': '993', 'pop3s': '995'}
+# Before eFa-next is installed there is no platform layer yet: this is the only place that talks to firewalld.
+FIREWALL_CMD = 'firewall-cmd'
+# A runtime-only rule of a blocker had a timeout; one blocker in use used 120 minutes.
+RUNTIME_HOURS = '2'
 
 
-def run(cmd, **kwargs):
-    done = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
-    if done.returncode != 0:
-        raise Failed(f"{' '.join(cmd)}: {(done.stderr or done.stdout)[-400:]}")
-    return done.stdout
+def _fw(*args):
+    return subprocess.run([FIREWALL_CMD, *args], capture_output=True, text=True, timeout=300)
 
 
-def old_settings_file(path):
-    with open(path) as f:
-        return f.read()
-
-
-def key_values(text, sep=':'):
-    values = {}
-    for line in text.splitlines():
-        if sep in line and not line.lstrip().startswith('#'):
-            key, value = line.split(sep, 1)
-            values[key.strip()] = value.strip()
-    return values
-
-
-def parse_senders(rows):
-    """MailWatch list rows to entries for the new lists, which are global and hold addresses or domains."""
-    usable, skipped = [], []
-    for to_address, from_address in rows:
-        entry = from_address.strip().lower()
-        if entry.startswith('*@'):
-            entry = entry[2:]
-        if to_address != 'default' or not re.fullmatch(r'([a-z0-9._%+-]+@)?([a-z0-9-]+\.)+[a-z]{2,}', entry):
-            skipped.append(f'{from_address} for {to_address}')
-        else:
-            usable.append(entry)
-    return sorted(set(usable)), skipped
-
-
-def sender_rules(name, rows):
-    """What the plain lists cannot hold goes to the rules: IPs, patterns, single recipients."""
-    usable = parse_senders(rows)[0]
-    rules = []
-    for to_address, from_address in rows:
-        entry = from_address.strip().lower()
-        entry = entry[2:] if entry.startswith('*@') and '*' not in entry[2:] else entry
-        if to_address == 'default' and entry in usable or entry in ('', '::1', '127.0.0.1'):
+def block_rules(zone, runtime, permanent):
+    """The blocker rules of one zone, from the rich rules at run time and permanent: address, ports and whether it stays."""
+    found = []
+    for rule in sorted(set(runtime) | set(permanent)):
+        match = BLOCK_RULE.match(rule.strip())
+        if not match:
             continue
-        rules.append({'list': name, 'sender': entry, 'recipient': to_address.strip().lower()})
-    return rules
+        port = match.group(2) or SERVICE_PORTS.get(match.group(3) or '', None if match.group(3) else 'all')
+        if port is None:
+            continue
+        found.append({'zone': zone, 'rule': rule.strip(), 'address': match.group(1), 'ports': port, 'permanent': rule in permanent})
+    return found
 
 
-def parse_key_table(text):
-    keys = []
+def blocker_crons(lines, script_text):
+    """Cron lines that change the firewall, directly or through a script of their own (read with script_text(path))."""
+    found = []
+    for source, line in lines:
+        text = line.strip()
+        if not text or text.startswith('#'):
+            continue
+        if re.search(r'firewall-cmd|\bipset\b|\biptables\b', text):
+            found.append({'file': source, 'line': line})
+            continue
+        for path in re.findall(r'(/[\w./-]+\.(?:sh|py|pl))\b', text):
+            if re.search(r'firewall-cmd|\bipset\b|\biptables\b', script_text(path)):
+                found.append({'file': source, 'line': line})
+                break
+    return found
+
+
+def _cron_lines():
+    lines = [('crontab root', line) for line in subprocess.run(['crontab', '-l'], capture_output=True, text=True).stdout.splitlines()]
+    for path in sorted(glob.glob('/etc/cron.d/*')):
+        try:
+            with open(path) as f:
+                lines += [(path, line) for line in f.read().splitlines()]
+        except OSError:
+            pass
+    return lines
+
+
+def _script_text(path):
+    try:
+        with open(path, errors='replace') as f:
+            return f.read(200000)
+    except OSError:
+        return ''
+
+
+def foreign_blockers():
+    """What other blockers do on this host: their rules, the cron jobs that keep them up, and zones that make them useless."""
+    if shutil.which(FIREWALL_CMD) is None or _fw('--state').returncode != 0:
+        return {'rules': [], 'crons': [], 'notes': []}
+    rules, notes = [], []
+    active = _fw('--get-active-zones').stdout.splitlines()
+    active_zones = [line for line in active if line and not line.startswith(' ')]
+    for zone in _fw('--get-zones').stdout.split():
+        found = block_rules(zone, _fw(f'--zone={zone}', '--list-rich-rules').stdout.splitlines(),
+                            _fw('--permanent', f'--zone={zone}', '--list-rich-rules').stdout.splitlines())
+        rules += found
+        if found and zone not in active_zones:
+            notes.append(f'{len(found)} blocker rules in zone {zone}, which has no interface or source: they block nothing. '
+                         'eFa-next blocks for every interface.')
+    for zone in active_zones:
+        if _fw('--permanent', f'--zone={zone}', '--get-target').stdout.strip() == 'ACCEPT':
+            notes.append(f'Zone {zone} is active with target ACCEPT: everything it does not reject explicitly is let in. '
+                         'efa-migrate does not change zones; check this.')
+    return {'rules': rules, 'crons': blocker_crons(_cron_lines(), _script_text), 'notes': notes}
+
+
+def blocker_lists(rules):
+    """The eFa lists for the rules: one per port set, permanent entries for good, runtime-only ones for RUNTIME_HOURS."""
+    lists = {}
+    for rule in rules:
+        name = 'migrated-' + rule['ports'].replace(',', '-')
+        lists.setdefault((name, rule['ports'], '' if rule['permanent'] else RUNTIME_HOURS), []).append(rule['address'])
+    return lists
+
+
+# The new Postfix setup does not read sender_access: its entries move to the eFa sender lists, which the web shows.
+SENDER_BLOCK = re.compile(r'^(REJECT|DISCARD|5\d\d)\b', re.I)
+SENDER_ALLOW = re.compile(r'^(OK|PERMIT)\b', re.I)
+SENDER_KEY = re.compile(r'^(?:[a-z0-9._%+-]+@)?@?(?:\*\.)?(?:[a-z0-9-]+\.)+[a-z]{2,63}$', re.I)
+SENDER_COMMENT = 'migrated from sender_access'
+SENDER_REVIEW = 'migrated from sender_access: OK let mail past every filter in eFa 5, check it'
+
+
+def sender_access_entries(text):
+    """(block, allow, odd) of a sender_access table: addresses and domains with REJECT/DISCARD/5xx or OK/PERMIT. Anything
+    else (wildcards, IP keys, other actions, broken lines) is not guessed but reported."""
+    block, allow, odd = [], [], []
     for line in text.splitlines():
-        fields = line.split()
-        if len(fields) == 2 and not line.startswith('#') and fields[1].count(':') == 2:
-            domain, selector, path = fields[1].split(':')
-            keys.append({'domain': domain, 'selector': selector, 'path': path})
-    return keys
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        parts = line.split(None, 1)
+        key, action = parts[0], (parts[1].strip() if len(parts) > 1 else '')
+        if not SENDER_KEY.match(key) and not _is_ip(key):
+            odd.append(line)
+        elif SENDER_BLOCK.match(action):
+            block.append(key.lstrip('@').lower())
+        elif SENDER_ALLOW.match(action):
+            allow.append(key.lstrip('@').lower())
+        else:
+            odd.append(line)
+    return sorted(set(block)), sorted(set(allow)), odd
 
 
-def new_chain(milters):
-    """Keeps site-specific milters in place, rspamd takes the place of the first old filter, health comes last."""
-    ports = [int(p) for p in re.findall(r':(\d+)(?=[\s,]|$)', milters)]
-    chain = []
-    for port in ports:
-        if port in OLD_MILTER_PORTS:
-            if RSPAMD_PORT not in chain:
-                chain.append(RSPAMD_PORT)
-        elif port != HEALTH_PORT:
-            chain.append(port)
-    if RSPAMD_PORT not in chain:
-        chain.append(RSPAMD_PORT)
-    return chain + [HEALTH_PORT]
+# The rule files of MailScanner (/etc/MailScanner/rules, and the rule sets of the attachment filter and the phishing check in
+# /etc/MailScanner itself), the usual kinds as eFa-next settings; everything else into the report with a hint. Lines for
+# localhost and the default line of a file need nothing.
+MS_RULES_DIR = '/etc/MailScanner/rules/'
+MS_ETC_RULES = ('filename.rules', 'filetype.rules', 'archives.filename.rules', 'archives.filetype.rules', 'numeric.phishing.rules')
+MS_REVIEW = 'migrated from MailScanner'
 
 
-def relay_networks(mynetworks):
-    return [n for n in mynetworks.replace(',', ' ').split() if n not in ('127.0.0.0/8', '[::1]/128')]
+def ms_rules(text):
+    """(direction, pattern, value) of a MailScanner rule file, without comments, default and localhost lines."""
+    found, skipped = [], 0
+    for line in text.splitlines():
+        parts = line.split('#', 1)[0].split()
+        if not parts:
+            continue
+        if len(parts) < 3 or parts[1].lower() == 'default' or parts[1].startswith('127.') or parts[1] in ('localhost', '::1'):
+            skipped += 1
+            continue
+        found.append((parts[0].rstrip(':').lower(), parts[1].lower(), ' '.join(parts[2:])))
+    return found, skipped
 
 
-def size_megabytes(limit):
-    return max(1, int(limit) // (1024 * 1024))
+def ms_sender(pattern):
+    """A MailScanner pattern as a sender of the eFa lists: address, *@domain, domain or IP; None when it is a regex or other."""
+    if pattern.startswith('/') or pattern.endswith('/'):
+        return None
+    if pattern.startswith('*@'):
+        pattern = pattern[2:]
+    return pattern if SENDER_KEY.match(pattern) or _is_ip(pattern) else None
 
 
-def self_test():
-    assert parse_senders([('default', 'A@x.org'), ('default', '*@y.org'), ('default', 'z.org'), ('default', '1.2.3.4'),
-                          ('me@x.org', 'b@x.org'), ('default', '*.w.org')]) == (
-        ['a@x.org', 'y.org', 'z.org'], ['1.2.3.4 for default', 'b@x.org for me@x.org', '*.w.org for default'])
-    assert sender_rules('allow', [('default', 'a@x.org'), ('default', '10.0.0.1'), ('me@x.org', 'y.org'), ('default', '*w*'), ('default', '::1')]) == [
-        {'list': 'allow', 'sender': '10.0.0.1', 'recipient': 'default'}, {'list': 'allow', 'sender': 'y.org', 'recipient': 'me@x.org'},
-        {'list': 'allow', 'sender': '*w*', 'recipient': 'default'}]
-    assert parse_key_table('# c\nd._domainkey.x.org x.org:d:/k/x.private\nbad\n') == [
-        {'domain': 'x.org', 'selector': 'd', 'path': '/k/x.private'}]
-    assert new_chain('inet:127.0.0.1:33333') == [11332, 8999]
-    assert new_chain('inet:127.0.0.1:8901, inet:127.0.0.1:33333, inet:127.0.0.1:8891, inet:127.0.0.1:8899') == [
-        8901, 11332, 8899, 8999]
-    assert new_chain('') == [11332, 8999]
-    assert relay_networks('127.0.0.0/8 [::1]/128 10.0.0.0/8, 192.0.2.1') == ['10.0.0.0/8', '192.0.2.1']
-    assert size_megabytes('133169152') == 127 and size_megabytes('0') == 1
-    assert key_values('A:b:c\n# X:y\n') == {'A': 'b:c'}
-    assert dns_zones({'DNSIP1': '8.8.8.8', 'DNSIP2': '10.0.0.1', 'MAILSERVER': 'ex.corp.example'}) == {'corp.example': ['10.0.0.1']}
-    assert dns_zones({'DNSIP1': '8.8.8.8', 'DNSIP2': '', 'MAILSERVER': 'ex.corp.example'}) == {}
-    assert dns_zones({'DNSIP1': '10.0.0.1', 'MAILSERVER': '10.0.0.5'}) == {}
-    assert live_config({'HOSTNAME': 'OLD', 'DOMAINNAME': 'x.org', 'TZONE': ''}, 'NEW', '10.0.0.4/24', 'Europe/Vienna') == {
-        'HOSTNAME': 'NEW', 'DOMAINNAME': 'x.org', 'IPV4ADDRESS': '10.0.0.4', 'IPV4NETMASK': '24', 'TZONE': 'Europe/Vienna'}
-    print('self-test ok')
+def ms_plan(files):
+    """What eFa-next does with the rule files {name: text}: sender list entries, rules and report lines. A rule name comes
+    from file and pattern, so a second run sets the same rule again instead of a second one."""
+    allow, block, rules, report, skipped = [], [], [], [], 0
+    for name, text in sorted(files.items()):
+        found, quiet = ms_rules(text)
+        skipped += quiet
+        base = name.rsplit('/', 1)[-1]
+        for direction, pattern, value in found:
+            sender = ms_sender(pattern)
+            yes = value.lower() in ('yes', '1')
+            rule_name = 'ms-' + re.sub(r'[^a-z0-9]+', '-', f"{base.split('.rules')[0]}-{pattern}").strip('-')[:37]
+            kind = 'sender' if sender and '@' in sender else 'sender_domain'
+            if base == 'spam.whitelist.rules' and direction == 'from' and sender and yes and not _is_ip(sender):
+                allow.append(sender)
+            elif base == 'spam.blacklist.rules' and direction == 'from' and sender and yes:
+                block.append(sender)
+            elif base == 'content.scanning.rules' and direction == 'from' and sender and value.lower() == 'no' and not _is_ip(sender):
+                rules.append({'name': rule_name, 'kind': kind, 'value': sender, 'spam_off': True})
+            elif base == 'password.rules' and direction == 'from' and sender and yes and not _is_ip(sender):
+                rules.append({'name': rule_name, 'kind': kind, 'value': sender, 'allow_encrypted': True})
+            elif base.startswith(('sig.', 'inline.sig.')):
+                report.append(f'{base}: signature for {pattern}: take it over as a disclaimer (page Disclaimers).')
+            elif base in MS_ETC_RULES[:4] and 'allowall' in value:
+                report.append(f'{base}: {direction} {pattern}: attachment filter off. eFa-next checks attachments of every sender '
+                              '(page Attachments); if this sender needs an exception, add a rule for it.')
+            elif base == 'max.message.size.rules':
+                report.append(f'{base}: {direction} {pattern} limited to {value}: eFa-next has one size limit (Maintenance: message size).')
+            else:
+                report.append(f'{base}: {direction} {pattern} {value}: no eFa-next counterpart, check whether it is still needed.')
+    return {'allow': sorted(set(allow)), 'block': sorted(set(block)), 'rules': rules, 'report': report, 'skipped': skipped}
 
 
-def mysql_env():
-    env = dict(os.environ)
-    env['MYSQL_PWD'] = key_values(old_settings_file(MYSQL_CONFIG))['MYSQLROOTPWD']
-    return env
+# 9m-a: the attachment filter of eFa 5 (filename.rules.conf, filetype.rules.conf and their archive forms). A migration never
+# makes eFa less strict: when eFa 5 filtered, the eFa-next filter goes on with reject, the endings of both, the name rules and
+# programs by content. What eFa 5 allowed but eFa-next blocks stays blocked and goes into the report.
+MS_ATTACH_CONF = ('filename.rules.conf', 'filetype.rules.conf', 'archives.filename.rules.conf', 'archives.filetype.rules.conf')
+MS_NAME_RULES = ('.{150,}', r'\{[a-hA-H0-9-]{25,}\}', r'\s{10,}')
+MS_PROGRAM_TYPES = ('self-extract', 'executable', 'elf')
 
 
-def postconf(name):
-    return run(['postconf', '-h', name]).strip()
-
-
-def unit_of_port(port):
-    match = re.search(rf':{port}\s.*pid=(\d+)', run(['ss', '-ltnpH']))
+def ms_endings(pattern):
+    """The endings a pattern of eFa 5 stands for (a dot, then letters, [classes] and ?, then the end); None for any other."""
+    match = re.fullmatch(r'\\\.((?:[a-z0-9]|\[[a-z0-9]+\])\??)+\$', pattern, re.I)
     if not match:
         return None
-    with open(f'/proc/{match.group(1)}/cgroup') as f:
-        unit = re.search(r'/([A-Za-z0-9@_.-]+)\.service', f.read())
-    return unit.group(1) if unit else None
+    found = ['']
+    for token, optional in re.findall(r'(\[[a-z0-9]+\]|[a-z0-9])(\??)', pattern[2:-1], re.I):
+        letters = list(token[1:-1]) if token.startswith('[') else [token]
+        found = [start + letter for start in found for letter in letters] + (found if optional else [])
+    return sorted({item.lower() for item in found if item})
 
 
-def dns_zones(config):
-    """The new eFa resolves on its own: public forwarders get DNS blocklists blocked. Internal servers keep the mail server's zone."""
-    servers = [ip for ip in (config.get('DNSIP1'), config.get('DNSIP2'))
-               if ip and ipaddress.ip_address(ip).is_private]
-    mailserver = config.get('MAILSERVER', '')
-    if not servers or '.' not in mailserver or re.fullmatch(r'[0-9.]+', mailserver):
-        return {}
-    return {mailserver.split('.', 1)[1]: servers}
-
-
-def live_config(config, hostname, address, timezone):
-    """eFa-Config can be stale on cloned or renamed systems, the running system decides."""
-    values = dict(config)
-    values['HOSTNAME'] = hostname.split('.')[0]
-    if '.' in hostname:
-        values['DOMAINNAME'] = hostname.split('.', 1)[1]
-    values['IPV4ADDRESS'] = address.split('/')[0] if address else ''
-    values['IPV4NETMASK'] = address.split('/')[1] if address else ''
-    values['TZONE'] = values.get('TZONE') or timezone
-    return values
-
-
-def collect():
-    """Reads the old system and changes nothing."""
-    if os.geteuid() != 0:
-        raise Failed('Run as root.')
-    config = key_values(old_settings_file(CONFIG))
-    if config.get('CONFIGURED') != 'YES' or not os.path.exists(MAILSCANNER_CONF):
-        raise Failed('This is no configured original eFa 5.0.')
-    device = re.search(r' dev (\S+)', run(['ip', '-4', '-o', 'route', 'get', '1.1.1.1'])).group(1)
-    address = re.search(r' inet (\S+)', run(['ip', '-4', '-o', 'addr', 'show', 'dev', device])).group(1)
-    config = live_config(config, run(['hostname']).strip(), address,
-                         run(['timedatectl', 'show', '-p', 'Timezone', '--value']).strip())
-    config['INTERFACE'] = device
-    # Passwords must not reach the printed plan or plan.json.
-    config = {k: v for k, v in config.items() if not k.endswith('PWD')}
-    env = mysql_env()
-    lists = {}
-    rules = []
-    for name, table in (('allow', 'whitelist'), ('block', 'blacklist')):
-        out = run(['mysql', '--user=root', '-Ne', f'SELECT to_address, from_address FROM mailscanner.{table}'], env=env)
-        rows = [line.split('\t') for line in out.splitlines()]
-        lists[name], _ = parse_senders(rows)
-        rules += sender_rules(name, rows)
-    scanner = key_values(old_settings_file(MAILSCANNER_CONF), '=')
-    defaults = key_values(old_settings_file(MAILSCANNER_DEFAULTS), '=') if os.path.exists(MAILSCANNER_DEFAULTS) else {}
-    main_cf = old_settings_file(POSTFIX + '/main.cf')
-    chain = new_chain(postconf('smtpd_milters'))
-    keys = parse_key_table(old_settings_file(KEY_TABLE)) if os.path.exists(KEY_TABLE) else []
-    plan = {
-        'config': config,
-        'ipv6dns': 'do-ip6: no' not in old_settings_file('/etc/unbound/unbound.conf'),
-        'dns_zones': dns_zones(config),
-        'mynetworks': relay_networks(postconf('mynetworks')),
-        'relayhost': postconf('relayhost'),
-        'message_size_mb': size_megabytes(postconf('message_size_limit')),
-        'postconf': {name: postconf(name) for name in KEPT_POSTCONF},
-        'greylisting': 'check_policy_service inet:127.0.0.1:2501' in main_cf,
-        'recipient_verification': 'reject_unverified_recipient' in postconf('smtpd_recipient_restrictions'),
-        'fail2ban': subprocess.run(['systemctl', 'is-enabled', 'fail2ban'], capture_output=True).returncode == 0,
-        'quarantine': 'store' in scanner.get('Spam Actions', ''),
-        'quarantine_days': defaults.get('q_days', '30'),
-        'senders': lists,
-        'sender_rules': rules,
-        'dkim': [k for k in keys if os.path.exists(k['path'])],
-        'dkim_missing': [k['path'] for k in keys if not os.path.exists(k['path'])],
-        'milter_chain': chain,
-        'extra_services': [u for u in (unit_of_port(p) for p in chain if p not in (RSPAMD_PORT, HEALTH_PORT)) if u],
-        'tables': [t for t in TABLES if os.path.exists(f'{POSTFIX}/{t}')],
-        'letsencrypt': '/letsencrypt/' in postconf('smtpd_tls_cert_file') and os.path.exists(postconf('smtpd_tls_cert_file')),
-        'mailscanner_custom': sorted(f for f in glob.glob('/etc/MailScanner/conf.d/*') if not f.endswith('README')),
-        'not_migrated': NOT_MIGRATED,
-    }
-    # A missing certificate must not be configured again, eFa-Commit creates a self-signed one.
-    for name in ('smtpd_tls_cert_file', 'smtpd_tls_key_file'):
-        if not os.path.exists(plan['postconf'][name]):
-            del plan['postconf'][name]
+def ms_attachment_plan(files, current):
+    """{on, add, names, executables, differences, report} from the rule set texts {file name: text} of eFa 5."""
+    texts = {name.rsplit('/', 1)[-1]: text for name, text in files.items()}
+    plan = {'on': False, 'add': [], 'names': False, 'executables': False, 'differences': [], 'report': []}
+    deny, allow = set(), set()
+    for name in MS_ATTACH_CONF:
+        for line in texts.get(name, '').splitlines():
+            parts = line.split('#', 1)[0].split('\t')
+            parts = [item.strip() for item in parts if item.strip()]
+            if len(parts) < 2 or parts[0].lower() not in ('allow', 'deny', 'deny+delete', 'rename'):
+                continue
+            verb, pattern = parts[0].lower(), parts[1]
+            plan['on'] = plan['on'] or verb.startswith('deny')
+            if 'filetype' in name:
+                if verb.startswith('deny') and pattern.lower() in MS_PROGRAM_TYPES:
+                    plan['executables'] = True
+                elif verb != 'allow':
+                    plan['report'].append(f'{name}: {verb} {pattern}: no eFa-next counterpart, programs are blocked by content.')
+                continue
+            endings = ms_endings(pattern)
+            if verb.startswith('deny') and endings:
+                deny.update(endings)
+            elif verb == 'allow' and endings:
+                allow.update(endings)
+            elif verb.startswith('deny') and pattern in MS_NAME_RULES:
+                plan['names'] = True
+            elif verb.startswith('deny') and r'\s*\.' in pattern:
+                plan['report'].append(f'{name}: double endings: eFa-next rejects a dangerous ending behind another one (MIME_DOUBLE_BAD_EXTENSION).')
+            elif verb != 'allow':
+                plan['report'].append(f'{name}: {verb} {pattern}: no eFa-next counterpart, check whether it is still needed.')
+    blocked = set(current) | deny
+    plan['add'] = sorted(deny - set(current))
+    plan['differences'] = sorted((allow - deny) & blocked)
+    plan['report'] = list(dict.fromkeys(plan['report']))
     return plan
 
 
+def import_attachment_rules(files, warnings, efactl, current):
+    plan = ms_attachment_plan(files, current)
+    if not plan['on']:
+        # The first install turned them on; eFa 5 did not filter, and a migration keeps how the host worked.
+        efactl('attachment-set', '--mode=off')
+        warnings.append('Attachment filter: off, as eFa 5 had no attachment rules. Recommended: on (page Attachments).')
+        return
+    call = ['attachment-set', '--mode=on', '--action=reject']
+    if plan['add']:
+        call.append('--add=' + ' '.join(plan['add']))
+    if plan['names']:
+        call.append('--names=reject')
+    if plan['executables']:
+        call.append('--executables=reject')
+    efactl(*call)
+    warnings.append(f"Attachment filter: on (reject, also in archives), {len(plan['add'])} endings from eFa 5 added"
+                    + (', file names that hide what they are' if plan['names'] else '') + (', programs by content' if plan['executables'] else '')
+                    + f", {len(plan['differences'])} differences.")
+    for ending in plan['differences']:
+        warnings.append(f'Attachment filter: eFa 5 allowed .{ending}, eFa-next blocks it. To allow it again: '
+                        f'efactl attachment-set --mode on --remove {ending} (page Attachments).')
+    warnings.extend(plan['report'])
+
+
+def _attachment_extensions():
+    done = subprocess.run(['/usr/sbin/efactl', 'attachment-status'], capture_output=True, text=True)
+    try:
+        return json.loads(done.stdout).get('extensions', [])
+    except ValueError:
+        return []
+
+
+def legal_confirm(given):
+    """5y: before anything changes, the legal texts of eFa-next: shown here, confirmed by typing ja or yes, or unattended with
+    --accept-legal=<digest>. Their digest, or None (then nothing changes)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    lib_dirs = (os.path.join(here, '..', 'next', 'usr', 'lib', 'eFa', 'python'), '/usr/lib/eFa/python')
+    for folder in lib_dirs:
+        if os.path.exists(os.path.join(folder, 'efa_legal.py')):
+            sys.path.insert(0, folder)
+            break
+    try:
+        import efa_legal
+    except ImportError:
+        print('The legal texts of eFa-next are missing: run efa-migrate from the eFa-next sources. Nothing was changed.')
+        return None
+    folders = (os.path.join(here, '..'), efa_legal.FOLDER)
+    texts = efa_legal.find_texts(*folders)
+    if texts is None:
+        print('LICENSE, DISCLAIMER.md and THIRD-PARTY-NOTICES.md are missing next to efa-migrate. Nothing was changed.')
+        return None
+    the_digest = efa_legal.digest(texts)
+    shown = next(folder for folder in folders if efa_legal.find_texts(folder))
+    return the_digest if efa_legal.console_confirm(the_digest, os.path.abspath(shown), given) else None
+
+
+def record_legal(the_digest, warnings):
+    """The confirmation of the console, noted by the new eFa-next when its texts are the confirmed ones."""
+    done = subprocess.run(['/usr/sbin/efactl', 'legal-accept', f'--digest={the_digest}', '--confirm=yes'], capture_output=True, text=True,
+                          env={k: v for k, v in os.environ.items() if k != 'SUDO_USER'})
+    if done.returncode != 0:
+        warnings.append('Legal texts: the installed version differs from the confirmed one; the first admin login asks for them.')
+
+
+def import_mailscanner_rules(target, warnings, efactl):
+    """The rule files of the old MailScanner from the backup into eFa-next. Rules that weaken the filter stay on and are
+    marked for checking; the dashboard lists them."""
+    import tarfile
+    files, attach = {}, {}
+    with tarfile.open(target + '/config.tar.gz') as archive:
+        for member in archive.getmembers():
+            path = member.name.lstrip('/')
+            if member.isfile() and (path.startswith(MS_RULES_DIR.lstrip('/')) and path.endswith('.rules') or
+                                    path in {'etc/MailScanner/' + name for name in MS_ETC_RULES}):
+                files[member.name] = archive.extractfile(member).read().decode('utf-8', 'replace')
+            elif member.isfile() and path in {'etc/MailScanner/' + name for name in MS_ATTACH_CONF}:
+                attach[member.name] = archive.extractfile(member).read().decode('utf-8', 'replace')
+    found = ms_plan(files)
+    for which, items in (('allow', found['allow']), ('block', found['block'])):
+        if items:
+            efactl('sender-add', f'--list={which}', '--entries=' + ' '.join(items), f'--comment={MS_REVIEW}')
+    for rule in found['rules']:
+        options = ['--spam_off=on'] if rule.get('spam_off') else ['--allow_encrypted=on']
+        efactl('rule-set', f"--name={rule['name']}", '--action=set', f"--kind={rule['kind']}", f"--value={rule['value']}", '--priority=50',
+               *options, f'--review={MS_REVIEW}')
+    if found['rules']:
+        warnings.append(f"CHECK: {len(found['rules'])} MailScanner rules weaken the filter for single senders and are now eFa rules, on and "
+                        'marked for checking (Rules page): ' + ', '.join(f"{rule['value']} ({'spam filter off, virus scan stays' if rule.get('spam_off') else 'encrypted archives allowed'})" for rule in found['rules']))
+    if found['allow'] or found['block']:
+        warnings.append(f"MailScanner lists: {len(found['allow'])} allowed and {len(found['block'])} blocked senders in the eFa sender lists.")
+    warnings.extend(found['report'])
+    warnings.append(f"MailScanner rule files: {found['skipped']} default or localhost lines need nothing in eFa-next.")
+    import_attachment_rules(attach, warnings, efactl, _attachment_extensions())
+
+
+def _is_ip(text):
+    try:
+        ipaddress.ip_network(text, strict=False)
+        return True
+    except ValueError:
+        return False
+
+
+def import_sender_access(target, warnings, efactl):
+    path = POSTFIX + '/sender_access'
+    if not os.path.exists(path):
+        return
+    with open(path, errors='replace') as f:
+        block, allow, odd = sender_access_entries(f.read())
+    for which, items, comment in (('block', block, SENDER_COMMENT), ('allow', allow, SENDER_REVIEW)):
+        for start in range(0, len(items), 200):
+            efactl('sender-add', f'--list={which}', '--entries=' + ' '.join(items[start:start + 200]), f'--comment={comment}')
+    warnings.append(f'Sender lists: {len(block)} blocked and {len(allow)} allowed senders from {path}, marked "{SENDER_COMMENT}". '
+                    'The new Postfix setup does not read that file any more.')
+    if allow:
+        warnings.append('CHECK: these were OK in sender_access and let mail past every filter; in eFa-next they are on the allow '
+                        'list, marked for checking: ' + ', '.join(allow))
+    if odd:
+        warnings.append('Not taken over from sender_access (other actions or broken lines), add them by hand '
+                        'if they are still needed: ' + '; '.join(odd))
+
+
+MAP_REF = re.compile(r'\b((?:hash|btree|lmdb|cdb|regexp|pcre|cidr|texthash|inline|mysql|ldap|proxy:[a-z]+):[^\s,]+)')
+
+
+def lost_maps(old, new):
+    """Maps of the old main.cf (hash:, regexp:, ...) the new one does not use any more: (setting, map) pairs. The new
+    setup has its own maps; a table missing here silently stops working, so each one goes into the report."""
+    used = {ref for value in new.values() for ref in MAP_REF.findall(value)}
+    # The TLS session caches are only caches, the new setup has its own.
+    return sorted({(name, ref) for name, value in old.items() for ref in MAP_REF.findall(value)
+                   if ref not in used and not name.endswith('_session_cache_database')})
+
+
+def import_blockers(plan, target, warnings, efactl, disable):
+    """The addresses into eFa lists; with disable also the old cron jobs off and the imported rules out, with a way back."""
+    blockers = plan.get('foreign_blockers') or {}
+    warnings.extend(blockers.get('notes', []))
+    if not blockers.get('rules'):
+        return
+    for (name, ports, hours), addresses in blocker_lists(blockers['rules']).items():
+        path = f'{target}/{name}{"-" + hours + "h" if hours else ""}.txt'
+        with open(path, 'w') as f:
+            f.write('\n'.join(addresses) + '\n')
+        efactl('blocklist-import', f'--name={name}', f'--ports={ports}', f'--file={path}', *([f'--hours={hours}'] if hours else []))
+    warnings.append(f"Blocklists: {len(blockers['rules'])} addresses of other blockers are now in eFa IP blocklists (page IP blocklists).")
+    if not disable:
+        if blockers.get('crons'):
+            warnings.append('Other blockers still run from cron and keep adding firewalld rules: '
+                            + '; '.join(item['line'].strip() for item in blockers['crons'])
+                            + '. Run efa-migrate --disable-foreign-blockers BACKUP_DIR to switch them off.')
+        return
+    disable_blockers(blockers, target, warnings)
+
+
+def disable_blockers(blockers, target, warnings):
+    """The cron lines commented out, the imported rules removed at run time and permanent; never a reload. The way back is
+    restore-blockers.sh in the backup."""
+    back = ['#!/bin/sh', '# Puts back what efa-migrate --disable-foreign-blockers switched off.']
+    for item in blockers.get('crons', []):
+        if item['file'] == 'crontab root':
+            current = subprocess.run(['crontab', '-l'], capture_output=True, text=True).stdout
+            with open(f'{target}/crontab-root.before', 'w') as f:
+                f.write(current)
+            changed = current.replace(item['line'] + '\n', f"# off by efa-migrate {time.strftime('%F')}: {item['line']}\n", 1)
+            subprocess.run(['crontab', '-'], input=changed, text=True, check=True)
+            back.append(f'crontab {target}/crontab-root.before')
+        else:
+            shutil.copy2(item['file'], f"{target}/{os.path.basename(item['file'])}.before")
+            with open(item['file']) as f:
+                text = f.read()
+            with open(item['file'], 'w') as f:
+                f.write(text.replace(item['line'] + '\n', f"# off by efa-migrate {time.strftime('%F')}: {item['line']}\n", 1))
+            back.append(f"cp {target}/{os.path.basename(item['file'])}.before {item['file']}")
+    by_zone = {}
+    for rule in blockers['rules']:
+        by_zone.setdefault((rule['zone'], rule['permanent']), []).append(rule['rule'])
+    for (zone, permanent), rules in by_zone.items():
+        for start in range(0, len(rules), 200):
+            chunk = rules[start:start + 200]
+            _fw(f'--zone={zone}', *[f'--remove-rich-rule={rule}' for rule in chunk])
+            if permanent:
+                _fw('--permanent', f'--zone={zone}', *[f'--remove-rich-rule={rule}' for rule in chunk])
+                back += [f"{FIREWALL_CMD} --permanent --zone={zone} --add-rich-rule='{rule}'" for rule in chunk]
+            back += [f"{FIREWALL_CMD} --zone={zone} --add-rich-rule='{rule}'" for rule in chunk]
+    with open(f'{target}/restore-blockers.sh', 'w') as f:
+        f.write('\n'.join(back) + '\n')
+    warnings.append(f"Other blockers switched off: {len(blockers.get('crons', []))} cron jobs, {len(blockers['rules'])} firewalld rules. "
+                    f'Way back: sh {target}/restore-blockers.sh')
+
+
+def self_test():
+    convert_self_test()
+    runtime = ['rule family="ipv4" source address="1.2.3.4" port port="25" protocol="tcp" reject type="icmp-port-unreachable"',
+               'rule family="ipv4" source address="5.6.7.8" service name="smtp" reject',
+               'rule family="ipv4" source address="9.9.9.9" reject',
+               'rule family="ipv4" source NOT address="198.51.100.151/32" port port="9902" protocol="tcp" reject',
+               'rule family="ipv4" source address="10.0.0.0/8" accept']
+    permanent = runtime[1:3]
+    rules = block_rules('public', runtime, permanent)
+    assert [(rule['address'], rule['ports'], rule['permanent']) for rule in rules] == [('1.2.3.4', '25', False), ('5.6.7.8', '25', True),
+                                                                                      ('9.9.9.9', 'all', True)], rules
+    lists = blocker_lists(rules)
+    assert lists == {('migrated-25', '25', '2'): ['1.2.3.4'], ('migrated-25', '25', ''): ['5.6.7.8'], ('migrated-all', 'all', ''): ['9.9.9.9']}
+    scripts = {'/opt/blocker/ip_blocker.sh': 'firewall-cmd --add-rich-rule=...', '/opt/x/report.sh': 'echo hi'}
+    crons = blocker_crons([('crontab root', '0 */2 * * * /opt/blocker/ip_blocker.sh > /dev/null 2>&1'),
+                           ('crontab root', '0 4 * * * /opt/x/report.sh'), ('crontab root', '# 0 1 * * * firewall-cmd --reload'),
+                           ('/etc/cron.d/x', '*/5 * * * * root ipset add bad 1.2.3.4')], lambda path: scripts.get(path, ''))
+    old = {'smtpd_sender_restrictions': 'permit_mynetworks, check_sender_access hash:/etc/postfix/sender_access, reject_non_fqdn_sender',
+           'smtpd_client_restrictions': 'check_client_access cidr:/etc/postfix/client.cidr', 'transport_maps': 'hash:/etc/postfix/transport',
+           'header_checks': 'regexp:/etc/postfix/header_checks'}
+    new = {'transport_maps': 'hash:/etc/postfix/transport', 'header_checks': 'regexp:/etc/postfix/header_checks'}
+    assert lost_maps(old, new) == [('smtpd_client_restrictions', 'cidr:/etc/postfix/client.cidr'),
+                                   ('smtpd_sender_restrictions', 'hash:/etc/postfix/sender_access')], lost_maps(old, new)
+    files = {'etc/MailScanner/rules/content.scanning.rules': 'From:\t127.0.0.1\tno\nFrom:\tpartner@x.example\tno\nFromOrTo:\tdefault\tyes\n',
+             'etc/MailScanner/rules/password.rules': 'From: 127.0.0.1 yes\nFrom: *@bank.example yes\nFromOrTo: default no\n',
+             'etc/MailScanner/rules/spam.whitelist.rules': '# list\nFrom: friend@y.example yes\nFrom: 10.1.2.3 yes\nTo: me@own.example yes\n',
+             'etc/MailScanner/rules/spam.blacklist.rules': 'From: *@spam.example yes\nFrom: /regex/ yes\n',
+             'etc/MailScanner/rules/sig.text.rules': 'From: *@own.example /etc/MailScanner/reports/sig.txt\n',
+             'etc/MailScanner/rules/max.message.size.rules': 'FromOrTo: default 0\nTo: big@own.example 50000000\n',
+             'etc/MailScanner/rules/bounce.rules': 'FromOrTo: default no\n', 'etc/MailScanner/rules/empty.rules': '',
+             'etc/MailScanner/filename.rules': 'From:\t::1\t/etc/MailScanner/filename.rules.allowall.conf\n'
+                                               'From:\t198.51.100.2\t/etc/MailScanner/filename.rules.allowall.conf\n'
+                                               'FromOrTo:\tdefault\t/etc/MailScanner/filename.rules.conf\n'}
+    found = ms_plan(files)
+    assert found['allow'] == ['friend@y.example'] and found['block'] == ['spam.example'], found
+    assert found['rules'] == [{'name': 'ms-content-scanning-partner-x-example', 'kind': 'sender', 'value': 'partner@x.example', 'spam_off': True},
+                              {'name': 'ms-password-bank-example', 'kind': 'sender_domain', 'value': 'bank.example', 'allow_encrypted': True}], found['rules']
+    assert found['skipped'] == 8 and len(found['report']) == 6 and any('disclaimer' in line for line in found['report'])
+    assert any(line.startswith('filename.rules: from 198.51.100.2: attachment filter off') for line in found['report']), found['report']
+    assert ms_plan(files)['rules'] == found['rules'], 'the same names on a second run: no second rule'
+    assert ms_endings(r'\.jse?$') == ['js', 'jse'] and ms_endings(r'\.ma[dfg]$') == ['mad', 'maf', 'mag'] and ms_endings(r'\.{150,}') is None
+    assert ms_endings(r'\.t?gz$') == ['gz', 'tgz'] and ms_endings(r'happy99\.exe$') is None
+    files = {'etc/MailScanner/filename.rules.conf': 'deny\t.{150,}\t\t\t\tLong\nrename\t\\.fdf$\t\t\tx\ndeny\t\\.cab$\tx\tx\n'
+                                                  'allow\t\\.url$\t-\t-\nallow\t\\.reg$\t-\t-\nallow\t\\.zip$\t-\t-\ndeny\t\\.jse?$\tx\tx\n'
+                                                  'deny\t\\.ma[dfgmqrsvw]$\tx\tx\ndeny\t\\.exe$\tx\tx\ndeny\t\\{[a-hA-H0-9-]{25,}\\}\tx\tx\n'
+                                                  'deny\t\\s{10,}\tx\tx\ndeny\t\\.[a-z][a-z0-9]{2,3}\\s*\\.[a-z0-9]{3,4}$\tx\tx\n'
+                                                  'deny\tpretty\\s+park\\.exe$\tx\tx\n',
+           'etc/MailScanner/filetype.rules.conf': 'allow\ttext\t-\t-\ndeny\tself-extract\tx\tx\ndeny\texecutable\tx\tx\ndeny\tELF\tx\tx\nrename\tRegistry\tx\tx\n'}
+    attach = ms_attachment_plan(files, ['exe', 'js', 'jse', 'url', 'reg'])
+    assert attach['on'] and attach['names'] and attach['executables'], attach
+    assert attach['add'] == ['cab', 'mad', 'maf', 'mag', 'mam', 'maq', 'mar', 'mas', 'mav', 'maw'] and attach['differences'] == ['reg', 'url'], attach
+    assert any('double endings' in line for line in attach['report']) and any('pretty' in line for line in attach['report'])
+    calls, notes = [], []
+    import_attachment_rules(files, notes, lambda *call: calls.append(call), ['exe', 'url', 'reg'])
+    assert calls[0][:3] == ('attachment-set', '--mode=on', '--action=reject') and '--names=reject' in calls[0] and '--executables=reject' in calls[0]
+    assert notes[0].startswith('Attachment filter: on') and ', 2 differences.' in notes[0], notes
+    assert not ms_attachment_plan({'etc/MailScanner/filename.rules.conf': 'allow\t\\.exe$\t-\t-\n'}, [])['on'], 'eFa 5 did not filter: nothing'
+    calls, notes = [], []
+    import_attachment_rules({'etc/MailScanner/filename.rules.conf': 'allow\t\\.exe$\t-\t-\n'}, notes, lambda *call: calls.append(call), [])
+    assert calls == [('attachment-set', '--mode=off')] and notes[0].startswith('Attachment filter: off'), calls
+    # 5y: nothing changes without the confirmation of the legal texts next to this program.
+    assert legal_confirm('0' * 16) is None
+    import efa_legal
+    texts_digest = efa_legal.digest(efa_legal.find_texts(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
+    assert legal_confirm(texts_digest) == texts_digest
+    block, allow, odd = sender_access_entries('# list\nspam.example\tREJECT\n@bad.example REJECT go away\nx@y.example 550 no\n'
+                                              'good.example OK\nbeiqingedu.com>\tREJECT\n*.backblaze.com\tOK\n1.2.3.4 REJECT\nhold.example HOLD\n')
+    assert block == ['1.2.3.4', 'bad.example', 'spam.example', 'x@y.example'] and allow == ['*.backblaze.com', 'good.example'], (block, allow)
+    assert odd == ['beiqingedu.com>\tREJECT', 'hold.example HOLD'], odd
+    assert [item['line'] for item in crons] == ['0 */2 * * * /opt/blocker/ip_blocker.sh > /dev/null 2>&1', '*/5 * * * * root ipset add bad 1.2.3.4']
+    plan = {'config': {'HOSTNAME': 'mx', 'DOMAINNAME': 'x.org', 'ISUTC': '1', 'RECURSION': 'ENABLED'}, 'ipv6dns': False}
+    lines = apply_answers(plan, 'secret').splitlines()
+    assert 'ISUTC:YES' in lines and 'IPV6DNS:NO' in lines and 'WEBADMINPASSWORD:secret' in lines and 'RECURSION:YES' in lines
+    assert 'CONFIGURED:YES' in new_config(plan).splitlines() and 'secret' not in new_config(plan)
+    print('self-test ok')
+
+
+def _fetch(url):
+    return subprocess.run(['curl', '-fsSL', url], capture_output=True, check=True).stdout
+
+
 def fetch_rpms():
-    """Latest GitHub release into a new directory, verified against its SHA256SUMS."""
+    """Latest release into a new directory: SHA256SUMS signed by the pinned eFa-next key, then the packages against it."""
+    import efa_sign
+    key = b''
+    for url in KEY_URLS:
+        try:
+            key = _fetch(url)
+            break
+        except subprocess.CalledProcessError:
+            continue
     target = tempfile.mkdtemp(prefix='efa-rpms-', dir='/root')
-    run(['curl', '-fsSLO', f'{RELEASE_URL}/SHA256SUMS'], cwd=target)
-    with open(target + '/SHA256SUMS') as f:
-        names = [line.split()[1] for line in f if line.strip()]
-    for name in names:
-        run(['curl', '-fsSLO', f'{RELEASE_URL}/{name}'], cwd=target)
-    # shortcut: the checksums come from the same release and only catch damaged downloads, sign the packages if that ever matters
-    run(['sha256sum', '-c', 'SHA256SUMS'], cwd=target)
-    return target
+    for base in (REPO_URL, RELEASE_URL):
+        try:
+            sums, signature = _fetch(f'{base}/SHA256SUMS'), _fetch(f'{base}/SHA256SUMS.asc')
+        except subprocess.CalledProcessError:
+            continue
+        if not efa_sign.verify(sums, signature, key):
+            continue
+        with open(target + '/SHA256SUMS', 'wb') as f:
+            f.write(sums)
+        for name in [line.split()[1].lstrip('*') for line in sums.decode().splitlines() if line.strip()]:
+            run(['curl', '-fsSLO', f'{base}/{name}'], cwd=target)
+        run(['sha256sum', '-c', 'SHA256SUMS'], cwd=target)
+        return target
+    raise Failed(f'No release with SHA256SUMS signed by the eFa-next key {efa_sign.FINGERPRINT} at {REPO_URL} or {RELEASE_URL}.')
 
 
 def preflight_rpms(rpm_dir):
@@ -317,7 +649,7 @@ def backup(target, plan):
     paths = [p for p in BACKUP_PATHS if os.path.exists(p)]
     run(['tar', 'czf', target + '/config.tar.gz', '--ignore-failed-read', '-P'] + paths)
     for key in plan['dkim']:
-        shutil.copyfile(key['path'], f"{target}/dkim-{key['domain']}.{key['selector']}.key")
+        shutil.copyfile(key['path'], f'{target}/{dkim_name(key)}')
     env = mysql_env()
     with open(target + '/all-databases.sql.gz', 'wb') as out:
         dump = subprocess.Popen(['mysqldump', '--user=root', '--all-databases', '--single-transaction'], env=env,
@@ -336,10 +668,15 @@ def backup(target, plan):
         subprocess.run(['mysql', '--user=root', '--batch', '-N', '-e', query], env=env, stdout=out, check=True)
 
 
+def _intake(on):
+    """Postfix takes mail again, or no longer (while MailScanner empties its spool)."""
+    subprocess.run(['postconf', '-e', 'master_service_disable =' if on else 'master_service_disable = inet'], capture_output=True)
+    subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
+
+
 def drain_scanner(seconds):
     """Mail handed to MailScanner lives only in its spool, so it has to finish before the removal."""
-    run(['postconf', '-e', 'master_service_disable = inet'])
-    subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
+    _intake(False)
     deadline = time.time() + seconds
     while time.time() < deadline:
         # incoming itself holds locks and caches, mail only sits in its numbered worker directories
@@ -347,17 +684,20 @@ def drain_scanner(seconds):
         if not waiting:
             return
         time.sleep(5)
-    run(['postconf', '-e', 'master_service_disable ='])
-    subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
+    _intake(True)
     raise Failed(f'MailScanner still holds {len(waiting)} files, nothing was removed. Try again later.')
 
 
 def remove_old(target):
     for service in OLD_SERVICES:
         subprocess.run(['systemctl', 'disable', '--now', service], capture_output=True)
+    # The drop-in of the php-fpm package makes nginx start it again.
+    subprocess.run(['systemctl', 'mask', 'php-fpm'], capture_output=True)
     run(['tar', 'cf', target + '/postfix-queue.tar', '-C', '/var/spool/postfix', '--ignore-failed-read', *QUEUES])
     if os.path.isdir(MAILSCANNER_SPOOL + '/quarantine'):
         shutil.move(MAILSCANNER_SPOOL + '/quarantine', target + '/mailscanner-quarantine')
+    if os.path.isdir('/var/eFa/backup'):
+        shutil.move('/var/eFa/backup', target + '/eFa5-backups')
     built = [line for line in run(['rpm', '-qa', '--qf', '%{NAME} %{RELEASE}\n']).splitlines() if '.eFa.' in line]
     names = [line.split()[0] for line in built]
     installed = names + [p for p in FRESH_PACKAGES if subprocess.run(['rpm', '-q', p], capture_output=True).returncode == 0]
@@ -365,13 +705,19 @@ def remove_old(target):
         # A failing old removal script must not stop the migration half way.
         if subprocess.run(['rpm', '-e', '--nodeps', package], capture_output=True).returncode != 0:
             subprocess.run(['rpm', '-e', '--nodeps', '--noscripts', package], capture_output=True)
+    # MailScanner's ramdisk would block the removal of its spool and come back at boot.
+    subprocess.run(['umount', MAILSCANNER_SPOOL + '/incoming'], capture_output=True)
+    with open('/etc/fstab') as f:
+        lines = f.readlines()
+    with open('/etc/fstab', 'w') as f:
+        f.writelines(line for line in lines if MAILSCANNER_SPOOL not in line)
     for path in REMOVED_PATHS:
         if os.path.isdir(path) and not os.path.islink(path):
             shutil.rmtree(path)
-        elif os.path.exists(path):
+        elif os.path.lexists(path):
             os.remove(path)
     for path in OLD_CRON:
-        if os.path.exists(path):
+        if os.path.lexists(path):
             os.remove(path)
     with open('/root/.bashrc') as f:
         lines = f.readlines()
@@ -381,15 +727,23 @@ def remove_old(target):
     subprocess.run(['systemctl', 'reset-failed'], capture_output=True)
 
 
+def pause_monitor():
+    """The monitor of the new eFa would restart services during the setup, use up its attempts and mail an alert each time."""
+    os.makedirs(os.path.dirname(SKIP_MONITOR), exist_ok=True)
+    open(SKIP_MONITOR, 'w').close()
+
+
 def setup_repos():
     asc = run(['curl', '-sSLf', RSPAMD_ASC])
     fingerprints = subprocess.run(['gpg', '--show-keys', '--with-colons'], input=asc, capture_output=True, text=True).stdout
     if f':{RSPAMD_FINGERPRINT}:' not in fingerprints:
         raise Failed('The rspamd signing key has an unexpected fingerprint.')
-    with open('/tmp/efa-rspamd.asc', 'w') as f:
+    # Not a fixed name in /tmp: another local user could prepare that path.
+    fd, key_file = tempfile.mkstemp(suffix='.asc')
+    with os.fdopen(fd, 'w') as f:
         f.write(asc)
-    run(['rpm', '--import', '/tmp/efa-rspamd.asc'])
-    os.remove('/tmp/efa-rspamd.asc')
+    run(['rpm', '--import', key_file])
+    os.remove(key_file)
     with open('/etc/yum.repos.d/rspamd.repo', 'w') as f:
         f.write(RSPAMD_REPO)
     for module in ('nginx', 'redis'):
@@ -403,31 +757,57 @@ def setup_repos():
 
 
 def install_new(rpms):
+    # An aborted run left them installed, and dnf would skip their first-install steps.
+    for package in ('eFa', 'eFa-base'):
+        if subprocess.run(['rpm', '-q', package], capture_output=True).returncode == 0:
+            run(['rpm', '-e', '--nodeps', package])
     run(['dnf', '-y', 'install'] + rpms)
+    # dnf reports success even if a package script failed, the version file is written only if all steps passed.
+    if not os.path.exists('/etc/eFa-Version'):
+        raise Failed('A first-install step failed, see /var/log/eFa/eFa-config.log.')
+
+
+def apply_answers(plan, password):
+    """KEY:value lines for efa-apply. The web admin password goes over stdin, never on a command line."""
+    cfg = plan['config']
+    answers = {'HOSTNAME': cfg['HOSTNAME'], 'DOMAINNAME': cfg['DOMAINNAME'], 'ADMINEMAIL': cfg.get('ADMINEMAIL', ''),
+               'INTERFACE': cfg.get('INTERFACE', ''), 'IPV4ADDRESS': cfg.get('IPV4ADDRESS', ''), 'IPV4NETMASK': cfg.get('IPV4NETMASK', ''),
+               'IPV4GATEWAY': cfg.get('IPV4GATEWAY', ''), 'IPV6ADDRESS': cfg.get('IPV6ADDRESS', ''), 'IPV6MASK': cfg.get('IPV6MASK', ''),
+               'IPV6GATEWAY': cfg.get('IPV6GATEWAY', ''), 'IPV6DNS': 'YES' if plan['ipv6dns'] else 'NO', 'RECURSION': 'YES',
+               'TZONE': cfg.get('TZONE', ''), 'ISUTC': 'YES' if cfg.get('ISUTC') in ('true', '1', 'YES') else 'NO',
+               'MAILSERVER': cfg.get('MAILSERVER', ''), 'WEBADMINPASSWORD': password}
+    return ''.join(f'{key}:{value}\n' for key, value in answers.items())
+
+
+def new_config(plan):
+    """The settings file of the new system: the old values, as the new setup writes them."""
+    values = dict(plan['config'])
+    values.update(CONFIGURED='YES', RECURSION='YES', IPV6DNS='YES' if plan['ipv6dns'] else 'NO', DNSIP1='', DNSIP2='',
+                  ISUTC='YES' if values.get('ISUTC') in ('true', '1', 'YES') else 'NO')
+    return ''.join(f'{key}:{value}\n' for key, value in values.items())
 
 
 def commit(plan, password):
-    cfg = plan['config']
-    web_hash = subprocess.run(['python3', '-c', 'import os; from werkzeug.security import generate_password_hash as g; '
-                               "print(g(os.environ['EFA_PW'], method='pbkdf2:sha256'))"],
-                              env={**os.environ, 'EFA_PW': password}, capture_output=True, text=True, check=True).stdout.strip()
-    # No --commitall: host keys, addresses, the root lock and the CLI user with its home directory stay as they are.
-    run(['/usr/sbin/eFa-Commit', '--startmariadb', '--confighost', '--configdns', '--configtzone', '--configtransport',
-         '--configsasl', '--configmysql', '--configyumcron', '--configcert', '--finalize', '--verbose',
-         f"--hostname={cfg['HOSTNAME']}", f"--domainname={cfg['DOMAINNAME']}",
-         f"--ipv4address={cfg.get('IPV4ADDRESS', '')}", f"--ipv6address={cfg.get('IPV6ADDRESS', '')}",
-         '--dnsip1=', '--dnsip2=', '--enablerecursion=1', f"--interface={cfg.get('INTERFACE', '')}",
-         f"--ipv4netmask={cfg.get('IPV4NETMASK', '')}", f"--ipv4gateway={cfg.get('IPV4GATEWAY', '')}",
-         f"--ipv6mask={cfg.get('IPV6MASK', '')}", f"--ipv6gateway={cfg.get('IPV6GATEWAY', '')}",
-         f"--timezone={cfg.get('TZONE', '')}", f"--mailserver={cfg.get('MAILSERVER', '')}",
-         f"--adminemail={cfg.get('ADMINEMAIL', '')}", f'--efauserpwd={web_hash}', '--configvirtual=0',
-         f"--isutc={1 if cfg.get('ISUTC') in ('true', '1') else 0}", f"--ipv6dns={1 if plan['ipv6dns'] else 0}"])
-    # The new system reboots from this file; it has to wait until the settings are back.
-    if os.path.exists('/reboot.system'):
-        os.remove('/reboot.system')
+    # No --all: host keys, addresses, the root lock and the CLI user with its home directory stay as they are.
+    # No --finish: it reboots from a marker, and the settings have to come back first.
+    run(['/usr/sbin/efa-apply', '--verbose', '--answers', '-', '--mariadb', '--hostname', '--dns', '--timezone', '--transport',
+         '--sasl', '--dbpasswords', '--autoupdates', '--cert', '--webadmin'], input=apply_answers(plan, password))
+    fd = os.open(CONFIG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
+    with os.fdopen(fd, 'w') as f:
+        f.write(new_config(plan))
+    # The package has just opened the first-run wizard, a host with settings does not need it.
+    subprocess.run(['systemctl', 'disable', '--now', 'efa-init'], capture_output=True)
+    for path in ('/etc/sudoers.d/efa-init', '/var/lib/eFa/setup'):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.exists(path):
+            os.remove(path)
+    # dovecot only comes with the logins on port 587 (sasl-apply installs it then): enable what is installed.
+    run(['systemctl', 'enable', *[unit for unit in EFA_SERVICES if any(os.path.exists(f'{folder}/{unit}.service')
+                                                                       for folder in ('/usr/lib/systemd/system', '/etc/systemd/system'))]])
 
 
-def restore_settings(plan, target, warnings):
+def restore_settings(plan, target, warnings, disable=False):
     def efactl(*args):
         done = subprocess.run(['/usr/sbin/efactl', *args], capture_output=True, text=True,
                               env={k: v for k, v in os.environ.items() if k != 'SUDO_USER'})
@@ -438,8 +818,29 @@ def restore_settings(plan, target, warnings):
         subprocess.run(['systemctl', 'start', service], capture_output=True)
     subprocess.run(['systemctl', 'stop', 'postfix'], capture_output=True)
 
-    run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '--no-same-owner', '--overwrite', '--wildcards',
-         *[f'{POSTFIX}/{t}' for t in plan['tables']], POSTFIX + '/ssl/*'])
+    # A migration must not make the host less secure: its own Postfix setup stays, only the filter stack is replaced.
+    run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '--no-same-owner', '--overwrite',
+         *[f'--exclude={POSTFIX}/{name}' for name in POSTFIX_NOT_RESTORED], POSTFIX])
+    if plan['map_packages']:
+        run(['dnf', '-y', 'install', *plan['map_packages']])
+    master, dropped = carried_master(run(['tar', 'xzOf', target + '/config.tar.gz', '-P', POSTFIX + '/master.cf']))
+    with open(POSTFIX + '/master.cf', 'w') as f:
+        f.write(master)
+    warnings.extend(f'Postfix master.cf line dropped, it belongs to the removed filters: {line}' for line in dropped)
+    # A HOLD rule made mail wait for MailScanner, which no longer picks it up.
+    lines = []
+    if os.path.exists(POSTFIX + '/header_checks'):
+        with open(POSTFIX + '/header_checks') as f:
+            lines = f.readlines()
+    held = [line for line in lines if re.match(r'\s*/.*/\s+HOLD\b', line)]
+    if held:
+        with open(POSTFIX + '/header_checks', 'w') as f:
+            f.writelines(line for line in lines if line not in held)
+        warnings.append('Postfix header_checks: HOLD rules of MailScanner dropped.')
+    for name, value in carried_postconf(plan['old_postconf']).items():
+        # A missing certificate must not be configured again, see collect().
+        if name in plan['postconf'] or name not in KEPT_POSTCONF:
+            run(['postconf', '-e', f'{name} = {value}'])
     for table in plan['tables']:
         run(['postmap', f'{POSTFIX}/{table}'])
     if 'sasl_passwd' in plan['tables']:
@@ -451,30 +852,12 @@ def restore_settings(plan, target, warnings):
         run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '/etc/letsencrypt'])
         warnings.append('Lets Encrypt: nginx uses a self-signed certificate. Run efactl letsencrypt-set to get a new one.')
 
-    if plan['mynetworks']:
-        efactl('relay-networks-set', '--networks', ' '.join(plan['mynetworks']))
-    if plan['relayhost']:
-        efactl('smarthost-set', '--host', plan['relayhost'])
-    efactl('message-size-set', '--megabytes', str(plan['message_size_mb']))
-    efactl('greylisting-set', '--mode', 'on' if plan['greylisting'] else 'off')
-    efactl('recipient-verification-set', '--mode', 'on' if plan['recipient_verification'] else 'off')
-    efactl('fail2ban-set', '--mode', 'on' if plan['fail2ban'] else 'off')
-    efactl('quarantine-days-set', '--days', plan['quarantine_days'])
-    efactl('quarantine-set', '--mode', 'on' if plan['quarantine'] else 'off')
-    for which, entries in plan['senders'].items():
-        for entry in entries:
-            efactl('sender-list-set', '--list', which, '--action', 'add', '--address', entry)
-    for rule in plan['sender_rules']:
-        efactl('sender-rule-set', '--list', rule['list'], '--action', 'add', '--sender', rule['sender'],
-               '--recipient', '' if rule['recipient'] == 'default' else rule['recipient'])
-    for key in plan['dkim']:
-        efactl('dkim-import', '--domain', key['domain'], '--selector', key['selector'],
-               '--key_file', f"{target}/dkim-{key['domain']}.{key['selector']}.key")
-    for zone, servers in plan['dns_zones'].items():
-        efactl('dns-zone-set', '--zone', zone, '--action', 'add', '--servers', ' '.join(servers))
-    efactl('milter-chain-set', '--ports', ' '.join(str(p) for p in plan['milter_chain']))
-    for service in plan['extra_services']:
-        efactl('extra-service-set', '--name', service, '--action', 'add')
+    for step in settings_steps(plan, target, fresh=False):
+        efactl(*step)
+    import_sender_access(target, warnings, efactl)
+    import_mailscanner_rules(target, warnings, efactl)
+    import_blockers(plan, target, warnings, efactl, disable)
+    run(['postconf', '-e', f"non_smtpd_milters = {plan['non_smtpd_milters']}"])
 
     run(['tar', 'xf', target + '/postfix-queue.tar', '-C', '/var/spool/postfix', '--same-owner'])
     run(['postsuper', '-s'])
@@ -487,6 +870,15 @@ def restore_settings(plan, target, warnings):
         env=new_env)
     warnings.extend(f'DKIM key file missing, not migrated: {path}' for path in plan['dkim_missing'])
     warnings.extend(f'Own MailScanner rules not migrated, see config.tar.gz: {path}' for path in plan['mailscanner_custom'])
+    new_postconf = key_values(run(['postconf']), '=')
+    # sender_access went to the sender lists above; every other old table the new main.cf does not read is named.
+    for name, ref in lost_maps(plan['old_postconf'], new_postconf):
+        if not ref.endswith('/sender_access'):
+            warnings.append(f'CHECK: the old main.cf used {ref} in {name}; the new setup does not read it, its entries no longer '
+                            'apply. Take them over by hand where they are still needed.')
+    lost = lost_postconf(plan['old_postconf'], new_postconf)
+    if lost:
+        warnings.append('Postfix settings replaced or dropped, the old values are in main.cf in config.tar.gz: ' + ', '.join(lost))
 
 
 def finish(target, warnings, password):
@@ -496,9 +888,21 @@ def finish(target, warnings, password):
     for line in warnings + list(NOT_MIGRATED):
         print(' - ' + line)
     print(f'Report and backup: {target}')
-    print(f'New web admin password, shown only now: {password}')
+    # Never into a log: printed only to a terminal, otherwise only in a file for root.
+    password_file = target + '/web-admin-password'
+    fd = os.open(password_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        f.write(password + '\n')
+    if sys.stdout.isatty():
+        print(f'New web admin password: {password}')
+    print(f'The web admin password is in {password_file}. Delete that file after you have stored the password.')
     print('The system reboots within a minute.')
-    open('/reboot.system', 'w').close()
+    # The monitor stays off through the reboot: most services only start with it and would count as down.
+    with open('/etc/cron.d/efa-migration-monitor', 'w') as f:
+        f.write(f'@reboot root sleep 180 && /usr/sbin/efa-monitor --enable; rm -f {SKIP_MONITOR} /etc/cron.d/efa-migration-monitor\n')
+    # Watched by efa-setup-reboot.path, the same way the normal setup ends.
+    open('/var/lib/eFa/setup-reboot', 'w').close()
     return 0
 
 
@@ -508,12 +912,33 @@ def main():
     parser.add_argument('--execute-i-have-a-snapshot', action='store_true', help='Really migrate. Without it nothing changes.')
     parser.add_argument('--drain-seconds', type=int, default=600)
     parser.add_argument('--self-test', action='store_true')
+    parser.add_argument('--accept-legal', metavar='DIGEST', help='Unattended: the digest of the legal texts, instead of typing ja or yes')
     parser.add_argument('--resume', metavar='BACKUP_DIR', help='Continue after a failure during installing, from this backup')
+    parser.add_argument('--mailscanner-rules', metavar='BACKUP_DIR', help='Take over the MailScanner rule files of an earlier migration')
+    parser.add_argument('--disable-foreign-blockers', metavar='BACKUP_DIR', nargs='?', const='', default=None,
+                        help='Switch off the cron jobs and firewalld rules of other blockers once their addresses are in eFa '
+                             '(with the migration, or later with the backup directory of the migration)')
     args = parser.parse_args()
     # A stricter umask would make config files unreadable for the services that use them.
     os.umask(0o022)
     if args.self_test:
         self_test()
+        return 0
+    if args.mailscanner_rules:
+        # Later, after a migration made before this step existed: the rule files from its backup.
+        warnings = []
+        import_mailscanner_rules(args.mailscanner_rules.rstrip('/'), warnings,
+                                 lambda *call: subprocess.run(['/usr/sbin/efactl', *call], check=True, capture_output=True))
+        print('\n'.join(warnings))
+        return 0
+    if args.disable_foreign_blockers:
+        # Later, after a migration that only imported the addresses.
+        target = args.disable_foreign_blockers.rstrip('/')
+        with open(target + '/plan.json') as f:
+            blockers = json.load(f).get('foreign_blockers') or {}
+        warnings = []
+        disable_blockers(blockers, target, warnings)
+        print('\n'.join(warnings))
         return 0
     step = 'reading the old system'
     target = None
@@ -528,6 +953,7 @@ def main():
             warnings = []
             step = 'installing'
             print('Installing the new eFa', flush=True)
+            pause_monitor()
             setup_repos()
             install_new(rpms)
             step = 'configuring'
@@ -535,9 +961,13 @@ def main():
             commit(plan, password)
             step = 'restoring settings'
             print('Restoring settings', flush=True)
-            restore_settings(plan, target, warnings)
+            restore_settings(plan, target, warnings, args.disable_foreign_blockers == '')
             return finish(target, warnings, password)
         plan = collect()
+        plan['foreign_blockers'] = foreign_blockers()
+        legal = legal_confirm(args.accept_legal) if args.execute_i_have_a_snapshot else None
+        if args.execute_i_have_a_snapshot and not legal:
+            return 1
         if not args.execute_i_have_a_snapshot:
             print(json.dumps(plan, indent=2))
             print('Nothing was changed. Take a VM snapshot, then run again with --execute-i-have-a-snapshot.')
@@ -552,13 +982,20 @@ def main():
         backup(target, plan)
         step = 'emptying MailScanner'
         print('Stopping mail intake, waiting for MailScanner', flush=True)
-        drain_scanner(args.drain_seconds)
+        # The old monitor reads the same file, it would restart what the removal stops.
+        pause_monitor()
+        try:
+            drain_scanner(args.drain_seconds)
+        except Failed:
+            os.remove(SKIP_MONITOR)
+            raise
         step = 'removing the old stack'
         removing = True
         print('Removing the old stack', flush=True)
         remove_old(target)
         step = 'installing'
         print('Installing the new eFa', flush=True)
+        pause_monitor()
         setup_repos()
         install_new(rpms)
         step = 'configuring'
@@ -566,9 +1003,15 @@ def main():
         commit(plan, password)
         step = 'restoring settings'
         print('Restoring settings', flush=True)
-        restore_settings(plan, target, warnings)
+        restore_settings(plan, target, warnings, args.disable_foreign_blockers == '')
+        record_legal(legal, warnings)
     except (Failed, OSError, subprocess.CalledProcessError) as err:
         print(f'FAILED during {step}: {err}', file=sys.stderr)
+        if not removing and step != 'reading the old system':
+            # The old system goes on as it was: mail intake back on, the old monitor too.
+            _intake(True)
+            if os.path.exists(SKIP_MONITOR):
+                os.remove(SKIP_MONITOR)
         if removing:
             print(f'Old configuration and databases are in {target}. Roll back with the VM snapshot.', file=sys.stderr)
         elif target:

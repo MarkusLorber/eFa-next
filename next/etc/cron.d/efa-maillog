@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# eFa: remove mail log entries older than the configured retention period.
+MAILTO=""
+40 3 * * * root /usr/sbin/efactl maillog-purge >/dev/null
+45 3 * * * root /usr/sbin/efactl audit-purge >/dev/null

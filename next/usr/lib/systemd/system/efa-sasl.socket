@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa SASL socket for Postfix (SMTP-AUTH logins of port 587)
+
+[Socket]
+# Under /run, where systemd makes sockets (SELinux keeps it out of the private folder of Postfix); port 587 asks here.
+ListenStream=/run/efa-sasl/auth
+SocketUser=efa-sasl
+SocketGroup=postfix
+SocketMode=0660
+DirectoryMode=0755
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

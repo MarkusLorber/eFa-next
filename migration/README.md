@@ -1,6 +1,6 @@
-# Migrating from eFa 5.0 (MailScanner) to eFa-next 6.0.0.1
+# Migrating from eFa 5.0 (MailScanner) to eFa-next 6.0.0.3
 
-`efa-migrate` converts an existing eFa 5.0 in place. It replaces MailScanner, MailWatch, SpamAssassin, opendkim, opendmarc, sqlgrey and amavis with rspamd, nginx and the Python web interface. Apache, PHP and Perl stay installed on the host, Apache is only stopped.
+`efa-migrate` converts an existing eFa 5.0 in place. It replaces MailScanner, MailWatch, SpamAssassin, opendkim, opendmarc, sqlgrey and amavis with rspamd, nginx and the Python web interface. Apache, PHP and Perl stay installed on the host. Apache is only stopped, and PHP-FPM is masked because nginx would start it again. If another application on the host needs PHP, run `systemctl unmask php-fpm`.
 
 **There is no automatic way back.** The only way back is a VM snapshot.
 
@@ -27,7 +27,7 @@
    ./efa-migrate --execute-i-have-a-snapshot
    ```
 
-3. Write down the web admin password. It is shown only at the end of the run. The system then reboots within one minute.
+3. Store the web admin password. It is shown once at the end of the run if the script runs in a terminal, and never goes to a log. It is also in `web-admin-password` in the backup folder, readable only by root. Delete that file once you have stored the password. The system reboots within one minute.
 
 4. Check:
 
@@ -46,7 +46,8 @@ If the installation aborts after the old system was removed, continue like this:
 ## What is carried over
 
 - Hostname and IP from the running system, not from `eFa-Config`
-- Postfix tables, relay networks, smarthost, message size, recipient verification, queue
+- All Postfix settings and files, for example restrictions, postscreen, rate limits, TLS levels, recipient maps including LDAP, and the queue. Only the following is replaced or dropped, and the report names each item: the milter chain, settings and `master.cf` lines that belong to the removed filters, HOLD rules for MailScanner, and `non_smtpd_milters` whose service no longer exists
+- Relay networks, smarthost, message size, recipient verification
 - Greylisting, Fail2Ban, quarantine (on if `Spam Actions` of the old system contains `store`) and retention period
 - MailWatch lists: addresses and domains go to the lists, IPs, patterns and per-recipient entries go to the sender rules
 - DKIM keys with their selector; weak keys only produce a warning
@@ -59,6 +60,7 @@ If the installation aborts after the old system was removed, continue like this:
 - **Block entries reject** instead of only marking as spam. Private IPs, relay networks and authenticated users are exempt.
 - **Allow entries only lower the score**, DMARC and virus scanning still apply.
 - **Mail is rejected from score 15.** Copies of normal mail are no longer stored.
+- **Dovecot serves no IMAP or POP3.** It only provides the SASL login for port 587.
 
 ## What is not carried over
 
@@ -71,8 +73,32 @@ If the installation aborts after the old system was removed, continue like this:
 
 ## Backup
 
-The script puts everything in `/root/efa-migration-TIMESTAMP`: configuration, a dump of all databases, mail log, queue and old quarantine. The folder contains passwords and keys and is readable only by root. Delete it only once the system runs reliably.
+The script puts everything in `/root/efa-migration-TIMESTAMP`: configuration, a dump of all databases, mail log, queue, old quarantine and the old daily backups from `/var/eFa/backup`. The folder contains passwords and keys and is readable only by root. Delete it only once the system runs reliably.
+
+## Moving to a fresh host instead: efa5-export
+
+`efa5-export` reads the settings of the eFa 5.0 host and writes them as an encrypted eFa-next backup. Nothing on the old host changes. It needs only Python 3 and gpg, and `efa5_convert.py` in the same folder (in the source tree it is in `next/usr/lib/eFa/python`). `efa-migrate` uses the same conversion.
+
+1. See what would be taken over, adjusted and not taken over. This writes nothing:
+
+   ```bash
+   ./efa5-export --preview
+   ```
+
+2. Write the file. The password is asked twice and must have at least 12 characters:
+
+   ```bash
+   ./efa5-export --output /root
+   ```
+
+3. On the fresh eFa-next host, upload the file under Backup, then restore it with the same password. The restore first makes a backup of the new host. Then it applies the settings once and shows the same three lists, plus every step that failed. The report stays in `/etc/eFa/efa5-import/report.txt`.
+
+A fresh host keeps its own host name, address, time zone and certificate, and the Postfix settings it sets itself. The mail log, quarantine and queue stay on the old host. Third-party milters must be installed on the new host first. Nothing goes back to the old host.
 
 ## Test status
 
-A complete run on a clone of a real system took place, but it had to be continued with `--resume` and hit a file permission error. Both are fixed, but the current version of the script has not yet run as a whole. Real mail flow from outside and to the internal mail server is not tested, nor is Let's Encrypt.
+The migration with the 6.0.0.3 packages ran on a clone of a real system restored from a snapshot, and the local checks passed. The first run stopped at a bug that is fixed now, and `--resume` finished it, so a run in one go is not tested with the final packages.
+
+The first install of the packages runs the firewall step and adds `ssh`, `smtp`, `smtp-submission`, `http` and `https`. On hosts with other jobs that change firewalld, run the migration at a time when those jobs do not run.
+
+The mailscanner SELinux module stays, it could not be removed and does nothing without MailScanner. DKIM keys were not tested, because the clone has none. Real mail flow from outside and to the internal mail server is not tested, nor is Let's Encrypt.

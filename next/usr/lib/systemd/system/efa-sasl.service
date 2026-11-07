@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa SASL: checks the SMTP-AUTH logins of port 587 for Postfix, in place of Dovecot
+Requires=efa-sasl.socket
+
+[Service]
+Type=simple
+User=efa-sasl
+Group=efa-sasl
+ExecStart=/usr/bin/python3 -I /usr/local/sbin/efa-sasl.py
+# Ends itself after a while without connections; the socket starts it again at the next login.
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+MemoryMax=64M
+TasksMax=48
+InaccessiblePaths=-/etc/eFa -/etc/efa-web -/etc/efa-portal -/etc/postfix -/etc/rspamd -/etc/ssh -/etc/pki/tls/private -/etc/sudoers.d -/var/lib/mysql -/var/lib/eFa
