@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next security minimum: check again after each change of the TLS settings of postfix, nginx and dovecot
+
+[Path]
+PathChanged=/etc/postfix/main.cf
+PathChanged=/etc/postfix/master.cf
+PathChanged=/etc/nginx/nginx.conf
+PathChanged=/etc/nginx/efa-hardening.inc
+PathChanged=/etc/nginx/conf.d
+PathChanged=/etc/nginx/default.d
+PathChanged=/etc/dovecot/dovecot.conf
+PathChanged=/etc/dovecot/conf.d
+Unit=efa-floor-guard.service
+
+[Install]
+WantedBy=paths.target

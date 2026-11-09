@@ -1,0 +1,19 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Markus Lorber and eFa-next contributors -->
+<!-- 13: the task pane of the Outlook add-in. It sends nothing itself: it opens a new message to the report address with the
+     mail that is open as an attachment, and the user sends it. Office.js comes from Microsoft, as every Outlook add-in needs. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report to eFa-next</title>
+<link rel="stylesheet" href="taskpane.css">
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script src="taskpane.js"></script>
+</head><body>
+<main>
+<h1 lang="en">Report this mail</h1>
+<p lang="en">Does this mail look like phishing or spam? Send it to your administrators for a check.</p>
+<p lang="de">Wirkt diese Mail wie Phishing oder Spam? Senden Sie sie Ihren Administratoren zur Prüfung.</p>
+<button id="report" type="button" disabled>Report / Melden</button>
+<p id="state" role="status" aria-live="polite"></p>
+</main>
+</body></html>

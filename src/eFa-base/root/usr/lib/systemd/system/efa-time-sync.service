@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# The clock set once at the first install, as a unit of its own: chronyc from a package script (rpm_script_t) gets no answer
+# from chronyd under SELinux. Measure at once, wait for a source, step, then up to 30 s for the sync; never a failure.
+[Unit]
+Description=eFa-next: set the clock now (first install)
+Wants=chronyd.service
+After=chronyd.service
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/chronyc -a burst 4/4
+ExecStart=-/usr/bin/chronyc waitsync 10 0 0 2
+ExecStart=-/usr/bin/chronyc -a makestep
+ExecStart=-/usr/bin/chronyc waitsync 15 1 0 2
+ExecStart=-/usr/bin/chronyc tracking

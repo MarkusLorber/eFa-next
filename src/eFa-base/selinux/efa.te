@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+#
+# eFa-next SELinux policy module. Rules only where a test on a host in enforcing mode showed them needed (README.md).
+
+module efa 1.1.0;
+
+require {
+	type postfix_smtpd_t;
+	type var_run_t;
+	type unconfined_service_t;
+	type init_t;
+	class sock_file write;
+	class unix_stream_socket connectto;
+}
+
+# 5u: Postfix (smtpd of port 587) asks efa-sasl on /run/efa-sasl/auth. systemd opens that socket (socket activation) and
+# hands it to efa-sasl; Postfix got "Permission denied" there without these rules (AlmaLinux 9, enforcing).
+# shortcut: var_run_t is the label of all of /run; a type of its own for /run/efa-sasl needs a file context in the package, later.
+allow postfix_smtpd_t var_run_t:sock_file write;
+allow postfix_smtpd_t unconfined_service_t:unix_stream_socket connectto;
+allow postfix_smtpd_t init_t:unix_stream_socket connectto;

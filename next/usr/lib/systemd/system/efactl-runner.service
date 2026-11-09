@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next efactl runner: efactl for the web interface, loaded once, one fork per call
+Before=efa-web.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 -I /usr/local/sbin/efactl-runner.py
+Restart=always
+RestartSec=2
+# The folder is open, the socket in it only for root and the group efa-web (0660). No Group=efa-web: the files efactl
+# writes must not get that group.
+RuntimeDirectory=efactl-runner
+RuntimeDirectoryMode=0755
+# A restart, as by a package update, must not end a call that is still running.
+KillMode=process
+# No sandbox: efactl runs here with the same rights as under the sudo rule of efa-web.
+
+[Install]
+WantedBy=multi-user.target

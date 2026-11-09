@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (C) 2026 Markus Lorber and eFa-next contributors */
+/* P5: contrast 4.5:1 and more, a visible focus, large enough to hit. */
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #3f444a; background: #fff; }
+main { padding: 16px; }
+h1 { font-size: 18px; margin: 0 0 8px; }
+button { font: inherit; padding: 10px 18px; min-height: 44px; border: 0; border-radius: 6px; background: #3f444a; color: #fff; cursor: pointer; }
+button:disabled { background: #8a8d86; cursor: default; }
+button:focus-visible { outline: 3px solid #7f8a3a; outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e6e7e3; background: #1b1d1a; }
+  button { background: #c0cf48; color: #1b1d1a; }
+}

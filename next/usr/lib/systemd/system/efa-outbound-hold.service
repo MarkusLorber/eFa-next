@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next recall window and confirmation of attachments
+# Nothing waits: not even a process is started.
+ConditionDirectoryNotEmpty=/var/lib/efa-outbound/held
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/efactl outbound-hold-run

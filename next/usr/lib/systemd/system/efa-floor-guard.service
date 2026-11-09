@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next security minimum: values under the limit back to the TLS profile, else the service stays stopped
+
+[Service]
+Type=oneshot
+# Never in the way of mail or the web interface: the lowest CPU and disk priority.
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+PrivateTmp=yes
+TimeoutStartSec=300
+# A burst of changes (an update, efactl writing main.cf several times) leads to one check: the path unit does not start the
+# service again while it waits here, the check then sees the files after the last change.
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/sbin/efactl floor-check --mode check

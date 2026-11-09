@@ -1,0 +1,103 @@
+<!--
+  eFa-next rules for the Wazuh manager. Copy to /var/ossec/etc/rules/.
+  Rule IDs 108000-108099. The fields are those of /var/log/eFa/events.json, see docs/WAZUH.md.
+-->
+<group name="efa-next,">
+
+  <rule id="108000" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="efa_version">\.+</field>
+    <field name="event">\.+</field>
+    <description>eFa-next: event</description>
+  </rule>
+
+  <rule id="108001" level="0">
+    <decoded_as>efa-events</decoded_as>
+    <description>eFa-next: event over syslog</description>
+  </rule>
+
+  <rule id="108010" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^login_ok$</field>
+    <description>eFa-next: web login of $(dstuser) from $(src_ip)</description>
+    <group>authentication_success,</group>
+  </rule>
+
+  <rule id="108011" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^login_failed$</field>
+    <description>eFa-next: failed web login of $(dstuser) from $(src_ip)</description>
+    <group>authentication_failed,</group>
+  </rule>
+
+  <rule id="108012" level="10" frequency="8" timeframe="120">
+    <if_matched_sid>108011</if_matched_sid>
+    <same_field>src_ip</same_field>
+    <description>eFa-next: many failed web logins from $(src_ip)</description>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <rule id="108013" level="6">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^ip_banned$</field>
+    <description>eFa-next: Fail2Ban banned $(src_ip)</description>
+  </rule>
+
+  <rule id="108014" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^ip_unbanned$</field>
+    <description>eFa-next: Fail2Ban released $(src_ip)</description>
+  </rule>
+
+  <rule id="108020" level="10">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^service_down$</field>
+    <description>eFa-next: service $(service) is down</description>
+    <group>service_availability,</group>
+  </rule>
+
+  <rule id="108021" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^service_up$</field>
+    <description>eFa-next: service $(service) runs again</description>
+  </rule>
+
+  <rule id="108022" level="8">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^firewall_guard_repair$</field>
+    <description>eFa-next: the firewall guard repaired the firewall</description>
+  </rule>
+
+  <rule id="108030" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^config_change$</field>
+    <description>eFa-next: $(dstuser) changed settings ($(command))</description>
+    <group>config_changed,</group>
+  </rule>
+
+  <rule id="108031" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^config_change_failed$</field>
+    <description>eFa-next: a change by $(dstuser) failed ($(command))</description>
+  </rule>
+
+  <rule id="108040" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^virus_found$</field>
+    <description>eFa-next: viruses found in mail</description>
+  </rule>
+
+  <rule id="108041" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^rbl_hits$</field>
+    <description>eFa-next: mail refused by blocklists</description>
+  </rule>
+
+  <rule id="108050" level="7">
+    <if_sid>550, 553, 554</if_sid>
+    <field name="file">^/etc/eFa/|^/etc/postfix/|^/etc/rspamd/local.d/|^/etc/nginx/</field>
+    <description>eFa-next: configuration file $(file) changed</description>
+    <group>syscheck,config_changed,</group>
+  </rule>
+
+</group>

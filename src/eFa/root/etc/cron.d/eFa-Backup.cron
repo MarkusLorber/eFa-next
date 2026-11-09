@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# eFa-next: daily backup. Create /etc/eFa/eFa-Backup.disabled to skip it.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+15 3 * * * root [ -e /etc/eFa/eFa-Backup.disabled ] || efactl backup-now >>/var/log/eFa/eFa-Backup.log 2>&1

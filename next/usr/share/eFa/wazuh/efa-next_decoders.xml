@@ -1,0 +1,14 @@
+<!--
+  eFa-next decoders for the Wazuh manager. Copy to /var/ossec/etc/decoders/.
+  Events that the agent reads from /var/log/eFa/events.json need no decoder: Wazuh decodes JSON itself.
+  This decoder is for the events that come over syslog (efactl siem-set), tag efa-events, JSON payload.
+-->
+<decoder name="efa-events">
+  <program_name>^efa-events$</program_name>
+  <plugin_decoder>JSON_Decoder</plugin_decoder>
+</decoder>
+
+<decoder name="efa-audit">
+  <program_name>^efa-audit$</program_name>
+  <plugin_decoder>JSON_Decoder</plugin_decoder>
+</decoder>

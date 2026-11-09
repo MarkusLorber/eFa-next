@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next DKIM key rotation check
+After=network-online.target rspamd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/efactl rotation-run

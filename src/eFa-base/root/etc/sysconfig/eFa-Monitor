@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# eFa-next service monitor settings (KEY=value, no shell expansion).
+# Services to watch, separated by spaces. Not fail2ban: the admin can turn it off.
+# Not firewalld: efa-firewall-guard watches it, a restart must not hit the rule changes of others.
+SERVICES="postfix rspamd nginx mariadb redis clamd@scan unbound"
+# Restart attempts per service before the monitor gives up and mails the admin.
+MAX_RESTARTS=3
+# Minutes after the first restart until the counter of a service is dropped.
+COUNTER_MINUTES=60

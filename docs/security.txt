@@ -1,0 +1,4 @@
+Contact: mailto:security-cra-report.efa-next.eu@it-status.org
+Expires: 2040-12-31T23:59:59+00:00
+Preferred-Languages: de, en
+Canonical: https://efa-next.eu/.well-known/security.txt

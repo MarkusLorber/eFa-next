@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# Security configuration assessment of an eFa-next host, for the Wazuh agent.
+# Loaded by the eFa-next block of ossec.conf (efactl wazuh-config). Check IDs 108100-108199.
+policy:
+  id: "efa_next"
+  file: "sca-efa-next.yml"
+  name: "eFa-next mail gateway"
+  description: "Checks that eFa-next itself depends on: SSH root login, services without root, TLS versions."
+  references:
+    - https://github.com/MarkusLorber/eFa-next
+
+requirements:
+  title: "eFa-next is installed"
+  description: "The host runs eFa-next."
+  condition: any
+  rules:
+    - 'f:/usr/sbin/efactl'
+
+checks:
+  - id: 108100
+    title: "SSH: no root login with a password"
+    description: "eFa-next warns about it and has a switch on the web page Security."
+    remediation: "efactl ssh-root-set --mode key-only, or turn it off on the web page."
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^permitrootlogin\s+(no|prohibit-password|without-password|forced-commands-only)$'
+
+  - id: 108101
+    title: "rspamd does not run as root"
+    condition: none
+    rules:
+      - 'c:ps -o user= -C rspamd -> r:^root$'
+
+  - id: 108102
+    title: "ClamAV does not run as root"
+    condition: none
+    rules:
+      - 'c:ps -o user= -C clamd -> r:^root$'
+
+  - id: 108103
+    title: "The eFa-next web interface does not run as root"
+    condition: all
+    rules:
+      - 'c:systemctl show -p User efa-web -> r:^User=efa-web$'
+
+  - id: 108104
+    title: "nginx offers TLS 1.2 and 1.3 only"
+    condition: all
+    rules:
+      - 'f:/etc/nginx/conf.d/efa.conf -> r:^\s*ssl_protocols\s+TLSv1.2\s+TLSv1.3\s*;'
+      - 'not f:/etc/nginx/conf.d/efa.conf -> r:TLSv1\s|TLSv1.1'
+
+  - id: 108105
+    title: "Postfix refuses SSLv2 and SSLv3"
+    condition: all
+    rules:
+      - 'c:postconf -h smtpd_tls_protocols -> r:!SSLv2'
+      - 'c:postconf -h smtpd_tls_protocols -> r:!SSLv3'
+
+  - id: 108106
+    title: "The eFa-next settings are not readable by everyone"
+    condition: none
+    rules:
+      - 'c:find /etc/eFa -maxdepth 1 -name *.json -perm -o+r -> r:\S'

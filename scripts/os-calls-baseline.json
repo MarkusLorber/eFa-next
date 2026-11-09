@@ -1,0 +1,42 @@
+{
+ "migration/efa-migrate": {
+  "/etc/sysconfig": 4,
+  "dnf/rpm": 11,
+  "firewalld/nft/ipset": 3,
+  "systemctl": 11
+ },
+ "next/usr/lib/eFa/python/efa5_convert.py": {
+  "/proc": 1,
+  "systemctl": 1
+ },
+ "next/usr/lib/eFa/setup/efa-next-setup": {
+  "/etc/sysconfig": 2,
+  "systemctl": 1
+ },
+ "next/usr/lib/eFa/setup/nginx-config.sh": {
+  "selinux": 1,
+  "systemctl": 1
+ },
+ "next/usr/lib/eFa/setup/rspamd-config.sh": {
+  "systemctl": 6
+ },
+ "next/usr/local/sbin/efa-milter-health.py": {
+  "/etc/sysconfig": 1,
+  "systemctl": 2
+ },
+ "next/usr/local/sbin/efa-web.py": {
+  "/proc": 4
+ },
+ "next/usr/sbin/efactl": {
+  "/etc/sysconfig": 1,
+  "dnf/rpm": 16,
+  "firewalld/nft/ipset": 9,
+  "journalctl": 2,
+  "selinux": 1,
+  "systemctl": 45,
+  "systemd-run": 4
+ },
+ "next/usr/share/eFa/wazuh/sca-efa-next.yml": {
+  "systemctl": 1
+ }
+}

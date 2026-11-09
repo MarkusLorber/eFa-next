@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next mail log writer
+After=mariadb.service
+
+[Service]
+Type=simple
+User=efa-mail
+Group=efa-mail
+# Reads the settings of root:efa-web 0640; as its own user it gets no root efactl through efactl-runner.
+SupplementaryGroups=efa-web
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-maillog.py
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+# The prefix: the folder only exists once the quarantine for users is on.
+ReadWritePaths=-/var/spool/efa-quarantine
+# E1: the EVE-JSON lines for the SIEM, only while that format is on.
+ReadWritePaths=-/var/log/efa-eve
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

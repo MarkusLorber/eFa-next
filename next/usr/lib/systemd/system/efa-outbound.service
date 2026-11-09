@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next outbound milter: data loss prevention and disclaimers
+After=network-online.target
+Before=postfix.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+LoadCredential=pdf-passwords:/etc/eFa/pdf-passwords.json
+LoadCredential=signature-fields:/etc/eFa/signature-fields.json
+# 15: the S/MIME and PGP keys, each file of the folder as crypto_<file>.
+LoadCredential=crypto:/etc/eFa/crypto
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-outbound.py
+# A1: the list of held accounts, kept over a restart.
+StateDirectory=efa-outbound
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
