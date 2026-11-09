@@ -4,7 +4,7 @@
 of Linux, DNS, SMTP and TLS. Not intended for consumers or private persons and not released for that use; see
 [DISCLAIMER.md](../DISCLAIMER.md). The setup asks you to confirm this.
 
-For a fresh host with AlmaLinux 9, Rocky Linux 9 or RHEL 9. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
+For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL; tested on AlmaLinux 9. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
 
 ## Requirements
 
@@ -25,7 +25,7 @@ For a fresh host with AlmaLinux 9, Rocky Linux 9 or RHEL 9. For an existing eFa 
 
 ## Steps
 
-1. As root on a fresh AlmaLinux 9, Rocky Linux 9 or RHEL 9 (a minimal install is enough), load the installer and compare its
+1. As root on a fresh EL9 host (a minimal install is enough), load the installer and compare its
    SHA256 with the one in the release notes:
 
    ```bash
