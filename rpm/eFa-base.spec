@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.5
+Version:        6.0.0.5.1
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -87,7 +87,9 @@ mkdir -p /var/lib/rpm-state/eFa-base
 # First install unless eFa-next 6 or later is set up here (its version file is written only when every step passed):
 # replacing the packages eFa and eFa-base of 6.0.0.4 (Obsoletes) is an upgrade, an eFa 5 host is a first install.
 # Also a reinstall after a first install whose setup failed: without the version file the setup has not finished yet.
-if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-Version; then
+# A set-up host is never a first install, also when the version file is gone: the first-install steps would replace
+# its nginx, rspamd and Postfix settings.
+if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
     touch /var/lib/rpm-state/eFa-base/first-install
 fi
 exit 0
@@ -146,6 +148,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Mon Nov 09 2026 Markus Lorber - 6.0.0.5.1-1
+- 6.0.0.5.1: security fixes (web forms, rspamd repository over https, settings files); see CHANGELOG.md.
+
 * Sun Nov 08 2026 Markus Lorber - 6.0.0.5-1
 - 6.0.0.5: security and protection additions, offline bundles, CVE watch, four-eyes approvals; see CHANGELOG.md.
 

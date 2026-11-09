@@ -1401,6 +1401,21 @@ def forget_reads():
             read_cache.clear()
 
 
+# Werkzeug 2.0 of EL9 parses multipart bodies without a limit on their parts (CVE-2023-25577, CVE-2023-46136, CVE-2024-49767):
+# only the four uploads take them, only from a login, and before anything reads the body. Other forms are small.
+MULTIPART_ENDPOINTS = {'brand_upload', 'mail_check', 'disclaimer_import', 'backup_upload'}
+MAX_FORM = 4 * 1024 * 1024
+
+
+@app.before_request
+def body_limits():
+    if request.mimetype == 'multipart/form-data':
+        if PORTAL or request.endpoint not in MULTIPART_ENDPOINTS or not session_active():
+            abort(415)
+    elif (request.content_length or 0) > MAX_FORM:
+        abort(413)
+
+
 @app.before_request
 def protect():
     if not PORTAL and not admin_address_ok(request.headers.get('X-Real-IP', request.remote_addr or '')):
@@ -3458,6 +3473,12 @@ def self_test():
     with open(tmp_allow, 'w') as f:
         json.dump({'mode': 'allowed', 'entries': [{'network': '192.0.2.0/24', 'comment': 'office'}]}, f)
     assert admin_address_ok('192.0.2.9') and not admin_address_ok('198.51.100.7') and not admin_address_ok('x')
+    # A multipart body before a login, or to a page that takes no upload: refused before it is parsed.
+    multipart = {'data': b'--b\r\nContent-Disposition: form-data; name="csrf"\r\n\r\nx\r\n--b--\r\n',
+                 'content_type': 'multipart/form-data; boundary=b'}
+    assert app.test_client().post('/login', **multipart, **https).status_code == 415
+    assert app.test_client().post('/backup/upload', **multipart, **https).status_code == 415, 'an upload only after a login'
+    assert app.test_client().post('/login', data=b'a=' + b'x' * (MAX_FORM + 1), content_type='application/x-www-form-urlencoded', **https).status_code == 413
     assert client.get('/p/dash', headers={'X-Real-IP': '198.51.100.7'}, **https).status_code == 403
     assert client.get('/p/dash', headers={'X-Real-IP': '192.0.2.9'}, **https).status_code == 200
     with open(tmp_allow, 'w') as f:

@@ -230,6 +230,13 @@ install_test() {
     [ "$(sudo -u efa-portal python3 -I /usr/local/sbin/efactl-runner.py --probe)" = denied ] || return 1
     [ "$(sudo -u efa-init python3 -I /usr/local/sbin/efactl-runner.py --probe)" = refused ] || return 1
     [ "$(sudo -u nobody python3 -I /usr/local/sbin/efactl-runner.py --probe)" = denied ] || return 1
+    # Packages and keys of rspamd only over https.
+    ! grep -q 'http://' /etc/yum.repos.d/rspamd.repo 2>/dev/null || { echo "rspamd.repo names a plain http address"; return 1; }
+    # The credentials of efa-outbound and efa-sandbox exist, so systemd can start them whenever they are enabled.
+    for f in /etc/eFa/pdf-passwords.json /etc/eFa/signature-fields.json /etc/eFa/sandbox-service.json /etc/eFa/crypto; do
+        [ -e "$f" ] || { echo "$f is missing: efa-outbound or efa-sandbox cannot start"; return 1; }
+    done
+    [ ! -f /etc/yum.repos.d/rspamd.repo ] || grep -q '^exclude=rspamd-\[5-9\]' /etc/yum.repos.d/rspamd.repo || { echo "rspamd.repo lets a new major version in"; return 1; }
     # The guard of the security minimum checks after the install's changes: the page times measure the web interface, not it.
     pages_wait=0
     while [ "$(systemctl show -p ActiveState --value efa-floor-guard.service 2>/dev/null)" != inactive ] &&
@@ -381,7 +388,10 @@ fresh_restore() {
         [ -e "$FRESH_SAVED/copy$p" ] || continue
         rm -rf "$p" && cp -a "$FRESH_SAVED/copy$p" "$p" || return 1
     done
-    restorecon -R /etc/ssh /etc/postfix /etc/eFa /var/lib/eFa 2>/dev/null
+    # Every path that came back from the saved copy gets its label again: with the one of /var/lib, MariaDB skipped its
+    # settings (and listened on all addresses) and Postfix could not read the TLS key.
+    restorecon -R $FRESH_MOVE $FRESH_COPY 2>/dev/null
+    [ -z "$(restorecon -R -n -v $FRESH_MOVE $FRESH_COPY 2>/dev/null)" ] || { echo "SELinux labels still wrong after the restore"; return 1; }
     # Stopped between the removal of the packages and the install: the last green packages, as an upgrade (eFa-Version is back).
     if ! rpm -q eFa-next eFa-next-base >/dev/null 2>&1; then
         timeout 900 dnf -y -q install "$GREEN"/eFa-next-base-*.rpm "$GREEN"/eFa-next-6*.rpm || { echo "no eFa-next packages to put back"; return 1; }

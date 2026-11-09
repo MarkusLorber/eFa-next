@@ -1198,9 +1198,9 @@ def _json_read(path, default):
 def _json_write(path, data, mode=0o640):
     # shortcut: no lock, the daily timer and an admin could overwrite each other; add one if that ever matters.
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + '.tmp'
-    # Only for root while it is written: some of these files hold passwords and keys (mode 0600).
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # A name of its own per writer: two writers at once (the floor guard and a service start) took the same .tmp from each
+    # other. Only for root while it is written (mkstemp: 0600): some of these files hold passwords and keys.
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + '.', suffix='.tmp')
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, 'w') as f:
         json.dump(data, f, indent=2, sort_keys=True)

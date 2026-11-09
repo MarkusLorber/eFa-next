@@ -70,6 +70,10 @@ first-install)
     step /usr/sbin/efactl floor-check --mode apply
     ;;
 upgrade)
+    # The rspamd repository only over https (its own file names http for packages and key).
+    [ ! -f /etc/yum.repos.d/rspamd.repo ] || step sed -i 's#http://rspamd\.com/#https://rspamd.com/#g' /etc/yum.repos.d/rspamd.repo
+    # A new major version of rspamd only with an eFa-next release tested with it: a plain dnf update stays on 4.x.
+    [ ! -f /etc/yum.repos.d/rspamd.repo ] || grep -q '^exclude=' /etc/yum.repos.d/rspamd.repo || step sh -c "echo 'exclude=rspamd-[5-9]* rspamd-[1-9][0-9]*' >> /etc/yum.repos.d/rspamd.repo"
     # Adds new columns to the mail log. Only on a configured system: a new install does this in efa-apply.
     [ ! -f /etc/efa-web/maillog.pw ] || step /usr/sbin/efactl maillog-setup
     # The user portal moves out of the admin interface (5q): before web-harden, which points nginx to it.
@@ -107,6 +111,13 @@ upgrade)
     exit 2
     ;;
 esac
+# efa-outbound and efa-sandbox load these files as credentials, and systemd does not start a unit while one is missing (as
+# after a restore of /etc/eFa from a host without these features): mail on port 587 would wait. Empty defaults, as efactl
+# writes them when it turns the features on.
+for f in pdf-passwords.json signature-fields.json sandbox-service.json; do
+    [ -e "/etc/eFa/$f" ] || step sh -c "umask 077; echo '{}' > /etc/eFa/$f"
+done
+[ -d /etc/eFa/crypto ] || step install -d -m 0700 /etc/eFa/crypto
 step /usr/sbin/efactl redis-tune
 # 5v (h): the sandbox of the tested third-party units on a new install, none on an upgrade (it changes no setting). Both remove
 # the sandbox drop-ins of 6.0.0.5 test builds from units not tested with SELinux (unbound did not start with it).

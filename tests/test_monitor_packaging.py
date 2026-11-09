@@ -194,12 +194,28 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(text.count("http2"), 1, version)
 
     def test_reinstall_after_a_failed_setup_is_a_first_install(self):
-        """%pre: first install until /etc/eFa-Version of eFa-next 6 exists, also on a reinstall (its $1 is 2)."""
-        for name in ("eFa.spec", "eFa-base.spec"):
+        """%pre: first install until /etc/eFa-Version of eFa-next 6 exists, also on a reinstall (its $1 is 2), unless the
+        host is set up (CONFIGURED:YES): an update of a set-up host without the version file must not run the first-install
+        steps, they would replace its settings."""
+        import subprocess
+        import tempfile
+        for name, state in (("eFa.spec", "eFa"), ("eFa-base.spec", "eFa-base")):
             with open(os.path.join(TOP, "rpm", name), encoding="utf-8") as fh:
                 pre = fh.read().split("%pre\n", 1)[1].split("%posttrans", 1)[0]
-            self.assertIn("if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\\.' /etc/eFa-Version; then", pre, name)
             self.assertNotIn('"$1" -eq 1', pre, name)
+            decision = pre.split("mkdir -p /var/lib/rpm-state/%s\n" % state, 1)[1].split("exit 0", 1)[0]
+            for version, config, first in (("", "", True), ("eFa-6.0.0.5\n", "", False), ("", "CONFIGURED:YES\n", False),
+                                           ("", "CONFIGURED:NO\n", True), ("eFa-5.0.0\n", "", True)):
+                with tempfile.TemporaryDirectory() as folder:
+                    folder = folder.replace(os.sep, "/")
+                    for file, text in (("version", version), ("config", config)):
+                        if text:
+                            with open(folder + "/" + file, "w") as fh:
+                                fh.write(text)
+                    script = (decision.replace("/etc/eFa-Version", folder + "/version").replace("/etc/eFa/eFa-Config", folder + "/config")
+                              .replace("/var/lib/rpm-state/%s/first-install" % state, folder + "/first-install"))
+                    subprocess.run(["sh", "-c", script], check=True)
+                    self.assertEqual(os.path.exists(folder + "/first-install"), first, (name, version, config))
 
     def test_build_tools_checked_before_rpmbuild(self):
         """build-rpms.py names the missing BuildRequires and the builddep command instead of a traceback of rpmbuild."""

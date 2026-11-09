@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.0.0.5.1 (release date: pending)
+
+Security update of 6.0.0.5; an update keeps all settings.
+
+- An update of the packages on a set-up host is never taken for a first install, also when /etc/eFa-Version is missing:
+  the first-install steps would have replaced its nginx, rspamd and Postfix settings.
+- The web interface takes multipart bodies only for its four uploads and only after a login, before it parses them, and
+  other forms up to 4 MB. Werkzeug 2.0 of EL9 parses multipart without a limit on its parts (CVE-2023-25577, CVE-2023-46136,
+  CVE-2024-49767), which was reachable without a login.
+- The rspamd repository is used only over https: its file names http for packages and key, and dnf could take a new key
+  unasked. Existing hosts are changed on the update.
+- A plain dnf update keeps rspamd on its major version 4; a new major version comes only with an eFa-next release
+  tested with it.
+- Two writers of the same settings file at once no longer take each other's temporary file (a service start could fail).
+- The outbound milter (DLP, disclaimers, PDF encryption) and the sandbox service always find the files systemd hands them,
+  also after a restore from a host without these features; before, they did not start then, and with DLP or PDF encryption on, mail on port 587 waited.
+
 ## 6.0.0.5 (release date: pending)
 
 **Hosts on 6.0.0.4 take this release once by hand.** The packages are now `eFa-next` and `eFa-next-base` (first published
