@@ -1,0 +1,116 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+"""Login shell of a console admin (efactl console-2fa-set): over SSH it asks for the code of the own 2FA of this user, when it
+has one set up, and starts bash only when efactl accepts it; without one set up no code is asked (owner's rule), efactl notes
+the login. Never the code of another user. Fails closed: with 2FA no terminal, no code, an error of efactl, no shell. On the
+local console (/dev/ttyN) no code is asked, as Text F of the setup says."""
+import getpass
+import json
+import os
+import re
+import subprocess
+import sys
+
+SHELL = '/bin/bash'
+VERIFY = ['sudo', '-n', '/usr/sbin/efactl', 'console-2fa-verify']
+
+
+def local_console(fd=0):
+    try:
+        return bool(re.fullmatch(r'/dev/tty\d+', os.ttyname(fd)))
+    except OSError:
+        return False
+
+
+def code_needed(run=subprocess.run):
+    """True or False from efactl (the own 2FA of this user is set up or not), None when efactl did not answer."""
+    try:
+        done = run(VERIFY + ['--check=yes'], capture_output=True, text=True, timeout=30)
+        return bool(json.loads(done.stdout)['needed']) if done.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
+
+
+def code_ok(code, run=subprocess.run):
+    try:
+        done = run(VERIFY, input=code + '\n', capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False, 'efactl did not answer'
+    if done.returncode == 0:
+        return True, ''
+    message = re.search(r'"error": "([^"]*)"', done.stdout or '')
+    return False, message.group(1) if message else 'refused'
+
+
+def main(argv, ask=input, run=subprocess.run, local=local_console, interactive=None, user=None):
+    if not local():
+        needed = code_needed(run)
+        if needed is None:
+            print('eFa-next: the 2FA check did not answer, login refused; log in on the local console.', file=sys.stderr)
+            return 1
+        if needed:
+            if not (sys.stdin.isatty() if interactive is None else interactive):
+                print('eFa-next: this login needs the 2FA code: log in with a terminal (ssh -t).', file=sys.stderr)
+                return 1
+            name = user or getpass.getuser()
+            try:
+                code = ask(f'2FA code for {name} (or a recovery code) / 2FA-Code für {name} (oder ein Wiederherstellungscode): ').strip()
+            except (EOFError, KeyboardInterrupt):
+                return 1
+            ok, why = code_ok(code, run)
+            if not ok:
+                print(f'eFa-next: login refused: {why}', file=sys.stderr)
+                return 1
+    # A login shell keeps its dash; ssh -t host command comes as -c command.
+    name = '-bash' if argv[0].startswith('-') else 'bash'
+    os.execv(SHELL, [name] + argv[1:])
+    return 1
+
+
+def self_test():
+    class Done:
+        def __init__(self, code, out=''):
+            self.returncode, self.stdout = code, out
+
+    def efactl(needed, accept):
+        def run(cmd, **kw):
+            seen.append((cmd, kw.get('input')))
+            if cmd[-1] == '--check=yes':
+                return Done(0, json.dumps({'needed': needed}))
+            return Done(0) if accept else Done(1, '{"error": "Wrong 2FA code."}')
+        return run
+    seen = []
+    assert code_ok('123456', efactl(True, True)) == (True, '') and seen[-1] == (VERIFY, '123456\n')
+    assert code_ok('1', efactl(True, False)) == (False, 'Wrong 2FA code.')
+    assert code_ok('1', lambda cmd, **kw: (_ for _ in ()).throw(OSError('no sudo')))[0] is False
+    assert code_needed(lambda cmd, **kw: Done(1)) is None and code_needed(lambda cmd, **kw: Done(0, 'x')) is None
+    real_execv, started, asked = os.execv, [], []
+    os.execv = lambda path, args: started.append((path, args))
+    try:
+        assert main(['-efa-console-2fa'], ask=lambda p: '000000', run=efactl(True, False), local=lambda: False, interactive=True) == 1 and not started
+        assert main(['efa-console-2fa', '-c', 'id'], run=efactl(True, True), local=lambda: False, interactive=False) == 1 and not started, \
+            'with 2FA and no terminal: no shell'
+        assert main(['-efa-console-2fa'], run=lambda cmd, **kw: Done(1), local=lambda: False, interactive=True) == 1 and not started, \
+            'no answer of the check: fail closed'
+        assert main(['-efa-console-2fa'], ask=lambda p: (_ for _ in ()).throw(EOFError()), run=efactl(True, True), local=lambda: False,
+                    interactive=True) == 1
+        main(['efa-console-2fa', '-c', 'id'], ask=lambda p: asked.append(p) or '123456', run=efactl(True, True), local=lambda: False,
+             interactive=True, user='efaadmin')
+        assert started[-1] == (SHELL, ['bash', '-c', 'id']) and 'efaadmin' in asked[-1]
+        asked.clear()
+        main(['efa-console-2fa', '-c', 'id'], ask=lambda p: asked.append(p) or '', run=efactl(False, False), local=lambda: False, interactive=False)
+        assert started[-1] == (SHELL, ['bash', '-c', 'id']) and not asked, 'no 2FA set up: no code asked, scp and commands work'
+        main(['-efa-console-2fa'], run=efactl(True, False), local=lambda: True)
+        assert started[-1] == (SHELL, ['-bash']), 'the local console needs no code'
+    finally:
+        os.execv = real_execv
+    print('self-test ok')
+
+
+if __name__ == '__main__':
+    if sys.argv[1:] == ['--self-test']:
+        self_test()
+        sys.exit(0)
+    sys.exit(main(sys.argv))

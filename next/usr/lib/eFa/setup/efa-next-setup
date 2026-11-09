@@ -1,0 +1,134 @@
+#!/bin/sh
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Setup of the eFa-next programs, run by the eFa package after the eFa-base steps.
+#   efa-next-setup first-install   web users, nginx, rspamd, default settings
+#   efa-next-setup upgrade         only what the new version needs, no setting changes
+# Every failed step is listed, the exit code is 1 if there was one.
+DIR=/usr/lib/eFa/setup
+failed=""
+step() {
+    "$@" >/dev/null || failed="$failed [$*]"
+}
+
+fix_monitor_settings() {
+    # An old settings file the admin had changed stays in place at the upgrade, in a form the new monitor cannot read.
+    grep -q '^SERVICES=' /etc/sysconfig/eFa-Monitor 2>/dev/null && return 0
+    mv -f /etc/sysconfig/eFa-Monitor.rpmnew /etc/sysconfig/eFa-Monitor
+}
+
+fix_console_sudo() {
+    # A console user of a migrated host keeps the menu under its new name.
+    f=/etc/sudoers.d/eFa-users
+    grep -q eFa-Configure "$f" 2>/dev/null || return 0
+    sed 's#/usr/sbin/eFa-Configure#/usr/sbin/efactl menu#' "$f" > "$f.new" && visudo -cqf "$f.new" && mv -f "$f.new" "$f"
+}
+
+move_old_log_copies() {
+    # The new rotation takes every file in the folder: it must not rotate the old copies again.
+    mkdir -p -m 0750 /var/log/eFa-archive
+    for f in /var/log/eFa/*.gz; do
+        [ -e "$f" ] && mv -f "$f" /var/log/eFa-archive/
+    done
+    return 0
+}
+
+case "$1" in
+first-install)
+    step /bin/sh "$DIR/efa-web-config.sh"
+    step /bin/sh "$DIR/nginx-config.sh"
+    step /bin/sh "$DIR/portal-config.sh"
+    # The wizard checks the name of the mail server through it.
+    step systemctl enable --now unbound
+    step /bin/sh "$DIR/rspamd-config.sh"
+    step /usr/sbin/efactl quarantine-set --mode on
+    # 9i: a new install bans address harvesting from the start; an upgrade leaves it off.
+    step /usr/sbin/efactl harvest-set --mode on
+    # B6: and failed logins of web, portal, API and port 587, with a week for repeat offenders.
+    step /usr/sbin/efactl login-lockout-set --mode on
+    # D2: addresses in the mail log become pseudonyms after 14 days; an upgrade keeps them as they are.
+    step /usr/sbin/efactl pseudonymise-set --days 14
+    # D3: held mail is stored encrypted with a key per tenant; an upgrade keeps it as it is.
+    step /usr/sbin/efactl uq-encrypt-set --mode on
+    # EU: a new install starts with EU relation (the more private answer); the admin changes it under Domain settings.
+    step /usr/sbin/efactl eu-relation-set --mode yes
+    # 5v (d): postscreen in front of port 25 on a new install; an upgrade keeps smtpd alone.
+    step /usr/sbin/efactl postscreen-set --mode on
+    # 6a: a new install checks the DNS of its domains every 6 hours; an upgrade leaves it off.
+    step /usr/sbin/efactl domain-check-set --mode on
+    # Secure by default (S1): a new install checks attachments (dangerous endings, hidden names, programs by content) and
+    # disarms them. An upgrade keeps what was set; a migration from eFa 5 sets them as eFa 5 had them (efa-migrate).
+    # Content disarm goes on at the first boot after the setup (efa-firstboot): its milter chain needs running milters.
+    step /usr/sbin/efactl attachment-set --mode on --action reject --names reject --executables reject
+    # 5l: a new interface gets no automatic DHCP profile, it stays unused until it has a role.
+    step /usr/sbin/efactl network-harden
+    # C7: a new install limits the virus scan per mail and fails closed; an upgrade keeps the old behaviour (fail open).
+    step /usr/sbin/efactl scan-limits-set --mode on --fail closed
+    [ -f /etc/eFa/rbl.json ] || step /usr/sbin/efactl rbl-apply --keep ''
+    # 6.0.0.5: the security minimum of postfix, nginx and dovecot set once, its guard watches it from then on.
+    step /usr/sbin/efactl floor-check --mode apply
+    ;;
+upgrade)
+    # Adds new columns to the mail log. Only on a configured system: a new install does this in efa-apply.
+    [ ! -f /etc/efa-web/maillog.pw ] || step /usr/sbin/efactl maillog-setup
+    # The user portal moves out of the admin interface (5q): before web-harden, which points nginx to it.
+    step /bin/sh "$DIR/portal-config.sh"
+    # 5l: only interfaces that come later; existing profiles stay, the hardening report names automatic ones.
+    step /usr/sbin/efactl network-harden
+    # 5t: the TLS limit on every host; without a profile BSI TR-02102-2, before web-harden writes nginx with it.
+    step /usr/sbin/efactl tls-profile-upgrade
+    # 6.0.0.5: the security minimum set once without a finding (dovecot gets its drop-in); the setup variant stays unset,
+    # the dashboard offers Re-Setup once.
+    step /usr/sbin/efactl floor-check --mode apply
+    # 9p: nginx serves the MTA-STS policies no more; they stay in the web interface to copy.
+    step /usr/sbin/efactl mta-sts-unserve
+    step /usr/sbin/efactl web-harden
+    # efa-sasl takes over the logins of port 587 from Dovecot; where system accounts (PAM) log in there, Dovecot stays.
+    step /usr/sbin/efactl sasl-apply
+    # S1: logs never go out readable; an export of before over plain TCP/UDP stops, the dashboard says how to switch to TLS.
+    step /usr/sbin/efactl siem-stop-plain
+    # 5z: backup targets at providers outside the EU get nothing any more, the dashboard says so.
+    step /usr/sbin/efactl backup-targets-eu-lock
+    # 9n: full access to the rspamd web interface is gone; open access becomes read only for an hour.
+    step /usr/sbin/efactl rspamd-sso-upgrade
+    # The blocklist choices of eFa-next replace the defaults of rspamd once, keeping what filters now.
+    [ -f /etc/eFa/rbl.json ] || step /usr/sbin/efactl rbl-apply --keep yes
+    step fix_monitor_settings
+    # Only rewrites the line of a monitor that is on: maintenance mode stays as it is.
+    [ ! -e /etc/cron.d/eFa-Monitor.cron ] || step /usr/sbin/efa-monitor --enable
+    step fix_console_sudo
+    step move_old_log_copies
+    # The job of the old setup, nothing writes its marker any more.
+    rm -f /etc/cron.d/checkreboot /usr/sbin/checkreboot.sh
+    ;;
+*)
+    echo "usage: efa-next-setup first-install|upgrade" >&2
+    exit 2
+    ;;
+esac
+step /usr/sbin/efactl redis-tune
+# 5v (h): the sandbox of the tested third-party units on a new install, none on an upgrade (it changes no setting). Both remove
+# the sandbox drop-ins of 6.0.0.5 test builds from units not tested with SELinux (unbound did not start with it).
+if [ "$1" = first-install ]; then
+    step /usr/sbin/efactl service-harden --mode on
+else
+    step /usr/sbin/efactl service-harden --mode off
+fi
+step /usr/sbin/efactl efa-headers-apply
+# efactl for the web interface, loaded once: restarted so it runs the code of this package; running calls go on.
+step python3 -I -c 'import sys; sys.path.insert(0, "/usr/lib/eFa/python"); import efa_platform
+p = efa_platform.detect()
+p.service_enable("efactl-runner", start=True)
+p.service_restart("efactl-runner")
+p.service_enable("efa-blocklist.timer", start=True)
+p.service_enable("efa-cve-watch.timer", start=True)
+p.service_enable("efa-cve-watch.path", start=True)
+p.service_enable("efa-floor-guard.path", start=True)
+p.service_enable("efa-outbound-hold.timer", start=True)'
+
+if [ -n "$failed" ]; then
+    echo "efa-next-setup $1: FAILED:$failed" >&2
+    exit 1
+fi
+exit 0

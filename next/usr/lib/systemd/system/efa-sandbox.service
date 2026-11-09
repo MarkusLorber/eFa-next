@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next sandbox: suspicious attachments to the own CAPEv2 sandbox for rspamd
+After=network-online.target
+Before=rspamd.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=efa-sandbox
+# The address and the token, readable for this service only.
+LoadCredential=sandbox-service.json:/etc/eFa/sandbox-service.json
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-sandbox.py
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

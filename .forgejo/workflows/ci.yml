@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# scripts/ci.sh --install (checks, RPM build, upgrade and fresh-install test) on each push to master, on the CI host:
+# a Forgejo Actions runner there with the host executor and the label el9-test (forgejo-runner.service, user ci-runner).
+# Only pushes, no pull requests: the job runs as root on the CI host. No secrets: the repository is read without a token.
+# The source comes with git, not actions/checkout (no Node.js, nothing from outside the Forgejo).
+name: ci
+on:
+  push:
+    branches: [master]
+jobs:
+  checks:
+    runs-on: el9-test
+    timeout-minutes: 150
+    steps:
+      - name: source of this push
+        run: |
+          # ci.sh runs as root: what it leaves in the source belongs to root.
+          sudo rm -rf src
+          git init -q src
+          git -C src fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" "${{ github.sha }}"
+          git -C src checkout -q FETCH_HEAD
+          git -C src log -1 --format='%h %s'
+      - name: scripts/ci.sh --install (waits up to 2 h for a run before it)
+        run: cd src && sudo env EFA_CI_LOCK_WAIT=7200 sh scripts/ci.sh --install
+      - name: clean up
+        if: always()
+        run: sudo rm -rf src

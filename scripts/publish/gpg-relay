@@ -1,0 +1,29 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+# Stand-in for gpg under rpmsign on the build host (%__gpg). The signing key never comes here: the data to be signed goes into
+# the spool, scripts/publish.sh on the signing PC signs it and puts the detached signature next to it.
+SPOOL=${EFA_SIGN_SPOOL:-/root/efa-publish/spool}
+sig='' data='' prev=''
+for arg in "$@"; do
+    [ "$prev" = -sbo ] && sig=$arg
+    prev=$arg
+    data=$arg
+done
+[ -n "$sig" ] || { echo "gpg-relay: no -sbo in: $*" >&2; exit 2; }
+id=$(date +%s%N)
+if [ "$data" = "$sig" ] || [ "$data" = - ]; then
+    cat > "$SPOOL/$id.data.tmp"
+else
+    cp "$data" "$SPOOL/$id.data.tmp"
+fi
+mv "$SPOOL/$id.data.tmp" "$SPOOL/$id.data"
+# Up to 10 minutes for the passphrase on the PC.
+i=0
+while [ ! -s "$SPOOL/$id.sig" ]; do
+    i=$((i + 1))
+    [ "$i" -gt 1200 ] && { echo "gpg-relay: no signature came" >&2; exit 1; }
+    sleep 0.5
+done
+cp "$SPOOL/$id.sig" "$sig"

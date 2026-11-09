@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next web interface
+After=network-online.target
+
+[Service]
+Type=simple
+User=efa-web
+Group=efa-web
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-web.py
+Restart=always
+RestartSec=5
+# No ProtectSystem or NoNewPrivileges here: efactl runs through sudo inside this unit and must write the system.
+# Read-only, not hidden: efactl checks the SSH keys of the users who can take over from root (their files stay 0600).
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

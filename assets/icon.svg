@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="eFa-next">
+  <title>eFa-next</title>
+  <rect width="128" height="128" rx="26" fill="#646563"/>
+ 
+  <g transform="rotate(-14 64 56)">
+    <rect x="30" y="30" width="68" height="50" rx="6" fill="none" stroke="#ffffff" stroke-width="6"/>
+    <path d="M33 34 64 58l31-24" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

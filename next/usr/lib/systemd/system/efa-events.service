@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next events: collect and send on
+After=network-online.target
+# Off, nothing to do: not even a process is started.
+ConditionPathExists=/var/lib/eFa/events-on
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/efactl events-run

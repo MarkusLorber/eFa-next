@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next cluster service: master and clients over mutual TLS
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-cluster.py
+Restart=always
+RestartSec=5
+# A node applies the settings of its master through efactl: Postfix, rspamd and the files of eFa-next under /etc change. So no
+# ProtectSystem here; the service itself only speaks mutual TLS and runs a fixed list of efactl commands.
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

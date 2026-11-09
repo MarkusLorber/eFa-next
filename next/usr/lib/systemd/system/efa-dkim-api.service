@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next DKIM provisioning API (port 8463, mutual TLS and token)
+After=network-online.target
+
+[Service]
+Type=simple
+User=efa-dkim-api
+Group=efa-dkim-api
+ExecStart=/usr/bin/python3 -I /usr/local/sbin/efa-dkim-api.py
+Restart=always
+RestartSec=5
+# Port 8463 is above 1024, no capability needed. sudo for the one fixed efactl command needs new privileges, so no NoNewPrivileges.
+AmbientCapabilities=
+PrivateTmp=yes
+ProtectHome=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
