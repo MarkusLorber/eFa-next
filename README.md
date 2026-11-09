@@ -10,7 +10,7 @@ is not affiliated with it.
 
 It is built as an autonomous security fortress, designed with sovereignty, compliance and especially EU regulations in mind.
 
-It sits in front of your mail server, filters incoming mail and hands the clean mail on.
+It sits in front of your mail server, filters incoming and/or outgoing mail and hands the clean, signed mail on.
 
 **Intended use:** eFa-next is a mail filter server for qualified administrators in businesses and organisations and needs
 technical knowledge of Linux, DNS, SMTP and TLS. It is not intended for consumers or private persons and is not released for
