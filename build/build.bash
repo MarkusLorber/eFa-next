@@ -170,6 +170,11 @@ enable_repos() {
     fi
     import_key "$RSPAMD_KEY_URL" "$RSPAMD_KEY_FPR" || return 1
     curl -fsSL -o /etc/yum.repos.d/rspamd.repo "$RSPAMD_REPO_URL" || return 1
+    # The file of rspamd.com names http: packages and key only over https (dnf -y would take a new key unasked).
+    sed -i 's#http://rspamd\.com/#https://rspamd.com/#g' /etc/yum.repos.d/rspamd.repo || return 1
+    ! grep -q 'http://' /etc/yum.repos.d/rspamd.repo || { echo "rspamd.repo names a plain http address"; return 1; }
+    # A new major version of rspamd only with an eFa-next release tested with it: a plain dnf update stays on 4.x.
+    grep -q '^exclude=' /etc/yum.repos.d/rspamd.repo || echo 'exclude=rspamd-[5-9]* rspamd-[1-9][0-9]*' >> /etc/yum.repos.d/rspamd.repo
 }
 
 NGINX_STREAM=1.26
