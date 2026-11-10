@@ -4210,6 +4210,9 @@ msgstr "eFa-next-Update {version} ist verfügbar, veröffentlicht {published}."
 msgid "eFa-next update {version} is available."
 msgstr "eFa-next-Update {version} ist verfügbar."
 
+msgid "{count} allowed senders from the migration let mail past every filter in eFa 5, for an envelope sender anyone can fake (Sender lists): {names}. Keep only senders you need, as exact addresses; change or remove the others, then they leave this list."
+msgstr "{count} erlaubte Absender aus der Migration ließen in eFa 5 Mail an jedem Filter vorbei, für einen Umschlag-Absender, den jeder fälschen kann (Absenderlisten): {names}. Behalten Sie nur Absender, die Sie brauchen, als genaue Adressen; ändern oder entfernen Sie die anderen, dann verschwinden sie aus dieser Liste."
+
 msgid "{count} rules from the migration weaken the filter and need checking (Rules page): {names}. Change or remove them, then they leave this list."
 msgstr "{count} Regeln aus der Migration schwächen den Filter und müssen geprüft werden (Seite Regeln): {names}. Ändern oder entfernen, dann verschwinden sie aus dieser Liste."
 

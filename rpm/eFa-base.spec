@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.5.1
+Version:        6.0.0.5.2
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -148,6 +148,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Tue Nov 10 2026 Markus Lorber - 6.0.0.5.2-1
+- 6.0.0.5.2: migration from eFa 5 (sender_access no longer read once moved), SELinux quiet without IPv6; see CHANGELOG.md.
+
 * Mon Nov 09 2026 Markus Lorber - 6.0.0.5.1-1
 - 6.0.0.5.1: security fixes (web forms, rspamd repository over https, settings files); see CHANGELOG.md.
 

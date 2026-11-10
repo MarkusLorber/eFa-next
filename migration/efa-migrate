@@ -27,8 +27,9 @@ for folder in (HERE, '/usr/lib/eFa/python', os.path.join(HERE, '..', 'next', 'us
     if os.path.exists(os.path.join(folder, 'efa5_convert.py')):
         sys.path.insert(0, folder)
         break
-from efa5_convert import (CONFIG, KEPT_POSTCONF, NOT_MIGRATED, OLD_SERVICES, POSTFIX, Failed, carried_master,  # noqa: E402
-                          carried_postconf, collect, dkim_name, key_values, lost_postconf, mysql_env, run, settings_steps)
+from efa5_convert import (CONFIG, KEPT_POSTCONF, MYSQL_CONFIG, NOT_MIGRATED, OLD_SERVICES, POSTFIX, Failed,  # noqa: E402
+                          carried_master, carried_postconf, collect, dkim_name, key_values, lost_postconf, mysql_env,
+                          old_settings_file, run, settings_steps)
 from efa5_convert import self_test as convert_self_test  # noqa: E402
 
 MAILSCANNER_SPOOL = '/var/spool/MailScanner'
@@ -359,9 +360,8 @@ def _attachment_extensions():
         return []
 
 
-def legal_confirm(given):
-    """5y: before anything changes, the legal texts of eFa-next: shown here, confirmed by typing ja or yes, or unattended with
-    --accept-legal=<digest>. Their digest, or None (then nothing changes)."""
+def legal_texts():
+    """(efa_legal, digest, folder) of the legal texts next to this program (or installed), or None with the reason printed."""
     here = os.path.dirname(os.path.abspath(__file__))
     lib_dirs = (os.path.join(here, '..', 'next', 'usr', 'lib', 'eFa', 'python'), '/usr/lib/eFa/python')
     for folder in lib_dirs:
@@ -378,9 +378,34 @@ def legal_confirm(given):
     if texts is None:
         print('LICENSE, DISCLAIMER.md and THIRD-PARTY-NOTICES.md are missing next to efa-migrate. Nothing was changed.')
         return None
-    the_digest = efa_legal.digest(texts)
     shown = next(folder for folder in folders if efa_legal.find_texts(folder))
-    return the_digest if efa_legal.console_confirm(the_digest, os.path.abspath(shown), given) else None
+    return efa_legal, efa_legal.digest(texts), os.path.abspath(shown)
+
+
+def legal_confirm(given):
+    """5y: before anything changes, the legal texts of eFa-next: shown here, confirmed by typing ja or yes, or unattended with
+    --accept-legal=<digest>. Their digest, or None (then nothing changes)."""
+    found = legal_texts()
+    if found is None:
+        return None
+    efa_legal, the_digest, shown = found
+    return the_digest if efa_legal.console_confirm(the_digest, shown, given) else None
+
+
+def legal_digest_info():
+    """--legal-digest: what an unattended run accepts, and how to check the digest; accepts nothing, changes nothing."""
+    found = legal_texts()
+    if found is None:
+        return 1
+    efa_legal, the_digest, shown = found
+    print(efa_legal.SUMMARY['en'] + '\n')
+    print('Texts to read: ' + ', '.join(os.path.join(shown, name) for name in efa_legal.NAMES))
+    print('By accepting you confirm: ' + efa_legal.CONFIRM['en'])
+    print(f'Digest: {the_digest} (the first 16 hex digits of SHA-256 over the name and text of each file)')
+    print(f'Check it yourself, in {shown}:\n  {efa_legal.SHELL_DIGEST}')
+    print(f'Unattended migration, only after you read and accepted the texts:\n  ./efa-migrate --execute-i-have-a-snapshot --accept-legal={the_digest}')
+    print('Nothing was changed.')
+    return 0
 
 
 def record_legal(the_digest, warnings):
@@ -430,20 +455,52 @@ def _is_ip(text):
         return False
 
 
-def import_sender_access(target, warnings, efactl):
+# The restriction lists that may name sender_access; after the move to the sender lists none of them reads it any more.
+RESTRICTION_LISTS = ('smtpd_client_restrictions', 'smtpd_helo_restrictions', 'smtpd_sender_restrictions',
+                     'smtpd_recipient_restrictions', 'smtpd_relay_restrictions', 'smtpd_data_restrictions')
+
+
+def without_sender_access(value):
+    """A Postfix restriction list without its lookups of sender_access: 'check_sender_access <map>' and the bare map."""
+    words, kept, skip = [word for word in re.split(r'[\s,]+', value.strip()) if word], [], False
+    for index, word in enumerate(words):
+        if skip:
+            skip = False
+            continue
+        if word == 'check_sender_access' and index + 1 < len(words) and words[index + 1].endswith('/sender_access'):
+            skip = True
+            continue
+        if ':' in word and word.endswith('/sender_access'):
+            continue
+        kept.append(word)
+    return ', '.join(kept)
+
+
+def import_sender_access(target, warnings, efactl, postconf=None):
     path = POSTFIX + '/sender_access'
     if not os.path.exists(path):
         return
+    postconf = postconf or (lambda *args: run(['postconf', *args]))
     with open(path, errors='replace') as f:
         block, allow, odd = sender_access_entries(f.read())
     for which, items, comment in (('block', block, SENDER_COMMENT), ('allow', allow, SENDER_REVIEW)):
         for start in range(0, len(items), 200):
             efactl('sender-add', f'--list={which}', '--entries=' + ' '.join(items[start:start + 200]), f'--comment={comment}')
+    # Moved: Postfix must not read the old table any more (its OK lines let a faked envelope sender past every check).
+    changed = []
+    for name in RESTRICTION_LISTS:
+        value = postconf('-h', name).strip()
+        if '/sender_access' in value:
+            postconf('-e', f'{name} = {without_sender_access(value)}')
+            changed.append(name)
     warnings.append(f'Sender lists: {len(block)} blocked and {len(allow)} allowed senders from {path}, marked "{SENDER_COMMENT}". '
-                    'The new Postfix setup does not read that file any more.')
+                    'Postfix does not read that file any more' + (f' (taken out of {", ".join(changed)})' if changed else '') +
+                    '; it stays in config.tar.gz of the backup.')
     if allow:
-        warnings.append('CHECK: these were OK in sender_access and let mail past every filter; in eFa-next they are on the allow '
-                        'list, marked for checking: ' + ', '.join(allow))
+        warnings.append('CHECK: these were OK in sender_access and let mail past every filter, for an envelope sender anyone can fake. '
+                        'In eFa-next they are on the allow list (6 points off the spam score; DMARC and virus checks still apply), '
+                        'marked for checking, and the dashboard names them until they are changed: ' + ', '.join(allow) +
+                        '. Keep only senders you need, as exact addresses rather than whole domains.')
     if odd:
         warnings.append('Not taken over from sender_access (other actions or broken lines), add them by hand '
                         'if they are still needed: ' + '; '.join(odd))
@@ -519,6 +576,78 @@ def disable_blockers(blockers, target, warnings):
 
 
 def self_test():
+    spool = tempfile.mkdtemp()
+    for name in ('milterin/a', 'incoming/100/m.header', 'incoming/200/old.header', 'incoming/Locks/x.lock', 'incoming/300/'):
+        os.makedirs(os.path.dirname(os.path.join(spool, name)), exist_ok=True)
+        if not name.endswith('/'):
+            open(os.path.join(spool, name), 'w').close()
+    waiting, stale = spool_files(spool, alive=lambda pid: pid == '100')
+    rel = lambda found: sorted(os.path.relpath(f, spool).replace(os.sep, '/') for f in found)
+    assert rel(waiting) == ['incoming/100/m.header', 'milterin/a'], waiting
+    assert rel(stale) == ['incoming/200/old.header'], 'a gone worker does not hold it up'
+    none6 = apply_answers({'config': {'HOSTNAME': 'mx', 'DOMAINNAME': 'example.com', 'IPV6ADDRESS': '--', 'IPV6GATEWAY': '--',
+                                      'IPV6MASK': ''}, 'ipv6dns': False}, 'pw')
+    assert 'IPV6ADDRESS:disabled\n' in none6 and 'IPV6GATEWAY:\n' in none6 and '--' not in none6, 'no IPv6 of eFa 5'
+    assert sql_string("a'b\\c") == "'a\\'b\\\\c'" and sql_string('plain') == "'plain'"
+    assert my_cnf_value('a"b\\c') == '"a\\"b\\\\c"'
+
+    class Ran:
+        def __init__(self, code, out=''):
+            self.returncode, self.stdout, self.stderr = code, out, ''
+    secret = "Pw'4\\711"
+    for socket_ok, alter_ok in ((True, True), (False, True), (False, False)):
+        calls = []
+
+        def fake(cmd, input=None, env=None, check=False, **_kw):
+            calls.append((cmd, input, (env or {}).get('MYSQL_PWD')))
+            if cmd[0] == 'mysql' and input and 'FLUSH' not in input:
+                return Ran(0 if socket_ok else 1)
+            if cmd[0] == 'mysql' and input:
+                return Ran(0 if alter_ok else 1)
+            if cmd[:2] == [*SYSTEMCTL, 'is-active']:
+                return Ran(0 if cmd[-1] == 'efa-web' else 3)
+            return Ran(0, '1\n')
+        global MY_CNF, MYSQL_CONFIG
+        real_cnf, MY_CNF = MY_CNF, os.path.join(tempfile.mkdtemp(), 'my.cnf')
+        real_config, MYSQL_CONFIG = MYSQL_CONFIG, os.path.join(os.path.dirname(MY_CNF), 'MySQL-Config')
+        with open(MYSQL_CONFIG, 'w') as f:
+            f.write(f'MYSQLROOTPWD:{secret}\n')
+        try:
+            # The password from the file, as on a host (no argument).
+            done = reset_db_root(fake, now='T')
+        except Failed:
+            done = None
+        finally:
+            written = open(MY_CNF).read() if os.path.exists(MY_CNF) else ''
+            MY_CNF, MYSQL_CONFIG = real_cnf, real_config
+        assert all(secret not in ' '.join(cmd) for cmd, _i, _e in calls), 'the password never in argv'
+        sent = [given for cmd, given, _e in calls if given]
+        assert all(sql_string(secret) in given for given in sent), 'the password escaped in the SQL on stdin'
+        names = [' '.join(cmd) for cmd, _i, _e in calls]
+        SC = SYSTEMCTL[0] + ' '
+        if socket_ok:
+            assert done and not any(name.startswith(SC) for name in names), 'over the socket: no restart'
+            assert written == f'[client]\nuser=root\npassword={my_cnf_value(secret)}\n'
+        else:
+            assert SC + 'stop efa-web' in names and SC + 'start efa-web' in names, 'its users of the database pause'
+            assert names.index(SC + 'unset-environment MYSQLD_OPTS') > names.index(SC + 'start mariadb'), names
+            assert SC + 'restart mariadb' in names, 'the environment always goes, then a normal start'
+            assert (done is not None) == alter_ok and (bool(written) == alter_ok)
+        assert all(secret not in line for line in (done or [])), 'the report names no password'
+    class Done:
+        def __init__(self, code, out='', err=''):
+            self.returncode, self.stdout, self.stderr = code, out, err
+    global mysql_env
+    real_env = mysql_env
+    try:
+        mysql_env = lambda: {'MYSQL_PWD': 'Secret-4711'}
+        assert db_root_problem(lambda *a, **k: Done(0, '1\n')) is None
+        denied = db_root_problem(lambda *a, **k: Done(1, '', "ERROR 1045 (28000): Access denied for user 'root'@'localhost'\n"))
+        assert denied.startswith('Das root-Passwort in /etc/eFa/MySQL-Config gilt') and 'Access denied' in denied and 'Secret-4711' not in denied
+        mysql_env = lambda: (_ for _ in ()).throw(KeyError('MYSQLROOTPWD'))
+        assert db_root_problem(lambda *a, **k: Done(0, '1')) == DB_ROOT_PROBLEM, 'no password line: the same message'
+    finally:
+        mysql_env = real_env
     convert_self_test()
     runtime = ['rule family="ipv4" source address="1.2.3.4" port port="25" protocol="tcp" reject type="icmp-port-unreachable"',
                'rule family="ipv4" source address="5.6.7.8" service name="smtp" reject',
@@ -539,6 +668,11 @@ def self_test():
            'smtpd_client_restrictions': 'check_client_access cidr:/etc/postfix/client.cidr', 'transport_maps': 'hash:/etc/postfix/transport',
            'header_checks': 'regexp:/etc/postfix/header_checks'}
     new = {'transport_maps': 'hash:/etc/postfix/transport', 'header_checks': 'regexp:/etc/postfix/header_checks'}
+    # After the move to the sender lists no restriction list reads sender_access; other lookups stay.
+    assert without_sender_access('permit_mynetworks, check_sender_access hash:/etc/postfix/sender_access, check_sender_access '
+                                 'hash:/etc/postfix/access, hash:/etc/postfix/sender_access, reject_non_fqdn_sender') == \
+        'permit_mynetworks, check_sender_access, hash:/etc/postfix/access, reject_non_fqdn_sender'
+    assert without_sender_access('permit_mynetworks reject_unauth_destination') == 'permit_mynetworks, reject_unauth_destination'
     assert lost_maps(old, new) == [('smtpd_client_restrictions', 'cidr:/etc/postfix/client.cidr'),
                                    ('smtpd_sender_restrictions', 'hash:/etc/postfix/sender_access')], lost_maps(old, new)
     files = {'etc/MailScanner/rules/content.scanning.rules': 'From:\t127.0.0.1\tno\nFrom:\tpartner@x.example\tno\nFromOrTo:\tdefault\tyes\n',
@@ -583,6 +717,10 @@ def self_test():
     import efa_legal
     texts_digest = efa_legal.digest(efa_legal.find_texts(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
     assert legal_confirm(texts_digest) == texts_digest
+    # The shell command the prompt and the docs give yields the same digest.
+    top = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+    by_shell = subprocess.run(['sh', '-c', efa_legal.SHELL_DIGEST], cwd=top, capture_output=True, text=True).stdout.strip()
+    assert by_shell == texts_digest, (by_shell, texts_digest)
     block, allow, odd = sender_access_entries('# list\nspam.example\tREJECT\n@bad.example REJECT go away\nx@y.example 550 no\n'
                                               'good.example OK\nbeiqingedu.com>\tREJECT\n*.backblaze.com\tOK\n1.2.3.4 REJECT\nhold.example HOLD\n')
     assert block == ['1.2.3.4', 'bad.example', 'spam.example', 'x@y.example'] and allow == ['*.backblaze.com', 'good.example'], (block, allow)
@@ -674,18 +812,52 @@ def _intake(on):
     subprocess.run(['systemctl', 'reload', 'postfix'], capture_output=True)  # may already be stopped
 
 
+def _alive(pid):
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, ValueError, OverflowError):
+        return True
+    return True
+
+
+def spool_files(spool=MAILSCANNER_SPOOL, alive=_alive):
+    """(waiting, stale) files of the MailScanner spool. incoming itself holds locks and caches, mail only sits in the
+    directories of its workers, named by their process id: those of a worker that is gone (a crash, a kill) are left
+    over and never move again, so they do not hold the migration up; they are kept in the backup."""
+    waiting = [f for d in ('milterin/*', 'milterout/*') for f in glob.glob(f'{spool}/{d}')]
+    stale = []
+    for worker in glob.glob(f'{spool}/incoming/[0-9]*'):
+        files = glob.glob(worker + '/*')
+        (waiting if alive(os.path.basename(worker)) else stale).extend(files)
+    return waiting, stale
+
+
 def drain_scanner(seconds):
-    """Mail handed to MailScanner lives only in its spool, so it has to finish before the removal."""
+    """Mail handed to MailScanner lives only in its spool, so it has to finish before the removal. The left-over files of
+    workers that are gone."""
     _intake(False)
     deadline = time.time() + seconds
     while time.time() < deadline:
-        # incoming itself holds locks and caches, mail only sits in its numbered worker directories
-        waiting = [f for d in ('milterin/*', 'milterout/*', 'incoming/[0-9]*/*') for f in glob.glob(f'{MAILSCANNER_SPOOL}/{d}')]
+        waiting, stale = spool_files()
         if not waiting:
-            return
+            return stale
         time.sleep(5)
     _intake(True)
     raise Failed(f'MailScanner still holds {len(waiting)} files, nothing was removed. Try again later.')
+
+
+def keep_stale(stale, target, warnings):
+    """The left-over files of gone workers into the backup, named in the report."""
+    if not stale:
+        return
+    for path in stale:
+        dest = os.path.join(target, 'mailscanner-stale', os.path.relpath(path, MAILSCANNER_SPOOL))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(path, dest)
+    warnings.append(f'{len(stale)} files of MailScanner workers that were gone before the migration (left over by a crash) '
+                    f'are in {target}/mailscanner-stale; check them, they were not delivered by MailScanner.')
 
 
 def remove_old(target):
@@ -769,7 +941,10 @@ def install_new(rpms):
 
 def apply_answers(plan, password):
     """KEY:value lines for efa-apply. The web admin password goes over stdin, never on a command line."""
-    cfg = plan['config']
+    # eFa 5 writes '--' for a value it has not got (no IPv6): efa-apply takes 'disabled' for the address, empty for the rest.
+    cfg = {key: ('' if value == '--' else value) for key, value in plan['config'].items()}
+    if plan['config'].get('IPV6ADDRESS') == '--':
+        cfg['IPV6ADDRESS'] = 'disabled'
     answers = {'HOSTNAME': cfg['HOSTNAME'], 'DOMAINNAME': cfg['DOMAINNAME'], 'ADMINEMAIL': cfg.get('ADMINEMAIL', ''),
                'INTERFACE': cfg.get('INTERFACE', ''), 'IPV4ADDRESS': cfg.get('IPV4ADDRESS', ''), 'IPV4NETMASK': cfg.get('IPV4NETMASK', ''),
                'IPV4GATEWAY': cfg.get('IPV4GATEWAY', ''), 'IPV6ADDRESS': cfg.get('IPV6ADDRESS', ''), 'IPV6MASK': cfg.get('IPV6MASK', ''),
@@ -906,6 +1081,92 @@ def finish(target, warnings, password):
     return 0
 
 
+DB_ROOT_PROBLEM = ('Das root-Passwort in /etc/eFa/MySQL-Config gilt für MariaDB nicht. / '
+                   'The root password in /etc/eFa/MySQL-Config does not work for MariaDB.\n'
+                   'Put the valid one into the line MYSQLROOTPWD: of that file, or set MariaDB to the one there '
+                   '(docs/migration.md, before the migration). Nothing was changed.')
+
+
+DB_USERS = ('efa-web', 'efa-portal')
+SYSTEMCTL = ('systemctl',)
+MY_CNF = '/root/.my.cnf'
+
+
+def sql_string(value):
+    """A value as an SQL string literal of MariaDB (backslash escapes on): quote and backslash escaped."""
+    return "'" + value.replace('\\', '\\\\').replace("'", "\\'") + "'"
+
+
+def my_cnf_value(value):
+    """A value for an option file of the MariaDB client: in double quotes, backslash and quote escaped."""
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def reset_db_root(runner=subprocess.run, password=None, now=None):
+    """--reset-db-root-password: MariaDB takes the root password of /etc/eFa/MySQL-Config again. First over the socket
+    as the OS root (unix_socket, no restart); else a short start with --skip-grant-tables --skip-networking, whose
+    environment always goes again. The password only goes through stdin and the environment, never into argv or a log.
+    The steps done, without the password."""
+    password = password if password is not None else key_values(old_settings_file(MYSQL_CONFIG))['MYSQLROOTPWD']
+    if not password or any(ch in password for ch in '\n\r\x00'):
+        raise Failed('MYSQLROOTPWD in /etc/eFa/MySQL-Config is empty or has a line break: set it by hand')
+    alter = f"ALTER USER 'root'@'localhost' IDENTIFIED BY {sql_string(password)};\n"
+    client = ['mysql', '--no-defaults', '--protocol=socket', '--user=root']
+    done = []
+    if runner(client, input=alter, capture_output=True, text=True).returncode == 0:
+        done.append('database root password set over the socket (unix_socket of root), no restart')
+    else:
+        stopped = [unit for unit in DB_USERS
+                   if runner([*SYSTEMCTL, 'is-active', '--quiet', unit], capture_output=True).returncode == 0]
+        for unit in stopped:
+            runner([*SYSTEMCTL, 'stop', unit], capture_output=True)
+        try:
+            runner([*SYSTEMCTL, 'stop', 'mariadb'], check=True, capture_output=True)
+            runner([*SYSTEMCTL, 'set-environment', 'MYSQLD_OPTS=--skip-grant-tables --skip-networking'], check=True,
+                   capture_output=True)
+            runner([*SYSTEMCTL, 'start', 'mariadb'], check=True, capture_output=True)
+            result = runner(client, input='FLUSH PRIVILEGES;\n' + alter, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Failed('ALTER USER in the short start: ' + (result.stderr or '').strip()[-200:])
+        finally:
+            runner([*SYSTEMCTL, 'unset-environment', 'MYSQLD_OPTS'], capture_output=True)
+            runner([*SYSTEMCTL, 'restart', 'mariadb'], capture_output=True)
+            for unit in stopped:
+                runner([*SYSTEMCTL, 'start', unit], capture_output=True)
+        done.append('database root password set in a short start of MariaDB without grant tables and network'
+                    + (f' ({", ".join(stopped)} stopped meanwhile)' if stopped else ''))
+    check = runner(['mysql', '--no-defaults', '--user=root', '-Ne', 'SELECT 1'], env={**os.environ, 'MYSQL_PWD': password},
+                   capture_output=True, text=True)
+    if check.returncode != 0 or check.stdout.strip() != '1':
+        raise Failed('MariaDB still refuses the root password of /etc/eFa/MySQL-Config after the reset')
+    if os.path.exists(MY_CNF) or now is not None:
+        stamp = (now or time.strftime('%Y%m%d-%H%M%S'))
+        if os.path.exists(MY_CNF):
+            shutil.copy2(MY_CNF, f'{MY_CNF}.efa-migrate-{stamp}')
+            os.chmod(f'{MY_CNF}.efa-migrate-{stamp}', 0o600)
+        fd = os.open(MY_CNF + '.new', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(f'[client]\nuser=root\npassword={my_cnf_value(password)}\n')
+        os.replace(MY_CNF + '.new', MY_CNF)
+        done.append(f'{MY_CNF} set to it (mode 600), the one before in {MY_CNF}.efa-migrate-{stamp}')
+    return done
+
+
+def db_root_problem(runner=subprocess.run):
+    """None when MariaDB takes the root password of /etc/eFa/MySQL-Config, else what to tell: checked before anything is read,
+    so a wrong password stops with this message instead of an SQL error halfway through reading."""
+    try:
+        env = mysql_env()
+    except (OSError, KeyError):
+        return DB_ROOT_PROBLEM
+    done = runner(['mysql', '--user=root', '-Ne', 'SELECT 1'], env=env, capture_output=True, text=True)
+    if done.returncode == 0 and done.stdout.strip() == '1':
+        return None
+    # The client's own line (Access denied ...) names no password.
+    detail = (done.stderr or done.stdout).strip().splitlines()[-1:] or ['']
+    return DB_ROOT_PROBLEM + (f'\nMariaDB: {detail[0][:300]}' if detail[0] else '')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--rpm-dir', help='Directory with the new eFa-next-base and eFa-next packages; default: latest release')
@@ -913,6 +1174,10 @@ def main():
     parser.add_argument('--drain-seconds', type=int, default=600)
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--accept-legal', metavar='DIGEST', help='Unattended: the digest of the legal texts, instead of typing ja or yes')
+    parser.add_argument('--legal-digest', action='store_true', help='Show the legal texts to accept, their digest and the unattended command; changes nothing')
+    parser.add_argument('--reset-db-root-password', action='store_true',
+                        help='With --execute-i-have-a-snapshot: set MariaDB to the root password of /etc/eFa/MySQL-Config '
+                             'when it refuses it (over the socket of root, else a short start without grant tables)')
     parser.add_argument('--resume', metavar='BACKUP_DIR', help='Continue after a failure during installing, from this backup')
     parser.add_argument('--mailscanner-rules', metavar='BACKUP_DIR', help='Take over the MailScanner rule files of an earlier migration')
     parser.add_argument('--disable-foreign-blockers', metavar='BACKUP_DIR', nargs='?', const='', default=None,
@@ -924,6 +1189,8 @@ def main():
     if args.self_test:
         self_test()
         return 0
+    if args.legal_digest:
+        return legal_digest_info()
     if args.mailscanner_rules:
         # Later, after a migration made before this step existed: the rule files from its backup.
         warnings = []
@@ -963,9 +1230,30 @@ def main():
             print('Restoring settings', flush=True)
             restore_settings(plan, target, warnings, args.disable_foreign_blockers == '')
             return finish(target, warnings, password)
+        problem = db_root_problem()
+        db_reset = []
+        if problem and args.reset_db_root_password and not args.execute_i_have_a_snapshot:
+            print(problem, file=sys.stderr)
+            print('With --execute-i-have-a-snapshot, --reset-db-root-password sets MariaDB to the root password of '
+                  '/etc/eFa/MySQL-Config: over the socket of root, else in a short start without grant tables and network; '
+                  f'{MY_CNF} follows. Nothing was changed.', file=sys.stderr)
+            return 2
+        if problem and args.reset_db_root_password:
+            legal = legal_confirm(args.accept_legal)
+            if not legal:
+                return 1
+            step = 'resetting the database root password'
+            db_reset = reset_db_root()
+            print('\n'.join(db_reset), flush=True)
+            step = 'reading the old system'
+            problem = db_root_problem()
+        if problem:
+            print(problem + ('' if args.reset_db_root_password else
+                             '\nOr run again with --reset-db-root-password (with --execute-i-have-a-snapshot).'), file=sys.stderr)
+            return 2
         plan = collect()
         plan['foreign_blockers'] = foreign_blockers()
-        legal = legal_confirm(args.accept_legal) if args.execute_i_have_a_snapshot else None
+        legal = (db_reset and legal) or (legal_confirm(args.accept_legal) if args.execute_i_have_a_snapshot else None)
         if args.execute_i_have_a_snapshot and not legal:
             return 1
         if not args.execute_i_have_a_snapshot:
@@ -976,7 +1264,7 @@ def main():
         rpms = preflight(os.path.abspath(args.rpm_dir or fetch_rpms()))
         target = time.strftime('/root/efa-migration-%Y%m%d-%H%M%S')
         password = secrets.token_urlsafe(18)
-        warnings = []
+        warnings = [f'Database: {line}.' for line in db_reset]
         step = 'backup'
         print(f'Backup to {target}', flush=True)
         backup(target, plan)
@@ -985,7 +1273,7 @@ def main():
         # The old monitor reads the same file, it would restart what the removal stops.
         pause_monitor()
         try:
-            drain_scanner(args.drain_seconds)
+            keep_stale(drain_scanner(args.drain_seconds), target, warnings)
         except Failed:
             os.remove(SKIP_MONITOR)
             raise
