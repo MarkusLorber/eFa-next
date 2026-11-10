@@ -24,6 +24,9 @@ SUMMARY = {
            'gesetzlich zulässig, haften Autoren, Mitwirkende und Sponsoren für keine Schäden (DISCLAIMER.md). Komponenten Dritter behalten '
            'ihre eigenen Lizenzen (THIRD-PARTY-NOTICES.md).'),
 }
+# The digest a person can check with standard tools, in the folder with the three texts: the same 16 hex digits as digest().
+SHELL_DIGEST = ("for f in LICENSE DISCLAIMER.md THIRD-PARTY-NOTICES.md; do printf '%s\\0' \"$f\"; cat \"$f\"; printf '\\0'; done "
+                "| sha256sum | cut -c1-16")
 CONFIRM = {'en': 'I am a qualified administrator and do not use eFa-next as a consumer. I have read the legal texts and accept them.',
            'de': 'Ich bin fachkundiger Administrator und nutze eFa-next nicht als Verbraucher. Ich habe die Rechtstexte gelesen und akzeptiere sie.'}
 
@@ -115,7 +118,11 @@ def console_confirm(texts_digest, folder, given=None, ask=input, say=print):
         return False
     say(SUMMARY['de'] + '\n\n' + SUMMARY['en'] + '\n')
     say('Texte / Texts: ' + ', '.join(os.path.join(folder, name) for name in NAMES))
-    say(f"PDF: {os.path.join(FOLDER, ALL_PDF)} (SHA-256 (16): {texts_digest})\n")
+    if os.path.exists(os.path.join(FOLDER, ALL_PDF)):
+        say(f'PDF: {os.path.join(FOLDER, ALL_PDF)}')
+    say(f'Digest of these texts / Prüfsumme dieser Texte: {texts_digest}\n'
+        f'  (the first 16 hex digits of SHA-256 over the name and text of each file; in {folder}: {SHELL_DIGEST})\n'
+        f'Unattended, after reading them / ohne Rückfrage, nach dem Lesen: --accept-legal={texts_digest}\n')
     say(CONFIRM['de'] + '\n' + CONFIRM['en'])
     try:
         answer = ask('Zum Bestätigen ja eintippen / type yes to confirm: ').strip().lower()

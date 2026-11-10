@@ -2304,6 +2304,15 @@ def _rotation_notices():
                                 for item in _rotation_due_removal(state)]
 
 
+# The comment efa-migrate puts on the OK lines of sender_access (they bypassed every filter of eFa 5).
+MIGRATED_ALLOW_MARK = 'migrated from sender_access: OK'
+
+
+def migrated_allow_review(meta, entries):
+    """The allowed senders from the migration still marked for checking: a new comment (an edit) takes them off."""
+    return [entry for entry in entries if str(meta.get(entry, {}).get('comment', '')).startswith(MIGRATED_ALLOW_MARK)]
+
+
 def _system_notices():
     """An update that is there, or a system update that failed. A finished one needs nobody's attention."""
     update = _update_state()
@@ -2315,6 +2324,11 @@ def _system_notices():
         found = [_text('eFa-next update {version} is available, published {published}.', **values) if values['published'] else
                  _text('eFa-next update {version} is available.', **values)]
     found = found if _update_available(update) else []
+    senders = migrated_allow_review(_json_read(SENDER_META, {}), _read_lines(SENDER_MAPS['allow']))
+    if senders:
+        found.append(_text('{count} allowed senders from the migration let mail past every filter in eFa 5, for an envelope sender anyone can '
+                           'fake (Sender lists): {names}. Keep only senders you need, as exact addresses; change or remove the others, then '
+                           'they leave this list.', count=len(senders), names=', '.join(senders[:5]) + (' ...' if len(senders) > 5 else '')))
     review = [rule['name'] for rule in _rules() if rule.get('review')]
     if review:
         found.append(_text('{count} rules from the migration weaken the filter and need checking (Rules page): {names}. Change or remove them, '
@@ -2925,14 +2939,15 @@ def _on_off(value):
     return value == 'on'
 
 
-def redis_limit(ram):
-    """Redis may use a quarter of the memory, and only drops keys with a TTL: Bayes keys have none."""
-    return f'maxmemory {ram // 4}\nmaxmemory-policy volatile-lru\n'
+def redis_limit(ram, ipv6=True):
+    """Redis may use a quarter of the memory, and only drops keys with a TTL: Bayes keys have none. Without IPv6 on the host it
+    listens on 127.0.0.1 only: its default 'bind 127.0.0.1 -::1' makes the kernel try to load IPv6 (an SELinux denial each start)."""
+    return f'maxmemory {ram // 4}\nmaxmemory-policy volatile-lru\n' + ('' if ipv6 else 'bind 127.0.0.1\n')
 
 
 def redis_tune(_args):
     """Limit the memory of Redis. Safe to run again; takes effect without a restart."""
-    text = redis_limit(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES'))
+    text = redis_limit(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES'), ipv6=_platform().ipv6_available())
     _write(REDIS_EFA_CONF, text)
     shutil.chown(REDIS_EFA_CONF, 'redis', 'root')
     with open(REDIS_CONF) as f:
@@ -26246,6 +26261,9 @@ def self_test():
         assert _version_tuple('v6.0.0.4.1') > _version_tuple('eFa-6.0.0.4') and _version_tuple('eFa-6.0.0.4.1-1.el9') == (6, 0, 0, 4, 1)
         assert _version_tuple('v6.0.0.5') > _version_tuple('v6.0.0.4.1') and _version_tuple('6.0.0') is None
         assert redis_limit(8000) == 'maxmemory 2000\nmaxmemory-policy volatile-lru\n'
+        assert redis_limit(8000, ipv6=False).endswith('bind 127.0.0.1\n'), 'no IPv6: Redis does not try ::1 (SELinux module_request net-pf-10)'
+        assert migrated_allow_review({'github.com': {'comment': MIGRATED_ALLOW_MARK + ' let mail past'}, 'a@b.example': {'comment': 'partner'}},
+                                     ['github.com', 'a@b.example', 'x.example']) == ['github.com']
         for preset in RBL_PRESETS:
             assert https_url(preset['url']) == preset['url'], preset['id']
         assert https_url('') == '' and https_url(' https://a.example/x?y=1&z=2 ') == 'https://a.example/x?y=1&z=2'

@@ -1,5 +1,30 @@
 # Changelog
 
+## 6.0.0.5.2 (release date: pending)
+
+Fix of the migration from eFa 5 on top of 6.0.0.5.1; an update keeps all settings.
+
+- Migration from eFa 5: after sender_access moved to the sender lists, Postfix no longer reads that file (its OK lines let a
+  faked envelope sender past every check); the report says which restriction lists changed. The allowed senders from it are
+  named on the dashboard until they are checked, with the advice to keep only exact addresses.
+- SELinux: no denials on hosts without IPv6. Redis listens on 127.0.0.1 only there (its default tried ::1), and the
+  attempt of freshclam to use IPv6 is no longer logged as a denial.
+- Migration: docs/migration.md says where efa-migrate comes from (the source of the release) and what the legal
+  confirmation accepts. `efa-migrate --legal-digest` shows the texts, their digest, how to check it with sha256sum and the
+  command line of an unattended run; the prompt names the digest correctly (it is no hash of the PDF). Nothing is accepted
+  without the person.
+- Migration: files that a MailScanner worker left behind when it was gone (a crash) no longer hold the migration up while
+  it waits for MailScanner; they are kept in the backup and named in the report. Before, the migration stopped after
+  10 minutes with "MailScanner still holds ... files".
+- Migration: a host of eFa 5 without IPv6 (`IPV6ADDRESS:--` in eFa-Config) is migrated with IPv6 off; before, the step
+  "configuring" stopped with "invalid value for IPV6ADDRESS" after the old system was removed (`--resume` continues).
+- Migration: efa-migrate checks first, also when it only lists, that the root password of the database in
+  /etc/eFa/MySQL-Config still works, and stops with a clear message if not; before, it failed with an SQL error while
+  reading the old system. docs/migration.md has the check to run before a migration.
+- Migration: `efa-migrate --execute-i-have-a-snapshot --reset-db-root-password` sets MariaDB to the root password of
+  /etc/eFa/MySQL-Config when it refuses it (over the socket of root, else a short start without grant tables and network),
+  and /root/.my.cnf with it; the password goes only through stdin and the environment.
+
 ## 6.0.0.5.1 (release date: pending)
 
 Security update of 6.0.0.5; an update keeps all settings.

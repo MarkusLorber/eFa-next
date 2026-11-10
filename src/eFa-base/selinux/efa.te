@@ -4,9 +4,12 @@
 #
 # eFa-next SELinux policy module. Rules only where a test on a host in enforcing mode showed them needed (README.md).
 
-module efa 1.1.0;
+module efa 1.2.0;
 
 require {
+	type antivirus_t;
+	type kernel_t;
+	class system module_request;
 	type postfix_smtpd_t;
 	type var_run_t;
 	type unconfined_service_t;
@@ -21,3 +24,8 @@ require {
 allow postfix_smtpd_t var_run_t:sock_file write;
 allow postfix_smtpd_t unconfined_service_t:unix_stream_socket connectto;
 allow postfix_smtpd_t init_t:unix_stream_socket connectto;
+
+# freshclam (libcurl) opens an IPv6 socket also where IPv6 is off, and the kernel tries to load net-pf-10: denied, and logged
+# as an AVC on every update (AlmaLinux 9.8, enforcing, host without IPv6). Nothing breaks; only the log entry goes. Redis does
+# the same and is avoided by its bind (efactl redis-tune).
+dontaudit antivirus_t kernel_t:system module_request;
