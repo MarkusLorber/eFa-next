@@ -970,7 +970,7 @@ def install_new(rpms):
             run(['rpm', '-e', '--nodeps', package])
     run(['dnf', '-y', 'install'] + rpms)
     # dnf reports success even if a package script failed, the version file is written only if all steps passed.
-    if not os.path.exists('/etc/eFa-Version'):
+    if not os.path.exists('/etc/eFa-next-Version') and not os.path.exists('/etc/eFa-Version'):
         raise Failed('A first-install step failed, see /var/log/eFa/eFa-config.log.')
 
 

@@ -321,6 +321,21 @@ def leapp_report(report):
     return {'inhibitors': inhibitors, 'high_risk': high, 'unknown_inhibitors': unknown, 'ok': not unknown}
 
 
+# Owner, 2026-11-12: the start may leave out the backup when a VM snapshot is the way back. Only with this sentence typed in
+# (English or German), besides the snapshot box and the host name; the default stays the encrypted external backup.
+SNAPSHOT_ONLY_PHRASES = ('without backup, snapshot only', 'ohne backup, nur snapshot')
+
+
+def snapshot_only_choice(typed):
+    """(True, None) for the typed sentence, (False, None) for an empty field, (False, why) for anything else."""
+    text = ' '.join((typed or '').split()).lower()
+    if not text:
+        return False, None
+    if text in SNAPSHOT_ONLY_PHRASES:
+        return True, None
+    return False, f'To start without a backup type exactly: {SNAPSHOT_ONLY_PHRASES[0]} (or: ohne Backup, nur Snapshot). Leave it empty for the backup.'
+
+
 def start_problem(snapshot, typed_host, hostname, state, now):
     """None when start may run: a VM snapshot confirmed, the host name typed, and a fresh preupgrade without inhibitors."""
     if (snapshot or '').strip() != 'yes':
@@ -752,6 +767,8 @@ def self_test():
     assert start_problem('yes', 'MX.example', 'mx.example', ok_state, 2000) is None
     assert start_problem('', 'mx.example', 'mx.example', ok_state, 2000) and start_problem('yes', 'other', 'mx.example', ok_state, 2000)
     assert start_problem('yes', 'mx.example', 'mx.example', {'preupgrade': {'ok': False, 'time': 1000}}, 2000)
+    assert snapshot_only_choice('') == (False, None) and snapshot_only_choice('  Without  Backup, snapshot ONLY ') == (True, None)
+    assert snapshot_only_choice('ohne Backup, nur Snapshot') == (True, None) and snapshot_only_choice('yes')[1]
     assert start_problem('yes', 'mx.example', 'mx.example', ok_state, 1000 + REPORT_HOURS * 3600 + 1)
     assert start_problem('yes', 'mx.example', 'mx.example', {**ok_state, 'state': 'upgrading'}, 2000)
     assert start_problem('yes', 'mx.example', '', ok_state, 2000)

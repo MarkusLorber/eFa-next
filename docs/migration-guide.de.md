@@ -163,7 +163,7 @@ Ablauf in der Ausgabe: `Backup to /root/efa-migration-<Datum>-<Zeit>`, `Stopping
 efactl status | head -20
 systemctl --failed --no-legend
 ausearch -m avc -ts boot -if /var/log/audit/audit.log | grep -c denied
-cat /etc/eFa-Version; rpm -q eFa-next eFa-next-base
+cat /etc/eFa-next-Version; rpm -q eFa-next eFa-next-base
 postconf -n | grep -c /etc/postfix/sender_access
 postconf -h smtpd_milters
 postqueue -p | tail -1
@@ -188,6 +188,10 @@ Erwartet:
 - Das Dashboard nennt erlaubte Absender aus der Migration, die in eFa 5 an jedem Filter vorbeikamen: prüfen und nur genaue
   Adressen behalten.
 - Eine Testmail von außen an eine eigene Adresse und eine von innen nach außen schicken; im Mail-Log von eFa-next nachsehen.
+- Port 587 bietet nach der Migration kein SMTP-AUTH an, auch wenn eFa 5 es an hatte: eFa 5 prüfte diese Anmeldungen mit
+  Dovecot, eFa-next übernimmt das nicht. Interne Systeme, die über diesen Server senden, laufen über ihr Netz oder Zertifikat
+  weiter. Melden sich Programme auf 587 an, sie als Einlieferer mit Anmeldung anlegen (Mail-Routing, Einlieferer) oder die
+  Systemkonten einschalten (`efactl submission-pam-set`); dann bietet 587 wieder AUTH an. Audit-Log und Dashboard nennen das einmal.
 - Weitere Admins, Helpdesk und Mandanten-Admins neu anlegen (die MailWatch-Benutzer werden nicht übernommen), siehe
   [users-and-access.md](users-and-access.md).
 

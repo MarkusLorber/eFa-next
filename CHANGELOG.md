@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.0.0.6-alpha2 (Pre-Release)
+
+Second pre-release of 6.0.0.6 for evaluation. **Not for production.** It replaces 6.0.0.6-alpha1 in the testing channel;
+everything of alpha1 below holds, with packages 6.0.0.6-0.2.alpha2.
+
+- With the admin allowlist on (only allowed admin IPs), or during the self-lockdown, nginx refused the host itself: the
+  health check of the updater after an update (https://127.0.0.1/login) got 403 and the update rolled back. 127.0.0.1 and
+  ::1 are now always allowed; addresses from outside stay refused. New CI step admin-allow-loopback.
+- Everything of integration as of 2026-11-12: version file /etc/eFa-next-Version, the findings of the acceptance (settings
+  check by content, AUTH on 587 after a migration from eFa 5), the release upgrade start with only a VM snapshot.
+- The update display of a pre-release took a kept answer without the prerelease flag (a check of 6.0.0.5.2 through the
+  testing mirror) for the release and showed it as an update; only an answer with prerelease false counts now.
+- From alpha1: dnf from the testing channel (efa-next-testing.repo), the updater of alpha1 does not take alpha2.
+
 ## 6.0.0.6-alpha1 (Pre-Release)
 
 Pre-release of 6.0.0.6 for evaluation. **Not for production.** It holds every change of 6.0.0.6 listed below, as of
@@ -24,6 +38,27 @@ Known limits of the pre-release:
   the release v6.0.0.6.
 
 ## 6.0.0.6 (release date: pending)
+
+### Release upgrade to EL10: start with only a VM snapshot
+- The start of the release upgrade may leave out the encrypted external backup (owner, 2026-11-12): only a super admin with
+  password and 2FA, besides the snapshot box and the host name, with the sentence `without backup, snapshot only` (or
+  `ohne Backup, nur Snapshot`) typed in (`efactl release-upgrade --action=start --snapshot=yes --hostname=... --no_backup=...`).
+  The audit log names who started so and on which host, the page warns that the VM snapshot is then the only way back. Each
+  start asks again; the default stays the backup, and the check "Backup works" after the first EL10 boot stays.
+
+### Release upgrade and migration: findings of the acceptance
+- The check "Settings unchanged" after the upgrade to EL10 took package files whose mode, owner or time differed (a host
+  migrated from eFa 5) for changed settings, and the EL10 package's own sample files then failed it (postfix canonical,
+  generic, relocated, virtual; unbound example.com.conf, remote-control.conf). Only the content counts now (rpm -V size,
+  digest, link); a changed content still fails the check.
+- A check that is no condition (leftover packages kept on purpose) is logged as a warning, not as FAILED.
+- MIG-587: SMTP AUTH on port 587 of an eFa 5 host (Dovecot) is not taken over when its submission block is replaced; the
+  audit log and the dashboard say so, the migration guide tells how to switch it on (submitters with a login, or the system
+  accounts). New CI step efa5-587-auth.
+
+### Version file /etc/eFa-next-Version
+- The version of eFa-next is now in `/etc/eFa-next-Version`. `/etc/eFa-Version` stays as a symlink to it: the updater and
+  the scripts of 6.0.0.5.x and older read that name. Every reader of eFa-next takes the new name first, the old one after.
 
 ### Legal texts: checked in CI, one new confirmation
 - CI checks the legal texts (`scripts/legal_check.py`, called by `scripts/license_check.py`): DISCLAIMER.md in English

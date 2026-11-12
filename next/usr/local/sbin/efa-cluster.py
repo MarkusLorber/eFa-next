@@ -382,11 +382,14 @@ def node_status():
         status = json.loads(done.stdout)
     except ValueError:
         status = {'status': 'unknown', 'error': (done.stderr or done.stdout)[-200:]}
-    try:
-        with open('/etc/eFa-Version') as f:
-            version = f.read().strip()
-    except OSError:
-        version = ''
+    version = ''
+    for path in ('/etc/eFa-next-Version', '/etc/eFa-Version'):  # the old name: nodes of 6.0.0.5.x
+        try:
+            with open(path) as f:
+                version = f.read().strip()
+            break
+        except OSError:
+            continue
     state = efa_cluster.read_state(ETC)
     return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'time': int(time.time()),
             'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:]}

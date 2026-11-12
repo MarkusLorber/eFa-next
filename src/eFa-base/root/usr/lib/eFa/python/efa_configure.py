@@ -127,11 +127,25 @@ def efa_installed():
     return os.path.exists(c.rp(P("efa_sbin") + "/efa-apply"))
 
 
+def link_version_file():
+    """The old name /etc/eFa-Version as a relative symlink to /etc/eFa-next-Version, replaced in one step: the updater of
+    6.0.0.5.x checks it after its dnf run, and an old file left there would hold the version before."""
+    link, target = c.rp(P("version_link")), c.rp(P("version_file"))
+    if os.path.dirname(link) != os.path.dirname(target):
+        raise c.StepError("version_link and version_file must be in one folder")
+    tmp = link + ".new"
+    if os.path.lexists(tmp):
+        os.remove(tmp)
+    os.symlink(os.path.basename(target), tmp)
+    os.replace(tmp, link)
+
+
 def maybe_write_version(version):
     """Write the version file once every installed package passed."""
     needed = ["eFa-base"] + (["eFa"] if efa_installed() else [])
     if all(state_ok(p, version) for p in needed):
         c.write_file(P("version_file"), "eFa-%s\n" % version, 0o644)
+        link_version_file()
         c.info("version file written: eFa-%s" % version)
         return True
     return False

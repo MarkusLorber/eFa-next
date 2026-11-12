@@ -9,13 +9,13 @@
 # Keep the build host name out of the package header.
 %global _buildhost localhost
 %global __brp_python_bytecompile %{nil}
-# Pre-release: rpm counts 0.1.alpha1 older than the release 1 of the same version, so 6.0.0.6-1 replaces it.
-# /etc/eFa-Version gets 6.0.0.6-alpha1, which the update check and the web interface show.
-%global prerelease alpha1
+# Pre-release: rpm counts 0.2.alpha2 older than the release 1 of the same version, so 6.0.0.6-1 replaces it, and newer
+# than 0.1.alpha1. /etc/eFa-Version gets 6.0.0.6-alpha2, which the update check and the web interface show.
+%global prerelease alpha2
 
 Name:           eFa-next
 Version:        6.0.0.6
-Release:        0.1.%{prerelease}%{?dist}
+Release:        0.2.%{prerelease}%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -91,7 +91,7 @@ mkdir -p /var/lib/rpm-state/eFa
 # Also a reinstall after a first install whose setup failed: without the version file the setup has not finished yet.
 # A set-up host is never a first install, also when the version file is gone: the first-install steps would replace
 # its nginx, rspamd and Postfix settings.
-if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
+if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-next-Version /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
     touch /var/lib/rpm-state/eFa/first-install
 fi
 exit 0
@@ -151,6 +151,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Thu Nov 12 2026 Markus Lorber - 6.0.0.6-0.2.alpha2
+- 6.0.0.6-alpha2: the admin allowlist never refuses the host itself (health check of the updater); see CHANGELOG.md.
+
 * Thu Nov 12 2026 Markus Lorber - 6.0.0.6-0.1.alpha1
 - 6.0.0.6-alpha1: pre-release of 6.0.0.6 for evaluation, not for production; see CHANGELOG.md.
 

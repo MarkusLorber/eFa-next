@@ -1149,7 +1149,7 @@ ED_SELECTOR = 'efa-ed25519'
 ARC_SELECTOR = 'efa-arc'
 MILTER_HEADERS_CONF = RSPAMD_DIR + '/local.d/milter_headers.conf'
 # rspamd reads the version when it loads its config: the package reloads rspamd after an update.
-EFA_VERSION_LUA = '''local file = io.open('/etc/eFa-Version', 'r')
+EFA_VERSION_LUA = '''local file = io.open('/etc/eFa-next-Version', 'r') or io.open('/etc/eFa-Version', 'r')
 local version = file and file:read('*l') or 'unknown'
 if file then file:close() end
 version = version:gsub('^eFa%-', '')
@@ -2448,6 +2448,10 @@ def _system_notices():
     if review:
         found += _notice_at('rules', 'rule-set', [_text('{count} rules from the migration weaken the filter and need checking (Rules page): {names}. Change or remove them, '
                            'then they leave this list.', count=len(review), names=', '.join(review[:5]) + (' ...' if len(review) > 5 else ''))])
+    if os.path.exists(SUBMISSION_EFA5_AUTH) and _submission_auth() == 'no':
+        found += _notice_at('flow', 'submitter-list', [_text('Port 587 offers no SMTP AUTH since the migration: eFa 5 had it on through Dovecot, eFa-next did not '
+                           'take it over. Add submitters with a login (Mail routing, Submitters) or switch on the system accounts, if '
+                           'programs log in on 587.')])
     rpmnew = _json_read(OS_CHECK_FILE, {}).get('rpmnew', [])
     if rpmnew:
         found += _notice_at('maint', 'os-check-status', [_text('A package update left new versions beside changed files: {files}. Compare and merge them, then remove the '
@@ -13087,7 +13091,9 @@ def admin_allow_conf(state, portal_open=True):
     """The nginx variables of the admin allowlist (http level): refused is 1 for an address outside the list, except on the portal paths
     (with portal_open False, during the self-lockdown of 9o-b, the portal too)."""
     allowed = state['mode'] == 'allowed' and state['entries']
-    lines = [f"    {item['network']} 1;\n" for item in state['entries']] if allowed else []
+    # The host itself always: the health check of the updater (also of 6.0.0.5.x) asks https://127.0.0.1/login after an
+    # update, and a refusal there rolls the update back. Addresses from outside stay refused.
+    lines = ["    127.0.0.1 1;\n", "    ::1 1;\n"] + [f"    {item['network']} 1;\n" for item in state['entries']] if allowed else []
     skip = '/(?!' + ('|'.join(re.escape(path) for path in PORTAL_PATHS) if portal_open else re.escape('.well-known/acme-challenge/')) + ')'
     return (f'# eFa-next: efactl web-allowlist-set, do not edit.\ngeo $efa_admin_ip_ok {{\n    default {0 if allowed else 1};\n' + ''.join(lines) + '}\n'
             f'map "$efa_admin_ip_ok:$uri" $efa_admin_refused {{\n    default 0;\n    "~^0:{skip}" 1;\n}}\n')
@@ -14624,9 +14630,15 @@ def release_upgrade(args):
         return {'release_upgrade': 'aborted'}
     if action == 'start':
         problem = lib.start_problem(args.snapshot, args.hostname, own_hostname(), _ru_state(), time.time())
-        if problem:
-            raise EfaError(problem)
-        _ru_log(f'start confirmed by {_dmarc_who()}: VM snapshot confirmed, host name typed')
+        snapshot_only, typed_problem = lib.snapshot_only_choice(getattr(args, 'no_backup', ''))
+        if problem or typed_problem:
+            raise EfaError(problem or typed_problem)
+        # Set on every start: a start with the sentence never carries over to a later one without it.
+        _ru_save(_ru_state(), snapshot_only=snapshot_only)
+        if snapshot_only:
+            _audit(f'release upgrade start WITHOUT backup, the VM snapshot is the only way back: confirmed by {_dmarc_who()} on {own_hostname()}')
+        _ru_log(f'start confirmed by {_dmarc_who()}: VM snapshot confirmed, host name typed'
+                + (', without backup (VM snapshot only)' if snapshot_only else ''))
     return _ru_queue(action)
 
 
@@ -14785,8 +14797,12 @@ def _ru_start(state):
     if problem:
         raise EfaError(problem)
     _ru_save(state, state='starting')
-    backup = _ru_backup()
-    _ru_log(f"backup {backup['backup']} sha256 {backup['sha256']} uploaded to {', '.join(backup['targets'])}, test extract ok")
+    if state.get('snapshot_only'):
+        backup = {'backup': None, 'snapshot_only': True}
+        _ru_log('no backup before the upgrade, as confirmed at the start: the VM snapshot is the only way back')
+    else:
+        backup = _ru_backup()
+        _ru_log(f"backup {backup['backup']} sha256 {backup['sha256']} uploaded to {', '.join(backup['targets'])}, test extract ok")
     _ru_mail_stop(state)
     _ru_log('maintenance: new mail gets 421, waiting for the queue')
     until = time.time() + RU_DRAIN_SECONDS
@@ -14918,7 +14934,8 @@ def release_upgrade_finish(_args):
         # Services and the clock may need some minutes after the first boot.
         time.sleep(RU_FINISH_WAIT)
     for item in found['checks']:
-        _ru_log(f"check {'ok' if item['ok'] else 'FAILED'}: {item['name']}: {item['detail']}")
+        # A check that is no condition (leftover packages kept on purpose) is a warning, not a failure.
+        _ru_log(f"check {'ok' if item['ok'] else 'FAILED' if item['required'] else 'warning'}: {item['name']}: {item['detail']}")
     if found['ok']:
         _ru_mail_start(state)
         _ru_leapp_leftovers()
@@ -14965,8 +14982,14 @@ def _update_state():
     return state
 
 
+def _version_file():
+    """The version file: /etc/eFa-next-Version, else the name of 6.0.0.5.x and older (on 6.0.0.6 a symlink to it)."""
+    new = ETC + '/eFa-next-Version'
+    return new if os.path.exists(new) else ETC + '/eFa-Version'
+
+
 def _update_installed():
-    lines = _read_lines(ETC + '/eFa-Version')
+    lines = _read_lines(_version_file())
     return lines[0] if lines else ''
 
 
@@ -14978,7 +15001,8 @@ def _update_available(state, verified_only=True):
     newer = bool(latest and installed and latest > installed)
     # A pre-release installed (eFa-6.0.0.6-alpha1) has the numbers of its release: the release itself counts as newer, a
     # pre-release of the same numbers (the testing channel) does not.
-    if latest and latest == installed and PRERELEASE_RE.search(_update_installed()) and not state.get('prerelease'):
+    # Only a release that says so: a state kept from before (a check of 6.0.0.5.x through the testing mirror) has no flag.
+    if latest and latest == installed and PRERELEASE_RE.search(_update_installed()) and state.get('prerelease') is False:
         newer = True
     # Before the packages were checked, the dashboard does not call it available.
     return newer and (not verified_only or state.get('verified') == state['latest'])
@@ -15845,6 +15869,9 @@ GRANT INSERT ON efa.delivered_iocs TO 'efa_log'@'localhost';
 EFA5_SMTPS_MARKS = ('[YOUR_API_KEY]',)
 # Set on 587 by efactl itself (sasl-apply, submission milters): never foreign, kept as they are when they hold its values.
 SUBMISSION_MANAGED = {'smtpd_sasl_auth_enable': None, 'smtpd_sasl_path': SASL_SOCKET, 'smtpd_milters': '$efa_submission_milters'}
+# MIG-587 (owner, 2026-11-12): AUTH of the eFa 5 block (Dovecot) is not taken over. eFa-next offers AUTH on 587 only for its own
+# logins (submitters) or the system accounts switched on by the admin; the dashboard says so while 587 is without AUTH.
+SUBMISSION_EFA5_AUTH = '/var/lib/eFa/submission-efa5-auth'
 
 
 def submission_problems(options, wanted):
@@ -15896,6 +15923,7 @@ def postfix_submission_heal(_args):
         return {'submission': 'eFa-next', 'unused_parameters': _postfix_unused()}
     backup = f"{master}.efa-submission-{time.strftime('%Y%m%d-%H%M%S')}.bak"
     shutil.copy2(master, backup)
+    efa5_auth = options.get('smtpd_sasl_auth_enable') == 'yes' and options.get('smtpd_sasl_type') == 'dovecot'
     if now:
         subprocess.run(['postconf', '-MX', entry[0]], check=True, capture_output=True)
     subprocess.run(['postconf', '-M', f'{entry[0]}={entry[1]}'], check=True, capture_output=True)
@@ -15912,6 +15940,11 @@ def postfix_submission_heal(_args):
     removed = ', '.join(foreign) or 'none'
     _audit(f'Postfix submission (587) of eFa 5 replaced by the one of eFa-next; removed options: {removed}'
            + ('; smtps (465) of eFa 5 with its placeholder blocklist removed' if smtps_old else '') + f'; before: {backup}')
+    if efa5_auth:
+        dovecot = _platform().service_is_active(_platform().service('sasl'))
+        _write(SUBMISSION_EFA5_AUTH, json.dumps({'at': time.strftime('%Y-%m-%d %H:%M:%S'), 'dovecot_active': dovecot, 'backup': backup}) + '\n')
+        _audit(f"SMTP AUTH on 587 of eFa 5 (Dovecot, {'running' if dovecot else 'not running'}) not taken over: 587 offers AUTH again "
+               'once submitters with a login exist or the system accounts are switched on (efactl submission-pam-set)')
     # MIG-587: afterwards nothing of main.cf is unused, above all efa_submission_restrictions (submission refers to it again).
     unused = _postfix_unused()
     return {'submission': 'replaced', 'removed_options': foreign, 'smtps_removed': smtps_old, 'backup': backup, 'unused_parameters': unused}
@@ -25128,7 +25161,7 @@ def security_txt(args):
 
 def role_notices():
     """After the update: the role addresses can now be taken per domain (nothing changed)."""
-    version = ETC + '/eFa-Version'
+    version = _version_file()
     if os.path.exists(ROLES_FILE) or not os.path.exists(version) or time.time() - os.stat(version).st_mtime > 30 * 86400:
         return []
     return [_text('New: eFa-next can take postmaster@, abuse@, security@ and the other role addresses of a domain and send them on '
@@ -28352,7 +28385,7 @@ def _uq_job(state_now, today):
 
 
 def _efa_version():
-    lines = _read_lines(ETC + '/eFa-Version')
+    lines = _read_lines(_version_file())
     return lines[0].replace('eFa-', '', 1) if lines else 'unknown'
 
 
@@ -30736,7 +30769,10 @@ COMMANDS = {
                                   'hint': 'Upgrade from AlmaLinux 9 to 10: about 30 to 60 minutes without mail (new mail gets 421 and is '
                                           'sent again later), several reboots. There is no rollback: the only way back is a VM snapshot. '
                                           'Take a snapshot first. Start only after preupgrade shows no inhibitor.'},
-                                 {'name': 'hostname', 'label': 'Host name of this system, typed to confirm the start', 'required': False}]},
+                                 {'name': 'hostname', 'label': 'Host name of this system, typed to confirm the start', 'required': False},
+                                 {'name': 'no_backup', 'label': 'Only to start without a backup: type "without backup, snapshot only"', 'required': False,
+                                  'hint': 'Empty (the default): an encrypted backup goes to every external backup target first. With the sentence the '
+                                          'start leaves the backup out: then the VM snapshot is the only way back.'}]},
     'smarthost-set': {'func': smarthost_set, 'title': 'Outbound smarthost', 'writes': True,
                       'args': [{'name': 'host', 'label': 'Host, empty sends directly', 'required': False}]},
     'message-size-set': {'func': message_size_set, 'title': 'Maximum message size', 'writes': True,
@@ -32065,6 +32101,7 @@ def self_test():
             assert _update_available({'latest': 'v6.0.0.6', 'prerelease': False, 'verified': 'v6.0.0.6'})
             assert not _update_available({'latest': 'v6.0.0.6', 'prerelease': True, 'verified': 'v6.0.0.6'})
             assert not _update_available({'latest': 'v6.0.0.5.2', 'verified': 'v6.0.0.5.2'})
+            assert not _update_available({'latest': 'v6.0.0.6', 'verified': 'v6.0.0.6'}), 'a kept state without the flag is no release'
             globals()['_update_installed'] = lambda: 'eFa-6.0.0.6'
             assert not _update_available({'latest': 'v6.0.0.6', 'prerelease': False, 'verified': 'v6.0.0.6'})
         finally:
@@ -32217,6 +32254,9 @@ def self_test():
         assert web_allow_refusal({'mode': 'allowed', 'entries': entries}, '192.0.2.9') is None and web_allow_refusal({'mode': 'all', 'entries': []}, 'x') is None
         conf = admin_allow_conf({'mode': 'allowed', 'entries': entries})
         assert 'default 0;' in conf and '    192.0.2.0/24 1;' in conf and 'portal/|q/|l/' in conf
+        assert '    127.0.0.1 1;' in conf and '    ::1 1;' in conf, 'the host itself (health check of the updater) is never refused'
+        locked_loop = admin_allow_conf({'mode': 'allowed', 'entries': entries}, portal_open=False)
+        assert '    127.0.0.1 1;' in locked_loop and '    ::1 1;' in locked_loop, 'also during the self-lockdown'
         assert 'default 1;' in admin_allow_conf({'mode': 'all', 'entries': entries}) and '192.0.2.0/24' not in admin_allow_conf({'mode': 'all', 'entries': entries})
         assert re.match(r'^0:/(?!portal/|q/|l/|\.well\-known/)', '0:/p/sec') and not re.match(r'^0:/(?!portal/|q/|l/|\.well\-known/)', '0:/portal/login')
         # Every form shows what is set now: a source for each field, or it is listed as a form for a new entry or one key.

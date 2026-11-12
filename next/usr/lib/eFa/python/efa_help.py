@@ -310,7 +310,7 @@ CARD = {
     'recipient-verification-set': 'Asks the internal mail server whether a recipient exists before mail is accepted. Mail to unknown addresses is refused at once instead of bouncing later.',
     'relay-networks-add': 'Adds networks that may send through this server without login. Only add your own servers: an open relay gets this server blocklisted.',
     'relay-networks-list': 'Networks that may send mail through this server without login, such as your internal mail server. Changes below wait here until you apply them.',
-    'release-upgrade': 'Upgrades this host from EL9 to EL10 in fixed steps: check, prepare, start. Start makes an encrypted backup first and needs your password, 2FA code and the host name. Only for super admins.',
+    'release-upgrade': 'Upgrades this host from EL9 to EL10 in fixed steps: check, prepare, start. Start makes an encrypted backup first (or none, with the typed sentence: then only the VM snapshot leads back) and needs your password, 2FA code and the host name. Only for super admins.',
     'release-upgrade-status': 'State, last check and the end of the log of the release upgrade. Read only.',
     'report-set': 'Sends the report by mail to the admin and to each tenant admin with an address: yesterday every day, the last 7 days on Mondays.',
     'report-show': 'Mail flow, threats, authentication and TLS for a period, for all or one domain. Opens as a page you can print to PDF.',
@@ -1392,6 +1392,7 @@ FIELD = {
     'release-upgrade': {
         'action': 'Do the steps in order.',
         'hostname': 'Type the host name of this system to confirm the start.',
+        'no_backup': 'Empty for the encrypted backup to the external targets (the default). Only with the sentence the start leaves it out; then the VM snapshot is the only way back.',
     },
     'report-set': {
         'daily': 'The report of yesterday every morning.',

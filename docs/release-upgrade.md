@@ -47,7 +47,10 @@ Each step is one fixed action of `efactl release-upgrade --action=<step>`; nothi
 3. **start** needs your password and 2FA code, the snapshot box and the host name typed in, and a preupgrade without inhibitor
    from the last 24 hours. Then:
    - an encrypted backup (a backup password must be set), uploaded to every external backup target, its SHA-256 compared with
-     the uploaded one and a test extract; if any of it fails, nothing else happens
+     the uploaded one and a test extract; if any of it fails, nothing else happens. Without a backup: type
+     `without backup, snapshot only` (or `ohne Backup, nur Snapshot`) into the last field (`--no_backup`); then this backup is
+     left out, the audit log names who started so and on which host, and the VM snapshot is the only way back. Every start
+     asks again; the default stays the backup. The check "Backup works" after the first EL10 boot stays.
    - maintenance mode: new mail gets `421`, mail on its way (active, incoming) drains for up to 15 minutes; deferred mail is not waited for, it stays in the queue with what is left and goes out after the upgrade
    - the state before (addresses, routes, firewall zones and ports, other nft tables such as a mail block, counts of domains,
      users and quarantine, DKIM keys, Perl packages) is kept for the checks after the upgrade

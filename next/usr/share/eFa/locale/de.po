@@ -3943,6 +3943,9 @@ msgstr "Ein VM-Snapshot dieses Hosts existiert, gerade eben erstellt"
 msgid "Host name of this system, typed to confirm the start"
 msgstr "Hostname dieses Systems, zur Bestätigung des Starts eingetippt"
 
+msgid "Only to start without a backup: type \"without backup, snapshot only\""
+msgstr "Nur für den Start ohne Sicherung: \"ohne Backup, nur Snapshot\" (oder \"without backup, snapshot only\") eintippen"
+
 msgid "Outbound smarthost"
 msgstr "Smarthost für ausgehende Mail"
 
@@ -4524,6 +4527,9 @@ msgstr "{count} erlaubte Absender aus der Migration ließen in eFa 5 Mail an jed
 
 msgid "{count} rules from the migration weaken the filter and need checking (Rules page): {names}. Change or remove them, then they leave this list."
 msgstr "{count} Regeln aus der Migration schwächen den Filter und müssen geprüft werden (Seite Regeln): {names}. Ändern oder entfernen, dann verschwinden sie aus dieser Liste."
+
+msgid "Port 587 offers no SMTP AUTH since the migration: eFa 5 had it on through Dovecot, eFa-next did not take it over. Add submitters with a login (Mail routing, Submitters) or switch on the system accounts, if programs log in on 587."
+msgstr "Port 587 bietet seit der Migration kein SMTP-AUTH an: eFa 5 hatte es über Dovecot an, eFa-next hat das nicht übernommen. Einlieferer mit Anmeldung anlegen (Mail-Routing, Einlieferer) oder die Systemkonten einschalten, wenn sich Programme auf 587 anmelden."
 
 msgid "A package update left new versions beside changed files: {files}. Compare and merge them, then remove the .rpmnew/.rpmsave file."
 msgstr "Ein Paket-Update hat neue Versionen neben geänderten Dateien abgelegt: {files}. Vergleichen und zusammenführen, dann die .rpmnew/.rpmsave-Datei entfernen."
@@ -5559,6 +5565,9 @@ msgstr "vordefiniert"
 
 msgid "No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back. About 30 to 60 minutes without mail (new mail gets 421), several reboots."
 msgstr "Kein Weg zurück: Das Upgrade auf EL10 lässt sich nicht rückgängig machen, nur ein VM-Snapshot dieses Hosts führt zurück. Etwa 30 bis 60 Minuten ohne Mail (neue Mail bekommt 421), mehrere Neustarts."
+
+msgid "Started with the sentence \"without backup, snapshot only\", no backup is made and nothing of this host is kept anywhere else: the VM snapshot is then the only way back."
+msgstr "Mit dem Satz \"ohne Backup, nur Snapshot\" gestartet, entsteht keine Sicherung und nichts von diesem Host liegt anderswo: Der Rückweg ist dann nur der VM-Snapshot."
 
 msgid "Make the passkey now"
 msgstr "Passkey jetzt erstellen"
@@ -9046,8 +9055,8 @@ msgstr "Fügt Netze hinzu, die ohne Anmeldung über diesen Server senden dürfen
 msgid "Networks that may send mail through this server without login, such as your internal mail server. Changes below wait here until you apply them."
 msgstr "Netze, die ohne Anmeldung Mail über diesen Server senden dürfen, etwa Ihr interner Mailserver. Änderungen unten warten hier, bis Sie sie übernehmen."
 
-msgid "Upgrades this host from EL9 to EL10 in fixed steps: check, prepare, start. Start makes an encrypted backup first and needs your password, 2FA code and the host name. Only for super admins."
-msgstr "Aktualisiert diesen Host in festen Schritten von EL9 auf EL10: prüfen, vorbereiten, starten. Start erstellt zuerst eine verschlüsselte Sicherung und braucht Ihr Passwort, den 2FA-Code und den Hostnamen. Nur für Super-Admins."
+msgid "Upgrades this host from EL9 to EL10 in fixed steps: check, prepare, start. Start makes an encrypted backup first (or none, with the typed sentence: then only the VM snapshot leads back) and needs your password, 2FA code and the host name. Only for super admins."
+msgstr "Aktualisiert diesen Host in festen Schritten von EL9 auf EL10: prüfen, vorbereiten, starten. Start erstellt zuerst eine verschlüsselte Sicherung (oder keine, mit dem getippten Satz: dann führt nur der VM-Snapshot zurück) und braucht Ihr Passwort, den 2FA-Code und den Hostnamen. Nur für Super-Admins."
 
 msgid "State, last check and the end of the log of the release upgrade. Read only."
 msgstr "Zustand, letzte Prüfung und Ende des Protokolls des Release-Upgrades. Nur lesend."
@@ -11058,6 +11067,9 @@ msgstr "Schritte der Reihe nach ausführen."
 
 msgid "Type the host name of this system to confirm the start."
 msgstr "Hostnamen dieses Systems eintippen, um den Start zu bestätigen."
+
+msgid "Empty for the encrypted backup to the external targets (the default). Only with the sentence the start leaves it out; then the VM snapshot is the only way back."
+msgstr "Leer für die verschlüsselte Sicherung auf die externen Ziele (Standard). Nur mit dem Satz lässt der Start sie weg; dann ist der VM-Snapshot der einzige Rückweg."
 
 msgid "The report of yesterday every morning."
 msgstr "Jeden Morgen den Bericht des Vortags."
