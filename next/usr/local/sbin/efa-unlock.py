@@ -9,6 +9,7 @@ The answer: {'state': 'unlocked' | 'locked' | 'unsupported' | 'error', 'virus': 
 import base64
 import io
 import json
+import os
 import re
 import socket
 import struct
@@ -18,8 +19,13 @@ import zipfile
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# The copy next to this program first (a checkout in CI), then the installed one.
+for _folder in ('/usr/lib/eFa/python', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'lib', 'eFa', 'python')):
+    if os.path.isdir(_folder) and _folder not in sys.path:
+        sys.path.insert(0, _folder)
+from efa_clamd import CLAMD, clamd_scan  # noqa: E402
+
 PORT = 8910
-CLAMD = '/run/clamd.scan/clamd.sock'
 MAX_ARCHIVE = 10 * 1024 * 1024
 MAX_FILES, MAX_TOTAL, MAX_RATIO = 50, 50 * 1024 * 1024, 100
 MAX_CANDIDATES, SECONDS = 10, 5
@@ -40,30 +46,6 @@ def candidates(text):
         if TOKEN_RE.match(line) and line not in found and not line.lower().startswith(('http', 'www.')):
             found.append(line)
     return found[:MAX_CANDIDATES]
-
-
-def clamd_scan(data, path=CLAMD):
-    """The name of what clamd found in data, '' when clean; OSError when clamd does not answer."""
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-        conn.settimeout(30)
-        conn.connect(path)
-        conn.sendall(b'zINSTREAM\0')
-        for start in range(0, len(data), 65536):
-            chunk = data[start:start + 65536]
-            conn.sendall(struct.pack('>I', len(chunk)) + chunk)
-        conn.sendall(struct.pack('>I', 0))
-        answer = b''
-        while not answer.endswith(b'\0'):
-            more = conn.recv(4096)
-            if not more:
-                break
-            answer += more
-    text = answer.rstrip(b'\0').decode('utf-8', 'replace')
-    if text.endswith('FOUND'):
-        return text.split(':', 1)[-1].strip()[:-6].strip() or 'unknown'
-    if not text.endswith('OK'):
-        raise OSError(f'clamd: {text[:100]}')
-    return ''
 
 
 def unlock(data, text, scan=clamd_scan, deadline=None):

@@ -4,6 +4,8 @@
 [Unit]
 Description=eFa-next DKIM provisioning API (port 8463, mutual TLS and token)
 After=network-online.target
+# Not started at all on a host without the provisioning API: without its certificate it would only start again and again.
+ConditionPathExists=/etc/eFa/dkim-api/server.crt
 
 [Service]
 Type=simple

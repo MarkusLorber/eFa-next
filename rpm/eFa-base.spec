@@ -9,12 +9,15 @@
 %global _buildhost localhost
 # The file list is explicit; do not let rpmbuild add byte-compiled files.
 %global __brp_python_bytecompile %{nil}
+# Pre-release: rpm counts 0.1.alpha1 older than the release 1 of the same version, so 6.0.0.6-1 replaces it.
+# /etc/eFa-Version gets 6.0.0.6-alpha1, which the update check and the web interface show.
+%global prerelease alpha1
 
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.5.2
-Release:        1%{?dist}
+Version:        6.0.0.6
+Release:        0.1.%{prerelease}%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -32,7 +35,11 @@ Requires:       systemd
 Requires:       postfix
 Requires:       rsyslog
 Requires:       mariadb-server
+%if 0%{?rhel} >= 10
+Requires:       valkey
+%else
 Requires:       redis
+%endif
 Requires:       rspamd
 Requires:       nginx
 Requires:       clamav
@@ -110,7 +117,7 @@ done
 # The bytecode of every module, checked by the hash of its source: the build clamps all times to SOURCE_DATE_EPOCH, so a
 # changed module of the same size kept its old bytecode by time and size, and an upgrade ran old code.
 python3 -m compileall -q -f --invalidation-mode checked-hash /usr/lib/eFa/python >/dev/null 2>&1 || :
-/usr/sbin/efa-configure --package-hook eFa-base "$mode" --package-version %{version}
+/usr/sbin/efa-configure --package-hook eFa-base "$mode" --package-version %{version}-%{prerelease}
 
 %preun
 if [ "$1" -eq 0 ]; then
@@ -132,6 +139,7 @@ fi
 /usr/lib/eFa/python/efa_monitor.py
 /usr/lib/eFa/python/efa_platform.py
 /usr/lib/eFa/python/efa_platform_el9.py
+/usr/lib/eFa/python/efa_platform_el10.py
 /usr/lib/eFa/python/efa_services.py
 %attr(0755,root,root) /usr/sbin/efa-configure
 %attr(0755,root,root) /usr/sbin/efa-monitor
@@ -148,6 +156,12 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Thu Nov 12 2026 Markus Lorber - 6.0.0.6-0.1.alpha1
+- 6.0.0.6-alpha1: pre-release of 6.0.0.6 for evaluation, not for production; see CHANGELOG.md.
+
+* Tue Nov 10 2026 Markus Lorber - 6.0.0.6-1
+- 6.0.0.6: security fixes first (web interface without sudo, restore, single sign-on, login directories); see CHANGELOG.md.
+
 * Tue Nov 10 2026 Markus Lorber - 6.0.0.5.2-1
 - 6.0.0.5.2: migration from eFa 5 (sender_access no longer read once moved), SELinux quiet without IPv6; see CHANGELOG.md.
 

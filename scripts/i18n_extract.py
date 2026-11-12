@@ -8,15 +8,19 @@
     i18n_extract.py --check    only count the translated and the missing texts
 """
 import ast
+import json
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 sys.path.insert(0, os.path.join(ROOT, 'next', 'usr', 'lib', 'eFa', 'python'))
+import efa_help  # noqa: E402
 import efa_i18n  # noqa: E402
 import efa_nav  # noqa: E402
 import efa_setup  # noqa: E402
+import efa_wizard  # noqa: E402
 
 LOCALE = os.path.join(ROOT, 'next', 'usr', 'share', 'eFa', 'locale')
 WEB = os.path.join(ROOT, 'next', 'usr', 'local', 'sbin', 'efa-web.py')
@@ -58,6 +62,26 @@ def init_texts():
     return [item for item in found if item]
 
 
+def command_texts():
+    """The texts the forms show from the command table: the card titles without their tail, the switch labels without
+    ': on or off', the texts of the choices (numbers and plain values left out), and the help texts of efa_help."""
+    schema = json.loads(subprocess.run([sys.executable, '-B', EFACTL, 'schema'], capture_output=True, text=True, check=True).stdout)
+    found = []
+    for command in schema.values():
+        found.append(efa_help.short_title(command.get('title', '')))
+        for arg in command.get('args', []):
+            label = arg.get('label', '')
+            found.append(label)
+            shown = efa_help.web_label(label, arg.get('kind'))
+            found += [shown['label'], shown['placeholder']]
+            if label.endswith(': on or off'):
+                found.append(label[:-len(': on or off')])
+            found += [item.get('text', '') for item in arg.get('choices', []) if re.search('[A-Za-z]{2}', item.get('text', ''))]
+    found += list(efa_help.CARD.values())
+    found += [text for fields in efa_help.FIELD.values() for text in fields.values()]
+    return found
+
+
 def texts():
     """The texts in the order they appear: menu, pages, commands, then the fixed texts of the templates."""
     found = []
@@ -79,9 +103,13 @@ def texts():
     # 6.0.0.5: the texts of the setup variant (setup wizard and Re-Setup) and those of the setup wizard itself.
     found += efa_setup.all_texts()
     found += init_texts()
+    found += command_texts()
+    # The guided wizards: their steps, fields and choices, and their help texts.
+    found += efa_wizard.all_texts() + [text for wizard in efa_help.WIZARD.values() for text in wizard.values()]
     seen, ordered = set(), []
     for item in found:
-        if item and item not in seen and not item.startswith(('http', '/')):
+        # A bare address or path is no text; a sentence that begins with a path is ("/etc/shadow readable by root only").
+        if item and item not in seen and not (item.startswith(('http', '/')) and ' ' not in item):
             seen.add(item)
             ordered.append(item)
     return ordered

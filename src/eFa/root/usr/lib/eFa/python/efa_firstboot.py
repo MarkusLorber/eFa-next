@@ -90,6 +90,9 @@ def cleanup_setup():
     wizard = pl.service("wizard")
     if pl.service_exists(wizard):
         pl.service_disable(wizard, stop=True)
+    # efa-web skips its start while the wizard holds port 8080 (ConditionPathExists of /run/efa-init): it starts now.
+    if pl.service_exists("efa-web.service") and pl.service_is_enabled("efa-web.service") and not pl.service_is_active("efa-web.service"):
+        pl.service_start("efa-web.service")
 
 
 def first_boot():

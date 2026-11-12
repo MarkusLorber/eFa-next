@@ -32,7 +32,9 @@ SESSION_SECONDS = 8 * 3600
 USER_COMMANDS = {'schema', 'settings', 'whoami', 'my-settings', 'my-settings-set', 'totp-status', 'totp-setup', 'totp-confirm', 'totp-disable', 'passkey-status', 'passkey-register-options', 'passkey-register', 'passkey-remove', 'graymail-status', 'graymail-mine-set', 'user-spam-status', 'user-spam-mine-set', 'uq-list', 'uq-show', 'uq-release', 'uq-request',
                  'uq-sender', 'uq-delete', 'train-request', 'audit-note', 'recall-list', 'recall-withdraw', 'emergency-list', 'emergency-show', 'emergency-file'}
 # Before a login: the password check, the links of the digests, whether SSO is on.
-OPEN_COMMANDS = {'user-verify', 'uq-link-view', 'uq-link-use', 'oidc-status', 'passkey-login-options', 'passkey-login'}
+OPEN_COMMANDS = {'user-verify', 'uq-link-view', 'uq-link-use', 'oidc-status', 'passkey-login-options', 'passkey-login', 'oidc-start', 'oidc-finish'}
+# Single sign-on through the portal is always a login of the portal: its redirect address, users of the role user only.
+PORTAL_SSO = {'oidc-start', 'oidc-finish'}
 # The portal never sets who acts: these come from the helper only.
 OWN_OPTIONS = ('--as', '--session', '--client', '--limit-tenant')
 ROLE = 'user'
@@ -151,12 +153,14 @@ def handle(request, sessions, run=efactl):
     name = args[0]
     if name == 'link-target':
         return True, link_target(args[1] if len(args) > 1 else '')
+    if name in PORTAL_SSO:
+        args = [name] + [item for item in args[1:] if not item.startswith('--portal')] + ['--portal=yes']
     if name in OPEN_COMMANDS:
         ok, answer = run(args, secrets_in, client=client)
         if not ok:
             return ok, answer
         # A login of an admin role is refused here: admins log in at the admin interface, never in the portal.
-        login = name in ('user-verify', 'passkey-login') or (name == 'uq-link-use' and answer.get('purpose') == 'login')
+        login = name in ('user-verify', 'passkey-login', 'oidc-finish') or (name == 'uq-link-use' and answer.get('purpose') == 'login')
         if login:
             if answer.get('role') != ROLE:
                 return False, {'error': 'Use the admin interface for this account.'}
@@ -214,6 +218,8 @@ def self_test():
             return True, {'username': 'a@x.example' if secrets_in == ['good'] else 'boss', 'role': 'user' if secrets_in == ['good'] else 'super'}
         if args[0] == 'uq-link-use':
             return True, {'purpose': 'login', 'username': 'b@x.example', 'role': 'user'}
+        if args[0] == 'oidc-finish':
+            return True, {'username': 'c@x.example' if '--code=good' in args else 'boss', 'role': 'user' if '--code=good' in args else 'super'}
         return True, {'active': True, 'ran': args[0]}
     sessions = Sessions()
     ok, answer = handle({'args': ['user-verify', '--username=boss'], 'secrets': ['admin']}, sessions, run)
@@ -230,6 +236,13 @@ def self_test():
     assert not handle({'args': 'uq-list', 'sid': sid}, sessions, run)[0] and not handle({'args': [], 'sid': sid}, sessions, run)[0]
     ok, answer = handle({'args': ['uq-link-use'], 'secrets': ['tok']}, sessions, run)
     assert ok and sessions.user(answer['sid']) == 'b@x.example', 'a login link of a digest opens a portal session'
+    # Single sign-on through the portal: always the portal redirect (forced, never from the portal), only the role user.
+    handle({'args': ['oidc-start', '--domain=x.example', '--portal=no'], 'sid': None}, sessions, run)
+    assert calls[-1][0] == ['oidc-start', '--domain=x.example', '--portal=yes'], calls[-1]
+    ok, answer = handle({'args': ['oidc-finish', '--code=boss', '--nonce=n', '--verifier=v'], 'sid': None}, sessions, run)
+    assert not ok and 'admin interface' in answer['error']
+    ok, answer = handle({'args': ['oidc-finish', '--code=good', '--nonce=n', '--verifier=v'], 'sid': None}, sessions, run)
+    assert ok and sessions.user(answer['sid']) == 'c@x.example' and calls[-1][0][-1] == '--portal=yes'
     handle({'args': ['session-end'], 'sid': sid}, sessions, run)
     assert sessions.user(sid) is None
     handle({'args': ['session-check', '--session=someone-else'], 'sid': answer['sid']}, sessions, run)

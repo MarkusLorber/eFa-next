@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next release upgrade to EL10: one step (preflight, preupgrade or start)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Lock, state and log are kept by efactl: /var/lib/eFa/release-upgrade/, /var/log/eFa/release-upgrade.log.
+ExecStart=/usr/sbin/efactl release-upgrade-run
+TimeoutStartSec=6h

@@ -21,9 +21,33 @@ All of them are for the super-admin only.
 
 If a `wazuh-agent` is installed and eFa-next did not install it (no `"managed": true` in `/etc/eFa/wazuh.json`),
 the page shows "Agent present, not managed by eFa-next" and only its status.
-`wazuh-config`, `wazuh-service`, `wazuh-update` and `wazuh-remove` refuse to act on it.
-eFa-next takes it over only with `efactl wazuh-config --adopt yes --confirm yes` (or the same on the web page),
-never by itself and never with an upgrade.
+`wazuh-config`, `wazuh-service`, `wazuh-update` and `wazuh-remove` refuse to act on it; the status shows what eFa-next
+finds in its `ossec.conf` (manager, port, protocol, enrollment name and groups, active response) and the command to take
+it over.
+
+Taking it over changes nothing on the agent:
+
+    efactl wazuh-config --adopt yes --confirm yes
+
+(web page: Wazuh agent: settings, take over: "Take over, change nothing", confirm: yes). eFa-next reads the settings from
+`ossec.conf` into `/etc/eFa/wazuh.json` and keeps a copy `ossec.conf.efa-<time>` beside it. `ossec.conf` stays byte for
+byte, `client.keys` too, and the agent is neither started, stopped, restarted nor enrolled: an agent that is off stays off.
+It asks for no enrollment password. The answer names the manager address first.
+
+The same take-over runs by itself, read only and with the same result, when eFa-next is upgraded, when an eFa 5 host is
+migrated (efa-migrate) and before a release upgrade to EL10 (the settings comparison of the release upgrade includes
+`ossec.conf` and `wazuh.json`). The update or migration report says "Wazuh agent taken over: manager ..., groups ...,
+active response on|off; config unchanged". If `ossec.conf` cannot be read (no client section with a manager), eFa-next
+does not take the agent over, says why, and the upgrade goes on.
+
+After the take-over, a setting changed through eFa-next writes `ossec.conf` (with a copy first) and keeps what the agent
+had: its enrollment name and groups, the other values of its enrollment, its own blocks, and its active response, which
+eFa-next turns off only when the admin sets it off. A taken-over agent is restarted only if it runs, never switched on.
+
+Giving it back removes only the block of eFa-next from `ossec.conf` (with a copy first) and the agent counts as not
+managed again; the agent keeps running as it is:
+
+    efactl wazuh-config --adopt no --confirm yes
 
 ## Install and updates
 

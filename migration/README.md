@@ -37,11 +37,45 @@
 
    Then read `report.txt` in the backup folder and send a test mail.
 
+5. Log in for the first time and set up 2FA right away, see [First login after the migration](#first-login-after-the-migration).
+
 If the installation aborts after the old system was removed, continue like this:
 
 ```bash
 ./efa-migrate --resume /root/efa-migration-TIMESTAMP
 ```
+
+## First login after the migration
+
+1. Open `https://<host name>/login`, leave the **user name empty** and enter the web admin password (shown once at the end
+   of the run, also in `web-admin-password` in the backup folder). This is the main admin of eFa-next.
+2. **Set up 2FA right away:** *My account* (top right), section *Two-factor login (2FA)*: *2FA: set up the app* (scan the
+   QR code with an authenticator app), then *2FA: switch on with the first code*. Until then the main admin logs in with the
+   password alone, and the dashboard warns. Or on the console, as root:
+
+   ```bash
+   efactl totp-setup --qr
+   efactl totp-confirm --code=123456
+   efactl totp-status
+   ```
+
+   `totp-setup --qr` shows the QR code in the terminal; `--code` is the code the app shows then (here `123456` stands for
+   it). The secret, the QR code and the ten recovery codes that `totp-confirm` shows are secret: never take a screenshot,
+   never post or mail them; keep the recovery codes offline. A new web admin password on the console: `efactl
+   admin-password` (asked twice); in the web interface: *My account*, *My account: password*.
+
+   On the console: the console admin over SSH (the sudo user of the setup, or any other admin with sudo) has its own 2FA,
+   separate from the main admin. Each admin sets up their own, logged in as themselves:
+
+   ```bash
+   sudo efactl console-2fa-enroll                 # the key and the otpauth link for the app
+   sudo efactl console-2fa-enroll --code 123456   # the first code; shows the ten recovery codes once
+   ```
+
+   Lost phone: a recovery code, or on the local console `efactl user-2fa-reset --username @admin`. More in
+   [docs/two-factor.md](../docs/two-factor.md).
+3. **Every other admin gets an own user** with an own user name, password and own 2FA (*Users*), never the login of the main
+   admin. The users of MailWatch are not carried over.
 
 ## What is carried over
 
@@ -65,11 +99,13 @@ If the installation aborts after the old system was removed, continue like this:
 ## What is not carried over
 
 - Spam thresholds: rspamd scores differently from SpamAssassin
-- MailWatch users: there is only one web admin now
+- MailWatch users: there is only one web admin now, the main admin with an empty user name; see
+  [First login after the migration](#first-login-after-the-migration)
+- 2FA: there was none in eFa 5, so none is set up after the migration
 - Trusted networks, Bayes data, sqlgrey history
 - Custom rules under `/etc/MailScanner/conf.d`: they are named in the report and kept in the backup
 - Mail from the old quarantine: it is kept in the backup but cannot be released
-- Let's Encrypt for nginx: run `efactl letsencrypt-set` afterwards
+- Let's Encrypt: a valid certificate of the host is taken over as it is (same key, a TLSA record stays right); if it is not valid, run `efactl letsencrypt-set` afterwards
 
 ## Backup
 

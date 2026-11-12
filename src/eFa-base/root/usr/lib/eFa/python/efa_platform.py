@@ -160,8 +160,9 @@ class Platform:
         """Pending security updates: [{'package', 'severity', 'ids'}], ids are CVE or advisory names. Reads only."""
         raise NotImplementedError
 
-    def listening(self):
-        """Sockets that listen: [{'proto', 'address', 'port', 'process', 'package'}]. Reads only."""
+    def listening(self, with_packages=True):
+        """Sockets that listen: [{'proto', 'address', 'port', 'process', 'package', 'unit'}]; unit is the service of the process
+        ("" when there is none). with_packages=False leaves out the package (one rpm call per program). Reads only."""
         raise NotImplementedError
 
     def oval_source(self):
@@ -195,8 +196,74 @@ class Platform:
         """Running processes per group: groups maps a label to process names or command line words. {label: count}."""
         raise NotImplementedError
 
+    def tcp_counters(self):
+        """6.0.0.6 attack alert: the TCP counters of the kernel since boot (they only grow): SyncookiesSent, ListenDrops,
+        ListenOverflows, PassiveOpens. A counter the system does not have is left out."""
+        raise NotImplementedError
+
+    def memory_used_percent(self):
+        """Share of the memory in use, what the system could not give a new process without swapping (0 to 100)."""
+        raise NotImplementedError
+
     def package_verify(self, path):
         """What the package manager says of a file against its package (rpm -V on EL9): '' when unchanged. Reads only."""
+        raise NotImplementedError
+
+    def map_type(self):
+        """The type of new Postfix lookup tables (hash on EL9, lmdb on EL10): what this Postfix uses, else the platform default."""
+        raise NotImplementedError
+
+    def release_facts(self, avc_since=("boot",)):
+        """Read only: what the release upgrade checks before and after (efa_release_upgrade): OS, CPU, disks, network,
+        firewall, other nft tables, packages, SELinux and its denials since avc_since (ausearch -ts words), time, active units."""
+        raise NotImplementedError
+
+    def release_key_fingerprints(self, key_path):
+        """The fingerprints in a key file, without importing it."""
+        raise NotImplementedError
+
+    def release_signature(self, path, key_path):
+        """The key imported, then (the signature check of the package manager, the signature of the package)."""
+        raise NotImplementedError
+
+    def release_prepare(self, release_rpm, packages):
+        """Install the upgrade tool: a checked local release package (or None) and packages. (ok, last lines of the output)."""
+        raise NotImplementedError
+
+    def release_cleanup(self, packages):
+        """After the upgrade: remove the upgrade tool and its repository package. (ok, last lines of the output)."""
+        raise NotImplementedError
+
+    def release_enforce(self):
+        """The mandatory access control enforcing again after the upgrade; its mode now."""
+        raise NotImplementedError
+
+    def release_recover_script(self, log, finish_mark, repo_dir, motd, efactl="/usr/sbin/efactl", os_release="/etc/os-release"):
+        """A shell script for the first boot after the release upgrade: eFa-next back from repo_dir when efactl is missing."""
+        raise NotImplementedError
+
+    def release_package_unchanged(self, paths):
+        """The paths that are unchanged files of an installed package."""
+        raise NotImplementedError
+
+    def release_leapp_busy(self):
+        """Whether the upgrade tool still runs its own phase after the reboot."""
+        raise NotImplementedError
+
+    def release_service_states(self, names, prefix):
+        """{service: (type, active state)} of the enabled services among names or starting with prefix."""
+        raise NotImplementedError
+
+    def release_leftover_facts(self, names):
+        """({name: [installed packages that need it]}, set of the names the admin installed) for installed package names."""
+        raise NotImplementedError
+
+    def release_remove_packages(self, names):
+        """Removes exactly these packages, nothing that depends on them and no dependency of theirs. (ok, last lines)."""
+        raise NotImplementedError
+
+    def release_leapp(self, args, log_path):
+        """Run the upgrade tool with these fixed arguments, its output appended to log_path. The exit code."""
         raise NotImplementedError
 
     def journal_window(self, since, until, idents):
@@ -312,8 +379,12 @@ class Platform:
         tuple (address, prefix, gateway or '')."""
         raise NotImplementedError
 
-    def use_local_resolver(self):
-        """Point the system resolver at 127.0.0.1. True if changed."""
+    def use_local_resolver(self, secondary=None):
+        """Point the system resolver at 127.0.0.1, then secondary if given. True if changed."""
+        raise NotImplementedError
+
+    def firewall_rich_rule(self, rule, add):
+        """Add (or remove) a rich rule in every active zone, at runtime and permanent, without a reload."""
         raise NotImplementedError
 
     def has_default_route(self):
@@ -369,5 +440,8 @@ def detect():
     if major == "9" and ({"rhel", "centos", "fedora"} & set(ids)):
         import efa_platform_el9
         return efa_platform_el9.EL9()
+    if major == "10" and ({"rhel", "centos", "fedora"} & set(ids)):
+        import efa_platform_el10
+        return efa_platform_el10.EL10()
     raise efa_common.StepError("unsupported operating system: %s %s"
                                % (osrel.get("ID", "?"), osrel.get("VERSION_ID", "?")))

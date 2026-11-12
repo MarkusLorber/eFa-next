@@ -73,8 +73,21 @@ def _render_all(web, view):
     pages = {}
     for slug in web.PAGES:
         web.session_checked[sid] = time.time()
-        pages[slug] = client.get('/' if slug == 'dash' else f'/p/{slug}', **https).get_data(as_text=True)
+        reply = client.get('/' if slug == 'dash' else f'/p/{slug}', **https)
+        if reply.status_code != 200:
+            # A page that did not render (right after an update a read can break off) is not a difference of the views:
+            # asked once more, named in the output, and a second failure counts on its own.
+            print(f'STANDARD VIEW CHECK: {view} /{slug} did not render at {time.strftime("%Y-%m-%d %H:%M:%S")}: status {reply.status_code}, '
+                  f'body {reply.get_data(as_text=True)[:500]!r}; asked again (a product fault: see the journal of efa-web and efactl-runner)')
+            time.sleep(2)
+            web.session_checked[sid] = time.time()
+            reply = client.get('/' if slug == 'dash' else f'/p/{slug}', **https)
+        RENDER_STATUS[(view, slug)] = reply.status_code
+        pages[slug] = reply.get_data(as_text=True)
     return pages
+
+
+RENDER_STATUS = {}
 
 
 def check_standard(web):
@@ -89,8 +102,10 @@ def check_standard(web):
         for slug, html in pages.items():
             html = re.sub(r'<input type="hidden" name="csrf" value="[^"]*">', '', html)
             pages[slug] = re.sub(r'<p class="h expert-note">.*?</p>', '', html, flags=re.S)
-    broken = []
+    broken = [f'{slug}: status {code} in the {view} view' for (view, slug), code in sorted(RENDER_STATUS.items()) if code != 200]
     for slug, html in standard.items():
+        if RENDER_STATUS.get(('standard', slug)) != 200 or RENDER_STATUS.get(('expert', slug)) != 200:
+            continue
         cards_expert = dict(card.findall(expert[slug]))
         for name, body in card.findall(html):
             if '<form' not in body and '<button' not in body and 'warnbox' not in body and name not in web.WARNING_CARDS | web.DAILY_LISTS:
@@ -100,9 +115,17 @@ def check_standard(web):
             other_form = other[other.find('<form'):] if '<form' in other else ''
             if form and sorted(values.findall(form)) != sorted(values.findall(other_form)):
                 broken.append(f'{slug}/{name}: other values than in the expert view')
-        tiles = re.findall(r'<div class="tiles">.*?</div>\s*</div>', html, re.S)
-        if tiles != re.findall(r'<div class="tiles">.*?</div>\s*</div>', expert[slug], re.S):
-            broken.append(f'{slug}: tiles differ from the expert view')
+        # Counters (mails today, queues, processes, times) move between the two renders: they are masked, the tiles, their
+        # titles, states and notices are compared as they are.
+        masked = lambda text: re.sub(r'\d+(?:[.:,]\d+)*', '#', text)
+        # The block of the tiles: from its start to the next card (a closing pattern of divs depends on the last tile).
+        block = lambda text: text[text.find('<div class="tiles">'):text.find('<div class="card', text.find('<div class="tiles">'))] \
+            if '<div class="tiles">' in text else ''
+        tiles, other_tiles = [masked(block(html))], [masked(block(expert[slug]))]
+        if tiles != other_tiles:
+            a, b = ''.join(tiles), ''.join(other_tiles)
+            at = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+            broken.append(f'{slug}: tiles differ from the expert view: {a[max(0, at - 60):at + 60]!r} / {b[max(0, at - 60):at + 60]!r}')
         if html.count('Unknown') > expert[slug].count('Unknown'):
             broken.append(f'{slug}: Unknown in the standard view')
     return broken

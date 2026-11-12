@@ -73,7 +73,32 @@ def step_uq_refresh():
     c.run([P("efa_sbin") + "/efactl", "uq-set", "--mode=on"])
 
 
-EFA_STEPS = {"time-sync": step_time_sync, "wizard-access": step_wizard_access, "uq-refresh": step_uq_refresh}
+WAZUH_OSSEC = "/var/ossec/etc/ossec.conf"
+WAZUH_SETTINGS = "/etc/eFa/wazuh.json"
+
+
+def step_wazuh_take_over():
+    """Upgrade: a Wazuh agent installed before (by someone else) is taken over as it is; efactl reads its ossec.conf and changes
+    nothing on the agent. Never fails the upgrade: what efactl could not do it says, and the agent stays untouched."""
+    # Only where there is an agent that eFa-next does not manage yet: every other upgrade calls nothing.
+    if not c.read_text(WAZUH_OSSEC, ""):
+        return
+    try:
+        if json.loads(c.read_text(WAZUH_SETTINGS, "") or "{}").get("managed") is True:
+            return
+    except ValueError:
+        pass
+    done = c.run([P("efa_sbin") + "/efactl", "wazuh-take-over"], check=False)
+    try:
+        report = json.loads(done.stdout or "{}").get("report", "")
+    except ValueError:
+        report = "Wazuh agent: efactl wazuh-take-over gave no answer: " + (done.stderr or "")[-200:]
+    if report:
+        c.info(report)
+
+
+EFA_STEPS = {"time-sync": step_time_sync, "wizard-access": step_wizard_access, "uq-refresh": step_uq_refresh,
+             "wazuh-take-over": step_wazuh_take_over}
 
 
 def plan(package, mode):
@@ -81,7 +106,7 @@ def plan(package, mode):
     if package == "eFa-base":
         order = s.INSTALL_ORDER if mode == "first-install" else s.UPGRADE_ORDER
         return s.INSTALL_STEPS, order
-    return EFA_STEPS, (["time-sync", "wizard-access"] if mode == "first-install" else ["uq-refresh"])
+    return EFA_STEPS, (["time-sync", "wizard-access"] if mode == "first-install" else ["uq-refresh", "wazuh-take-over"])
 
 
 def state_path(package):
@@ -121,6 +146,9 @@ def after_change(package):
     configured = c.read_kv(P("efa_config")).get("CONFIGURED") == "YES"
     for timer in timers:
         pl.service_enable(timer, start=True)
+    # Runs only after a reboot of update-system (ConditionPathExists of its mark): enabled on every host, never started here.
+    if pl.service_exists("efa-post-boot.service"):
+        pl.service_enable("efa-post-boot.service")
     if package == "eFa" and pl.service_exists(pl.service("setup_reboot")):
         pl.service_enable(pl.service("setup_reboot"), start=True)
     for unit in services:

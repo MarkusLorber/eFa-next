@@ -43,6 +43,61 @@ Joining takes a snapshot of the master once. After that the node follows the jou
 - The rule parts of `main.cf` and the eFa-next services in `master.cf`.
 - The content rules (`/etc/efa-web/content.json`), the users, groups, roles and scoped settings.
 - Bans of Fail2Ban, in both directions. Protected networks are never banned.
+- The sending limits (A1, 8g): every half minute each node reports to the master how many recipients and which target domains
+  each sender, sender domain and tenant had in the running hour, and takes the counts of all other nodes back into its Redis.
+  A sender whose mail is spread over the nodes is counted as one: the limit holds for the cluster, at most half a minute late.
+  A target domain reached through two nodes counts once (up to 150 target domains per sender and node are sent by name). A
+  report older than two minutes no longer counts; while the master is not reached, each node counts only its own mail, as
+  without a cluster. Which senders are held stays per node: each node holds a sender over the limit when it next sends there.
+
+## Downloads only on the master (6.0.0.6)
+
+Download-only data is fetched by the master alone; the nodes never download it themselves. In 6.0.0.6 this covers the
+ClamAV signatures of Sanesecurity, URLhaus, InterServer and SecuriteInfo (the job of the Sanesecurity signatures).
+
+- **Master:** the job runs as on a single host (with the limits of the SecuriteInfo tier). After each round it lists the files
+  with size and SHA-256 in `/var/lib/eFa/cluster-manifest.json` (root, 0600) and, when something changed, writes one entry
+  into the cluster journal. The manifest has file names, sizes and hashes only: no address, no account ID, no key.
+- **Transfer:** a node takes the entry within half a minute and fetches the files it lacks from the master over the cluster
+  port with mutual TLS (`GET /v1/manifest`, `GET /v1/file?kind=clamav&name=...`). The master serves only names of its current
+  manifest, plain names in the signature folder, regular files and no links; other requests and members without a
+  certificate of the cluster are refused. After its start a node asks once for what it lacks.
+- **Node:** a file is swapped in only when its size and SHA-256 match the manifest and clamscan loads it; it is written next
+  to the others and replaced atomically, then clamd reloads. A failed file keeps the old one. Files the master no longer
+  lists go. The page says "Signatures from the master, last received <time>", or "waiting for the master" until the first
+  complete transfer; the dashboard names a node that waits or whose last transfer failed. The download settings of
+  SecuriteInfo (tier, URLs, account ID) are set on the master only.
+- **Also from the master:** the RDAP list of IANA (BEC, young domains), the lookalike domains of crt.sh (only the master asks
+  crt.sh for the own names), the exploited list of EUVD (CVE watch) and the threat feeds (the four rspamd maps). A map is
+  checked line by line, a JSON file must load; the files are replaced atomically and rspamd reads them as on the master.
+  The cards of a node say "From the master, last received <time>" or "waiting for the master". OVAL and the signed CVE feed
+  of eFa-next stay on each host.
+- **IP blocklists:** only the master fetches the feeds. A node gets the lists (public addresses and networks only, checked
+  line by line) and loads them into its own table `efa_block` in one nft transaction, as the master does; the firewall
+  itself stays on each host and is never reloaded. If nft refuses, the loaded lists stay.
+- **Official ClamAV databases:** while the master answers, a node stops and disables freshclam (marked in
+  `/var/lib/eFa/freshclam-off-in-cluster`) and gets `main`, `daily` and `bytecode` (`.cvd`/`.cld`) from the master, each
+  checked by clamscan before it is swapped in; clamd reloads as before. The master tells the nodes within half a minute
+  after freshclam changed a file. An official database is removed on a node only when the master has it in its other form.
+  In fallback, after leaving the cluster or as master, freshclam runs again, but only if eFa-next had turned it off.
+  Transfers run on their own, so the poll of the journal goes on; a failed one is tried again every ten minutes.
+- **Master out of reach:** after a grace time per source (`SYNC_SOURCES` in efactl: twice the interval, at least two hours)
+  a node downloads the public sources itself, with the same code and the same checks as the master, and the dashboard says
+  "Master not reachable since <time>: this node downloads the public sources itself". Never SecuriteInfo or threat feeds of
+  kind STIX or MISP (they may need a key): their last files stay. Once the master answers again the node stops, takes the
+  files of the master at once and notes it in the audit log, as it noted the start.
+- **Lookalike alerts once:** while the master answers, only the master asks crt.sh and mails the admins. A node in fallback
+  notes what it finds (with the time) and shows it on its dashboard, but sends nothing. After a day without the master the
+  first node of the list the master last handed on (`/v1/manifest`) sends the alerts alone; the nodes cannot reach each
+  other (each knows only the certificate of the master), so if that node is down too the findings stay on the dashboards.
+  Back with the master, a node hands its findings to it (`POST /v1/lookalike`); the master keeps them and alerts once per
+  domain, only for domains it did not know and no node had sent.
+  Timeline of a master outage: for the first two days (the grace time of crt.sh) no node asks crt.sh, so there are no new
+  findings and no mail; the lookalike map of the master stays in use. From then on the nodes ask crt.sh themselves and show
+  new findings on their dashboards; the first warning mail comes from the first node of the list, so about two days after
+  the master went away.
+- **Keys:** the API keys of threat feeds stay on the master too: `feed-set` goes into the journal without them, and the
+  upgrade removes them from older journal entries and from the nodes.
 
 ## What stays on each host
 
@@ -64,7 +119,7 @@ The node applies it after each snapshot and after each change of the content set
 
 ## When the master is gone
 
-The nodes go on filtering with the last settings; each one shows "Cluster master … not reachable since …" on its dashboard. No node
+The nodes go on filtering with the last settings and count sending limits on their own; each one shows "Cluster master … not reachable since …" on its dashboard. No node
 takes over by itself: with two nodes, both would become master. When the master is gone for good:
 
 1. On one node: `efactl cluster-promote --confirm yes`. It checks three times that the old master does not answer, keeps its old
@@ -99,3 +154,10 @@ encrypted with AES-256-GCM on the master, no shared secret. Details in [security
 
 The master goes one step on with its hourly update job. Off by default.
 
+## Limits
+
+Held mail and the mail queue stay on the node that took the mail; nothing is copied between nodes. For admins the master shows
+and acts on them (`cluster-quarantine`, `cluster-queue`, `cluster-mail-action`). The user portal and the daily digest only know
+the held mail of their own node: a user with held mail on two nodes gets two digests, and the portal shows only the mail of the
+node it runs on. While a node is down, its held mail waits there until the node is back. A quarantine shared by all nodes follows
+in 6.0.0.7.

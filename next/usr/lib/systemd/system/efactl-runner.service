@@ -17,7 +17,7 @@ RuntimeDirectory=efactl-runner
 RuntimeDirectoryMode=0755
 # A restart, as by a package update, must not end a call that is still running.
 KillMode=process
-# No sandbox: efactl runs here with the same rights as under the sudo rule of efa-web.
+# No sandbox: efactl runs here as root, as it does on the console (docs/security-model.md).
 
 [Install]
 WantedBy=multi-user.target

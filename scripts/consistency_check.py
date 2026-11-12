@@ -42,6 +42,8 @@ for name, cmd in COMMANDS.items():
 problems += [f'FORM_NEW/FORM_KEYED and FORM_SOURCE: {name}' for name in sorted((nav.FORM_NEW | nav.FORM_KEYED) & set(nav.FORM_SOURCE))]
 problems += [f'FORM_NEW/FORM_KEYED, no command: {name}' for name in sorted((nav.FORM_NEW | nav.FORM_KEYED) - set(COMMANDS))]
 problems += [f'FORM_SOURCE, no command: {name}' for name in sorted(set(nav.FORM_SOURCE) - set(COMMANDS))]
+problems += nav.optional_source_problems(nav.FORM_SOURCE, lambda name: COMMANDS[name]['args'] if name in COMMANDS else [],
+                                        getattr(efactl, 'ARG_CHOICES', {}))
 for (name, arg), _choices in getattr(efactl, 'ARG_CHOICES', {}).items():
     if name not in COMMANDS or arg not in [item['name'] for item in COMMANDS[name]['args']]:
         problems.append(f'ARG_CHOICES without a command argument: {name} {arg}')

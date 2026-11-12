@@ -11,10 +11,13 @@ Type=simple
 User=efa-mail
 Group=efa-mail
 # Reads the settings of root:efa-web 0640; as its own user it gets no root efactl through efactl-runner.
-SupplementaryGroups=efa-web
+# virusgroup: the socket of clamd, to cut a virus of an allowed sender out (MIG-ALLOW).
+SupplementaryGroups=efa-web virusgroup
 StateDirectory=efa-cdr
 StateDirectoryMode=0700
 ExecStart=/usr/bin/python3 /usr/local/sbin/efa-cdr.py
+# M1-1: the ARC keys, to seal a mail again after a change (efactl writes the folder; the setup makes it, empty).
+LoadCredential=arc-seal:/etc/eFa/arc-seal
 Restart=always
 RestartSec=5
 ProtectSystem=strict

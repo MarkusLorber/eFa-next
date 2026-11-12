@@ -38,6 +38,7 @@ for _folder in ('/usr/lib/eFa/python', os.path.join(os.path.dirname(os.path.absp
     if os.path.isdir(_folder) and _folder not in sys.path:
         sys.path.insert(0, _folder)
 import efa_disclaimer  # noqa: E402
+import efa_redis  # noqa: E402
 import efa_mime  # noqa: E402
 import efa_pdf  # noqa: E402
 import efa_crypto  # noqa: E402
@@ -467,12 +468,58 @@ def encrypted_mail(message, password, agreed, keyword):
     return new
 
 
-class RateWatch:
-    """Recipients and target domains per sender (login or address of the client) in the running hour."""
-    # shortcut: counts live in memory and start again with each hour and each restart; keep them in redis for several nodes (9).
+redis_call = efa_redis.call
 
-    def __init__(self):
-        self.lock, self.windows = threading.Lock(), {}
+
+class RedisCounts:
+    """A1: the counts of RateWatch in Redis, so a restart of the service does not start them again. One key pair per sender and
+    hour, gone after two hours.
+
+    8g: on a cluster the limits hold for all nodes together. Each node lists its keys of the hour in the hash efa:rate:own:<hour>;
+    efa-cluster reports them to the master every half minute and writes what the other nodes counted into :pr (recipients) and
+    :pd (target domains) of the same key. A count here is the own one plus that of the others, at most half a minute old."""
+    PREFIX = 'efa:rate:'
+    TTL = 7200
+
+    def __init__(self, call=redis_call):
+        self.call = call
+
+    def count(self, key, recipients, domains):
+        """(recipients, target domains) of this key in this hour, these included; key ends in :<hour>."""
+        base = self.PREFIX + key
+        own = self.PREFIX + 'own:' + key.rsplit(':', 1)[1]
+        commands = [('INCRBY', base + ':r', recipients), ('EXPIRE', base + ':r', self.TTL),
+                    ('HINCRBY', own, key.rsplit(':', 1)[0], recipients), ('EXPIRE', own, self.TTL)]
+        if domains:
+            commands += [('SADD', base + ':d', *sorted(domains)), ('EXPIRE', base + ':d', self.TTL)]
+        # The union of the own and the others' target domains: one domain reached from two nodes counts once.
+        commands += [('GET', base + ':pr'), ('SUNIONSTORE', base + ':u', base + ':d', base + ':pd'), ('EXPIRE', base + ':u', 60)]
+        answers = self.call(commands)
+        return answers[0] + int(answers[-3] or 0), answers[-2]
+
+    def once(self, key):
+        """True the first time for this key (SET NX): one notice per sender and hour, also after a restart."""
+        return self.call([('SET', self.PREFIX + key + ':told', 1, 'NX', 'EX', self.TTL)])[0] == 'OK'
+
+
+class RateWatch:
+    """Recipients and target domains per sender (login or address of the client) in the running hour. With a store (Redis) the
+    counts survive a restart; when the store does not answer they are kept in memory as before, so the limits still hold."""
+    # 8g: on a cluster the store holds the counts of the other nodes too (see RedisCounts); without the store, or while the
+    # master does not answer, each node counts only its own mail.
+
+    def __init__(self, store=None):
+        self.lock, self.windows, self.store = threading.Lock(), {}, store
+
+    def _stored(self, key, recipients, now):
+        """(recipients, domains) from the store, None when there is none or it does not answer."""
+        if self.store is None:
+            return None
+        try:
+            return self.store.count(f'{key}:{int(now // 3600)}', len(recipients), {rcpt.rpartition('@')[2] for rcpt in recipients})
+        except (OSError, ValueError) as err:
+            syslog.syslog(syslog.LOG_WARNING, f'efa-outbound: sending counts in memory, Redis: {err}')
+            return None
 
     def add(self, who, recipients, limits, now=None, domain='', tenant=''):
         """Counts the mail, and names the limit it goes over: 'recipients', 'domains', 'sender-domain', 'tenant' or None.
@@ -484,6 +531,11 @@ class RateWatch:
                                      ('tenant:' + tenant, limits.get('tenant_recipients_hour'), 'tenant')):
                 if not limit or key.endswith(':'):
                     continue
+                stored = self._stored(key, recipients, now)
+                if stored is not None:
+                    if stored[0] > limit and over is None:
+                        over = name
+                    continue
                 window = self.windows.get(key)
                 if window is None or now - window['start'] >= 3600:
                     window = self.windows[key] = {'start': now, 'recipients': 0, 'domains': set(), 'told': False}
@@ -492,6 +544,13 @@ class RateWatch:
                     over = name
             if over:
                 return over
+            stored = self._stored('who:' + who, recipients, now)
+            if stored is not None:
+                if limits.get('recipients_hour') and stored[0] > limits['recipients_hour']:
+                    return 'recipients'
+                if limits.get('domains_hour') and stored[1] > limits['domains_hour']:
+                    return 'domains'
+                return None
             window = self.windows.get(who)
             if window is None or now - window['start'] >= 3600:
                 window = self.windows[who] = {'start': now, 'recipients': 0, 'domains': set(), 'told': False}
@@ -507,6 +566,11 @@ class RateWatch:
 
     def first_time(self, who):
         """True once per sender and hour: the notices go out only once."""
+        if self.store is not None:
+            try:
+                return self.store.once(f'who:{who}:{int(time.time() // 3600)}')
+            except (OSError, ValueError):
+                pass
         with self.lock:
             window = self.windows.get(who)
             if window is None or window['told']:
@@ -810,7 +874,7 @@ def run_milter():
                 syslog.syslog(syslog.LOG_ERR, f'efa-outbound left unchanged {queue_id}: {err}')
             return Milter.ACCEPT
 
-    watch = RateWatch()
+    watch = RateWatch(RedisCounts())
     Outbound.watch = watch
     Outbound.held = HeldSenders()
     Milter.factory = Outbound
@@ -942,6 +1006,31 @@ def self_test():
     assert watch.add('anna', ['d@z.example'], limits, 20) == 'domains' and watch.add('bert', ['a@x.example'] * 6, limits, 20) == 'recipients'
     assert watch.add('anna', ['d@z.example'], limits, 3700) is None, 'a new hour'
     assert watch.first_time('bert') and not watch.first_time('bert') and not watch.first_time('nobody')
+    # A1: with a store the counts survive a new RateWatch (a restart); a store that does not answer falls back to memory.
+    fake = efa_redis.Memory()
+    limits = {'recipients_hour': 5, 'domains_hour': 2}
+    assert RateWatch(RedisCounts(fake)).add('anna', ['a@x.example', 'b@x.example', 'c@y.example'], limits, 7200) is None
+    assert RateWatch(RedisCounts(fake)).add('anna', ['d@x.example'] * 3, limits, 7300) == 'recipients', 'counted over a restart'
+    assert RateWatch(RedisCounts(fake)).add('anna', ['e@z.example'], limits, 7400) == 'recipients'
+    assert RateWatch(RedisCounts(fake)).add('anna', ['e@z.example'], limits, 10900) is None, 'a new hour'
+    assert RateWatch(RedisCounts(fake)).add('bert', ['a@x.example', 'b@y.example', 'c@z.example'], limits, 7200) == 'domains'
+    assert RedisCounts(fake).once('who:bert:2') and not RedisCounts(fake).once('who:bert:2')
+
+    # 8g: what efa-cluster wrote for the other nodes counts too, and a domain reached from both nodes once.
+    fake = efa_redis.Memory()
+    fake([('SET', 'efa:rate:who:carl:3:pr', 3), ('SADD', 'efa:rate:who:carl:3:pd', 'x.example', 'q.example')])
+    assert RateWatch(RedisCounts(fake)).add('carl', ['a@x.example'], limits, 3 * 3600 + 5) is None, 'x.example from both nodes: 2 domains'
+    assert RateWatch(RedisCounts(fake)).add('carl', ['a@r.example'], limits, 3 * 3600 + 6) == 'domains'
+    assert fake([('HGETALL', 'efa:rate:own:3'), ('GET', 'efa:rate:who:carl:3:r')]) == [['who:carl', '2'], '2'], 'own count stays own'
+    assert RateWatch(RedisCounts(fake)).add('dora', ['a@x.example'], {'recipients_hour': 5}, 3 * 3600 + 5) is None
+    fake([('SET', 'efa:rate:who:dora:3:pr', 5)])
+    assert RateWatch(RedisCounts(fake)).add('dora', ['b@x.example'], {'recipients_hour': 6}, 3 * 3600 + 6) == 'recipients', '1 + 1 + 5 others'
+
+    def down(_commands):
+        raise OSError('connection refused')
+    gone = RateWatch(RedisCounts(down))
+    assert gone.add('anna', ['a@x.example'] * 6, limits, 0) == 'recipients', 'Redis down: counted in memory'
+    assert gone.first_time('anna') and not gone.first_time('anna')
     assert 'too many target domains' in limit_text('anna', 'domains', 'hold')
     message = email.message.EmailMessage()
     message['From'], message['To'], message['Subject'] = 'anna@own.example', 'b@y.example', 'offer'

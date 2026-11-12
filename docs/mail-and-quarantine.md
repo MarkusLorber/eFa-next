@@ -29,7 +29,10 @@ On a phone each mail is one block:
 
 ## Quarantine
 
-Spam held back in the mail queue: deliver, headers, text, delete.
+Spam held back in the mail queue: deliver, headers, text, delete. Deliver and Headers show on the row under the mouse (or
+the keyboard focus), all actions are in the menu "…" of the row. Tick rows to deliver or delete them at once, or to block
+their senders; every bulk action asks first in a small dialog. A click on the sender opens its menu (see *Sender menu*
+below). The quarantine of the mail queue stores no client IP, so only the address and its domain have a menu there.
 
 ![Quarantine](images/quar.png)
 
@@ -39,9 +42,51 @@ Search all mail by sender, recipient, subject, result, date and the header field
 
 ![Mail log](images/log.png)
 
-*Live log* shows new mail as it comes, with filters. A click on a row shows its details.
+The search field also takes filters: `from:a@example.com`, `domain:example.com` (the sender or a recipient),
+`ip:192.0.2.1` (the sending server, exactly) and `result:reject` (`no_action` for no action); *Domain* and *IP address*
+are fields of their own too. The table uses the full width of the window: the time as its age (the exact time when the
+mouse is on it), the result and SPF, DKIM and DMARC as coloured badges, queue ID and IP in a fixed-width font, long
+senders, recipients and subjects shortened with the full text in the tooltip. Below 900 pixels each mail is a card.
+A click on a row opens its details at the side, with the raw values under a fold and a link to the full details.
+
+The search stands in the address of the page after a `#` (for example `…/p/log#q=domain:example.com`), so it can be
+bookmarked or sent to a colleague. The part after `#` never goes to the server and is in no log; the search itself is
+posted as before.
+
+*Live log* shows new mail as it comes, with filters, in the same look; it adds no polling of its own (every 5 seconds,
+as before, and only while it is open). A click on a row opens its details at the side.
 
 ![Live log](images/live-log.png)
+
+### Sender menu: allow, block, search all mails
+
+In the mail log, the live log and the quarantine a click on the sender, or on the IP address, opens a small menu at it
+(Enter opens it, the arrow keys move, Esc closes it). For an address it offers the address and its domain:
+
+- **Allow** puts the entry on the allow list, **Block** on the block list, through the same commands as the page
+  *Sender lists* (`sender-add`; an IP to block goes into the first own list of *IP blocklists* that is on, through
+  `blocklist-entry`). No new list is made.
+- Before anything changes, a dialog shows the exact entry and its target. It warns when the entry clashes with one on the
+  other list, when the domain is one of the own domains of this server (a faked sender of it would get the same
+  treatment), and when an IP is private or reserved, a relay network, a cluster node or an own address. With a warning
+  the change needs the confirmation in the dialog; addresses that are never blocked (relay networks, allowed admins,
+  cluster nodes, own addresses) are refused for the block list in any case.
+- A super admin writes the global lists and the IP blocklist. A tenant or domain admin gets a rule for one of its own
+  domains among the recipients of the mail (as `sender-rule-set`), never a global entry and never an IP; mail to other
+  domains is refused.
+- Right after, a message with **Undo** takes out exactly the entry that was added. The lists stay on *Sender lists* and
+  *IP blocklists* as before.
+- Every action goes into the audit log: who, when, the entry, the list, add or undo, the queue ID of the mail it came
+  from, and the warnings that were confirmed.
+- **Search all mails** opens the mail log with `from:`, `domain:` or `ip:` filled in.
+- In a cluster the master hands the same entry, with the target it chose, to the nodes: a rule of a tenant admin stays
+  a rule for that domain there too.
+
+On the console the same is `efactl sender-action-check` (what it would do) and `efactl sender-action` (with
+`--confirm yes` after a warning, `--action remove` to undo).
+
+*Held mail* (the page of each mailbox) keeps its own buttons *Allow sender* and *Block sender*: there they make a rule for
+that one recipient, which is what a user may decide.
 
 ### Details of a mail
 

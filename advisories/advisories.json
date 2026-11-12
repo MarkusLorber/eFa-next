@@ -1,0 +1,44 @@
+{
+  "comment": "Security advisories of eFa-next. Published signed with each release at https://repo.efa-next.eu/advisories/advisories.json (detached signature advisories.json.sig, repository key 1823D6D3BB7D5AEA286E836DCFE7E07916CC8046); the CVE watch of every host reads it. fixed: [epoch, version, release] of the first package with the fix; the release without the platform part (1, not 1.el9), so one entry fits EL9 and EL10 (1.el9 and 1.el10 both count as newer than 1).",
+  "advisories": [
+    {
+      "id": "EFA-2026-001",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.5.1", "1"],
+      "cves": ["CVE-2023-25577", "CVE-2023-46136", "CVE-2024-49767"],
+      "severity": "Moderate",
+      "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "cwe": "CWE-770",
+      "remote": true,
+      "web_rce": false,
+      "summary": "Web interface: multipart form bodies were parsed before a login without a limit on their parts (Werkzeug 2.0 of EL9); a client could tie up memory and CPU.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.5.1"
+    },
+    {
+      "id": "EFA-2026-002",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.5.1", "1"],
+      "cves": [],
+      "severity": "Moderate",
+      "vector": "",
+      "cwe": "CWE-319",
+      "remote": false,
+      "web_rce": false,
+      "summary": "The rspamd repository file named http for packages and key; dnf could take a new key unasked. It is used only over https now.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.5.1"
+    },
+    {
+      "id": "EFA-2026-003",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.5.1", "1"],
+      "cves": [],
+      "severity": "Low",
+      "vector": "",
+      "cwe": "",
+      "remote": false,
+      "web_rce": false,
+      "summary": "An update of a set-up host without /etc/eFa-Version ran the first-install steps, which replaced its nginx, rspamd and Postfix settings.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.5.1"
+    }
+  ]
+}

@@ -154,7 +154,10 @@ def main():
                             specs[name]], check=True,
                            env=dict(os.environ, SOURCE_DATE_EPOCH=str(mtime)))
         os.makedirs(args.out, exist_ok=True)
-        rpms = sorted(glob.glob(os.path.join(top, "RPMS", "noarch", "*.rpm")))
+        # RPMS/noarch/ as rpmbuild lays it out, or RPMS/ directly (the ~/.rpmmacros of mock): both.
+        rpms = sorted(glob.glob(os.path.join(top, "RPMS", "**", "*.rpm"), recursive=True))
+        if not rpms:
+            sys.exit("rpmbuild made no packages in %s" % os.path.join(top, "RPMS"))
         local = socket.gethostname()
         lines = []
         for rpm in rpms:
