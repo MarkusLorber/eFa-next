@@ -1772,7 +1772,8 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     {% if output.update_available %}<p class="warnbox">Update available: {{ output.latest }}</p><pre>{{ output.release_notes }}</pre>{% endif %}
     <p class="h">Last check: {{ output.last_check or 'not yet' }}. Last result: {{ output.last_result or 'none' }}</p>
   {% else %}{{ show(output) }}{% endif %}
-{% else %}{% if name == 'release-upgrade' %}<p class="err" role="alert">{{ _('No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back. About 30 to 60 minutes without mail (new mail gets 421), several reboots.') }}</p>{% endif %}
+{% else %}{% if name == 'release-upgrade' %}<p class="err" role="alert">{{ _('No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back. About 30 to 60 minutes without mail (new mail gets 421), several reboots.') }}</p>
+<p class="err" role="alert">{{ _('Started with the sentence "without backup, snapshot only", no backup is made and nothing of this host is kept anywhere else: the VM snapshot is then the only way back.') }}</p>{% endif %}
 <form method="post" action="{{ url_for('run', name=name) }}"><input type="hidden" name="csrf" value="{{ csrf }}">
   {% if name == 'dkim-create' %}{{ keytable() }}{% endif %}
   {% for arg in cmd.args if arg.web is not sameas false %}{{ field(name, arg) }}{% endfor %}
@@ -2472,7 +2473,8 @@ def admin_address_ok(client):
         address = ipaddress.ip_address(client)
     except ValueError:
         return False
-    return any(address in network for network in networks)
+    # The host itself (the health check of the updater after an update), as in the list of nginx.
+    return address.is_loopback or any(address in network for network in networks)
 
 
 @app.before_request
@@ -5298,6 +5300,7 @@ def self_test():
     with open(tmp_allow, 'w') as f:
         json.dump({'mode': 'allowed', 'entries': [{'network': '192.0.2.0/24', 'comment': 'office'}]}, f)
     assert admin_address_ok('192.0.2.9') and not admin_address_ok('198.51.100.7') and not admin_address_ok('x')
+    assert admin_address_ok('127.0.0.1') and admin_address_ok('::1'), 'the host itself is never refused'
     # A multipart body before a login, or to a page that takes no upload: refused before it is parsed.
     multipart = {'data': b'--b\r\nContent-Disposition: form-data; name="csrf"\r\n\r\nx\r\n--b--\r\n',
                  'content_type': 'multipart/form-data; boundary=b'}
@@ -5308,7 +5311,10 @@ def self_test():
     saved_key, PROXY_KEY = PROXY_KEY, b'proxy-key-1'
     assert client.get('/p/dash', headers={'X-Real-IP': '198.51.100.7', 'X-Efa-Proxy': 'proxy-key-1'}, **https).status_code == 403
     assert client.get('/p/dash', headers={'X-Real-IP': '192.0.2.9', 'X-Efa-Proxy': 'proxy-key-1'}, **https).status_code == 200
-    assert client.get('/p/dash', headers={'X-Real-IP': '192.0.2.9', 'X-Efa-Proxy': 'wrong'}, **https).status_code == 403,         'without the key of nginx the address is the peer (127.0.0.1 here), not the one in the header'
+    # The peer from outside (the host itself is always allowed): without the key of nginx its address counts, not the header.
+    assert client.get('/p/dash', headers={'X-Real-IP': '192.0.2.9', 'X-Efa-Proxy': 'wrong'}, environ_base={'REMOTE_ADDR': '198.51.100.8'},
+                      **https).status_code == 403, 'without the key of nginx the address is the peer, not the one in the header'
+    assert client.get('/p/dash', headers={'X-Real-IP': '127.0.0.1', 'X-Efa-Proxy': 'proxy-key-1'}, **https).status_code == 200, 'the host itself'
     PROXY_KEY = saved_key
     with open(tmp_allow, 'w') as f:
         json.dump({'mode': 'all', 'entries': [{'network': '192.0.2.0/24', 'comment': 'office'}]}, f)

@@ -183,16 +183,29 @@ class HookTests(RootTestCase):
     def test_first_install_writes_version(self):
         self.write("usr/sbin/efa-apply", "")
         self.assertEqual(efa_configure.package_hook("eFa-base", "first-install", "6.0.0.3"), 0)
-        self.assertFalse(c.read_text("/etc/eFa-Version", ""))  # eFa not done yet
+        self.assertFalse(c.read_text("/etc/eFa-next-Version", ""))  # package eFa not done yet
         self.assertEqual(efa_configure.package_hook("eFa", "first-install", "6.0.0.3"), 0)
+        self.assertEqual(self.read("etc/eFa-next-Version"), "eFa-6.0.0.3\n")
+        # The name of 6.0.0.5.x: a relative symlink to it, so their updaters and scripts read the same version.
+        self.assertEqual(os.readlink(c.rp("/etc/eFa-Version")), "eFa-next-Version")
         self.assertEqual(self.read("etc/eFa-Version"), "eFa-6.0.0.3\n")
         self.assertEqual(self.mode("etc/sudoers.d/efa-init"), 0o440)
         self.assertIn(["systemctl", "enable", "--quiet", "--now", "efa-reboot-check.timer"],
                       self.runner.calls)
 
+    def test_upgrade_replaces_old_version_file_by_symlink(self):
+        self.write("usr/sbin/efa-apply", "")
+        self.write("etc/eFa-Version", "eFa-6.0.0.5.2\n")
+        self.assertEqual(efa_configure.package_hook("eFa-base", "upgrade", "6.0.0.6"), 0)
+        self.assertEqual(efa_configure.package_hook("eFa", "upgrade", "6.0.0.6"), 0)
+        self.assertTrue(os.path.islink(c.rp("/etc/eFa-Version")))
+        self.assertEqual(self.read("etc/eFa-Version"), "eFa-6.0.0.6\n")
+        self.assertEqual(self.read("etc/eFa-next-Version"), "eFa-6.0.0.6\n")
+
     def test_failed_install_writes_no_version(self):
         self.runner.fail.add("postconf")
         self.assertEqual(efa_configure.package_hook("eFa-base", "first-install", "6.0.0.3"), 1)
+        self.assertEqual(c.read_text("/etc/eFa-next-Version", ""), "")
         self.assertEqual(c.read_text("/etc/eFa-Version", ""), "")
 
     def test_upgrade_changes_no_settings(self):

@@ -78,7 +78,9 @@ AlmaLinux 10, mit ELevate (leapp), in festen Schritten:
    aus; jeder Inhibitor stoppt hier.
 3. **start** fragt nach Passwort und 2FA-Code, einem bestätigten VM-Snapshot und dem getippten Hostnamen. Es macht eine
    verschlüsselte Sicherung, die jedes externe Ziel mit derselben Prüfsumme erreichen muss, gibt neuer Mail `421` (Absender
-   versuchen es erneut) und führt `leapp upgrade` mit den Neustarts aus.
+   versuchen es erneut) und führt `leapp upgrade` mit den Neustarts aus. Nur für Super-Admins: Mit dem Satz
+   `ohne Backup, nur Snapshot` (oder `without backup, snapshot only`) im letzten Feld lässt der Start die Sicherung weg; das
+   Audit-Log hält es fest, und der Rückweg ist dann nur der VM-Snapshot.
 4. **abort** stoppt einen Schritt und hebt den Wartungsmodus auf, aber nur bevor `leapp upgrade` begonnen hat.
 
 Nach dem ersten Start in EL10 schließt eFa-next das Upgrade ab (Datenbank, Postfix-Tabellen, SELinux) und prüft das ganze System:

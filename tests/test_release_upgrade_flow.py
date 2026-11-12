@@ -321,7 +321,8 @@ class ReleaseUpgradeFlow(unittest.TestCase):
 
     def step(self, action, **confirm):
         """What the web interface or the console does, then what efa-release-upgrade.service does."""
-        args = argparse.Namespace(action=action, snapshot=confirm.get('snapshot', ''), hostname=confirm.get('hostname', ''))
+        args = argparse.Namespace(action=action, snapshot=confirm.get('snapshot', ''), hostname=confirm.get('hostname', ''),
+                                  no_backup=confirm.get('no_backup', ''))
         answer = self.efactl.release_upgrade(args)
         if action in ('preflight', 'preupgrade', 'start'):
             self.assertIn(('service_start_background', self.efactl.RU_UNIT), self.platform.calls)
@@ -585,6 +586,25 @@ class ReleaseUpgradeFlow(unittest.TestCase):
         self.assertTrue(os.path.exists(self.efactl.RU_MAINTENANCE_MAP))
         # Checks failed: leapp's leftovers stay for the next try and the analysis.
         self.assertTrue(all(os.path.exists(path) for path in self.leftovers))
+
+    def test_start_without_backup_only_with_the_sentence(self):
+        """Owner, 2026-11-12: without the typed sentence the start makes the external backup; with it the backup is left
+        out, logged and audited, and a later start without the sentence makes the backup again."""
+        made, audit = [], []
+        self.step('preflight')
+        self.step('preupgrade')
+        backup = mock.patch.object(self.efactl, '_ru_backup', lambda: made.append(1) or {'backup': 'b', 'sha256': 's', 'targets': ['t']})
+        with backup, mock.patch.object(self.efactl, '_audit', audit.append):
+            with self.assertRaises(self.efactl.EfaError):
+                self.step('start', snapshot='yes', hostname=self.efactl.own_hostname(), no_backup='yes')
+            self.step('start', snapshot='yes', hostname=self.efactl.own_hostname(), no_backup='without backup, snapshot only')
+            self.assertEqual(made, [], 'no backup with the sentence')
+            self.assertTrue(any('WITHOUT backup' in line for line in audit), audit)
+            with open(self.efactl.RU_LOG) as f:
+                self.assertIn('the VM snapshot is the only way back', f.read())
+            self.efactl._ru_save(self.efactl._ru_state(), state='ready')
+            self.step('start', snapshot='yes', hostname=self.efactl.own_hostname())
+            self.assertEqual(made, [1], 'the next start without the sentence makes the backup again')
 
     def test_drain_does_not_wait_for_deferred_mail(self):
         """Mail that is deferred (its next try comes later) stays queued; the drain waits only for mail on its way."""

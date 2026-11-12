@@ -217,6 +217,32 @@ submission_heal_twice() {
     [ "$(ls /etc/postfix/master.cf.efa-submission-*.bak 2>/dev/null | wc -l)" = "$baks" ] || { echo "the second heal wrote a .bak"; return 1; }
 }
 
+# MIG-587 (owner's choice c, 2026-11-12): the submission block of eFa 5 with AUTH through Dovecot is replaced, AUTH is not taken
+# over (no login of eFa-next exists), and that is in the audit log and on the dashboard. master.cf is put back afterwards.
+efa5_587_check() {
+    keep=$(mktemp); cp -p /etc/postfix/master.cf "$keep"
+    mark=/var/lib/eFa/submission-efa5-auth; had_mark=no; [ -e "$mark" ] && had_mark=yes
+    baks=$(ls /etc/postfix/master.cf.efa-submission-*.bak 2>/dev/null)
+    # The SASL options of the eFa 5 block (postconf -P takes no value with a space, so not its client checks).
+    postconf -P submission/inet/smtpd_sasl_type=dovecot submission/inet/smtpd_sasl_path=private/auth submission/inet/smtpd_sasl_auth_enable=yes \
+        submission/inet/smtpd_sasl_security_options=noanonymous || { rm -f "$keep"; return 1; }
+    result=0
+    efactl postfix-submission-heal | grep -q '"submission": "replaced"' || { echo "the eFa 5 block was not replaced"; result=1; }
+    efactl sasl-apply > /dev/null || { echo "sasl-apply failed"; result=1; }
+    auth=$(postconf -Ph submission/inet/smtpd_sasl_auth_enable 2>/dev/null)
+    echo "587 AUTH after the heal: ${auth:-main.cf}"
+    [ "$auth" = no ] || { echo "AUTH of eFa 5 was taken over"; result=1; }
+    [ -e "$mark" ] || { echo "no record of the AUTH of eFa 5"; result=1; }
+    efactl status | grep -q 'offers no SMTP AUTH since the migration' || { echo "no dashboard notice"; result=1; }
+    cp -p "$keep" /etc/postfix/master.cf; rm -f "$keep"
+    [ "$had_mark" = yes ] || rm -f "$mark"
+    for bak in /etc/postfix/master.cf.efa-submission-*.bak; do
+        [ -e "$bak" ] && ! printf '%s\n' "$baks" | grep -qx "$bak" && rm -f "$bak"
+    done
+    efactl sasl-apply > /dev/null && postfix reload >/dev/null 2>&1
+    return $result
+}
+
 # WEB-RESTART: ten restarts of efa-web in a row, each answers within 3 s, and not one "Address already in use".
 web_restart_check() {
     since=$(date '+%F %T')
@@ -263,6 +289,25 @@ nginx_pid_check() {
     systemctl start nginx || { echo "nginx did not start"; return 1; }
     case "$label" in *:httpd_var_run_t:*) ;; *) echo "wrong label of /run/nginx.pid: $label"; return 1;; esac
     systemctl is-active -q nginx || return 1
+}
+
+admin_allow_loopback_check() {
+    # The health check of the updater (6.0.0.5.x too) asks https://127.0.0.1/login after an update: with the admin allowlist
+    # on, nginx must still answer the host itself, or the update rolls back (403 on a production host, 2026-11-12).
+    allow=/etc/eFa/web-allowlist.json
+    saved=$(mktemp)
+    had=no; [ -e "$allow" ] && { cp -p "$allow" "$saved"; had=yes; }
+    efactl web-allowlist-set --mode=allowed --networks=192.0.2.0/24 --confirm=yes >/dev/null || { echo "web-allowlist-set failed"; rm -f "$saved"; return 1; }
+    code=$(python3 -c 'import ssl, urllib.request, urllib.error
+try:
+    print(urllib.request.urlopen("https://127.0.0.1/login", timeout=10, context=ssl._create_unverified_context()).status)
+except urllib.error.HTTPError as err:
+    print(err.code)')
+    if [ "$had" = yes ]; then cp -p "$saved" "$allow"; else rm -f "$allow"; fi
+    rm -f "$saved"
+    efactl web-harden >/dev/null || { echo "web-harden after the check failed"; return 1; }
+    echo "https://127.0.0.1/login with the allowlist on: $code"
+    [ "$code" = 200 ]
 }
 
 upgrade_keep_check() {
@@ -416,7 +461,7 @@ FRESH_SAVED=/var/lib/efa-ci-fresh-saved
 # systemctl of the fresh test never asks for a password and never waits for ever: after many daemon-reloads a restart lost its
 # connection to systemd and waited although every service was up.
 sc() { timeout 300 systemctl --no-ask-password "$@"; }
-FRESH_MOVE='/etc/eFa /etc/efa-web /etc/efa-portal /etc/efa-sasl /etc/eFa-Version /var/lib/eFa /var/eFa /var/log/eFa /var/log/eFa-archive
+FRESH_MOVE='/etc/eFa /etc/efa-web /etc/efa-portal /etc/efa-sasl /etc/eFa-next-Version /etc/eFa-Version /var/lib/eFa /var/eFa /var/log/eFa /var/log/eFa-archive
     /etc/cron.d/eFa-Backup.cron /etc/cron.d/efa-maillog /etc/cron.d/eFa-Monitor.cron /etc/cron.d/efa-quarantine /etc/nginx/conf.d/efa-admin-allow.conf
     /etc/nginx/conf.d/efa.conf /etc/rspamd/local.d /etc/rspamd/override.d /etc/rspamd/dkim /etc/postfix /etc/my.cnf.d/efa.cnf /etc/sudoers.d/efa-init
     /etc/pki/tls/certs/efa.crt /etc/pki/tls/private/efa.key /var/lib/rpm-state/eFa /var/lib/rpm-state/eFa-base'
@@ -424,7 +469,7 @@ FRESH_COPY='/etc/ssh /etc/hosts /etc/unbound /etc/resolv.conf /etc/NetworkManage
     /etc/localtime /etc/sysconfig/eFa-Monitor'
 FRESH_USER=efa-ci-fresh
 FRESH_CONFIG=/etc/eFa/eFa-Config
-FRESH_VERSION=/etc/eFa-Version
+FRESH_VERSION=/etc/eFa-next-Version
 
 # A tar of the live settings while eFa-next runs: its writers replace their files atomically (a .tmp of their own, then rename),
 # so tar may see a folder change under it ("file changed as we read it", exit 1). The writers of efactl (_json_write) wait for
@@ -764,8 +809,10 @@ step rpm-build python3 -I build/build-rpms.py --next-dir next --out "$OUT/rpms"
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step install-upgrade install_test
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step upgrade-keeps upgrade_keep_check
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step submission-heal-twice submission_heal_twice
+[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step efa5-587-auth efa5_587_check
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step web-restart web_restart_check
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step nginx-pid nginx_pid_check
+[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step admin-allow-loopback admin_allow_loopback_check
 [ "$INSTALL" = yes ] && step upgrade-unplant upgrade_unplant
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step host-check host_check
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step os-update os_update_test

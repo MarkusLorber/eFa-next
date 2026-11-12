@@ -21,6 +21,12 @@ LIVE_STATES = ("active", "activating", "reloading")
 CRYPT_PREFIXES = ("$6$", "$5$", "$y$", "$2b$", "$gy$")
 
 
+def rpm_verify_content_changed(line):
+    """One line of rpm -V: True when the content differs (S size, 5 digest, L link target) or the file is missing."""
+    flags = line.split()[0]
+    return flags == "missing" or any(flag in flags[:9] for flag in "S5L")
+
+
 class EL9(Platform):
     name = "el9"
     root_group = "root"
@@ -29,7 +35,9 @@ class EL9(Platform):
         "efa_etc": "/etc/eFa",
         "efa_config": "/etc/eFa/eFa-Config",
         "mysql_config": "/etc/eFa/MySQL-Config",
-        "version_file": "/etc/eFa-Version",
+        "version_file": "/etc/eFa-next-Version",
+        # The name up to 6.0.0.5.x, kept as a symlink to version_file: their updaters and scripts read it.
+        "version_link": "/etc/eFa-Version",
         "log_dir": "/var/log/eFa",
         "state_dir": "/var/lib/eFa",
         "setup_dir": "/var/lib/eFa/setup",
@@ -930,7 +938,9 @@ class EL9(Platform):
         return done.returncode == 0 and not left, ("still installed: " + ", ".join(left) + " " if left else "") + output
 
     def release_package_unchanged(self, paths):
-        """The paths that are files of an installed package and unchanged (rpm -V reports no difference)."""
+        """The paths that are files of an installed package with the content it ships: rpm -V reports neither size (S),
+        digest (5) nor link target (L), and the file is there. Mode, owner, group or time alone (an eFa 5 host, a copy)
+        change no setting."""
         paths = list(paths)
         if not paths:
             return set()
@@ -940,7 +950,8 @@ class EL9(Platform):
                 owned.setdefault(line.strip(), []).append(path)
         unchanged = set()
         for name, files in owned.items():
-            changed = {line.split()[-1] for line in (c.run(["rpm", "-V", name], check=False).stdout or "").splitlines() if line.split()}
+            changed = {line.split()[-1] for line in (c.run(["rpm", "-V", name], check=False).stdout or "").splitlines()
+                       if line.split() and rpm_verify_content_changed(line)}
             unchanged |= {path for path in files if path not in changed}
         return unchanged
 

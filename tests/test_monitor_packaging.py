@@ -204,15 +204,19 @@ class PackagingTests(unittest.TestCase):
                 pre = fh.read().split("%pre\n", 1)[1].split("%posttrans", 1)[0]
             self.assertNotIn('"$1" -eq 1', pre, name)
             decision = pre.split("mkdir -p /var/lib/rpm-state/%s\n" % state, 1)[1].split("exit 0", 1)[0]
-            for version, config, first in (("", "", True), ("eFa-6.0.0.5\n", "", False), ("", "CONFIGURED:YES\n", False),
-                                           ("", "CONFIGURED:NO\n", True), ("eFa-5.0.0\n", "", True)):
+            # The last case: only the new name /etc/eFa-next-Version (6.0.0.6 and later).
+            for version, config, first, next_version in (("", "", True, ""), ("eFa-6.0.0.5\n", "", False, ""), ("", "CONFIGURED:YES\n", False, ""),
+                                                         ("", "CONFIGURED:NO\n", True, ""), ("eFa-5.0.0\n", "", True, ""),
+                                                         ("", "", False, "eFa-6.0.0.6\n")):
                 with tempfile.TemporaryDirectory() as folder:
                     folder = folder.replace(os.sep, "/")
-                    for file, text in (("version", version), ("config", config)):
+                    for file, text in (("version", version), ("config", config), ("next-version", next_version)):
                         if text:
                             with open(folder + "/" + file, "w") as fh:
                                 fh.write(text)
-                    script = (decision.replace("/etc/eFa-Version", folder + "/version").replace("/etc/eFa/eFa-Config", folder + "/config")
+                    # Both names of the version file go into the folder: the files of this host never count.
+                    script = (decision.replace("/etc/eFa-next-Version", folder + "/next-version").replace("/etc/eFa-Version", folder + "/version")
+                              .replace("/etc/eFa/eFa-Config", folder + "/config")
                               .replace("/var/lib/rpm-state/%s/first-install" % state, folder + "/first-install"))
                     subprocess.run(["sh", "-c", script], check=True)
                     self.assertEqual(os.path.exists(folder + "/first-install"), first, (name, version, config))

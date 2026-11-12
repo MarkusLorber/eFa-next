@@ -326,7 +326,7 @@ install_rpms() {
         dnf -y install "$WORK_DIR"/eFa-next-base-[0-9]*.noarch.rpm "$WORK_DIR"/eFa-next-[0-9]*.noarch.rpm || return 1
     fi
     # The package scripts write the version file only if every step passed.
-    [ -e /etc/eFa-Version ] || { echo "configuration steps failed (no /etc/eFa-Version)"; return 1; }
+    [ -e /etc/eFa-next-Version ] || { echo "configuration steps failed (no /etc/eFa-next-Version)"; return 1; }
 }
 
 SOURCE_DIR=""
