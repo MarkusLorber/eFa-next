@@ -23,7 +23,7 @@ SKIP_DIRS = ('.git/', 'LICENSES/', 'docs/images/', 'assets/')
 BARE = re.compile(r'(?<![A-Za-z0-9_/.^-])eFa(?!-next)(?![A-Za-z0-9_/%(-])')
 PREDECESSOR = re.compile(r'eFa ?5|eFa5|MailScanner|eFa project|efa-project|eFa-Configure|eFa 4|original eFa|eFa \(the project|eFa authors|'
                          r'eFa, the project|old eFa|eFa Email Filter Appliance|eFa-Expand|the eFa logo|eFa source|parts from eFa|not from eFa|'
-                         r'packaged into eFa|eFa is built', re.I)
+                         r'packaged into eFa|eFa is built|code from eFa', re.I)
 TECHNICAL = re.compile(r'/etc/eFa|/usr/lib/eFa|/var/lib/eFa|/var/eFa|/var/log/eFa|/usr/share/eFa|/usr/libexec/eFa|eFa-Version|eFa-base|'
                        r'eFa-Backup|eFa-Monitor|eFa-Config|eFa\.spec|eFa-6|eFa-\$|eFa\*|eFa-\{|[\'"]eFa[\'"]|Name:\s+eFa|install-state/eFa|'
                        r'eFa-[0-9]|rpm-state/eFa|eFa/|SOURCES/eFa|`eFa`|eFa eFa-base|eFa and eFa-base|-q eFa|upgrade eFa|reinstall eFa|'

@@ -4,6 +4,14 @@
 [Unit]
 Description=eFa-next web interface
 After=network-online.target
+# Until the setup is done the first-run wizard (efa-init) holds 127.0.0.1:8080; it stays up to show its last page and goes with
+# the reboot. Its runtime folder exists exactly while it runs: a start in between is skipped, not failed (no "Address already
+# in use", no restart every 5 s). First boot starts efa-web once the wizard is stopped.
+ConditionPathExists=!/run/efa-init
+# Several restarts in a row (settings, an update, an admin) must not hit the default limit of 5 starts in 10 s; a crash loop is
+# slowed by RestartSec anyway (2 starts in 10 s).
+StartLimitIntervalSec=10
+StartLimitBurst=20
 
 [Service]
 Type=simple

@@ -69,7 +69,8 @@ class ApplyTests(RootTestCase):
         self.assertIn("forward-addr: 192.0.2.53", self.read("etc/unbound/efa-forward.conf"))
         self.assertIn("nameserver 127.0.0.1", self.read("etc/resolv.conf"))
         self.assertIn("protocols =\n", self.read("etc/dovecot/local.conf"))
-        self.assertIn("PermitRootLogin no", self.read("etc/ssh/sshd_config.d/00-efa-root.conf"))
+        # S30: no ROOTSSH in the answers: root login through SSH stays as it is.
+        self.assertFalse(any(call[1:2] == ["ssh-root-set"] for call in self.runner.calls if call[0] == "efactl"))
         self.assertFalse(os.path.exists(self.path("etc/ssh/ssh_host_ed25519_key")))
         self.assertTrue(os.path.exists(self.path("var/lib/eFa/setup-reboot")))
         self.assertTrue(os.path.exists(self.path("var/lib/eFa/firstboot-pending")))
@@ -79,6 +80,18 @@ class ApplyTests(RootTestCase):
                        "yes", "ipv4.method", "manual", "ipv4.addresses", "192.0.2.10/24",
                        "ipv4.gateway", "192.0.2.1", "ipv6.method", "auto", "ipv6.addresses",
                        "", "ipv6.gateway", ""], self.runner.calls)
+
+    def test_root_ssh_only_by_choice(self):
+        code, out = self.apply(["--passwords"], answer_text({"ROOTSSH": "key-only"}))
+        self.assertEqual(code, 0, out + self.all_logs())
+        self.assertIn(["efactl", "ssh-root-set", "--mode=key-only", "--confirm=yes"], self.runner.calls)
+        code, out = self.apply(["--passwords"], answer_text({"ROOTSSH": "maybe"}))
+        self.assertNotEqual(code, 0)
+
+    def test_root_ssh_status(self):
+        self.runner.sshd_t = "permitrootlogin yes\n"
+        code, out = self.apply(["--root-ssh-status"], "")
+        self.assertEqual((code, out), (0, "ROOTSSH on\n"))
 
     def test_secrets_never_leak(self):
         code, out = self.apply(["--all", "--verbose"])
@@ -228,6 +241,16 @@ class FirstBootTests(RootTestCase):
         self.assertIn(["efactl", "cdr-set", "--mode", "on"], self.runner.calls)
         self.assertIn(["efactl", "bec-set", "--mode", "on", "--score_pattern", "2"], self.runner.calls)
         self.assertIn("no internet access", self.all_logs())
+
+    def test_first_boot_starts_the_web_interface_after_the_wizard(self):
+        """WEB-RESTART: efa-web skips its start while the wizard holds port 8080; with the wizard gone, first boot starts it."""
+        self.write("var/lib/eFa/firstboot-pending", "")
+        self.write("usr/lib/systemd/system/efa-web.service", "[Service]\n")
+        self.runner.enabled.add("efa-web.service")
+        with mock.patch.object(efa_firstboot, "wait_for_network", return_value=True), \
+                mock.patch.object(efa_firstboot, "internet_reachable", return_value=False):
+            self.assertEqual(efa_firstboot.first_boot(), 0)
+        self.assertIn(["systemctl", "start", "efa-web.service"], self.runner.calls)
 
     def test_setup_reboot(self):
         self.write("var/lib/eFa/setup-reboot", "")

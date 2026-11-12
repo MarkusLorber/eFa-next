@@ -20,3 +20,11 @@ B2, B6, C2, C7, M1-M7, P1-P8, E1, internal DNS servers, the setup variant and th
   certificate the admin opens the link once.
 - The 2FA of a console admin is set up on the console (`sudo efactl console-2fa-enroll`); the web interface only resets it.
 - N5 (FastText language detection) is moved to a later release.
+- Search (9f): in the web interface only; the text interface (efa-tui) has no search.
+- Emergency access (5n): mail is shown and its attachments saved one by one; no ZIP or MBOX export per mailbox.
+- Changes of the content milter (tracking protection, link rewriting, warning banner) come after the ARC seal of rspamd, so the
+  seal of such a mail no longer verifies downstream; the header X-eFa-CDR names the change. Fixed in 6.0.0.6: efa-cdr seals
+  the changed mail again (M1-1).
+- Keys in a hardware module (P3): DKIM and ARC keys stay software keys (rspamd has no PKCS#11).
+- Not yet tested against the real counterpart: the Outlook add-in in Outlook, the sandbox with a running CAPEv2, taking mail back
+  over IMAP, staged updates in a running cluster, signatures from a real Active Directory.

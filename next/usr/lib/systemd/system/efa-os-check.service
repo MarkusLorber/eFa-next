@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next check after package updates: configuration tests, services, .rpmnew files
+After=network-online.target
+
+[Service]
+Type=oneshot
+# A dnf transaction changes the database several times: efactl waits until it has been quiet for a while. Stopped meanwhile
+# (a package removal, a reboot) is no fault: the next change of the packages starts it again.
+Environment=EFA_OS_CHECK_WAIT=1
+ExecStart=/usr/sbin/efactl os-check-run
+SuccessExitStatus=SIGTERM
+TimeoutStartSec=900
+Nice=10

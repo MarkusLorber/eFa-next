@@ -9,10 +9,13 @@
 # Keep the build host name out of the package header.
 %global _buildhost localhost
 %global __brp_python_bytecompile %{nil}
+# Pre-release: rpm counts 0.1.alpha1 older than the release 1 of the same version, so 6.0.0.6-1 replaces it.
+# /etc/eFa-Version gets 6.0.0.6-alpha1, which the update check and the web interface show.
+%global prerelease alpha1
 
 Name:           eFa-next
-Version:        6.0.0.5.2
-Release:        1%{?dist}
+Version:        6.0.0.6
+Release:        0.1.%{prerelease}%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -36,6 +39,8 @@ Requires:       bind-utils
 Requires:       gnupg2
 Requires:       tar
 Requires:       openldap-clients
+# PDF-1: letters outside Western European ones in the PDF reports.
+Requires:       dejavu-sans-fonts
 Obsoletes:      clamav-unofficial-sigs
 Requires:       python3
 # Only for content disarm, installed when it is switched on.
@@ -112,7 +117,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 # efactl among them, written here instead of by the first web request.
 python3 -m compileall -q -f --invalidation-mode checked-hash /usr/lib/eFa/python >/dev/null 2>&1 || :
 # The own setup of the eFa-next programs comes first: if it fails, the version file stays unwritten.
-/bin/sh /usr/lib/eFa/setup/efa-next-setup "$mode" && /usr/sbin/efa-configure --package-hook eFa "$mode" --package-version %{version}
+/bin/sh /usr/lib/eFa/setup/efa-next-setup "$mode" && /usr/sbin/efa-configure --package-hook eFa "$mode" --package-version %{version}-%{prerelease}
 result=$?
 # rspamd reads the version for its headers when it loads its config.
 systemctl try-reload-or-restart rspamd >/dev/null 2>&1 || :
@@ -146,6 +151,12 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Thu Nov 12 2026 Markus Lorber - 6.0.0.6-0.1.alpha1
+- 6.0.0.6-alpha1: pre-release of 6.0.0.6 for evaluation, not for production; see CHANGELOG.md.
+
+* Tue Nov 10 2026 Markus Lorber - 6.0.0.6-1
+- 6.0.0.6: security fixes first (web interface without sudo, restore, single sign-on, login directories); see CHANGELOG.md.
+
 * Tue Nov 10 2026 Markus Lorber - 6.0.0.5.2-1
 - 6.0.0.5.2: migration from eFa 5 (sender_access no longer read once moved), SELinux quiet without IPv6; see CHANGELOG.md.
 

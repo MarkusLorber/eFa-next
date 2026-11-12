@@ -5,11 +5,20 @@
 # Setup of the eFa-next programs, run by the eFa package after the eFa-base steps.
 #   efa-next-setup first-install   web users, nginx, rspamd, default settings
 #   efa-next-setup upgrade         only what the new version needs, no setting changes
-# Every failed step is listed, the exit code is 1 if there was one.
+# Every failed step is listed, the exit code is 1 if there was one. A failed step is never silent: its output goes to
+# /var/log/eFa/setup.log, /var/lib/eFa/setup-failed names the steps for the dashboard and the CI, and the audit gets a line.
 DIR=/usr/lib/eFa/setup
+SETUP_LOG=/var/log/eFa/setup.log
+SETUP_FAILED=/var/lib/eFa/setup-failed
+MODE=${1:-}
 failed=""
 step() {
-    "$@" >/dev/null || failed="$failed [$*]"
+    step_out=$("$@" 2>&1) && return 0
+    failed="$failed [$*]"
+    mkdir -p -m 0750 /var/log/eFa
+    printf '%s efa-next-setup %s: FAILED [%s] %s\n' "$(date '+%F %T')" "$MODE" "$*" "$(printf '%s' "$step_out" | tail -c 400 | tr '\n' ' ')" >> "$SETUP_LOG"
+    # The next steps run all the same, as before: the list decides the exit code at the end.
+    return 0
 }
 
 fix_monitor_settings() {
@@ -55,6 +64,8 @@ first-install)
     step /usr/sbin/efactl eu-relation-set --mode yes
     # 5v (d): postscreen in front of port 25 on a new install; an upgrade keeps smtpd alone.
     step /usr/sbin/efactl postscreen-set --mode on
+    # MIG-GREY: a new install greylists (a new sender waits 5 minutes, known for 7 days); an upgrade keeps what was set.
+    step /usr/sbin/efactl greylisting-set --mode on --minutes 5 --days 7
     # 6a: a new install checks the DNS of its domains every 6 hours; an upgrade leaves it off.
     step /usr/sbin/efactl domain-check-set --mode on
     # Secure by default (S1): a new install checks attachments (dangerous endings, hidden names, programs by content) and
@@ -65,17 +76,30 @@ first-install)
     step /usr/sbin/efactl network-harden
     # C7: a new install limits the virus scan per mail and fails closed; an upgrade keeps the old behaviour (fail open).
     step /usr/sbin/efactl scan-limits-set --mode on --fail closed
+    # MIG-ALLOW: the virus check in the own Lua of rspamd (it can let efa-cdr cut a virus of an allowed sender out).
+    step /usr/sbin/efactl av-apply
     [ -f /etc/eFa/rbl.json ] || step /usr/sbin/efactl rbl-apply --keep ''
     # 6.0.0.5: the security minimum of postfix, nginx and dovecot set once, its guard watches it from then on.
     step /usr/sbin/efactl floor-check --mode apply
     ;;
 upgrade)
+    # 6.0.0.6: efa-web reaches efactl only through efactl-runner; the sudo rule of 6.0.0.5 and older goes.
+    step rm -f /etc/sudoers.d/efa-web
     # The rspamd repository only over https (its own file names http for packages and key).
     [ ! -f /etc/yum.repos.d/rspamd.repo ] || step sed -i 's#http://rspamd\.com/#https://rspamd.com/#g' /etc/yum.repos.d/rspamd.repo
     # A new major version of rspamd only with an eFa-next release tested with it: a plain dnf update stays on 4.x.
     [ ! -f /etc/yum.repos.d/rspamd.repo ] || grep -q '^exclude=' /etc/yum.repos.d/rspamd.repo || step sh -c "echo 'exclude=rspamd-[5-9]* rspamd-[1-9][0-9]*' >> /etc/yum.repos.d/rspamd.repo"
     # Adds new columns to the mail log. Only on a configured system: a new install does this in efa-apply.
     [ ! -f /etc/efa-web/maillog.pw ] || step /usr/sbin/efactl maillog-setup
+    # MIG-587: a host migrated from eFa 5 gets the submission service of eFa-next (587) in place of the old one; audited, with a .bak.
+    step /usr/sbin/efactl postfix-submission-heal
+    # DNS-SHARE: the networks that may ask this unbound, in unbound and in the firewall as the list says (release upgrade, restore).
+    step /usr/sbin/efactl dns-share-apply
+    # MIG-ALLOW: a table efa-sender-skip-domaincheck made by hand becomes marked allow entries, in the order of eFa-next.
+    step /usr/sbin/efactl sender-skip-heal
+    # 6.0.0.6: the key of SecuriteInfo out of the cluster journal (master) and off the nodes.
+    step /usr/sbin/efactl cluster-secret-scrub
+    step /usr/sbin/efactl av-apply
     # The user portal moves out of the admin interface (5q): before web-harden, which points nginx to it.
     step /bin/sh "$DIR/portal-config.sh"
     # 5l: only interfaces that come later; existing profiles stay, the hardening report names automatic ones.
@@ -118,15 +142,31 @@ for f in pdf-passwords.json signature-fields.json sandbox-service.json; do
     [ -e "/etc/eFa/$f" ] || step sh -c "umask 077; echo '{}' > /etc/eFa/$f"
 done
 [ -d /etc/eFa/crypto ] || step install -d -m 0700 /etc/eFa/crypto
+# PKG-5: a new major version of what eFa-next takes from EPEL (ClamAV, the web and milter libraries, fail2ban) only with an
+# eFa-next release tested with it, as for rspamd: a plain dnf update stays on the tested major versions. Added once, to an
+# exclude line of the admin if there is one.
+EPEL_LOCK='clamav-[2-9]* clamav-lib-[2-9]* clamav-filesystem-[2-9]* clamav-data-[2-9]* clamav-update-[2-9]* clamav-freshclam-[2-9]* clamd-[2-9]* python3-flask-[4-9]* python3-werkzeug-[4-9]* python3-waitress-[4-9]* python3-pymilter-[2-9]* fail2ban-[2-9]* fail2ban-server-[2-9]* fail2ban-firewalld-[2-9]*'
+if [ -f /etc/dnf/dnf.conf ] && ! grep -q 'clamav-\[2-9\]' /etc/dnf/dnf.conf; then
+    if grep -qE '^(excludepkgs|exclude)=' /etc/dnf/dnf.conf; then
+        step sed -i -E "0,/^(excludepkgs|exclude)=/s/^((excludepkgs|exclude)=.*)$/\1 $EPEL_LOCK/" /etc/dnf/dnf.conf
+    else
+        step sed -i "/^\[main\]/a excludepkgs=$EPEL_LOCK" /etc/dnf/dnf.conf
+    fi
+fi
+# efa-cdr loads the ARC keys of this folder (M1-1); efactl fills it when ARC sealing is on.
+[ -d /etc/eFa/arc-seal ] || step install -d -m 0700 /etc/eFa/arc-seal
 step /usr/sbin/efactl redis-tune
-# 5v (h): the sandbox of the tested third-party units on a new install, none on an upgrade (it changes no setting). Both remove
-# the sandbox drop-ins of 6.0.0.5 test builds from units not tested with SELinux (unbound did not start with it).
+# 5v (h), D-1: the sandbox of the tested mail services on a new install and a migration (default: rspamd, ClamAV, unbound; redis
+# and nginx only when the admin chooses on); an upgrade keeps what the admin chose (off unless switched on)
+# and writes the drop-ins of this release. Both remove the sandbox drop-ins of 6.0.0.5 test builds from Postfix and MariaDB.
 if [ "$1" = first-install ]; then
-    step /usr/sbin/efactl service-harden --mode on
+    step /usr/sbin/efactl service-harden --mode default
 else
-    step /usr/sbin/efactl service-harden --mode off
+    step /usr/sbin/efactl service-harden --mode keep
 fi
 step /usr/sbin/efactl efa-headers-apply
+# S30: root login through SSH in one file; the value sshd takes now stays (the hardening file of the base setup loses its line).
+[ "$1" = first-install ] || step python3 -I -c 'import sys; sys.path.insert(0, "/usr/lib/eFa/python"); import efa_services; efa_services.sshd_root_upgrade()'
 # efactl for the web interface, loaded once: restarted so it runs the code of this package; running calls go on.
 step python3 -I -c 'import sys; sys.path.insert(0, "/usr/lib/eFa/python"); import efa_platform
 p = efa_platform.detect()
@@ -135,11 +175,16 @@ p.service_restart("efactl-runner")
 p.service_enable("efa-blocklist.timer", start=True)
 p.service_enable("efa-cve-watch.timer", start=True)
 p.service_enable("efa-cve-watch.path", start=True)
+p.service_enable("efa-os-check.path", start=True)
 p.service_enable("efa-floor-guard.path", start=True)
 p.service_enable("efa-outbound-hold.timer", start=True)'
 
 if [ -n "$failed" ]; then
     echo "efa-next-setup $1: FAILED:$failed" >&2
+    mkdir -p /var/lib/eFa
+    printf '%s\n%s\n%s\n' "$1" "$(date '+%F %T')" "$failed" > "$SETUP_FAILED"
+    /usr/sbin/efactl setup-failed-note >/dev/null 2>&1 || echo "efa-next-setup: the audit line of the failed steps could not be written" >&2
     exit 1
 fi
+rm -f "$SETUP_FAILED"
 exit 0

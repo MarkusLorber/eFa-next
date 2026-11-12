@@ -79,6 +79,57 @@ encrypt-then-MAC, no ssh-rsa or DSA host keys. `efactl ssh-profile-set --mode bs
 `efactl ssh-profile-confirm` follows within 10 minutes, from a new login, it goes back by itself. `--mode system` removes it.
 eFa-next never changes sshd on its own.
 
+## Security standards: choose, apply, check
+
+*Security standards* (`efactl standards-status`, `standards-set`, `standards-check`, `standards-show`, `standards-rollback`;
+superadmin with a fresh second factor) lists the standards below with their version. Choose one or more:
+
+- **Preview first.** `efactl standards-set --select "bsi-02102-2 moz-modern"` shows each setting with its value now and after,
+  and the warnings. Nothing changes.
+- **Apply.** `--apply yes` makes the change; with warnings it also needs `--confirm yes`. A rollback point is written first
+  (`standards-rollback` goes back to it), and the audit log gets an entry.
+- **The strictest value wins.** Of the chosen standards, the strictest value of each setting is applied. It is never below
+  the limit of eFa-next and never weaker than now.
+- **Port 25** stays opportunistic unless *Require TLS on port 25* is chosen on purpose (`--port25-tls on`): the warning
+  shows how many sessions came without TLS in the last 7 days.
+- **The check** runs daily and on demand. It tests every standard, chosen or not, against the settings in effect (`postconf`,
+  `nginx -T`, `sshd -T`, sysctl, crypto policy, certificates, DKIM keys, the resolver). Each result is *fulfilled*,
+  *over-fulfilled*, *not fulfilled* or *needs DNS records or a mailbox*, with the reason of each finding. The result is on
+  the dashboard and in the PDF of the hardening report. A chosen standard that is not fulfilled shows a notice.
+
+| Standard (id) | Version | What applying it sets | Kept on purpose, reported as a deviation |
+|---|---|---|---|
+| BSI TR-02102-2, TLS (`bsi-02102-2`) | 2026-01 | TLS profile `bsi` | X25519 and X25519MLKEM768 (quantum-safe), not yet in the TR |
+| BSI TR-02102-1, key lengths (`bsi-02102-1`) | 2026-01 | nothing: existing keys are reported, not replaced | DKIM RSA 2048 (DNS limit) |
+| BSI TR-02102-4, SSH (`bsi-02102-4`) | 2026-01 | SSH profile `bsi`, with the automatic way back after 10 minutes | curve25519 and Ed25519 host keys (a change would break known host keys) |
+| BSI TR-03116-4, TLS in federal agencies (`bsi-03116-4`) | 2025 | TLS profile `bsi` | as TR-02102-2 |
+| BSI TR-03108, secure mail transport (`bsi-03108`) | 2.0 | TLS profile `bsi`, DANE outgoing (only with a validating resolver) | DANE incoming, MTA-STS, TLS-RPT need DNS records or a mailbox |
+| RFC 9325, BCP 195 (`rfc9325`) | November 2022 | TLS profile `rfc9325` (or `bsi` if set now) | – |
+| Mozilla modern (`moz-modern`) | 6.0 | web interface TLS 1.3 only; port 587 stays at TLS 1.2 (intermediate) | – |
+| Mozilla intermediate (`moz-inter`) | 6.0 | TLS profile `rfc9325` | – |
+| NIST SP 800-52 Rev. 2 (`nist-80052`) | August 2019 | TLS profile `rfc9325` | – |
+| CIS AlmaLinux OS 9/10, sshd, sysctl and crypto policy only (`cis-el`) | Benchmark 2.0 | SSH profile `bsi`, kernel hardening | not checked against the current text; root login by key is the admin's choice |
+
+The values come from the texts named, kept in `/usr/share/eFa/standards.json` with the version and the link. A standard
+marked *not verified* is shown as such in the check.
+
+### Deutsch
+
+*Sicherheitsstandards* (nur Superadmin, mit frischem zweitem Faktor) zeigt die Standards der Tabelle mit Version.
+Ein oder mehrere wählen:
+
+- **Zuerst die Vorschau.** Sie zeigt jede Einstellung mit dem Wert jetzt und danach, dazu die Warnungen. Es ändert sich nichts.
+- **Anwenden** mit `--apply yes`, bei Warnungen zusätzlich `--confirm yes`. Vorher wird ein Rücksprungpunkt geschrieben
+  (`standards-rollback`), dazu ein Eintrag im Audit-Log.
+- **Der strengste Wert gilt**, nie unter der Grenze von eFa-next und nie schwächer als jetzt.
+- **Port 25** bleibt opportunistisch, außer *TLS auf Port 25 verlangen* wird bewusst gewählt.
+- **Die Prüfung** läuft täglich und auf Abruf. Sie prüft jeden Standard, gewählt oder nicht, gegen die wirksamen Einstellungen.
+  Das Ergebnis ist *erfüllt*, *übererfüllt*, *nicht erfüllt* oder *braucht DNS-Einträge oder ein Postfach*, mit dem Grund
+  jedes Befunds. Es steht im Dashboard und im PDF des Härtungsberichts.
+
+eFa-next behält X25519 und den quantensicheren Hybrid X25519MLKEM768 (Sicherheit zuerst). Die Prüfung nennt sie als
+Abweichung von TR-02102-2. Die SSH-Algorithmen curve25519 und Ed25519 bleiben ebenso, als Abweichung von TR-02102-4.
+
 ## Requirements and how eFa-next meets them
 
 A technical mapping, no legal advice; whether a setup meets a rule depends on the whole operation.
@@ -100,6 +151,10 @@ A technical mapping, no legal advice; whether a setup meets a rule depends on th
 Mail between servers uses TLS when both sides can (opportunistic). A sending server that offers none of the allowed ciphers
 delivers without encryption instead of being refused; eFa-next shows how many did in the last 7 days. *Require TLS on port 25*
 refuses them instead (off on a new install; a migration from eFa 5 keeps the setting it finds).
+The switch is on the card TLS profile (`efactl tls-port25-set --mode on --confirm yes`); it is on only after the warning is
+confirmed, and the card shows the sessions of the last 7 days and the senders that came without TLS (counted hourly from the
+mail log, local connections left out). It sets `smtpd_tls_security_level = encrypt` for the SMTP service on port 25 only
+(behind postscreen when that is on), never for submission or the internal ports.
 
 ## Postfix
 
@@ -118,7 +173,7 @@ or cipher outside the limit is accepted.
 | What | How |
 |---|---|
 | Backups | OpenPGP, AES-256, when a backup password is set |
-| Cluster journal | Fernet: AES-128-CBC with HMAC-SHA256 (AES-256-GCM is planned) |
+| Cluster journal | AES-256-GCM (a journal of an older release in Fernet is read once and written anew) |
 | Passwords of the web interface | PBKDF2-HMAC-SHA256, 600 000 rounds, random salt |
 | Logins of mail systems (submission) | SHA512-CRYPT |
 | DKIM keys | RSA 2048, 3072 or 4096 bits, or Ed25519 |

@@ -18,24 +18,29 @@ the code of the admin pages is not reachable there at all, not only hidden.
 
 nginx sends `/portal/`, `/q/` and `/l/` to the portal and everything else to the admin interface.
 
-### efactl-runner: efactl without a new process behind sudo
+### efactl-runner: the only way of the admin interface to efactl
 
-The admin interface runs efactl through **efactl-runner** (`efactl-runner.service`, root) instead of starting a new
-`sudo /usr/sbin/efactl` per call: the code is loaded once and every call runs in its own fork. The boundary is the one of the
-sudo rule `efa-web ALL=(root) NOPASSWD: /usr/sbin/efactl`, nothing wider:
+The admin interface runs efactl only through **efactl-runner** (`efactl-runner.service`, root): the code is loaded once and
+every call runs in its own fork. From 6.0.0.6 on `efa-web` has **no sudo rule** (the rule
+`efa-web ALL=(root) NOPASSWD: /usr/sbin/efactl` of 6.0.0.5 and older is removed on the update), so `efa-web.service` runs
+with `NoNewPrivileges`, a read-only file system and no access to the private keys of the host
+(`efa-web.service.d/hardening.conf`).
 
-| | sudo way | efactl-runner |
-|---|---|---|
-| Who | the user `efa-web` (sudoers) | the user `efa-web` only: the uid of the caller from the kernel (`SO_PEERCRED`); the socket `/run/efactl-runner/runner.sock` is `0660 root:efa-web`, so other users cannot open it, and `efa-init` (group `efa-web`) is refused by its uid |
-| What | `/usr/sbin/efactl` with any arguments | the same program (its loaded code) with any arguments: a list of strings, no shell, no newline or NUL in them |
-| Rights checks | efactl checks the role of the login for every command | the same code, unchanged |
-| Environment | `env_reset`, `secure_path` | emptied, then `PATH=/sbin:/bin:/usr/sbin:/usr/bin`, `HOME=/root`, `SUDO_USER`/`SUDO_UID`/`SUDO_GID`/`SUDO_COMMAND` as sudo sets them; umask `022` |
-| Input | secrets over stdin | secrets over the socket, given to efactl as its stdin |
-| Time limit | 120 s (efa-web ends the process) | 120 s (`SIGALRM` ends the fork, efa-web reports the call as failed) |
-| Audit | efactl writes its audit and strict audit entries; sudo logs the whole command line | efactl writes the same entries (it sees the same `SUDO_USER`); the runner logs caller and command name to the journal, not the arguments, as they can hold mail addresses (GDPR) |
-| Fallback | | when the socket is not there efa-web uses sudo; a call that broke off is never sent a second time |
+| | efactl-runner |
+|---|---|
+| Who | the user `efa-web` only: the uid of the caller from the kernel (`SO_PEERCRED`); the socket `/run/efactl-runner/runner.sock` is `0660 root:efa-web`, so other users cannot open it, and `efa-init` (group `efa-web`) is refused by its uid |
+| What | `/usr/sbin/efactl` (its loaded code) with arguments as a list of strings, no shell, no newline or NUL in them; the CLI-only commands and `menu` are refused for `efa-web` |
+| Rights checks | efactl checks the role of the login for every command |
+| Environment | emptied, then `PATH=/sbin:/bin:/usr/sbin:/usr/bin`, `HOME=/root`, `SUDO_USER`/`SUDO_UID`/`SUDO_GID`/`SUDO_COMMAND` as sudo would set them; umask `022` |
+| Input | secrets over the socket, given to efactl as its stdin; a backup or logo upload and the backup download as a pipe of efa-web handed over the socket (`SCM_RIGHTS`), only pipes, only the ones the request names |
+| Time limit | 120 s, 1800 s for a call with a pipe (`SIGALRM` ends the fork, efa-web reports the call as failed) |
+| Audit | efactl writes its audit and strict audit entries (it sees `SUDO_USER=efa-web`); the runner logs caller and command name to the journal, not the arguments, as they can hold mail addresses (GDPR) |
+| Fallback | none: without the runner the web interface reports that efactl-runner does not answer; a call that broke off is never sent a second time |
 
-Not set on purpose: `NoNewPrivileges`, `ProtectSystem`, `PrivateTmp` and `RestrictAddressFamilies`. They would apply to efactl
+What stays: whoever takes over the web process can call efactl through the runner like the logged-in admins, within the
+rights checks of efactl. The sandbox of efa-web keeps the rest of the host out of reach.
+
+Not set on purpose for `efactl-runner.service`: `NoNewPrivileges`, `ProtectSystem`, `PrivateTmp` and `RestrictAddressFamilies`. They would apply to efactl
 itself and break what it is for: it installs packages (`dnf`/`rpm` need their SELinux domain transitions, which
 `NoNewPrivileges` blocks), writes `/etc` and `/usr`, shares files in `/tmp` with other services, and talks to rspamd, the
 cluster nodes, DNS and the update server over the network. Under sudo none of these limits applied either; the runner keeps the
@@ -172,10 +177,9 @@ RSA keys of 3000 bits and more) is checked against changes by hand too:
 - **Honest limit:** whoever is root can switch the guard off. It protects against mistakes, bad instructions and attackers
   without root, not against a malicious root.
 
-## Not yet
+## Built since the first version of this page
 
-- Single sign-on (OIDC) for users in the portal: the portal needs its own redirect address at the provider. Users log in with
-  their password meanwhile.
-- A rights table per route of the admin interface with a check in CI, a second password or 2FA check for critical actions, the end
-  of all sessions of an account when its rights change, and a test of every role against every action: next steps of 5q.
-- Two-factor login (TOTP, 5r) and passkeys (5s).
+A rights table per route of the admin interface checked in the self-test
+(`ROUTE_RIGHTS` in efa-web), the password or 2FA asked again for critical actions, the end of all sessions of an account when its
+rights change, a test of every predefined role against every command, two-factor login (TOTP, 5r), passkeys (5s, see
+[two-factor.md](two-factor.md)) and single sign-on (OIDC) in the user portal ([users-and-access.md](users-and-access.md)).

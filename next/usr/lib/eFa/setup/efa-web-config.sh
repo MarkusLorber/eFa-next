@@ -3,7 +3,7 @@
 # Author: Markus Lorber, Lukasz Galusinski
 #-----------------------------------------------------------------------------#
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# eFa-next web interface setup: unprivileged users, sudo rule for efactl, secret
+# eFa-next web interface setup: unprivileged users (no sudo rule: efactl-runner), secret
 #-----------------------------------------------------------------------------#
 set -e
 
@@ -11,9 +11,9 @@ id efa-web >/dev/null 2>&1 || useradd -r -s /sbin/nologin -d /nonexistent efa-we
 # The first-run wizard, with the group of the web interface for the session key.
 id efa-init >/dev/null 2>&1 || useradd -r -s /sbin/nologin -d /nonexistent -g efa-web efa-init
 
-echo 'efa-web ALL=(root) NOPASSWD: /usr/sbin/efactl' > /etc/sudoers.d/efa-web
-chmod 440 /etc/sudoers.d/efa-web
-visudo -cf /etc/sudoers.d/efa-web
+# efa-web reaches efactl only through efactl-runner (SO_PEERCRED): the sudo rule of 6.0.0.5 and older goes on the update,
+# a web process taken over must not run efactl as root by sudo.
+rm -f /etc/sudoers.d/efa-web
 
 install -d -m 750 -o root -g efa-web /etc/efa-web
 if [ ! -f /etc/efa-web/secret.key ]; then

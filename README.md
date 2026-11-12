@@ -16,12 +16,24 @@ It sits in front of your mail server, filters incoming and/or outgoing mail and 
 technical knowledge of Linux, DNS, SMTP and TLS. It is not intended for consumers or private persons and is not released for
 that use ([DISCLAIMER.md](DISCLAIMER.md)); the rights under the AGPL are not affected by this.
 
+**Manual:** the complete manual with screenshots, from the install to daily operation:
+[docs/manual](docs/manual/README.md) (Deutsch: [Handbuch](docs/manual/README.de.md)).
+
 ## Requirements
 
 - Version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, freshly installed (minimal is enough). Tested on
-  AlmaLinux 9. EL10 is planned for 6.0.0.6.
+  AlmaLinux 9. AlmaLinux 10 is accepted by the installer but not tested yet; RHEL 10 and Rocky Linux 10 are refused.
+- Release upgrade from AlmaLinux 9 to 10 (System, Maintenance & update): built into 6.0.0.6, it can start once the signed EL10
+  repository of eFa-next exists; until then its preflight stops at that check. See [docs/release-upgrade.md](docs/release-upgrade.md).
 - A fixed IP address and a host name in DNS with a matching PTR record; access to the package repositories over HTTPS.
 - From 2 CPUs and 4 GB RAM for up to 50,000 mails a day; sizes for more in [docs/install.md](docs/install.md).
+
+## Dedicated server
+
+eFa-next needs a server or VM of its own. Only eFa-next and the operating system run on it: no other server services, no other
+open ports. Monitoring or backup agents of the admin (such as Wazuh) are possible, at your own risk. eFa-next hardens and checks
+the server as a whole; the hardening wizard reports services and open ports that do not belong to eFa-next or the operating
+system. It never stops or removes them.
 
 ## Install
 
@@ -48,7 +60,7 @@ check take only releases with a valid signature.
 
 ## Migrate from eFa 5.0
 
-See [docs/migration.md](docs/migration.md). Take a VM snapshot first: there is no automatic way back.
+See [docs/migration.md](docs/migration.md), step by step in the [migration guide](docs/migration-guide.md) (Deutsch: [Migrationsleitfaden](docs/migration-guide.de.md)). Take a VM snapshot first: there is no automatic way back.
 
 ## What is different from eFa 5
 
@@ -59,7 +71,7 @@ See [docs/migration.md](docs/migration.md). Take a VM snapshot first: there is n
 | Web server | Apache and PHP | nginx and waitress |
 | Web interface | MailWatch | Python web interface |
 | Mail log | MailWatch database | MariaDB, kept by age or size |
-| DNS | Forwarding possible | Own resolver with unbound, no forwarding |
+| DNS | Forwarding possible | Own resolver with unbound; internal DNS servers only for the domains set for them |
 
 ## Features
 
@@ -85,16 +97,16 @@ eFa-next uses only modern encryption, following RFC 9325 (BCP 195) and BSI TR-02
 
 - TLS 1.2 and 1.3 only: no SSL, no TLS 1.0 or 1.1.
 - Forward secrecy (ECDHE) with AEAD ciphers only (AES-GCM, ChaCha20-Poly1305): no CBC, RC4, 3DES, RSA key exchange or SHA-1.
-- For all services: SMTP in and out, submission, the web interface and the user portal, IMAP, the cluster and the APIs. The
+- For all services: SMTP in and out, submission, the web interface and the user portal, the cluster and the APIs. The
   [TLS profiles](docs/tls-profiles.md) raise weaker settings on an upgrade too, and the security self check tests each service live.
 
-Data at rest: backups are encrypted with OpenPGP (AES-256) when a backup password is set; the journal of the cluster with Fernet
-(AES-128-CBC with HMAC-SHA256; AES-256-GCM is planned); passwords of the web interface are stored as PBKDF2-HMAC-SHA256 with
+Data at rest: backups are encrypted with OpenPGP (AES-256) when a backup password is set; the journal of the cluster with
+AES-256-GCM; passwords of the web interface are stored as PBKDF2-HMAC-SHA256 with
 600 000 rounds, logins of mail systems as SHA512-CRYPT. DKIM keys are RSA with at least 2048 bits, or Ed25519.
 
 ## Status
 
-Early release: test it before you rely on it. Known limits: [docs/STATUS-6.0.0.5.md](docs/STATUS-6.0.0.5.md). Changes per
+Early release: test it before you rely on it. Known limits: [docs/STATUS-6.0.0.6.md](docs/STATUS-6.0.0.6.md). Changes per
 release: [CHANGELOG.md](CHANGELOG.md).
 
 ## Build from source

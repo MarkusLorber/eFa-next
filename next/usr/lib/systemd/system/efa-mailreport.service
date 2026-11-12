@@ -6,4 +6,7 @@ Description=eFa-next mail report
 
 [Service]
 Type=oneshot
+# A run that a planned stop ends (an update restarting the units of eFa-next) is no failure: the timer starts the next
+# one. Without this the unit stays "failed" and the dashboard names it.
+SuccessExitStatus=SIGTERM
 ExecStart=/usr/sbin/efactl mailreport-run

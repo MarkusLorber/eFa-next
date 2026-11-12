@@ -214,6 +214,21 @@ def svg(text, module=4):
             f'role="img" aria-label="QR code"><rect width="{size}" height="{size}" fill="#fff"/><path d="{path}" fill="#000"/></svg>')
 
 
+# Two modules in one character: upper, lower, both or none dark.
+HALF_BLOCKS = {(True, True): '\u2588', (True, False): '\u2580', (False, True): '\u2584', (False, False): ' '}
+
+
+def terminal(value, quiet=4):
+    """The QR code for a terminal: half blocks, black on white (ANSI), so it scans on a dark terminal too."""
+    grid = matrix(value)
+    size = len(grid) + 2 * quiet
+
+    def dark(row, col):
+        return quiet <= row < size - quiet and quiet <= col < size - quiet and grid[row - quiet][col - quiet]
+    return '\n'.join('\x1b[30;47m' + ''.join(HALF_BLOCKS[(dark(row, col), dark(row + 1, col))] for col in range(size)) + '\x1b[0m'
+                     for row in range(0, size, 2))
+
+
 def self_test():
     # The example of the standard texts: HELLO WORLD as 1-M (alphanumeric mode); the error correction of its data codewords.
     data = [32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17]
@@ -229,6 +244,10 @@ def self_test():
     except ValueError:
         pass
     assert svg('a').startswith('<svg ') and 'script' not in svg('a')
+    lines = terminal('a').split('\n')
+    assert len(lines) == (21 + 8 + 1) // 2 and all(line.startswith('\x1b[30;47m') and line.endswith('\x1b[0m') for line in lines)
+    assert set(''.join(line[8:-4] for line in lines)) <= set(HALF_BLOCKS.values()) and lines[0][8:-4] == ' ' * 29, 'the quiet zone is light'
+    assert terminal('a').count('\u2588') + terminal('a').count('\u2580') + terminal('a').count('\u2584') > 0
     print('self-test ok')
 
 

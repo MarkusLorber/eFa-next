@@ -24,6 +24,12 @@ import syslog
 import threading
 import time
 
+# The copy next to this program first (a checkout in CI), then the installed one: insert(0) puts the last one in front.
+for _folder in ('/usr/lib/eFa/python', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'lib', 'eFa', 'python')):
+    if os.path.isdir(_folder) and _folder not in sys.path:
+        sys.path.insert(0, _folder)
+import efa_shacrypt  # noqa: E402
+
 PASSWD = os.environ.get('EFA_SASL_PASSWD', '/etc/efa-sasl/logins')  # written by efactl (submitter-set), root:efa-sasl 0640
 MAX_PENDING = 64
 MAX_LINE = 8192
@@ -49,12 +55,8 @@ def verify(password, stored):
             return False
         return hmac.compare_digest(got, want)
     if stored.startswith('{SHA512-CRYPT}$6$'):
-        try:
-            import crypt  # in the standard library up to Python 3.12; EL9 has 3.9
-        except ImportError:
-            syslog.syslog(syslog.LOG_ERR, 'efa-sasl: SHA512-CRYPT needs the crypt module of Python: set the password of the login again')
-            return False
-        return hmac.compare_digest(crypt.crypt(password, stored[14:]).encode(), stored[14:].encode())
+        # PY-1: in plain Python, the crypt module of Python is gone from 3.13 on.
+        return efa_shacrypt.verify(password, stored[14:])
     return False
 
 
@@ -272,12 +274,8 @@ def self_test():
     import tempfile
     stored = scrypt_hash('secret pass')
     assert verify('secret pass', stored) and not verify('wrong', stored) and not verify('x', '{PLAIN}x') and not verify('x', '{SCRYPT}bad')
-    try:
-        import crypt
-        legacy = '{SHA512-CRYPT}' + crypt.crypt('old pass', crypt.mksalt(crypt.METHOD_SHA512))
-        assert verify('old pass', legacy) and not verify('other', legacy)
-    except ImportError:
-        pass
+    legacy = '{SHA512-CRYPT}' + efa_shacrypt.make('old pass')
+    assert verify('old pass', legacy) and not verify('other', legacy)
     folder = tempfile.mkdtemp()
     path = os.path.join(folder, 'passwd')
     with open(path, 'w') as f:

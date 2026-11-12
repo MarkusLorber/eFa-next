@@ -15,7 +15,8 @@
 # EFA_LIVE_BROWSER  a Chromium of the system (EPEL: chromium-headless), else the one of playwright
 # EFA_LIVE_IDLE_MINUTES  minutes of the idle test (default 10); EFA_LIVE_IDLE_CPU  the most CPU % of all eFa-next processes (5)
 # EFA_LIVE_FASTTEXT_MODEL  a FastText model file for the RAM measure of N5 (only measured, then taken out again)
-# EFA_LIVE_STEPS    the steps to run (default: ui idle mail pages cve pgp n5)
+# EFA_LIVE_STEPS    the steps to run (default: ui idle mail features pages cve pgp n5)
+# EFA_LIVE_FEATURES only these checks of the step features, comma separated (such as bec_vip,dlp; default all)
 # EFA_CI_LOCK_WAIT  seconds to wait for a running ci.sh or live test (default 7200)
 
 cd "$(dirname "$0")/.." || exit 1
@@ -25,12 +26,17 @@ OUT=/var/tmp/efa-live.$(date +%Y%m%d-%H%M%S)
 mkdir -m 0700 "$OUT" || exit 1
 RUN=$(date +%s)
 VENV=${EFA_LIVE_VENV:-/root/efa-live-venv}
-STEPS=${EFA_LIVE_STEPS:-ui idle mail pages cve pgp n5}
+STEPS=${EFA_LIVE_STEPS:-ui idle mail features pages cve pgp n5}
 SUMMARY="$OUT/summary.txt"
 : > "$SUMMARY"
 
-exec 9>>/var/tmp/efa-ci.lock
-flock -w "${EFA_CI_LOCK_WAIT:-7200}" 9 || { echo "live tests: the lock of ci.sh stays taken"; exit 1; }
+if [ -n "${EFA_CI_LOCK_HELD:-}" ]; then
+    # Inside ci.sh (step live-ui): its lock on fd 9 is inherited; flock -n on it only holds when it really is ours.
+    flock -n 9 || { echo "live tests: EFA_CI_LOCK_HELD, but fd 9 holds no lock of ci.sh"; exit 1; }
+else
+    exec 9>>/var/tmp/efa-ci.lock
+    flock -w "${EFA_CI_LOCK_WAIT:-7200}" 9 || { echo "live tests: the lock of ci.sh stays taken"; exit 1; }
+fi
 
 result() { echo "$1: $2" | tee -a "$SUMMARY"; }
 
@@ -41,7 +47,10 @@ restore() {
     sh -c "$RESTORE" >> "$OUT/restore.log" 2>&1
     RESTORE=""
 }
-trap 'restore' EXIT INT TERM
+# A signal puts back and ends the run: after its trap sh would go on with the next step.
+trap 'restore' EXIT
+trap 'restore; exit 130' INT
+trap 'restore; exit 143' TERM
 
 step_ui() {
     if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c 'import playwright' 2>/dev/null; then
@@ -50,6 +59,8 @@ step_ui() {
     fi
     "$VENV/bin/python" -I scripts/live_ui.py "$OUT/ui" "$EFA_LIVE_DOMAIN" "${EFA_LIVE_TENANT:-}" > "$OUT/ui.log" 2>&1
     code=$?
+    # The guided wizards: apply, background test, manual switch, German and the domain admin; it removes what it made.
+    "$VENV/bin/python" -I scripts/wizard_live.py "$OUT/ui/wizards" "$EFA_LIVE_DOMAIN" >> "$OUT/ui.log" 2>&1 || code=1
     cat "$OUT/ui.log" >> "$SUMMARY"; grep -E '^ui ' "$OUT/ui.log"
     [ $code -eq 0 ] && result ui ok || result ui FAILED
 }
@@ -97,6 +108,61 @@ step_mail() {
     cat "$OUT/mail.log" | tee -a "$SUMMARY"
     cmp -s "$OUT/main.cf.before" /etc/postfix/main.cf || { result mail "FAILED (main.cf not as before)"; return 0; }
     [ $code -eq 0 ] && result mail ok || result mail FAILED
+}
+
+# The features get a domain of their own, for this step only: a real domain of the host has SPF and DMARC in the public DNS,
+# against which mail "from outside" in its name fails, and example.com has a null MX. The local unbound answers MX and A of
+# FEATURES_DOMAIN with 127.0.0.1, no SPF, no DMARC; the transport map has it with a TEST-NET server. Both go again on every
+# way out (the trap of RESTORE), only unbound restarts (its control socket is off, no reload), and unbound conf.d and the transport map must be as before.
+FEATURES_DOMAIN=efa-live.test
+FEATURES_ZONE=/etc/unbound/conf.d/efa-live-test.conf
+# Greylisting is not under test here and is off for the step: a mail in its score band makes rspamd greylist sender,
+# recipient and address, and then it checks nothing else of the next mails of the run. Its file comes back as it was.
+FEATURES_GREY=/etc/rspamd/local.d/greylist.conf
+
+step_features() {
+    # T-1: one real mail per feature (scripts/live_features.py). Nothing leaves the host: every transport waits, XCLIENT only
+    # for 127.0.0.1 and only now (incoming mail as a client outside), then the main.cf of before comes back.
+    cp -p /etc/postfix/main.cf "$OUT/main.cf.features" || { result features "FAILED (no main.cf)"; return 0; }
+    cp -p /etc/postfix/transport "$OUT/transport.features" || { result features "FAILED (no transport map)"; return 0; }
+    cp -pr /etc/unbound/conf.d "$OUT/unbound-conf.d.features" || { result features "FAILED (no unbound conf.d)"; return 0; }
+    [ ! -e "$FEATURES_ZONE" ] || { result features "FAILED ($FEATURES_ZONE is left from before)"; return 0; }
+    if [ -e "$FEATURES_GREY" ]; then
+        cp -p "$FEATURES_GREY" "$OUT/greylist.features" || { result features "FAILED (no copy of $FEATURES_GREY)"; return 0; }
+        grey_back="cp -p '$OUT/greylist.features' '$FEATURES_GREY'"
+    else
+        grey_back="rm -f '$FEATURES_GREY'"
+    fi
+    RESTORE="${RESTORE:+$RESTORE; }efactl transport-set --domain=$FEATURES_DOMAIN --action=remove --destination=; cp -p '$OUT/transport.features' /etc/postfix/transport; postmap /etc/postfix/transport; rm -f '$FEATURES_ZONE'; systemctl restart unbound; $grey_back; systemctl reload rspamd; cp -p '$OUT/main.cf.features' /etc/postfix/main.cf; postfix reload"
+    printf 'server:\n  local-zone: "%s." static\n  domain-insecure: "%s"\n  local-data: "%s. 300 IN MX 10 mail.%s."\n  local-data: "%s. 300 IN A 127.0.0.1"\n  local-data: "mail.%s. 300 IN A 127.0.0.1"\n' \
+        "$FEATURES_DOMAIN" "$FEATURES_DOMAIN" "$FEATURES_DOMAIN" "$FEATURES_DOMAIN" "$FEATURES_DOMAIN" "$FEATURES_DOMAIN" > "$FEATURES_ZONE"
+    if ! unbound-checkconf > "$OUT/unbound-check.log" 2>&1 || ! systemctl restart unbound \
+            || ! efactl transport-set --domain=$FEATURES_DOMAIN --action=add --destination=192.0.2.25 > "$OUT/transport-set.log" 2>&1 \
+            || ! efactl greylisting-set --mode=off >> "$OUT/transport-set.log" 2>&1; then
+        restore
+        result features "FAILED (no test domain $FEATURES_DOMAIN: $(tail -c 200 "$OUT/unbound-check.log" "$OUT/transport-set.log" 2>/dev/null | tr '\n' ' '))"
+        return 0
+    fi
+    if [ "$(dig +short +time=5 +tries=2 MX "$FEATURES_DOMAIN" @127.0.0.1)" != "10 mail.$FEATURES_DOMAIN." ]; then
+        restore
+        result features "FAILED (the local unbound does not answer MX of $FEATURES_DOMAIN)"
+        return 0
+    fi
+    postconf -e 'defer_transports = smtp, relay, lmtp, local, virtual' 'smtpd_authorized_xclient_hosts = 127.0.0.1' && postfix reload > /dev/null 2>&1
+    python3 -I scripts/live_features.py "$FEATURES_DOMAIN" "$RUN" "${EFA_LIVE_FEATURES:-}" > "$OUT/features.log" 2>&1
+    code=$?
+    restore
+    cat "$OUT/features.log" | tee -a "$SUMMARY"
+    cmp -s "$OUT/main.cf.features" /etc/postfix/main.cf || { result features "FAILED (main.cf not as before)"; return 0; }
+    cmp -s "$OUT/transport.features" /etc/postfix/transport || { result features "FAILED (transport map not as before)"; return 0; }
+    if [ -e "$OUT/greylist.features" ]; then
+        cmp -s "$OUT/greylist.features" "$FEATURES_GREY" || { result features "FAILED (greylisting not as before)"; return 0; }
+    elif [ -e "$FEATURES_GREY" ]; then
+        result features "FAILED ($FEATURES_GREY left behind)"; return 0
+    fi
+    diff -r --no-dereference "$OUT/unbound-conf.d.features" /etc/unbound/conf.d > "$OUT/unbound-conf.d.diff" 2>&1 || { result features "FAILED (unbound conf.d not as before)"; return 0; }
+    systemctl is-active -q unbound || { result features "FAILED (unbound does not run after the test)"; return 0; }
+    [ $code -eq 0 ] && result features ok || result features FAILED
 }
 
 step_pages() {

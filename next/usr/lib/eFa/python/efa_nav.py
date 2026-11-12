@@ -8,7 +8,7 @@ NAV = [
         {'slug': 'dash', 'title': 'Dashboard', 'sub': 'Current state of this server.',
          'sections': [('Details', ['status', 'settings'], 'advanced')],
          'load': ['quarantine-list', 'backup-list', 'dkim-check', 'rotation-status', 'ssh-root-status', 'bayes-status', 'security-status', 'dash-stats',
-                  'rbl-show']}]),
+                  'rbl-show', 'standards-show']}]),
     ('Mail & quarantine', [
         {'slug': 'flow', 'title': 'Mail routing', 'sub': 'Which domains this server takes mail for, where it goes, and who may send through it.',
          'sections': [('Domains & destinations', ['transport-set']),
@@ -33,7 +33,8 @@ NAV = [
          'sections': [('Held mail', ['uq-list', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'uq-delete']),
                       ('Spam reports', ['train-request', 'train-list', 'train-decide']),
                       ('Settings', ['uq-status', 'uq-set', 'uq-encrypt-set'], 'advanced'), ('My settings', ['my-settings', 'my-settings-set'], 'advanced'),
-                      ('Two-factor login (2FA)', ['totp-status', 'totp-setup', 'totp-confirm', 'totp-disable', 'passkey-status', 'passkey-register', 'passkey-remove'], 'advanced'),
+                      ('My account', ['account-show', 'account-set', 'account-email-set', 'password-change'], 'advanced'),
+                      ('Two-factor login (2FA)', ['totp-status', 'totp-setup', 'totp-confirm', 'totp-recovery-new', 'totp-disable', 'passkey-status', 'passkey-register', 'passkey-remove'], 'advanced'),
                       ('Newsletters and my spam limit', ['graymail-status', 'graymail-mine-set', 'user-spam-status', 'user-spam-mine-set']),
                       ('Recall my mail', ['recall-list', 'recall-withdraw']),
                       ('Emergency access to my mail', ['emergency-list', 'emergency-show', 'emergency-file'])],
@@ -51,14 +52,14 @@ NAV = [
          'autoload': ['queue-list'],
          'notes': {'spool-set': 'After a server is back, Postfix starts with this many connections and raises them while delivery works.'}},
         {'slug': 'log', 'title': 'Mail log', 'sub': 'Search delivered and rejected mail.', 'load': ['my-settings'],
-         'sections': [('Search', ['message-search', 'maillog-search', 'maillog-live']),
+         'sections': [('Search', ['message-search', 'maillog-search', 'maillog-live', 'sender-action-check', 'sender-action']),
                       ('Data of one person (GDPR)', ['gdpr-export', 'gdpr-delete'], 'advanced'), ('Export headers', ['headers-export'], 'advanced'),
                       ('Storage & privacy', ['retention-status', 'retention-set', 'pseudonymise-status', 'pseudonymise-set', 'content-reason-set', 'subject-display-set', 'headers-store-set',
                                              'maillog-retention-set', 'maillog-size-set', 'maillog-purge'], 'advanced')]}]),
     ('Protection', [
         {'slug': 'spam', 'title': 'Spam & virus', 'sub': 'When mail is greylisted, marked or rejected, and the extra virus signatures.',
          'sections': [('Spam', ['spam-scores-set', 'greylisting-set', 'subject-get', 'subject-set', 'bayes-status']),
-                      ('Virus signatures', ['sanesecurity-status', 'sanesecurity-set', 'sanesecurity-update', 'clam-source-status', 'clam-source-set']),
+                      ('Virus signatures', ['sanesecurity-status', 'sanesecurity-set', 'sanesecurity-update', 'clam-source-status', 'clam-source-set', 'clam-securiteinfo-set']),
                       ('Attachments', ['attachment-status', 'attachment-set']),
                       ('QR codes', ['qr-status', 'qr-set'], 'advanced'),
                       ('Encrypted archives', ['unlock-status', 'unlock-set'], 'advanced'),
@@ -101,14 +102,17 @@ NAV = [
                                     'own addresses are never blocked. Firewall reloads of package updates keep every list.'}},
         {'slug': 'senders', 'title': 'Sender lists', 'sub': 'Always allow or block senders, by address, domain, IP or pattern.',
          'commands': ['sender-list', 'sender-add', 'sender-remove', 'sender-move', 'sender-list-set', 'sender-rule-set'],
-         'notes': {'sender-rule-set': 'A rule for one recipient or domain only. Other rules are managed above.'}},
+         'notes': {'sender-rule-set': 'A rule for one recipient or domain only. Other rules are managed above.',
+                   'sender-add': 'Sender addresses can be forged. An allowed address or domain passes the RBL, HELO and DNS checks of '
+                                 'Postfix, also when someone else gives it; each pass is in the audit log. A virus in its mail is cut out, the '
+                                 'mail goes on. Exact addresses rather than whole domains, and only senders you need.'}},
         {'slug': 'rules', 'title': 'Rules', 'sub': 'Other spam limits, quarantine or another route, by sender, recipient, domain, tenant or group.',
          'commands': ['rule-list', 'rule-set'],
          'notes': {'rule-set': 'One verdict per mail: with several recipients, a rule counts if one of them fits. Quarantine needs the quarantine switched on. '
                                'A virus is rejected in any case. Tenants and groups are read again every hour.'}},
         {'slug': 'bec', 'title': 'Impersonation & BEC', 'sub': 'Fake names of VIPs, lookalike domains, first contacts and senders that suddenly write differently.',
          'commands': ['bec-status', 'bec-set', 'bec-vip-set', 'bec-partner-set'],
-         'notes': {'bec-set': 'Off by default. Each check adds its score, so a lookalike domain at a first contact counts more. Runs in rspamd, '
+         'notes': {'bec-set': 'On after a new install and after a migration from eFa 5; an update keeps what was set. Each check adds its score, so a lookalike domain at a first contact counts more. Runs in rspamd, '
                               'the relations and sender profiles are kept in Redis for the days set.',
                    'bec-partner-set': 'Own domains are protected anyway: those of the routes, the DKIM keys and the tenants.'}}]),
     ('Domains & tenants', [
@@ -147,7 +151,7 @@ NAV = [
                                'recipients are all outside this server takes the bulk transport. Checked: a one-click unsubscribe link '
                                '(List-Unsubscribe with List-Unsubscribe-Post, RFC 8058), a DKIM key here for the sender domain, SPF and DMARC in DNS.'}},
         {'slug': 'archive', 'title': 'Archive handover', 'sub': 'A copy of each mail to an external archive such as MailStore or piler, by SMTP.',
-         'commands': ['archive-status', 'archive-set', 'archive-remove'],
+         'commands': ['archive-status', 'archive-set', 'archive-test', 'archive-remove'],
          'notes': {'archive-set': 'MailStore: set up MailStore Gateway (free) as journal target, or a journal mailbox that MailStore fetches, '
                                   'and give its address here. piler takes the copies on its own SMTP port. Copies of mail that is held '
                                   'wait with it; rejected mail is not archived. A copy that cannot be delivered waits in the queue, '
@@ -192,10 +196,21 @@ NAV = [
                    'tenant-delete': 'Deletes users that are only in this tenant, its groups, settings, DKIM keys, quarantine and mail log. The audit log stays.',
                    'tenant-oidc-set': 'The login page then asks for the mail domain. Only addresses of the domains of the tenant can log in through it.'}}]),
     ('Users & access', [
-        {'slug': 'users', 'title': 'Users', 'sub': 'Users with their groups, your sessions, API tokens and the audit log.',
-         'sections': [('My login', ['whoami', 'my-settings', 'my-settings-set', 'session-list', 'session-end']),
-                      ('Two-factor login (2FA)', ['totp-status', 'totp-setup', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set']),
-                      ('Passkeys', ['passkey-status', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set'], 'advanced'),
+        {'slug': 'account', 'title': 'My account', 'sub': 'Your own login: address, password, 2FA, settings and sessions.',
+         'sections': [('My login', ['whoami', 'account-show', 'account-set', 'account-email-set', 'password-change']),
+                      ('Two-factor login (2FA)', ['totp-status', 'totp-setup', 'totp-confirm', 'totp-recovery-new', 'totp-disable']),
+                      ('Passkeys', ['passkey-status', 'passkey-register', 'passkey-remove'], 'advanced'),
+                      ('My settings', ['my-settings', 'my-settings-set']),
+                      ('My sessions', ['session-list', 'session-end'])],
+         'notes': {'session-end': 'Your own sessions on other devices too. The browser is logged out within 15 seconds.',
+                   'totp-setup': 'With 2FA on already: a new app, after your password and the current code. The old app counts until the new '
+                                 'one is confirmed.',
+                   'account-email-set': 'The new address gets a link (valid for one day); it counts once the link is clicked. The old '
+                                        'address then gets a note.',
+                   'password-change': 'Your other sessions end.'}},
+        {'slug': 'users', 'title': 'Users', 'sub': 'Users with their groups, API tokens and the audit log.',
+         'sections': [('2FA of the users', ['user-2fa-reset', 'totp-policy-set']),
+                      ('Passkeys', ['passkey-reset', 'passkey-set'], 'advanced'),
                       ('Users', ['user-list', 'user-show', 'user-set', 'user-state']),
                       ('API tokens', ['token-list', 'token-create', 'token-revoke', 'api-status', 'api-set']),
                       ('Login directory', ['oidc-status', 'oidc-set', 'ldap-status', 'ldap-set'], 'advanced'),
@@ -207,16 +222,25 @@ NAV = [
                    'user-set': 'A user can be in several groups; the permissions add up. Tenant and domain are the scope of the predefined groups '
                                '(tenant admin needs a tenant, domain admin a domain). You cannot hand out what you do not have, or change your own groups.',
                    'user-show': 'The effective permissions, each with where it counts.',
-                   'user-state': 'Locked users are logged out within 15 seconds and cannot log in; their API tokens stop.',
-                   'session-end': 'Your own sessions on other devices too. The browser is logged out within 15 seconds.'}},
+                   'user-state': 'Locked users are logged out within 15 seconds and cannot log in; their API tokens stop.'}},
         {'slug': 'groups', 'title': 'Groups', 'sub': 'Groups with their permissions and scope, and which directory group gets which eFa-next group.',
          'sections': [('Groups', ['group-list', 'group-set', 'group-state', 'group-remove', 'permission-list']),
                       ('Directory groups', ['group-map-list', 'group-map-set'], 'advanced')],
          'notes': {'group-set': 'The predefined groups cannot be changed or removed; copy one and change the copy. '
                                 'Scope: global, or the tenants or domains named. Permissions marked global_only need a global group.',
                    'group-map-set': 'For LDAP the full DN or the CN, for OIDC the name or ID of the group. A login gets one eFa-next group per mapped directory group.'}},
+        {'slug': 'standards', 'title': 'Security standards', 'sub': 'Choose standards (BSI, RFC 9325, Mozilla, NIST, CIS), see the change first, and check which ones this host meets.',
+         'sections': [('Check', ['standards-show', 'standards-check']), ('Choose and apply', ['standards-status', 'standards-set', 'standards-rollback']),
+                      ('Operating system', ['os-harden-status', 'os-harden-set'], 'advanced')],
+         'notes': {'standards-set': 'Without apply=yes only a preview: every setting with its value now and after, and the warnings. The strictest '
+                                    'value of the chosen standards, never below the limit of eFa-next. Port 25 stays opportunistic unless you '
+                                    'require TLS there. Mozilla modern only for the web interface, logins on 587 stay at TLS 1.2.',
+                   'standards-check': 'Every standard, chosen or not, against the settings in effect (postconf, nginx -T, sshd -T, sysctl, '
+                                      'crypto policy), with the reason of each finding. DANE incoming, MTA-STS and TLS-RPT need DNS records '
+                                      'or a mailbox. Also in the PDF of the hardening report.'}},
         {'slug': 'sec', 'title': 'Security', 'sub': 'Admin access, the firewall and its test.',
-         'sections': [('Address harvesting', ['harvest-status', 'harvest-set']),
+         'sections': [('Attack alert', ['threat-status', 'threat-set']),
+                      ('Address harvesting', ['harvest-status', 'harvest-set']),
                       ('Failed logins', ['login-lockout-status', 'login-lockout-set']),
                       ('Admin access', ['ssh-root-status', 'ssh-root-set', 'web-allowlist-show', 'web-allowlist-set', 'fail2ban-set', 'admin-email-set', 'rspamd-sso-set', 'audit-rspamd', 'web-harden']),
                       ('Firewall', ['firewall-show', 'firewall-set', 'firewall-confirm', 'firewall-revert', 'firewall-guard-status', 'firewall-guard-set', 'firewall-guard-run']),
@@ -226,7 +250,7 @@ NAV = [
                       ('Configuration history', ['history-list', 'history-show', 'history-undo'], 'advanced'),
                       ('Four eyes', ['four-eyes-list', 'four-eyes-decide', 'four-eyes-set']),
                       ('Milter health', ['milter-health-status', 'milter-health-set'], 'advanced'),
-                      ('TLS profile', ['tls-profile-status', 'tls-profile-set']),
+                      ('TLS profile', ['tls-profile-status', 'tls-profile-set', 'tls-port25-set']),
                       ('Setup variant', ['setup-variant-status', 'setup-offer-dismiss', 'console-2fa-set']),
                       ('Security minimum', ['floor-status', 'floor-check']),
                       ('SSH profile', ['ssh-profile-status', 'ssh-profile-set', 'ssh-profile-confirm'], 'advanced'),
@@ -272,10 +296,16 @@ NAV = [
                    'wazuh-config': 'Active response stays off unless you turn it on: the manager could then change firewalld at any time. '
                                    'An agent that eFa-next did not install is only read; eFa-next takes it over only with adopt and the confirmation.'}}]),
     ('System', [
+        {'slug': 'dnsshare', 'title': 'DNS resolver for other networks', 'sub': 'Let other servers of your network (a second MX) ask the resolver of this host.',
+         'commands': ['dns-share-list', 'dns-share-add', 'dns-share-del', 'dns-share-secondary-set'],
+         'notes': {'dns-share-add': 'Only the networks listed may ask, everything else stays refused (never an open resolver): at most /8 for IPv4, '
+                                    '/32 for IPv6. Each net also opens port 53 in the firewall, from that net only. A net outside the private '
+                                    'ranges needs yes. The other MX of a cluster is one entry, its address.',
+                   'dns-share-secondary-set': 'This host asks its own unbound first, then the other MX.'}},
         {'slug': 'net', 'title': 'Network & certificate', 'sub': 'Changes to the network apply after a reboot.',
          'sections': [('Main interface', ['network-show', 'network-set', 'hostname-set']),
                       ('More interfaces', ['interfaces-list', 'interface-set', 'interface-confirm', 'interface-revert', 'uplink-route-set'], 'advanced'),
-                      ('DNS and certificate', ['dns-zone-list', 'dns-servers-set', 'dns-zone-set', 'dns-zone-test', 'letsencrypt-set']),
+                      ('DNS and certificate', ['dns-zone-list', 'dns-servers-set', 'dns-zone-set', 'dns-zone-test', 'dns-forward-status', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover']),
                       ('DANE', ['dane-status', 'dane-set', 'tlsa-show', 'letsencrypt-rollover'], 'advanced'),
                       ('MTA-STS', ['mta-sts-show', 'mta-sts-set', 'mta-sts-check', 'mta-sts-text'], 'advanced')],
          'show': ['dns_zones'],
@@ -296,12 +326,14 @@ NAV = [
                       ('Cluster: all nodes', ['cluster-maillog', 'cluster-quarantine', 'cluster-queue', 'cluster-mail-action', 'cluster-unban'], 'advanced')]},
         {'slug': 'maint', 'title': 'Maintenance & update', 'sub': 'Updates, maintenance mode and power. Actions that interrupt mail ask first.',
          'sections': [('Updates', ['update-pending', 'update-status', 'update-system', 'autoupdate-status', 'autoupdate-set', 'update-check', 'update-install', 'update-rollback',
-                                   'update-now', 'update-system-run', 'update-post-boot', 'update-run']),
+                                   'update-now', 'update-system-run', 'update-post-boot', 'update-run', 'os-check-status', 'os-check-run']),
                       ('Maintenance', ['maintenance-set', 'load-set', 'load-notify']),
+                      ('Release-Upgrade', ['release-upgrade-status', 'release-upgrade'], 'advanced'),
                       ('Power', ['reboot', 'halt']),
                       ('Advanced', ['milter-chain-set', 'extra-service-set', 'mariadb-repair'], 'advanced')],
          'show': ['smtpd_milters', 'extra_services'],
          'notes': {'maintenance-set': 'Stops the service monitor from restarting services.',
+                   'release-upgrade': 'Super admins only. Steps in order: preflight, preupgrade, start. Start needs your password and 2FA code, the snapshot box and the host name; it makes an encrypted backup, uploads it to the external target and test-extracts it first. The button stays without effect while the preflight names a reason, such as the missing eFa-next repository for EL10.',
                    'update-system': 'First a backup and an export of the eFa-next configuration, encrypted if a backup password is set. '
                                     'It starts only between minute 20 and 50, and leaves out packages whose scripts reload or restart firewalld. '
                                     'Operating system updates cannot be rolled back automatically.',
@@ -358,6 +390,7 @@ FORM_SOURCE = {
     'ldap-set': ('ldap-status', {'mode': 'ldap', 'uri': '?uri', 'bind_dn': '?bind_dn', 'base': '?base', 'user_filter': '?user_filter'}),
     'links-set': ('links-status', {'mode': 'enabled', 'base': 'base', 'allow_continue': 'continue', 'unchecked': 'unchecked', 'add': None, 'remove': None}),
     'load-set': ('settings', {'percent': 'load_percent', 'minutes': 'load_minutes'}),
+    'threat-set': ('threat-status', {'sensitivity': 'sensitivity'}),
     'maillog-retention-set': ('settings', {'days': 'maillog_days'}),
     'maillog-size-set': ('settings', {'megabytes': 'maillog_max_mb'}),
     'mailreport-set': ('settings', {'mode': 'mailreport_daily'}),
@@ -365,13 +398,16 @@ FORM_SOURCE = {
     'message-size-set': ('settings', {'megabytes': 'message_size_limit_mb'}),
     'milter-chain-set': ('switches-status', {'ports': 'milter_ports'}),
     'ml-set': ('ml-settings', {'mode': 'enabled', 'min_each': 'min_each', 'score': 'score'}),
+    'account-set': ('account-show', {'name': 'name', 'phone': 'phone'}),
+    'dns-share-secondary-set': ('dns-share-list', {'address': 'secondary'}),
+    'standards-set': ('standards-status', {'select': 'selected', 'port25_tls': 'port25_tls', 'apply': '?apply', 'os': None, 'efa': None}),
     'my-settings-set': ('my-settings', {'language': 'language', 'timezone': 'timezone', 'page_size': 'page_size', 'notifications': 'notifications',
-                                        'view': 'view'}),
+                                        'view': 'view', 'manual': None}),
     'hostname-set': ('network-show', {'hostname': 'hostname'}),
     'network-set': ('network-show', {'hostname': 'hostname', 'method': 'ipv4.method', 'address': 'ipv4.addresses', 'gateway': 'ipv4.gateway',
-                                     'ipv6_method': '?ipv6.method', 'ipv6_address': '?ipv6.addresses', 'ipv6_gateway': '?ipv6.gateway'}),
+                                     'ipv6_method': 'ipv6.method', 'ipv6_address': '?ipv6.addresses', 'ipv6_gateway': '?ipv6.gateway'}),
     'neural-set': ('neural-settings', {'mode': 'enabled', 'max_trains': 'max_trains', 'max_usages': 'max_usages', 'score_spam': 'score_spam', 'score_ham': 'score_ham'}),
-    'oidc-set': ('oidc-status', {'mode': 'oidc', 'issuer': '?issuer', 'client_id': '?client_id', 'redirect_uri': '?redirect_uri', 'group_claim': '?group_claim'}),
+    'oidc-set': ('oidc-status', {'mode': 'oidc', 'issuer': '?issuer', 'client_id': '?client_id', 'redirect_uri': '?redirect_uri', 'group_claim': '?group_claim', 'portal_redirect_uri': '?portal_redirect_uri'}),
     'otlp-set': ('otlp-status', {'mode': 'enabled', 'endpoint': 'endpoint', 'auth': 'auth', 'header_name': 'header_name', 'headers': None, 'signals': 'signals',
                                  'verify': 'verify', 'ca_file': 'ca_file', 'client_cert': 'client_cert', 'client_key': 'client_key', 'buffer_mb': 'buffer_mb'}),
     'outbound-limits-set': ('submitter-list', {'recipients_hour': 'limits.recipients_hour', 'domains_hour': 'limits.domains_hour', 'action': 'limits.action',
@@ -386,7 +422,7 @@ FORM_SOURCE = {
     'fuzzy-set': ('fuzzy-status', {'mode': 'enabled', 'score': 'score'}),
     'retro-set': ('retro-status', {'mode': 'enabled', 'tell_recipients': 'tell_recipients'}),
     'signature-set': ('signature-status', {'mode': 'enabled'}),
-    'four-eyes-set': ('four-eyes-list', {'mode': 'all', 'tenant': '?tenant'}),
+    'four-eyes-set': ('four-eyes-list', {'mode': 'all', 'tenant': '?tenant', 'level': None}),
     'cluster-update-set': ('cluster-update-status', {'mode': 'enabled', 'window': 'window', 'first': 'first'}),
     'community-set': ('community-status', {'mode': 'enabled', 'server': 'server', 'key': 'key', 'share': 'share'}),
     'outbreak-set': ('outbreak-status', {'mode': 'enabled', 'recipients': 'recipients', 'window': 'window', 'hold': 'hold', 'exceptions': 'exceptions'}),
@@ -406,7 +442,7 @@ FORM_SOURCE = {
     'queue-alarm-set': ('switches-status', {'alarm_size': 'alarm_size', 'alarm_hours': 'alarm_hours'}),
     'recipient-verification-set': ('settings', {'mode': 'recipient_verification'}),
     'relay-networks-set': ('settings', {'networks': 'relay_networks'}),
-    'report-set': ('report-status', {'daily': 'daily', 'weekly': 'weekly'}),
+    'report-set': ('report-status', {'daily': 'daily', 'weekly': 'weekly', 'pdf': 'pdf'}),
     'reports-in-set': ('switches-status', {'mode': 'reports_in', 'address': 'reports_in_address'}),
     'resolver-set': ('rotation-status', {'ipv4_1': 'ipv4_1', 'ipv4_2': 'ipv4_2', 'ipv6_1': 'ipv6_1', 'ipv6_2': 'ipv6_2', 'threshold': 'threshold'}),
     'rotation-all-set': ('rotation-status', {'mode': 'rotation_all', 'interval': 'rotation_interval', 'horizon': 'rotation_horizon', 'bits': 'rotation_bits'}),
@@ -431,9 +467,10 @@ FORM_SOURCE = {
     'submission-pam-set': ('switches-status', {'mode': 'submission_pam'}),
     'tls-min-set': ('switches-status', {'mode': 'tls_min'}),
     'tls-profile-set': ('tls-profile-status', {'profile': 'profile', 'ciphers': None}),
+    'tls-port25-set': ('tls-profile-status', {'mode': 'port25_mode'}),
     'console-2fa-set': ('setup-variant-status', {'mode': 'console_2fa'}),
     'resetup': ('setup-variant-status', {'variant': 'variant', 'eulink': 'eulink', 'notice': None, 'noeu': None, 'frameworks': 'frameworks',
-                                         'note': 'note', 'lang': None, 'apply': None}),
+                                         'note': 'note', 'lang': None, 'standards': None, 'apply': None}),
     'ssh-profile-set': ('ssh-profile-status', {'mode': 'profile'}),
     'web-allowlist-set': ('web-allowlist-show', {'mode': 'mode', 'networks': 'networks'}),
     'uq-encrypt-set': ('uq-status', {'mode': 'encrypt'}),
@@ -441,21 +478,40 @@ FORM_SOURCE = {
 }
 # Forms that add, remove or act on one entry, or start a job: nothing to show beforehand.
 FORM_NEW = {
-    'floor-check', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-password-set', 'backup-target-set', 'backup-target-test',
-    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'gdpr-export', 'gdpr-delete', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-init', 'cluster-join', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
+    'account-email-set', 'password-change', 'totp-recovery-new', 'totp-setup', 'floor-check', 'release-upgrade', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-password-set', 'backup-target-set', 'backup-target-test',
+    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'gdpr-export', 'gdpr-delete', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-securiteinfo-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-init', 'cluster-join', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
     'blocklist-entry', 'blocklist-remove', 'legal-accept', 'uplink-route-set', 'ssh-profile-confirm', 'ssh-profile-revert', 'disclaimer-template-remove', 'disclaimer-restore', 'disclaimer-import', 'blocklist-set', 'symbol-score-set', 'dkim-create', 'dkim-generate', 'dkim-generate-ed25519', 'dkim-provision-takeover', 'dkim-remove', 'dkim-source-remove', 'dkim-source-set', 'dlp-rule-set', 'dns-zone-set', 'domain-onboard', 'domain-verify', 'extra-service-set',
-    'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'letsencrypt-set', 'pdf-password-set', 'phish-set', 'quarantine-delete',
+    'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
+    'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-share-add', 'dns-share-del', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
     'quarantine-release', 'queue-action', 'rbl-apply', 'rbl-custom-set', 'relay-networks-add', 'relay-networks-remove', 'restore', 'rotation-pregenerate',
     'rotation-run', 'rule-set', 'sender-add', 'sender-list-set', 'sender-move', 'sender-remove', 'sender-rule-set', 'service-restart', 'session-end',
     'submitter-remove', 'submitter-set', 'tenant-delete', 'tenant-domain-set', 'tenant-group-map-set', 'tenant-lock', 'tenant-set', 'token-create',
     'token-revoke', 'train-decide', 'train-request', 'transport-set', 'update-rollback', 'update-run', 'update-system', 'update-system-run', 'uq-delete',
-    'uq-release', 'uq-request', 'uq-sender', 'user-set', 'user-state', 'wazuh-check', 'wazuh-config', 'wazuh-install', 'wazuh-remove', 'wazuh-service',
+    'uq-release', 'uq-request', 'uq-sender', 'sender-action', 'user-set', 'user-state', 'wazuh-check', 'wazuh-config', 'wazuh-install', 'wazuh-remove', 'wazuh-service',
     'wazuh-update'}
 # shortcut: forms for one domain, tenant, list or interface show their values only when opened through the Change button of
 # their table (the key in the address); filling them from the picked key needs a request per pick, later.
-FORM_KEYED = {'application-set', 'arc-set', 'disclaimer-set', 'disclaimer-template-set', 'dmarc-record-set', 'domain-general-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-spam-set',
+FORM_KEYED = {'os-harden-set', 'application-set', 'arc-set', 'disclaimer-set', 'disclaimer-template-set', 'dmarc-record-set', 'domain-general-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-spam-set',
               'interface-set', 'mta-sts-set', 'rbl-set', 'retention-set', 'rotation-set', 'tenant-brand-set', 'tenant-ldap-set', 'tenant-limits-set',
               'tenant-oidc-set'}
+
+
+# A switch that is off has no value in effect: its fields show the default that switching it on would use.
+DEFAULT_WHILE_OFF = {('siem-set', 'port'), ('siem-set', 'protocol'), ('siem-set', 'format')}
+
+
+def optional_source_problems(forms, args_of, choices):
+    """Fields that show a default or a pulldown but may lack their value: an optional key (?) would leave the default in
+    place of the value in effect. forms: FORM_SOURCE, args_of(name): the arguments of a command, choices: ARG_CHOICES."""
+    found = []
+    for name, (_status, keys) in sorted(forms.items()):
+        for arg in args_of(name):
+            key = keys.get(arg['name'])
+            if (name, arg['name']) in DEFAULT_WHILE_OFF:
+                continue
+            if key and key.startswith('?') and ('default' in arg or (name, arg['name']) in choices or arg.get('choices')):
+                found.append(f'{name} --{arg["name"]}: optional source {key} for a field with a default or a pulldown')
+    return found
 
 
 def form_value(output, key):

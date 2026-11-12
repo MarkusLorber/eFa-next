@@ -3,6 +3,7 @@
 # Author: Markus Lorber, Lukasz Galusinski
 """Tests for efa_common, the service steps and the package hooks."""
 
+import os
 import unittest
 
 from efa_testlib import RootTestCase, c
@@ -50,6 +51,31 @@ class CommonTests(RootTestCase):
 class StepTests(RootTestCase):
     def run_all(self):
         return c.run_steps(s.INSTALL_STEPS, s.INSTALL_ORDER)
+
+    def test_root_login_moves_to_its_own_file_unchanged(self):
+        # S30: the value sshd takes now (Anaconda's yes here) goes into 00-efa-root.conf; the hardening file no longer names it.
+        self.runner.sshd_t = "permitrootlogin yes\n"
+        s.step_system()
+        self.assertIn("PermitRootLogin yes\n", self.read("etc/ssh/sshd_config.d/00-efa-root.conf"))
+        self.assertNotIn("PermitRootLogin", self.read("etc/ssh/sshd_config.d/40-efa.conf"))
+        # Already there: kept as it is, whatever sshd says.
+        self.runner.sshd_t = "permitrootlogin without-password\n"
+        s.step_system()
+        self.assertIn("PermitRootLogin yes\n", self.read("etc/ssh/sshd_config.d/00-efa-root.conf"))
+
+    def test_root_login_moves_on_an_update(self):
+        # A host of 6.0.0.5: the hardening file still names PermitRootLogin; the update keeps what sshd takes (here no, of 39-...).
+        self.write("etc/ssh/sshd_config.d/40-efa.conf", "PermitRootLogin prohibit-password\nX11Forwarding no\n")
+        self.runner.sshd_t = "permitrootlogin no\n"
+        s.sshd_root_upgrade()
+        self.assertIn("PermitRootLogin no\n", self.read("etc/ssh/sshd_config.d/00-efa-root.conf"))
+        self.assertNotIn("PermitRootLogin", self.read("etc/ssh/sshd_config.d/40-efa.conf"))
+
+    def test_root_login_kept_in_the_hardening_file_when_sshd_does_not_answer(self):
+        self.runner.sshd_t = ""
+        s.step_system()
+        self.assertIn("PermitRootLogin prohibit-password", self.read("etc/ssh/sshd_config.d/40-efa.conf"))
+        self.assertFalse(os.path.exists(self.path("etc/ssh/sshd_config.d/00-efa-root.conf")))
 
     def test_all_steps_pass_and_are_idempotent(self):
         self.assertEqual(self.run_all(), [])
@@ -187,6 +213,17 @@ class HookTests(RootTestCase):
         c.write_kv("/etc/eFa/eFa-Config", {"CONFIGURED": "YES"}, 0o640)
         efa_configure.after_change("eFa")
         self.assertIn(["systemctl", "start", "efa-web.service"], self.runner.calls)
+
+    def test_post_boot_check_enabled_on_install_and_upgrade(self):
+        """efa-post-boot.service: enabled on a new install and on an upgrade, never started by the hook."""
+        self.write("usr/lib/systemd/system/efa-post-boot.service", "")
+        self.write("usr/sbin/efa-apply", "")
+        enable = ["systemctl", "enable", "--quiet", "efa-post-boot.service"]
+        for mode in ("first-install", "upgrade"):
+            self.runner.calls.clear()
+            self.assertEqual(efa_configure.package_hook("eFa", mode, "6.0.0.6"), 0)
+            self.assertIn(enable, self.runner.calls)
+            self.assertFalse([cmd for cmd in self.runner.calls if "efa-post-boot.service" in cmd and cmd != enable])
 
     def test_upgrade_rewrites_the_user_quarantine_rule_only_when_on(self):
         self.write("usr/sbin/efa-apply", "")

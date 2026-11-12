@@ -10,7 +10,8 @@ When mail is greylisted, marked or rejected; subject marking for failed SPF, DKI
 
 Greylisting (Spam & virus) holds mail of an unknown sender back once. 9j: how long a new sender waits (1 to 15 minutes, default
 5 as rspamd) and how long a sender that came back stays known (1, 3 or 7 days, default 1), as dropdowns showing the values in
-use.
+use. A new install and a migration from eFa 5 switch it on with 5 minutes and 7 days (from 6.0.0.6); an update keeps what was set.
+With greylisting off and its score below the spam marking, mail in between gets no action at all: the dashboard names that gap.
 
 ### Scan limits
 
@@ -31,6 +32,26 @@ DNS blocklists, asked through the own resolver of eFa-next. Each with its terms:
 ## Sender lists
 
 Always allow or block senders, by address, domain, IP or pattern. *Manage* opens the list with search, import and export. A rule for one recipient or domain goes in *Sender rules*.
+
+**An allowed address or domain always gets through (6.0.0.6).** Postfix lets it past its own checks that could reject it: the
+blocklists of the client (RBL), the HELO and the DNS of the sender (an internal domain such as `ai.local` that does not resolve).
+The lookup of the allow list stands right after `permit_mynetworks`/`permit_sasl_authenticated` in the client, HELO, sender and
+data checks, and in the recipient and relay checks only after `reject_unauth_destination`: an allowed sender never makes this
+server an open relay. Postscreen and the TLS policy stay for everyone. **Sender addresses can be forged:** whoever gives an allowed
+address gets the same; each pass is logged by Postfix (`efa-allow`) and written to the audit log. Keep only senders you need, as
+exact addresses rather than whole domains.
+
+A virus in the mail of an allowed sender is cut out and the mail goes on: the attachment becomes a short note, the header
+`X-eFa-next-Removed` names it, and the original is kept for the admin (*Content disarm*, `efactl cdr-list`, `cdr-release`), with an
+entry in the audit log. A virus in the text itself cannot be cut out: the mail is held (queue *hold*) and its recipients get a
+note. This needs content disarm (efa-cdr) in the milter chain; without it a virus is rejected for every sender as before.
+
+**Ein erlaubter Absender kommt immer durch (6.0.0.6).** Eine erlaubte Adresse oder Domain kommt an den Prüfungen von Postfix
+vorbei, die sie abweisen könnten (Blocklisten des Clients, HELO, DNS des Absenders); vor der Relay-Prüfung steht sie nie, ein
+offenes Relay entsteht nicht. **Absender sind fälschbar:** Jeder, der eine erlaubte Adresse angibt, bekommt dasselbe; jedes
+Durchlassen steht im Audit-Log. Ein Virus in der Mail eines erlaubten Absenders wird herausgeschnitten, die Mail geht weiter
+(Hinweis im Text, Header `X-eFa-next-Removed`, Original für den Admin); steckt er im Text selbst, wird die Mail angehalten und die
+Empfänger bekommen einen Hinweis.
 
 ![Sender lists](images/senders.png)
 
@@ -93,6 +114,30 @@ Each source is off by default and is switched on only with its terms confirmed; 
 - **Storage:** it is kept as `efa-<source>-<file>` next to the other signatures.
 - **Switching off:** a source that is switched off loses its files at the next run.
 
+SecuriteInfo account tier and URLs (6.0.0.6): in the row of SecuriteInfo, choose the account tier and paste the
+`DatabaseCustomURL` lines from the setup page of your SecuriteInfo account (console:
+`efactl clam-securiteinfo-set --tier basic`, then the lines one by one, an empty line ends).
+- **Tier Basic:** at most one round of downloads every 30 minutes and at most 300 kB/s. The job keeps to it itself: the time
+  of the last round is written to `/var/lib/eFa/securiteinfo-last` before the first request, so a second run, a restart or a
+  manual update within the 30 minutes does not ask SecuriteInfo; the download is read no faster than the rate. The row shows
+  the tier in effect and when SecuriteInfo was last asked. More tiers are one line in `SI_TIERS` of efactl.
+- **Checked lines:** only `DatabaseCustomURL https://...` with a host securiteinfo.com or one below it, no user, port or
+  query, a ClamAV database file at the end, at most 40 lines; blank lines and `#` comments are skipped, anything else is
+  refused with the line number.
+- **The key:** the lines hold the subscription key. They are kept in `/etc/eFa/securiteinfo-urls.json` (root, 0600), go to
+  efactl on stdin, never in an argument, and are never shown, logged or put into the audit log; the page only says how many
+  URLs are stored, with Replace and Delete. With stored URLs the account ID is not needed; deleting them makes the ID count again.
+- **Cluster:** only the master knows the key and asks SecuriteInfo; the nodes get the checked files from it (docs/cluster.md). Tier and URLs are set on the master; the account ID
+  goes neither into the cluster journal nor into the snapshot for a new node. A node shows "waiting for the master" until it
+  has the checked signature files from the master. The upgrade to 6.0.0.6 (`efactl cluster-secret-scrub`) takes the ID and
+  URL lines out of older journal entries and off the nodes. Older backups may still hold them: if SecuriteInfo was used in a
+  cluster before 6.0.0.6, renew the key at SecuriteInfo.
+
+Example of the lines (with a placeholder key):
+
+    DatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/securiteinfo.hdb
+    DatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/javascript.ndb
+
 Office macros (5v b): `efactl ole-set --mode on` (Spam & virus, Office macros) has olevba of oletools (EPEL, BSD licence) read
 the VBA macros of Office files, in the sandboxed service efa-unlock. Up to three files a mail are read, each up to 10 MB.
 - `EFA_OLE_AUTOEXEC` (4): a macro that starts on opening.
@@ -124,12 +169,16 @@ signed link token, so the page knows it without any other lookup; links written 
   original; the mail gets `X-eFa-HTML-Disarmed`. Signed and encrypted mail stays as it is. Off by default.
 - **Young domains**: the days a domain counts as young are a dropdown (7, 14, 30, 90, 365); the age comes from the RDAP server
   of the registry, which learns the domain that is asked for.
-- **Sandbox of the services**: eFa-next confines its own services in their unit files. The services of the distribution
-  (unbound, rspamd, clamd, freshclam, redis, nginx, Postfix, MariaDB) get no extra sandbox in 6.0.0.5: they run in their own
-  SELinux domains, and NoNewPrivileges blocks the change into them (in tests unbound did not start, and the host had no DNS).
-  `efactl service-harden` removes such sandbox files of test builds again and starts the unit; an upgrade does the same. A unit
-  that is put on the list later must stay active over a stability window after its restart, else it runs without the sandbox
-  and the dashboard says so (`efactl service-harden-status`).
+- **Sandbox of the services**: eFa-next confines its own services in their unit files. Since 6.0.0.6 rspamd, clamd, freshclam,
+  redis, unbound and nginx get a drop-in too (`/etc/systemd/system/<unit>.d/efa-hardening.conf`): the system read-only except
+  the folders the daemon writes (its data and log folders and /run for the sockets), no /home, an own /tmp, read-only kernel
+  tunables and control groups. Nothing in it needs NoNewPrivileges, which blocks the change into their own SELinux domains (in
+  the tests of 6.0.0.5 unbound did not start with it, and the host had no DNS). Postfix and MariaDB stay without. redis runs as its own user and so gets
+  the read-only system without the kernel and control group limits, which would bring NoNewPrivileges for it; the check of the
+  security minimum before nginx, Postfix and Dovecot start runs outside their sandbox. `efactl
+  service-harden --mode on|off` switches it; each unit is restarted and must stay active over a stability window, else it runs
+  without the sandbox and the dashboard says so (`efactl service-harden-status`). On for new installs; an update keeps the
+  choice and writes the drop-ins of the new release. Updates of the distribution packages do not touch these files.
 - What is deliberately not built is in docs/design-decisions.md.
 
 ## BIMI (5w)

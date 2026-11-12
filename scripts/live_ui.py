@@ -10,7 +10,9 @@ of its own venv:
 For each role a test user efa-live-<role> is made with a random password and removed at the end: super, readonly and auditor
 always; tenant, domain and helpdesk only with TENANT (an existing test tenant, DOMAIN one of its domains); user (the portal)
 with an address of DOMAIN. Per role: every page of the menu (status below 400, no server error, no console error), a
-screenshot at 1280 px, at phone width 390 px (no page wider than the screen) and in dark mode; every action by GET (a
+screenshot at 1280 px, at phone width 390 px (no page wider than the screen) and in dark mode; at both widths no table header,
+pill, badge or switch narrower than its longest word (a word broken letter by letter); the read-only login gets no switch of
+the extra ClamAV sources, and 403 with an audit entry for a POST or GET of clam-source-set; every action by GET (a
 redirect, never 405); every form that has required fields sent without them (a clear message, never a server error). No form
 is sent with values: nothing is changed. Prints one line per role and check; exits 1 when one failed.
 """
@@ -24,6 +26,37 @@ import sys
 from playwright.sync_api import sync_playwright
 
 HOST = 'https://127.0.0.1'
+# UI-CLAM: a header cell, pill, badge or switch narrower than its longest word breaks it letter by letter ("SOU RCE", "non e").
+# The words are measured in the font of the element, upper case and letter spacing included. UI 2026: every table cell, status
+# badge and chip too; a cell cut on purpose (ellipsis) is left out, and so are tokens over 30 characters (keys, links).
+WRAP_JS = r'''() => {
+  const canvas = document.createElement('canvas').getContext('2d'), found = [];
+  for (const el of document.querySelectorAll('th, td, .pill, .badge, .switch, .st, button.chip, table.clam .file')) {
+    if (!el.offsetParent || !el.innerText.trim()) continue;
+    const style = getComputedStyle(el);
+    if (style.textOverflow === 'ellipsis') continue;
+    canvas.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const spacing = parseFloat(style.letterSpacing) || 0;
+    const room = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    // A line may end after a hyphen or a slash (service-harden, a/b): only a break inside such a part is a broken word.
+    for (let word of el.innerText.split(/[\s\-\/]+/)) {
+      if (word.length > 30) continue;
+      if (style.textTransform === 'uppercase') word = word.toUpperCase();
+      const need = canvas.measureText(word).width + spacing * word.length;
+      if (need > room + 1) {
+        const card = el.closest('.card');
+        found.push(`${card && card.id ? '#' + card.id : 'page'} ${el.tagName.toLowerCase()}${el.className ? '.' + el.className.split(' ')[0] : ''} "${word}": ${Math.round(room)} of ${Math.ceil(need)} px`);
+        break;
+      }
+    }
+  }
+  return found;
+}'''
+
+
+def wrap_problems(page, href, width):
+    page.evaluate("() => document.querySelectorAll('details').forEach(item => { item.open = true; })")
+    return [f'{href} at {width} px: {item}' for item in page.evaluate(WRAP_JS)]
 BROWSER = os.environ.get('EFA_LIVE_BROWSER') or None
 
 
@@ -49,6 +82,34 @@ def remove_users(users):
         efactl('user-set', f'--username={name}', '--action=remove', '--confirm=yes')
 
 
+def readonly_clam(context, page, name):
+    """UI-CLAM: a read-only login sees the state of the extra ClamAV sources without a switch or an ID field; a POST of
+    clam-source-set gets 403 and is in the audit log, a GET runs nothing, and the sources stay as they were."""
+    page.goto(HOST + '/p/spam')
+    page.wait_for_load_state('networkidle')
+    if not page.query_selector('#clam-source-status'):
+        return []
+    found = []
+    if page.query_selector('form[action="/run/clam-source-set"]'):
+        found.append('/p/spam: read only, but a form of clam-source-set is shown')
+    csrf = page.query_selector('input[name=csrf]')
+    before = efactl('clam-source-status').stdout
+    posted = context.request.post(HOST + '/run/clam-source-set', max_redirects=0,
+                                  form={'csrf': csrf.get_attribute('value') if csrf else '', 'source': 'urlhaus', 'mode': 'on', 'accept_terms': 'yes'})
+    if posted.status != 403:
+        found.append(f'POST /run/clam-source-set as read only: {posted.status}, not 403')
+    got = context.request.get(HOST + '/run/clam-source-set?source=urlhaus&mode=on&accept_terms=yes', max_redirects=0)
+    if got.status != 403:
+        found.append(f'GET /run/clam-source-set as read only: {got.status}, not 403')
+    if efactl('clam-source-status').stdout != before:
+        found.append('clam-source-set as read only changed the sources')
+    with open('/var/log/eFa/audit.log') as f:
+        audited = f.read()[-20000:]
+    if f'clam-source-set refused for web interface ({name})' not in audited:
+        found.append('the refused clam-source-set of the read-only login is not in the audit log')
+    return found
+
+
 def check_role(browser, out, role, name, password):
     problems, login = [], HOST + ('/portal/login' if role == 'user' else '/login')
     errors = []
@@ -58,12 +119,13 @@ def check_role(browser, out, role, name, password):
     page.goto(login)
     page.fill('input[name=username]', name)
     page.fill('input[name=password]', password)
-    page.click('button[type=submit], input[type=submit]')
+    page.click('form button:not([type=button]), input[type=submit]')
     page.wait_for_load_state('networkidle')
     if page.url.startswith(login):
         return [f'login failed ({page.url})'], 0
-    links = sorted({href for href in page.eval_on_selector_all('nav a[href], a[href^="/p/"], a[href^="/portal/"]',
-                                                                 'items => items.map(item => item.getAttribute("href"))')
+    # Each page once: links to a card of a page (#card) are the same page.
+    links = sorted({href.split('#')[0] for href in page.eval_on_selector_all('nav a[href], a[href^="/p/"], a[href^="/portal/"]',
+                                                                             'items => items.map(item => item.getAttribute("href"))')
                     if href and re.match(r'^/(p|portal)/', href) and 'logout' not in href})
     for href in links or [page.url.replace(HOST, '') or '/']:
         slug = re.sub(r'[^a-z0-9]+', '-', href.lower()).strip('-') or 'start'
@@ -74,6 +136,7 @@ def check_role(browser, out, role, name, password):
             problems.append(f'{href}: status {answer.status if answer else "none"}')
             continue
         page.screenshot(path=os.path.join(out, f'{role}-{slug}.png'), full_page=True)
+        problems += wrap_problems(page, href, 1280)
         if errors:
             problems.append(f'{href}: console errors: {errors[:2]}')
         # Every action by GET: a redirect back to the page, never 405.
@@ -83,7 +146,9 @@ def check_role(browser, out, role, name, password):
                 problems.append(f'GET {action}: {reply.status}')
         # Forms with required fields, sent without them: a clear message, never a server error; no values, nothing changes.
         for form in page.query_selector_all('form[method=post]'):
-            if not form.query_selector('[required]'):
+            # A form with a password field (reauth) counts an empty one as a failed login (Fail2Ban, lockout of the address):
+            # five of them would lock the next roles out of the login.
+            if not form.query_selector('[required]') or form.query_selector('input[type=password]'):
                 continue
             action = form.get_attribute('action') or href
             csrf = form.query_selector('input[name=csrf]')
@@ -94,11 +159,14 @@ def check_role(browser, out, role, name, password):
         page.set_viewport_size({'width': 390, 'height': 844})
         if page.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1'):
             problems.append(f'{href}: wider than a phone at 390 px')
+        problems += wrap_problems(page, href, 390)
         page.screenshot(path=os.path.join(out, f'{role}-{slug}-phone.png'), full_page=True)
         page.emulate_media(color_scheme='dark')
         page.set_viewport_size({'width': 1280, 'height': 900})
         page.screenshot(path=os.path.join(out, f'{role}-{slug}-dark.png'), full_page=True)
         page.emulate_media(color_scheme='light')
+    if role == 'readonly':
+        problems += readonly_clam(context, page, name)
     context.close()
     return problems, len(links)
 
@@ -113,6 +181,8 @@ def main():
             for role, (name, password) in users.items():
                 problems, pages = check_role(browser, out, role, name, password)
                 print(f'ui {role}: ' + (f'ok ({pages} pages)' if not problems else 'FAILED'))
+                with open(os.path.join(out, f'{role}-problems.txt'), 'w') as f:
+                    f.write(''.join(problem + '\n' for problem in problems))
                 for problem in problems[:30]:
                     print(f'    {problem}')
                 failed |= bool(problems)

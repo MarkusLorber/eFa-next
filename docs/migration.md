@@ -4,6 +4,8 @@
 
 **There is no automatic way back. Take a VM snapshot first.**
 
+Step by step, with the checks before and after: [migration-guide.md](migration-guide.md) (Deutsch: [migration-guide.de.md](migration-guide.de.md)).
+
 Check first that the root password of the database in `/etc/eFa/MySQL-Config` still works: `efa-migrate` stops at once
 if it does not, also when it only lists. The command must show `1`:
 
@@ -21,8 +23,8 @@ a command line or a log; the report says what was done.
    packages itself, only with a valid signature of the eFa-next key. Replace the tag with the latest release.
 
    ```bash
-   curl -fsSL https://github.com/MarkusLorber/eFa-next/archive/refs/tags/v6.0.0.5.1.tar.gz | tar xz
-   cd eFa-next-6.0.0.5.1/migration
+   curl -fsSL https://github.com/MarkusLorber/eFa-next/archive/refs/tags/v6.0.0.5.2.tar.gz | tar xz
+   cd eFa-next-6.0.0.5.2/migration
    ```
 
 2. See what would be carried over. This changes nothing:
@@ -70,4 +72,28 @@ a command line or a log; the report says what was done.
 
 5. Check with `efactl status`, read `report.txt` in the backup folder, send a test mail.
 
-The full description, with what to do when a run stops halfway: [migration/README.md](../migration/README.md).
+## First login after the migration
+
+1. Open `https://<host name>/login`, leave the **user name empty** and enter the web admin password (shown once at the end
+   of the run, also in `web-admin-password` in the backup folder). This is the main admin of eFa-next.
+2. **Set up 2FA right away:** *My account* (top right), section *Two-factor login (2FA)*: *2FA: set up the app* (scan the
+   QR code with an authenticator app), then *2FA: switch on with the first code*. Until then the main admin logs in with the
+   password alone, and the dashboard warns. Or on the console, as root:
+
+   ```bash
+   efactl totp-setup --qr
+   efactl totp-confirm --code=123456
+   efactl totp-status
+   ```
+
+   `totp-setup --qr` shows the QR code in the terminal; `--code` is the code the app shows then (here `123456` stands for
+   it). The secret, the QR code and the ten recovery codes that `totp-confirm` shows are secret: never take a screenshot,
+   never post or mail them; keep the recovery codes offline. A new web admin password on the console: `efactl
+   admin-password` (asked twice); in the web interface: *My account*, *My account: password*. Each console admin over SSH
+   sets up their own 2FA with `sudo efactl console-2fa-enroll`, then `sudo efactl console-2fa-enroll --code 123456`; see
+   [migration/README.md](../migration/README.md#first-login-after-the-migration).
+3. **Every other admin gets an own user** with an own user name, password and own 2FA (*Users*), never the login of the main
+   admin. The users of MailWatch are not carried over.
+
+The full description, with the first login step by step and what to do when a run stops halfway:
+[migration/README.md](../migration/README.md).

@@ -35,7 +35,7 @@ body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;backgr
 main.solo{width:100%;max-width:44rem;margin:0 auto;padding:24px 16px}
 .brand{display:block;padding:18px 22px;background:var(--side);border-radius:12px 12px 0 0}
 .brand svg{display:block;width:100%;max-width:22rem;height:auto}.brand .text{fill:#f2f2f2}.brand .line{stroke:#f2f2f2}
-.card{background:var(--card);border:1px solid var(--line);border-radius:0 0 12px 12px;padding:20px 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:0 0 14px 14px;padding:20px 22px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 2px 10px rgba(0,0,0,.03)}
 h1{margin:0 0 4px;font-size:26px}h2{margin:0 0 10px;font-size:19px}
 a{color:var(--ink)}a:hover{color:var(--gray)}
 .err{color:var(--bad);font-weight:500;overflow-wrap:anywhere}
@@ -45,7 +45,9 @@ padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;b
 input[type=radio],input[type=checkbox]{width:auto;margin-right:6px;accent-color:var(--lime)}
 input:focus,select:focus{outline:2px solid var(--ink);border-color:var(--ink)}
 button,a.btn{font:inherit;padding:8px 18px;border-radius:8px;border:1px solid var(--lime);background:var(--lime);color:#2a2e22;font-weight:600;
-cursor:pointer;text-decoration:none;display:inline-block;margin:12px 10px 0 0}
+cursor:pointer;text-decoration:none;display:inline-block;margin:12px 10px 0 0;transition:filter .12s,border-color .12s}
+button:hover,a.btn:hover{filter:brightness(.95)}a.btn.s:hover,button.s:hover{filter:none;border-color:var(--border)}
+input:hover,select:hover{border-color:var(--ink)}
 a.btn.s,button.s{background:var(--field);border-color:var(--line);color:var(--ink);font-weight:400}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px}
 .seg a{padding:3px 12px;text-decoration:none;color:var(--ink);background:var(--card)}.seg a.cur{background:var(--lime);color:#2a2e22;font-weight:600}

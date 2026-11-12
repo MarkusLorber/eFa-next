@@ -24,7 +24,7 @@ class FloorDropinTests(unittest.TestCase):
             folder = os.path.join(UNITS, service + '.service.d')
             self.assertEqual(os.listdir(folder), ['efa-floor.conf'], service)
             self.assertEqual(lines(os.path.join(folder, 'efa-floor.conf')),
-                             ['[Service]', f'ExecStartPre=/usr/sbin/efactl floor-check --mode prestart --service {service}'])
+                             ['[Service]', f'ExecStartPre=+/usr/sbin/efactl floor-check --mode prestart --service {service}'])
 
     def test_path_unit_runs_the_check(self):
         service = lines(os.path.join(UNITS, 'efa-floor-guard.service'))

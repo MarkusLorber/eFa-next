@@ -22,8 +22,21 @@ jobs:
           git -C src fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" "${{ github.sha }}"
           git -C src checkout -q FETCH_HEAD
           git -C src log -1 --format='%h %s'
-      - name: scripts/ci.sh --install (waits up to 2 h for a run before it)
-        run: cd src && sudo env EFA_CI_LOCK_WAIT=7200 sh scripts/ci.sh --install
+      # In a unit of its own: Forgejo cancels the run of an older push when a newer one comes, and a cancelled job must not stop
+      # ci.sh in the middle of the fresh test (the host would stay half set up). The job only waits for the unit.
+      - name: scripts/ci.sh --install in its own unit (waits up to 2 h for a run before it)
+        run: |
+          sha="${{ github.sha }}"
+          unit="efa-ci-push-${sha}"
+          sudo rm -rf "/root/ci-push-${sha}" && sudo cp -a src "/root/ci-push-${sha}"
+          sudo systemd-run --unit="${unit}" --collect -p WorkingDirectory="/root/ci-push-${sha}" -E EFA_CI_LOCK_WAIT=7200 \
+            sh -c "sh scripts/ci.sh --install > /root/ci-push-${sha}.log 2>&1; echo \$? > /root/ci-push-${sha}.rc"
+          # A collected unit reads as inactive; the exit code comes from the .rc file.
+          until sudo test -s "/root/ci-push-${sha}.rc" || [ "$(systemctl show -p ActiveState --value "${unit}")" = inactive ]; do sleep 10; done
+          sleep 2
+          sudo cat "/root/ci-push-${sha}.log"
+          sudo rm -rf "/root/ci-push-${sha}"
+          exit "$(sudo cat "/root/ci-push-${sha}.rc" 2>/dev/null || echo 1)"
       - name: clean up
         if: always()
         run: sudo rm -rf src
