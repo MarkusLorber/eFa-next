@@ -5,12 +5,12 @@
 # eFa-next
 
 eFa-next is an open-source email filter appliance for RHEL-compatible systems such as AlmaLinux, Rocky Linux, CentOS Stream and
-RHEL, built with data privacy and sovereignty first. It continues the [eFa project](https://efa-project.org) on a modern stack and
-is not affiliated with it.
+RHEL, built with data privacy and sovereignty first. It continues the idea of the [eFa project](https://efa-project.org) as a free open source project on a modern stack and
+is not affiliated with it (but inspired).
 
 It is built as an autonomous security fortress, designed with sovereignty, compliance and especially EU regulations in mind.
 
-It sits in front of your mail server, filters incoming and/or outgoing mail and hands the clean, signed mail on.
+It sits in front of your mail server, filters incoming and/or outgoing mail and hands the clean, sealed, signed mail on.
 
 **Intended use:** eFa-next is a mail filter server for qualified administrators in businesses and organisations and needs
 technical knowledge of Linux, DNS, SMTP and TLS. It is not intended for consumers or private persons and is not released for
@@ -18,8 +18,8 @@ that use ([DISCLAIMER.md](DISCLAIMER.md)); the rights under the AGPL are not aff
 
 ## Requirements
 
-- Version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, freshly installed (minimal is enough). Tested on
-  AlmaLinux 9. EL10 is planned for 6.0.0.6.
+- Version 9 or 10 (EL9/EL10) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, freshly installed (minimal is enough). Tested on
+  AlmaLinux 9 and 10. There will be an upgrade switch from EL9 to EL10 with public release of version 6.0.0.6.
 - A fixed IP address and a host name in DNS with a matching PTR record; access to the package repositories over HTTPS.
 - From 2 CPUs and 4 GB RAM for up to 50,000 mails a day; sizes for more in [docs/install.md](docs/install.md).
 
@@ -48,7 +48,7 @@ check take only releases with a valid signature.
 
 ## Migrate from eFa 5.0
 
-See [docs/migration.md](docs/migration.md). Take a VM snapshot first: there is no automatic way back.
+See [docs/migration.md](docs/migration.md). Take a VM snapshot first: there is no automatic way back and there is no guarantee of no data loss.
 
 ## What is different from eFa 5
 
