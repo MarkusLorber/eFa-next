@@ -1,0 +1,11 @@
+# eFa-next cluster: the bans the other nodes of the cluster found, set here by efa-cluster (fail2ban-client set efa-cluster banip).
+# No log of its own (nothing matches the journal filter); on every port for the time the master keeps a ban in its table.
+# recidive does not count these bans (filter.d/recidive.local): one event on one node is not a repeat offence on every node.
+[efa-cluster]
+enabled = true
+filter =
+backend = systemd
+journalmatch = _SYSTEMD_UNIT=efa-cluster-bans.none
+banaction = %(banaction_allports)s
+maxretry = 1
+bantime = 3600

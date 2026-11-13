@@ -9,6 +9,8 @@ Before=postfix.service
 [Service]
 Type=simple
 DynamicUser=yes
+# outbound.json is 0640 root:efa-mailconf (efactl CONF_READERS).
+SupplementaryGroups=efa-mailconf
 LoadCredential=pdf-passwords:/etc/eFa/pdf-passwords.json
 LoadCredential=signature-fields:/etc/eFa/signature-fields.json
 # 15: the S/MIME and PGP keys, each file of the folder as crypto_<file>.

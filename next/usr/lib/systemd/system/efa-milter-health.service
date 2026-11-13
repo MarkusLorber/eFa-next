@@ -11,7 +11,7 @@ Type=simple
 User=efa-mail
 Group=efa-mail
 # Reads the settings of root:efa-web 0640; as its own user it gets no root efactl through efactl-runner.
-SupplementaryGroups=efa-web
+SupplementaryGroups=efa-mailconf
 ExecStart=/usr/bin/python3 /usr/local/sbin/efa-milter-health.py
 Restart=always
 RestartSec=5

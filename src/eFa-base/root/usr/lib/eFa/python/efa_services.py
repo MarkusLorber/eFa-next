@@ -32,8 +32,10 @@ def postfix_file(name):
 
 
 def postfix_fixed(db, ipv6=True):
-    """Parameters the eFa-next setup always enforces."""
+    """Parameters the eFa-next setup always enforces. db: the table type of the platform (hash on EL9, lmdb on EL10)."""
     pf = postfix_file
+    # Caches stay btree beside hash (EL9); without Berkeley DB (EL10) they use the table type too.
+    cache = "btree" if db == "hash" else db
     return {
         "inet_interfaces": "all",
         # Without IPv6 on the host Postfix still tries IPv6 sockets, and SELinux denies loading the module for it (net-pf-10).
@@ -68,12 +70,12 @@ def postfix_fixed(db, ipv6=True):
         "smtpd_tls_protocols": TLS_MIN,
         "smtpd_tls_mandatory_protocols": TLS_MIN,
         "smtpd_tls_auth_only": "yes",
-        "smtpd_tls_session_cache_database": "btree:${data_directory}/smtpd_scache",
+        "smtpd_tls_session_cache_database": "%s:${data_directory}/smtpd_scache" % cache,
         "smtp_tls_security_level": "may",
         "smtp_tls_loglevel": "1",
         "smtp_tls_protocols": TLS_MIN,
         "smtp_tls_mandatory_protocols": TLS_MIN,
-        "smtp_tls_session_cache_database": "btree:${data_directory}/smtp_scache",
+        "smtp_tls_session_cache_database": "%s:${data_directory}/smtp_scache" % cache,
         "smtpd_sasl_auth_enable": "no",
         "smtpd_sasl_type": "dovecot",
         "smtpd_sasl_path": "private/auth",
@@ -168,7 +170,7 @@ class Postconf:
 
 
 def postmap(pc, name):
-    db = pc.get("default_database_type") or "hash"
+    db = c.platform().map_type()
     c.run(["postmap", "%s:%s" % (db, rp(postfix_file(name)))])
 
 
@@ -180,7 +182,7 @@ def step_postfix():
     if c.run(["postconf", "-n"], check=False).returncode != 0:
         c.run(["postconf", "-e", "inet_interfaces=all"])
     pc = Postconf()
-    db = pc.get("default_database_type") or "hash"
+    db = c.platform().map_type()
     for name in HASH_MAPS + REGEXP_MAPS:
         c.ensure_file(postfix_file(name), "")
     if not os.path.exists(rp(P("cert_file"))):
@@ -375,19 +377,39 @@ BANNER = ("Authorized access only. Activity on this system is logged and may "
           "be monitored.\n")
 
 
-def sshd_hardening():
+def sshd_hardening(root_line=False):
+    """root_line: only when the root login could not be moved to its own file (sshd -T did not answer)."""
     return HEADER + """\
 # eFa-next: SSH hardening. Files in this folder are read in name order and the
-# first value wins, so this file comes before the vendor defaults.
-PermitRootLogin prohibit-password
-PermitEmptyPasswords no
+# first value wins, so this file comes before the vendor defaults. Root login
+# through SSH is set in 00-efa-root.conf only (efactl ssh-root-set).
+%sPermitEmptyPasswords no
 X11Forwarding no
 MaxAuthTries 4
 LoginGraceTime 30
 ClientAliveInterval 300
 ClientAliveCountMax 2
 Banner %s
-""" % P("ssh_banner")
+""" % ("PermitRootLogin prohibit-password\n" if root_line else "", P("ssh_banner"))
+
+
+SSHD_SAME_ROOT = {"without-password": "prohibit-password"}
+
+
+def sshd_root_pin():
+    """S30: PermitRootLogin has one place, 00-efa-root.conf. On a host without it the value sshd takes now goes there first, so
+    no host changes its root login when the hardening file stops naming it. True: pinned or there; False: sshd did not answer."""
+    path = P("sshd_root_dropin")
+    if os.path.exists(rp(path)):
+        return True
+    res = c.run(["sshd", "-T"], check=False)
+    found = [line.split()[1] for line in (res.stdout or "").splitlines() if line.lower().startswith("permitrootlogin ") and len(line.split()) > 1]
+    if res.returncode != 0 or not found:
+        return False
+    value = SSHD_SAME_ROOT.get(found[0].lower(), found[0].lower())
+    write_sshd_dropin(path, HEADER + "# eFa-next: root login through SSH, set here only (efactl ssh-root-set).\n"
+                            "PermitRootLogin %s\n" % value)
+    return True
 
 
 def write_sshd_dropin(path, content):
@@ -421,10 +443,17 @@ def step_dirs():
             c.set_owner_mode(P(name), 0o640 if name == "efa_config" else 0o600)
 
 
+def sshd_root_upgrade():
+    """S30 on an update: the root login moves into 00-efa-root.conf with the value sshd takes now, then the hardening file of
+    before loses its line. Only where the hardening file exists (a host set up by eFa-next)."""
+    if os.path.exists(rp(P("sshd_dropin"))):
+        write_sshd_dropin(P("sshd_dropin"), sshd_hardening(root_line=not sshd_root_pin()))
+
+
 def step_system():
     pl = c.platform()
     c.write_file(P("ssh_banner"), BANNER)
-    write_sshd_dropin(P("sshd_dropin"), sshd_hardening())
+    write_sshd_dropin(P("sshd_dropin"), sshd_hardening(root_line=not sshd_root_pin()))
     missing = []
     for logical in NEEDED_SERVICES:
         name = pl.service(logical)

@@ -12,8 +12,8 @@ eFa-next, everyone involved in the project and its sponsors have no influence on
 confirmation, in the web interface, in efa-tui and on the command line:
 
 > I have read and accept the terms of use of this list. eFa-next, everyone involved in the project and its sponsors, including
-> IT-World ITW GmbH, have no influence on this list or its use and are not liable for it. For any problem with the list I contact
-> its provider directly.
+> IT-World ITW GmbH, have no influence on this list or its use and, to the maximum extent permitted by law, are not liable for
+> it; DISCLAIMER.md applies, including its severability clause. For any problem with the list I contact its provider directly.
 
 ```
 efactl rbl-set --id spamcop --mode on --accept_terms yes

@@ -4,7 +4,7 @@
 of Linux, DNS, SMTP and TLS. Not intended for consumers or private persons and not released for that use; see
 [DISCLAIMER.md](../DISCLAIMER.md). The setup asks you to confirm this.
 
-For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL; tested on AlmaLinux 9. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
+For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, or with AlmaLinux 10 (not tested yet); tested on AlmaLinux 9. RHEL 10 and Rocky Linux 10 are refused until they are tested. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
 
 ## Requirements
 
@@ -22,6 +22,13 @@ For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream o
 
   Peaks matter more than the daily sum: 500,000 mails a day are about 350 a minute on average, 5 to 10 times that at peak.
   The disk holds the mail log, the headers of all mail and the quarantine for 30 days by default; more days, more disk.
+
+## Dedicated server
+
+eFa-next needs a server or VM of its own. Only eFa-next and the operating system run on it: no other server services, no other
+open ports. Monitoring or backup agents of the admin (such as Wazuh) are possible, at your own risk. eFa-next hardens and checks
+the server as a whole; the hardening wizard reports services and open ports that do not belong to eFa-next or the operating
+system. It never stops or removes them.
 
 ## Steps
 
@@ -48,11 +55,12 @@ For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream o
    **A test installation from the source**, for example a branch before its release, also in one command from a clone:
 
    ```bash
-   REPO=<git address of eFa-next> BRANCH=<branch>; dnf -y install git-core && { [ -d /root/efa-next-src ] || git clone -b "$BRANCH" "$REPO" /root/efa-next-src; } && git -C /root/efa-next-src pull --ff-only && bash /root/efa-next-src/build/build.bash source
+   REPO=<git address of eFa-next> REF=<branch or tag>; S=/root/efa-next-src; dnf -y install git-core && { [ -d "$S" ] || git clone "$REPO" "$S"; } && git -C "$S" fetch --tags origin && git -C "$S" checkout "$REF" && { [ -z "$(git -C "$S" symbolic-ref -q HEAD)" ] || git -C "$S" pull --ff-only; } && bash "$S/build/build.bash" source
    ```
 
-   Set `REPO` to the address of your clone (for example your own Forgejo or GitLab) and `BRANCH` to the branch to test; the
-   same line run again updates the clone and installs the newest commit. A minimal install has no git: the command installs it
+   Set `REPO` to the address of your clone (for example your own Forgejo or GitLab) and `REF` to the branch or the tag to
+   test. A branch is updated to its newest commit each time the line runs; a tag (for example `v6.0.0.5.1`) is checked out as
+   it is, without `git pull`, which a tag cannot take. A minimal install has no git: the command installs it
    from the repositories of the distribution first. Everything else the
    installer needs (curl, gnupg2, dnf-plugins-core, the SELinux tools, chrony) it installs itself in its first step and names
    what was missing.
@@ -84,6 +92,18 @@ For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream o
      admin logs in by SSH with its own code ([Two-factor login](two-factor.md)).
    - **Manual:** you set everything yourself. The EU question comes here too, without frameworks and suggestions.
 
+   In both variants the same page asks for the **security standards** this server should meet (BSI TR-02102 and TR-03116-4,
+   RFC 9325, Mozilla, NIST SP 800-52, BSI TR-03108, CIS; the list of the hardening wizard). The setup then sets the strictest
+   value of all chosen ones: the TLS profile, DANE, the kernel settings, the hardening items of the operating system and the
+   switches of eFa-next a chosen standard asks for, never below the security minimum. The guided frameworks BSI IT-Grundschutz
+   and BSI TR-02102 add the TR-02102 parts. Port 25 stays opportunistic, and the SSH profile after BSI TR-02102-4 is not set by
+   the setup: it goes back after 10 minutes unless a new SSH login confirms it, so set it later in the hardening wizard
+   (Security standards). The last page shows per standard what is set; none chosen keeps the defaults of eFa-next.
+
+   After the console admin the wizard asks for **root login through SSH** (off, with an SSH key only, on), prefilled with what
+   sshd takes now. Off or key-only is recommended; off also stops the SSH keys of root, so only the console admin logs in over SSH
+   then. The value changes only when you pick another one; an unattended install keeps it unless its answers name `ROOTSSH`.
+
    With an EU link the EU rules apply hard (only services in the EU, no typed exception). Without one the wizard asks for a tick
    and the typed phrase `at my own risk` (German: `auf eigenes Risiko`). Each confirmation is kept with the time and the
    digest (SHA-256, 16 hex digits) of the text as it was shown, in the audit log too; a changed text asks again. The
@@ -104,7 +124,11 @@ For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream o
 Later, and after an update or a migration from eFa 5 (the dashboard offers it once), **Re-Setup** asks the same questions for
 the running system: Security, Setup variant, `/resetup` in the web interface, or `sudo efactl resetup` on the console. It shows
 old and new, makes a backup, then raises the settings of the chosen frameworks and never lowers one. Manual to guided is free;
-guided to manual needs the password and the 2FA code again, and 2FA stays on.
+guided to manual needs the password and the 2FA code again, and 2FA stays on. Standards given to Re-Setup (`--standards`) are added
+to those chosen before and applied the same way as in the setup.
+
+The **hardening wizard** on the page Security standards (super admins) shows the same standards, prefilled with the choice of
+the setup, and also lets you choose each item of the operating system and of eFa-next, with a preview before anything changes.
 
 An eFa 5.0 host is refused: a fresh install stops when it finds `/etc/MailScanner/MailScanner.conf`.
 

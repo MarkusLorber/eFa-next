@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import ssl
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -39,7 +40,7 @@ def csrf(page):
 
 def post(web, path, fields):
     page = web.open(BASE + path, timeout=30).read().decode()
-    data = urllib.parse.urlencode({'csrf': csrf(page), **fields}).encode()
+    data = urllib.parse.urlencode({'csrf': csrf(page), **fields}, doseq=True).encode()
     answer = web.open(BASE + path, data=data, timeout=60)
     return answer.geturl().replace(BASE, ''), answer.read().decode()
 
@@ -50,7 +51,7 @@ def answers(args, web_pw, cli_pw):
             ('ipv4netmask', {'value': args.prefix}), ('ipv4gateway', {'value': args.gateway}), ('ipv6dns', {'value': 'no'}),
             ('configipv6', {'value': 'no'}), ('configrecursion', {'value': 'yes'}),
             ('webpassword', {'value': web_pw, 'repeat': web_pw}), ('cliusername', {'value': 'efa-ci-fresh'}),
-            ('clipassword', {'value': cli_pw, 'repeat': cli_pw}), ('configvirtual', {'value': 'no'}),
+            ('clipassword', {'value': cli_pw, 'repeat': cli_pw}), ('rootssh', 'keep'), ('configvirtual', {'value': 'no'}),
             ('configutc', {'value': 'yes'}), ('timezone', {'value': args.timezone}), ('ntpservers', None), ('mailserver', {'value': '192.0.2.25'})]
 
 
@@ -68,13 +69,25 @@ def main():
         where, _page = post(web, '/unlock', {'code': f.read().strip()})
     if where.startswith('/unlock'):
         raise SystemExit('wizard: the setup code was not taken')
-    # 6.0.0.5: the note on presets, the setup variant (manual: no 2FA to set up here) and the EU link come first.
-    for slug, fields in (('notice', {'notice': 'yes'}), ('variant', {'variant': 'manual'}), ('eulink', {'eulink': 'yes'})):
+    # 6.0.0.5: the note on presets, the setup variant (manual: no 2FA to set up here) and the EU link come first. HARD-W: then
+    # two security standards; the setup sets the strictest of both (scripts/ci.sh checks it). Not the SSH profile.
+    for slug, fields in (('notice', {'notice': 'yes'}), ('variant', {'variant': 'manual'}), ('eulink', {'eulink': 'yes'}),
+                         ('frameworks', {'standards': ['bsi-02102-2', 'rfc9325']})):
         where, page = post(web, '/first/' + slug, fields)
         if where == '/first/' + slug:
             error = re.search(r'role="alert">([^<]+)<', page)
             raise SystemExit(f'wizard: first step {slug} refused: {error.group(1) if error else "?"}')
     for slug, fields in answers(args, web_pw, cli_pw):
+        if fields == 'keep':
+            # S30: the step shows what sshd takes now, and the setup keeps it: the CI host must stay reachable as before.
+            shown = web.open(BASE + '/step/' + slug, timeout=30).read().decode()
+            found = re.search(r'<option value="([^"]+)" selected>', shown) or re.search(r'name="value" value="([^"]+)" checked', shown)
+            done = subprocess.run(['sshd', '-T'], capture_output=True, text=True)
+            now = re.search(r'^permitrootlogin (\S+)$', done.stdout, re.M)
+            wanted = {'no': 'off', 'prohibit-password': 'key-only', 'without-password': 'key-only', 'yes': 'on'}.get(now.group(1) if now else '')
+            if not found or found.group(1) != wanted:
+                raise SystemExit(f'wizard: root login shown as {found.group(1) if found else "nothing"}, sshd takes {wanted}')
+            fields = {'value': wanted}
         if fields is None:
             # The time servers as the wizard shows them (chrony.conf of this host); Next sets the clock, a second Next goes on
             # if this host cannot reach them.

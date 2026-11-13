@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Stores rspamd scan results in MariaDB. rspamd posts one JSON document per message to 127.0.0.1:8906.
 
-shortcut: any local process can post log entries, add a shared secret if untrusted local users ever exist.
+Only rspamd may post: the local end of each connection must belong to the rspamd user (looked up in /proc/net/tcp), else
+the request is refused (fail closed), so no other local process can write log entries or put mail into the quarantine.
 """
 import base64
 import queue
@@ -454,8 +455,57 @@ def ioc_rows(doc):
     return sorted(found)
 
 
+PORT = 8906
+PEER_TABLES = ('/proc/net/tcp', '/proc/net/tcp6')
+# The workers of rspamd run as this user; the scan results and the quarantine posts come only from them.
+PEER_USERS = ('_rspamd',)
+
+
+def allowed_uids(users=PEER_USERS):
+    """The user ids that may post; empty (nobody may) when the user does not exist."""
+    import pwd
+    uids = set()
+    for name in users:
+        try:
+            uids.add(pwd.getpwnam(name).pw_uid)
+        except KeyError:
+            pass
+    return uids
+
+
+def peer_uid(client_port, tables=PEER_TABLES, port=PORT):
+    """The user id of the local socket that connected from client_port to our port, None when it is not found."""
+    for path in tables:
+        try:
+            with open(path, encoding='ascii') as table:
+                rows = table.read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in rows:
+            fields = line.split()
+            if len(fields) < 8:
+                continue
+            try:
+                local_port = int(fields[1].rsplit(':', 1)[1], 16)
+                remote_port = int(fields[2].rsplit(':', 1)[1], 16)
+                if local_port == client_port and remote_port == port:
+                    return int(fields[7])
+            except ValueError:
+                continue
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
+    uids = None
+
     def do_POST(self):
+        if Handler.uids is None:
+            Handler.uids = allowed_uids()
+        uid = peer_uid(self.client_address[1])
+        if uid is None or uid not in Handler.uids:
+            logging.warning('refused a post from local port %s (user id %s): only rspamd may post', self.client_address[1], uid)
+            self.send_error(403)
+            return
         length = int(self.headers.get('Content-Length', 0))
         if self.path == '/quarantine':
             if not 0 < length <= MAX_MAIL:
@@ -531,6 +581,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def self_test():
+    import tempfile
+    with tempfile.TemporaryDirectory() as folder:
+        table = folder + '/tcp'
+        with open(table, 'w', encoding='ascii') as f:
+            # header, then rspamd (uid 990) from port 0xA1B2 to 8906 (0x22CA), and the server side of the same connection
+            f.write('  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n'
+                    '   0: 0100007F:A1B2 0100007F:22CA 01 00000000:00000000 00:00000000 00000000   990        0 1\n'
+                    '   1: 0100007F:22CA 0100007F:A1B2 01 00000000:00000000 00:00000000 00000000   995        0 2\n'
+                    '   2: broken line\n')
+        assert peer_uid(0xA1B2, (table, folder + '/missing')) == 990
+        assert peer_uid(0x22CA, (table,)) is None and peer_uid(1234, (table,)) is None and peer_uid(0xA1B2, (folder + '/missing',)) is None
+    assert allowed_uids(('no-such-user-efa',)) == set()
     doc = {'symbols': [{'name': 'R_SPF_ALLOW'}, {'name': 'R_DKIM_REJECT'}, {'name': 'DMARC_POLICY_QUARANTINE'}, {'name': 'X'}, {'name': 'ARC_ALLOW'}]}
     assert auth_results(doc) == ('pass', 'fail', 'fail', 'pass') and auth_results({}) == ('', '', '', '')
     assert len(row(doc)) == 16 and row({**doc, 'size': 5})[-2] == 5 and row(doc)[-3] == ''
@@ -641,4 +703,4 @@ if __name__ == '__main__':
         sys.exit(0)
     if efa_evidence:
         threading.Thread(target=evidence_worker, daemon=True, name='evidence').start()
-    ThreadingHTTPServer(('127.0.0.1', 8906), Handler).serve_forever()
+    ThreadingHTTPServer(('127.0.0.1', PORT), Handler).serve_forever()

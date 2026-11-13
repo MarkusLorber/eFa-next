@@ -1,0 +1,28 @@
+name: Request or improve a feature
+description: Suggest a new feature for eFa-next, or a better way for one there is.
+title: "Feature: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for your idea for eFa-next. Please leave out host names, addresses, mail content and other private data.
+  - type: textarea
+    id: wish
+    attributes:
+      label: What should eFa-next do?
+      description: The feature, or what should work better in a feature there is.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The problem it solves, and who needs it.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where in eFa-next
+      description: The page or the command, if you know it.

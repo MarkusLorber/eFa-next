@@ -66,6 +66,7 @@ class FakeRunner:
         self.query_ok = set()         # firewall services already open
         self.users = set()
         self.groups = {"virusgroup": [], "postfix": [], "efa-web": [], "wheel": []}
+        self.sshd_t = "permitrootlogin prohibit-password\npermitemptypasswords no\n"   # sshd -T
 
     def __call__(self, cmd, input_text):
         self.calls.append(list(cmd))
@@ -78,6 +79,9 @@ class FakeRunner:
 
     def programs(self):
         return [os.path.basename(call[0]) for call in self.calls]
+
+    def _sshd(self, cmd, _):
+        return _cp(cmd, 0, self.sshd_t if "-T" in cmd else "")
 
     def _postconf(self, cmd, _):
         args = cmd[1:]

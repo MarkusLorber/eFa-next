@@ -9,6 +9,8 @@ import html
 import re
 import time
 
+import efa_harden
+
 VARIANTS = ('guided', 'manual')
 FILE = '/etc/eFa/setup-variant.json'
 
@@ -58,6 +60,11 @@ TOTP_TEXT = ('In the guided setup, two-factor login (TOTP) is mandatory for the 
              'QR code with an authenticator app and enter the six-digit code shown. Keep the recovery codes in a safe place. Without the app '
              'and without these codes, login is only possible from the local console (efactl).')
 NONBINDING = 'Non-binding suggestion'
+# HARD-W: the security standards of the setup, the same list and texts as the hardening wizard (efa_harden, standards.json).
+STANDARDS_TEXT = ('Choose the standards this server should meet. The setup sets the strictest value of all chosen ones: TLS, the '
+                  'operating system and the switches of eFa-next. Port 25 stays opportunistic. None chosen: the defaults of eFa-next stay.')
+SSH_LATER = ('SSH profile BSI: not set by the setup. Set it later in the hardening wizard (Security standards) and log in again over SSH '
+             'within 10 minutes to confirm it.')
 
 # Raises: admin_2fa (2FA required for every admin role), audit_days (keep the audit log at least so long), tls (the TLS profiles
 # that count; any other becomes bsi), security_daily (security self check every day). A framework without a setting of its own
@@ -104,7 +111,8 @@ NOTE_RE = re.compile(r'^[\w .,;:()/&+\'-]{0,200}$')
 def all_texts():
     """The texts to translate, for scripts/i18n_extract.py."""
     found = [NOTICE_TITLE, *NOTICE, NOTICE_CONFIRM, VARIANT_TITLE, EULINK_TITLE, EULINK_TEXT, EULINK_YES, NOEU_TITLE, *NOEU, NOEU_CONFIRM,
-             NOEU_TYPE, FRAMEWORKS_TITLE, FRAMEWORKS_TEXT, FRAMEWORKS_OTHER, TOTP_TITLE, TOTP_TEXT, NONBINDING, *GROUPS, 'Yes', 'No']
+             NOEU_TYPE, FRAMEWORKS_TITLE, FRAMEWORKS_TEXT, FRAMEWORKS_OTHER, TOTP_TITLE, TOTP_TEXT, NONBINDING, *GROUPS, 'Yes', 'No',
+             STANDARDS_TEXT, SSH_LATER]
     for title, text in VARIANT_TEXT.values():
         found += [title, text]
     found += [item[3] for item in FRAMEWORKS.values() if item[3]]
@@ -251,6 +259,35 @@ def frameworks_html(tr, chosen=(), note=''):
         groups += f'<fieldset><legend>{html.escape(tr(group))}</legend>{chips}</fieldset>'
     return (f'<h2>{html.escape(tr(FRAMEWORKS_TITLE))}</h2><p>{html.escape(tr(FRAMEWORKS_TEXT))}</p><div class="chips">{groups}</div>'
             f'<p><label>{html.escape(tr(FRAMEWORKS_OTHER))} <input name="note" maxlength="200" value="{html.escape(note)}"></label></p>')
+
+
+def standards_html(tr, chosen=(), titles=None):
+    """The standards to choose in the step of the frameworks, grouped as in the hardening wizard, and which frameworks lead to which."""
+    titles = titles or efa_harden.titles()
+    groups = ''
+    for group, ids in efa_harden.GROUPS:
+        chips = ''.join(f'<label title="{html.escape(tr(efa_harden.SUMMARY[sid]))}"><input type="checkbox" name="standards" value="{sid}"'
+                        f'{" checked" if sid in chosen else ""}> {html.escape(titles.get(sid, sid))}</label>' for sid in ids)
+        groups += f'<fieldset><legend>{html.escape(tr(group))}</legend>{chips}</fieldset>'
+    mapped = ''.join(f'<li>{html.escape(FRAMEWORKS[key][0])}: {html.escape(", ".join(titles.get(sid, sid) for sid in ids))}</li>'
+                     for key, ids in efa_harden.FRAMEWORK_STANDARDS.items())
+    return (f'<h2>{html.escape(tr("Security standards"))}</h2><p>{html.escape(tr(STANDARDS_TEXT))}</p><div class="chips">{groups}</div>'
+            f'<p class="help">{html.escape(tr("Leads to these standards:"))}</p><ul class="help">{mapped}</ul>')
+
+
+def standards_taken(form_ids, frameworks):
+    """The chosen standards and those the chosen frameworks lead to (where documented), known ids only."""
+    return efa_harden.clean(list(form_ids) + efa_harden.from_frameworks(frameworks))
+
+
+def standards_summary(tr, chosen, titles=None):
+    """[(title, what it sets)] per chosen standard for the check page, and the note on the SSH profile when one asks for it."""
+    titles = titles or efa_harden.titles()
+    rows = [(titles.get(sid, sid), ', '.join(tr(text) for text in efa_harden.what(sid, setup=True)) or tr(efa_harden.SUMMARY[sid]))
+            for sid in efa_harden.clean(chosen)]
+    if 'ssh-profile' in efa_harden.plan_for(chosen)['os']:
+        rows.append(('SSH', tr(SSH_LATER)))
+    return rows
 
 
 def self_test():

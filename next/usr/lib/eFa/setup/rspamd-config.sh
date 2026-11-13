@@ -295,7 +295,8 @@ cat > "$RSPAMD_LOCAL/spf.conf" <<'CONF'
 spf_cache_size = 1k;
 CONF
 
-systemctl enable --now redis
+# Valkey replaces Redis on EL10 (same port and protocol).
+systemctl enable --now "$([ -e /usr/lib/systemd/system/valkey.service ] && echo valkey || echo redis)"
 systemctl enable rspamd
 systemctl restart rspamd
 # rspamd replaces opendkim and opendmarc

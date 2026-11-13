@@ -1,0 +1,3 @@
+# eFa-next: recidive counts the bans of every jail except its own and efa-cluster (bans shared by the cluster, jail.d/efa-cluster.local).
+[DEFAULT]
+_jailname = (?:recidive|efa-cluster)

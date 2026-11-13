@@ -4,6 +4,8 @@
 [Unit]
 Description=eFa-next cluster service: master and clients over mutual TLS
 After=network-online.target
+# Not started at all on a host that is no member of a cluster: without its certificate it would only start again and again.
+ConditionPathExists=/etc/eFa/cluster/node.crt
 
 [Service]
 Type=simple

@@ -250,7 +250,7 @@ The open points above were closed on the eFa-next side:
 | --- | --- |
 | Interface of `efa-apply` | `efa-init.py` calls `efa-apply --verbose --answers - --all` and hands the answers over on stdin. English only, no language page. |
 | Web admin hash | `efa-web.py` checks both forms: `pbkdf2_sha256$...` from `efa-apply` and the Werkzeug form from `efactl admin-password`. |
-| Wizard user and unit | `efa-init.service` runs as `efa-init`, group `efa-web` for the session key. `efa-web-config.sh` creates the user. |
+| Wizard user and unit | `efa-init.service` runs as `efa-init`, group `efa-web`; the session key through the group `efa-websecret` (only `efa-web` and `efa-init`, not the mail services). `efa-web-config.sh` creates the user. |
 | Certificate paths | A new install uses `/etc/pki/tls/certs/efa.crt` and `/etc/pki/tls/private/efa.key` in nginx too. Hosts with `/etc/nginx/ssl` keep it. Both are in the backup. |
 | `message_size_limit` | `efactl` has no default of its own, it only reads Postfix. The value 26214400 stays. |
 | Version file | `eFa-6.0.0.3` works with the version check of `efactl`. |

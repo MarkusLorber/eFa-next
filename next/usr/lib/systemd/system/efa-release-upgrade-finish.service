@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next checks after the first boot into EL10
+ConditionPathExists=/var/lib/eFa/release-upgrade/finish-pending
+Wants=network-online.target
+# leapp ends its own phase after the reboot in leapp_resume.service, which is ordered after the default target: without the
+# default dependencies this unit is not part of that target and can wait for leapp_resume without an ordering cycle.
+DefaultDependencies=no
+After=basic.target network-online.target postfix.service rspamd.service nginx.service efa-web.service mariadb.service chronyd.service
+After=leapp_resume.service
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/efactl release-upgrade-finish
+TimeoutStartSec=1h
+
+[Install]
+WantedBy=multi-user.target

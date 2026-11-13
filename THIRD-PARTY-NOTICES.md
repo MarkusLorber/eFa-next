@@ -24,9 +24,33 @@ package metadata of that host, unless marked "check".
 | GnuPG | 2.3.3 | GPL-3.0-or-later | https://www.gnupg.org | OS package, called as a program |
 | BIND utilities (dig) | 9.16.23 | MPL-2.0 | https://www.isc.org | OS package, called as a program |
 | OpenSSL | 3.5.8 | Apache-2.0 | https://www.openssl.org | OS package |
+| dejavu-sans-fonts | 2.37 | Bitstream-Vera AND LicenseRef-Public-Domain | https://dejavu-fonts.github.io | OS package, the font of the PDF reports for letters outside Western European ones |
 | OpenSSH | 9.9p1 | BSD (check exact text) | https://www.openssh.com | OS package |
 | Certbot | 3.1.0 | Apache-2.0 | https://certbot.eff.org | package |
 | dnf-automatic, yum-utils | 4.14.0, 4.3.0 | GPL-2.0-or-later | https://github.com/rpm-software-management | OS package |
+
+## Operating system
+
+Licenses and versions of these rows come from the License: and Version: fields of the spec files of CentOS Stream 9
+(branch c9s, gitlab.com/redhat/centos-stream/rpms), the sources AlmaLinux 9 builds from, read on 2026-11-12. A license
+the spec names without a clear SPDX form says what the spec says, marked "check". A subpackage without a License: field of
+its own has the license of its spec.
+
+| Component | Version | License (SPDX) | Homepage | How it is used |
+| --- | --- | --- | --- | --- |
+| python3 | 3.9.25 | LicenseRef-Python (check); spec says "Python" | https://www.python.org | OS package, runs the programs of eFa-next |
+| systemd | 252 | LGPL-2.0-or-later AND MIT AND GPL-2.0-or-later; spec says "LGPLv2+ and MIT and GPLv2+" | https://systemd.io | OS package |
+| rsyslog | 8.2604.0 | GPL-3.0-or-later AND Apache-2.0 | https://www.rsyslog.com | OS package |
+| Valkey | 8.1.10 | BSD-3-Clause AND BSD-2-Clause AND MIT AND BSL-1.0 | https://valkey.io | OS package |
+| cronie | 1.5.7 | MIT AND LicenseRef-BSD (check) AND ISC AND GPL-2.0-or-later; spec says "MIT and BSD and ISC and GPLv2+" | https://github.com/cronie-crond/cronie | OS package |
+| logrotate | 3.18.0 | GPL-2.0-or-later | https://github.com/logrotate/logrotate | OS package |
+| sudo | 1.9.17p2 | ISC | https://www.sudo.ws | OS package |
+| NetworkManager | 1.54.4 | GPL-2.0-or-later AND LGPL-2.1-or-later | https://networkmanager.dev | OS package |
+| chrony | 4.9 | GPL-2.0-only | https://chrony-project.org | OS package |
+| policycoreutils | 3.6 | GPL-2.0-or-later | https://github.com/SELinuxProject/selinux | OS package |
+| selinux-policy-targeted | 38.1.87 | GPL-2.0-or-later | https://github.com/fedora-selinux/selinux-policy | OS package |
+| tar | 1.34 | GPL-3.0-or-later | https://www.gnu.org/software/tar/ | OS package, called as a program |
+| openldap-clients | 2.6.13 | OLDAP-2.8 | https://www.openldap.org | OS package, called as a program |
 
 ## Python packages
 
@@ -43,6 +67,7 @@ The spec file asks for the OS packages. **Check before release which one a fresh
 | waitress | 3.0.2 | 1.4.4 | ZPL-2.1 | https://github.com/Pylons/waitress |
 | PyMySQL | 1.1.1 | | MIT | https://github.com/PyMySQL/PyMySQL |
 | pymilter | 1.0.5 | 1.0.5 | GPL-2.0-or-later | https://www.pymilter.org |
+| cryptography | | 36.0.1 | Apache-2.0 OR LicenseRef-BSD (check); spec says "ASL 2.0 or BSD" | https://cryptography.io |
 
 ## In the repository
 

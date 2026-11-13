@@ -472,6 +472,9 @@ def without_sender_access(value):
             continue
         if ':' in word and word.endswith('/sender_access'):
             continue
+        if ':' in word and kept and kept[-1].startswith('check_') and ' ' not in kept[-1]:
+            kept[-1] += ' ' + word  # a lookup keeps its table: "check_sender_access hash:/etc/postfix/access"
+            continue
         kept.append(word)
     return ', '.join(kept)
 
@@ -497,9 +500,10 @@ def import_sender_access(target, warnings, efactl, postconf=None):
                     'Postfix does not read that file any more' + (f' (taken out of {", ".join(changed)})' if changed else '') +
                     '; it stays in config.tar.gz of the backup.')
     if allow:
-        warnings.append('CHECK: these were OK in sender_access and let mail past every filter, for an envelope sender anyone can fake. '
-                        'In eFa-next they are on the allow list (6 points off the spam score; DMARC and virus checks still apply), '
-                        'marked for checking, and the dashboard names them until they are changed: ' + ', '.join(allow) +
+        warnings.append('CHECK: these were OK in sender_access and let mail past every check of Postfix, for an envelope sender anyone '
+                        'can fake. In eFa-next they are on the allow list and still pass the RBL, HELO and DNS checks of Postfix (each '
+                        'pass is in the audit log), 6 points off the spam score; a virus is cut out, the mail goes on. Marked for '
+                        'checking, the dashboard names them until they are changed: ' + ', '.join(allow) +
                         '. Keep only senders you need, as exact addresses rather than whole domains.')
     if odd:
         warnings.append('Not taken over from sender_access (other actions or broken lines), add them by hand '
@@ -576,6 +580,22 @@ def disable_blockers(blockers, target, warnings):
 
 
 def self_test():
+    folder = tempfile.mkdtemp()
+    saved = {name: globals()[name] for name in ('SKIP_MONITOR',)}
+    real_open = open
+    try:
+        def fake_open(path, *args, **kwargs):
+            # The monitor cron and the reboot mark of finish() go into the test folder.
+            if str(path).startswith(('/etc/cron.d/', '/var/lib/eFa/')):
+                path = os.path.join(folder, os.path.basename(str(path)))
+            return real_open(path, *args, **kwargs)
+        globals()['open'] = fake_open
+        finish(folder, ['carried over'], 'Pw-test')
+    finally:
+        globals().pop('open', None)
+        globals().update(saved)
+    report = real_open(folder + '/report.txt', encoding='utf-8').read()
+    assert 'Benutzername leer' in report and 'user name empty' in report and '2FA' in report and 'eigener 2FA' in report, report
     spool = tempfile.mkdtemp()
     for name in ('milterin/a', 'incoming/100/m.header', 'incoming/200/old.header', 'incoming/Locks/x.lock', 'incoming/300/'):
         os.makedirs(os.path.dirname(os.path.join(spool, name)), exist_ok=True)
@@ -671,8 +691,23 @@ def self_test():
     # After the move to the sender lists no restriction list reads sender_access; other lookups stay.
     assert without_sender_access('permit_mynetworks, check_sender_access hash:/etc/postfix/sender_access, check_sender_access '
                                  'hash:/etc/postfix/access, hash:/etc/postfix/sender_access, reject_non_fqdn_sender') == \
-        'permit_mynetworks, check_sender_access, hash:/etc/postfix/access, reject_non_fqdn_sender'
+        'permit_mynetworks, check_sender_access hash:/etc/postfix/access, reject_non_fqdn_sender'
     assert without_sender_access('permit_mynetworks reject_unauth_destination') == 'permit_mynetworks, reject_unauth_destination'
+    # MIG-ALLOW: the OK entries of sender_access become allow entries; eFa-next lets them past the checks of Postfix itself.
+    added = []
+    with tempfile.TemporaryDirectory() as tmp_skip:
+        os.makedirs(tmp_skip + '/postfix')
+        with open(tmp_skip + '/postfix/sender_access', 'w') as f:
+            f.write('ai.local OK\nfriend@x.example OK\nbad.example REJECT\n')
+        saved_postfix = POSTFIX
+        globals()['POSTFIX'] = tmp_skip + '/postfix'
+        lists = {'smtpd_sender_restrictions': 'permit_mynetworks, check_sender_access hash:/etc/postfix/sender_access, reject_unknown_sender_domain'}
+        noted = []
+        import_sender_access(tmp_skip, noted, lambda *a: added.append(a),
+                             lambda *a: lists.get(a[1], '') if a[0] == '-h' else lists.update([a[1].split(' = ', 1)]))
+        globals()['POSTFIX'] = saved_postfix
+    assert [call for call in added if '--list=allow' in call][0][2] == '--entries=ai.local friend@x.example', added
+    assert any('RBL, HELO and DNS' in line and 'ai.local' in line for line in noted), noted
     assert lost_maps(old, new) == [('smtpd_client_restrictions', 'cidr:/etc/postfix/client.cidr'),
                                    ('smtpd_sender_restrictions', 'hash:/etc/postfix/sender_access')], lost_maps(old, new)
     files = {'etc/MailScanner/rules/content.scanning.rules': 'From:\t127.0.0.1\tno\nFrom:\tpartner@x.example\tno\nFromOrTo:\tdefault\tyes\n',
@@ -935,7 +970,7 @@ def install_new(rpms):
             run(['rpm', '-e', '--nodeps', package])
     run(['dnf', '-y', 'install'] + rpms)
     # dnf reports success even if a package script failed, the version file is written only if all steps passed.
-    if not os.path.exists('/etc/eFa-Version'):
+    if not os.path.exists('/etc/eFa-next-Version') and not os.path.exists('/etc/eFa-Version'):
         raise Failed('A first-install step failed, see /var/log/eFa/eFa-config.log.')
 
 
@@ -988,6 +1023,7 @@ def restore_settings(plan, target, warnings, disable=False):
                               env={k: v for k, v in os.environ.items() if k != 'SUDO_USER'})
         if done.returncode != 0:
             warnings.append(f"efactl {args[0]} {' '.join(args[1:])}: {(done.stdout + done.stderr)[-200:].strip()}")
+        return done.returncode == 0
 
     for service in ('mariadb', 'redis', 'rspamd', 'unbound', 'efa-milter-health'):
         subprocess.run(['systemctl', 'start', service], capture_output=True)
@@ -1002,6 +1038,18 @@ def restore_settings(plan, target, warnings, disable=False):
     with open(POSTFIX + '/master.cf', 'w') as f:
         f.write(master)
     warnings.extend(f'Postfix master.cf line dropped, it belongs to the removed filters: {line}' for line in dropped)
+    # The submission service of eFa 5 (dovecot SASL, its own checks) gives way to the one of eFa-next; the old one is in the backup.
+    done = subprocess.run(['/usr/sbin/efactl', 'postfix-submission-heal'], capture_output=True, text=True)
+    if done.returncode != 0:
+        warnings.append(f'Postfix submission (587): {(done.stdout + done.stderr)[-300:].strip()}')
+    elif '"replaced"' in done.stdout:
+        warnings.append('Postfix submission (587) of eFa 5 replaced by the one of eFa-next (TLS, SASL of eFa-next, its submitter '
+                        'checks); the old lines are in master.cf of config.tar.gz' + ('; smtps (465) of eFa 5 with its placeholder blocklist removed'
+                                                                                     if '"smtps_removed": true' in done.stdout else '') + '.')
+    if done.returncode == 0:
+        unused = json.loads(done.stdout or '{}').get('unused_parameters', [])
+        if unused:
+            warnings.append('Postfix: parameters of main.cf nothing refers to (postconf warns about them): ' + ', '.join(unused))
     # A HOLD rule made mail wait for MailScanner, which no longer picks it up.
     lines = []
     if os.path.exists(POSTFIX + '/header_checks'):
@@ -1025,11 +1073,35 @@ def restore_settings(plan, target, warnings, disable=False):
         run(['postconf', '-e', f'{name} = {value}'])
     if plan['letsencrypt']:
         run(['tar', 'xzf', target + '/config.tar.gz', '-P', '-C', '/', '/etc/letsencrypt'])
-        warnings.append('Lets Encrypt: nginx uses a self-signed certificate. Run efactl letsencrypt-set to get a new one.')
+        # MIG-LE: the lineage as it is, the same key (a TLSA record stays right); if it cannot, efactl says why and nothing changes.
+        if efactl('letsencrypt-takeover'):
+            warnings.append("Let's Encrypt: certificate taken over as it is (same key and key type), renewals keep the key.")
 
+    # A Wazuh agent of the eFa 5 host is taken over as it is: ossec.conf and the agent stay unchanged.
+    done = subprocess.run(['/usr/sbin/efactl', 'wazuh-take-over'], capture_output=True, text=True,
+                          env={k: v for k, v in os.environ.items() if k != 'SUDO_USER'})
+    try:
+        report = json.loads(done.stdout or '{}').get('report', '')
+    except ValueError:
+        report = f'Wazuh agent: efactl wazuh-take-over gave no answer: {(done.stdout + done.stderr)[-200:].strip()}'
+    if report:
+        warnings.append(report)
     for step in settings_steps(plan, target, fresh=False):
         efactl(*step)
     import_sender_access(target, warnings, efactl)
+    # MIG-DNS: the forward-zone "." of eFa 5 goes when the root servers answer (its internal zones stay); else it stays, named.
+    done = subprocess.run(['/usr/sbin/efactl', 'dns-forward-fix', f'--backup={target}/unbound-forwarders'], capture_output=True, text=True)
+    if done.returncode != 0:
+        warnings.append('DNS: unbound still sends all names to the forwarders of eFa 5, the free blocklists do not filter then: '
+                        + (done.stdout + done.stderr)[-300:].strip())
+    elif '"moved_to"' in done.stdout:
+        warnings.append(f'DNS: unbound resolves itself now; the forwarders file of eFa 5 is in {target}/unbound-forwarders, its '
+                        'internal zones are under Internal DNS.')
+    # MIG-GREY: as on a new install of eFa-next: greylisting (5 minutes, 7 days) and the BEC checks on, named in the report.
+    efactl('greylisting-set', '--mode=on', '--minutes=5', '--days=7')
+    efactl('bec-set', '--mode=on')
+    warnings.append('Greylisting on (a new sender waits 5 minutes, known for 7 days) and the BEC checks on, as on a new install of eFa-next. '
+                    'Off again: Spam & virus, Greylisting (efactl greylisting-set --mode off); Impersonation & BEC (efactl bec-set --mode off).')
     import_mailscanner_rules(target, warnings, efactl)
     import_blockers(plan, target, warnings, efactl, disable)
     run(['postconf', '-e', f"non_smtpd_milters = {plan['non_smtpd_milters']}"])
@@ -1056,7 +1128,16 @@ def restore_settings(plan, target, warnings, disable=False):
         warnings.append('Postfix settings replaced or dropped, the old values are in main.cf in config.tar.gz: ' + ', '.join(lost))
 
 
+FIRST_LOGIN = (
+    'Erste Anmeldung / First login: https://<Hostname>/login, Benutzername leer lassen, Web-Admin-Passwort / leave the user '
+    'name empty, the web admin password.',
+    '2FA sofort einrichten / Set up 2FA right away: Benutzer > Zwei-Faktor-Anmeldung (2FA) / Users > Two-factor login (2FA): '
+    '2FA: App einrichten, dann mit dem ersten Code einschalten / set up the app, then switch on with the first code.',
+    'Jeder weitere Admin mit eigenem Benutzer und eigener 2FA / Every other admin with an own user and own 2FA (Benutzer / Users).')
+
+
 def finish(target, warnings, password):
+    warnings = warnings + list(FIRST_LOGIN)
     with open(target + '/report.txt', 'w') as f:
         f.write('\n'.join(warnings + list(NOT_MIGRATED)) + '\n')
     print('Migration done. Check these points:')

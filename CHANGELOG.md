@@ -1,5 +1,539 @@
 # Changelog
 
+## 6.0.0.6 (release date: pending)
+
+### Release upgrade: new mail held for every sender
+- While the release upgrade holds new mail (421), the maintenance entry stays first in every list of client restrictions, also
+  after the heal of the sender allow list ran during a package update: an allowed sender gets the 421 too. On the way back only
+  the own entry goes; the list of before, with its order, stays (S36).
+### Cluster: shared bans no longer count as repeat offences
+- A ban another node of the cluster found is set in its own jail, efa-cluster (every port, as long as the master keeps it), not
+  in the jail of the node that found it. recidive does not count these bans, so one event on one node no longer becomes a week
+  on every node, and no node reports a shared ban again as its own (CL-RECIDIVE).
+
+### Security standards and the hardening wizard: the strict lists, said plainly
+- The SSH profile `bsi` takes the tables of BSI TR-02102-4 from standards.json, the same lists the check uses: ECDH over the
+  NIST curves and DH group exchange, AES-GCM and AES-CTR, HMAC-SHA2 with encrypt-then-MAC first, ECDSA host keys only. The
+  quantum-safe hybrid mlkem768x25519-sha256 stays in front. Not in it any more: curve25519, sntrup761, ChaCha20-Poly1305,
+  Ed25519 and RSA host keys. Every client then sees the ECDSA host key on its next login (the preview says so); without an
+  ECDSA host key the profile is refused. PermitRootLogin is never touched.
+- The kernel settings add the sysctl values of CIS (rp_filter, log_martians, no source routing, no secure redirects); the
+  status counts them as on only while the values are in effect.
+- An SSH profile or kernel settings written by an older version show as outdated in the status, the check and the wizard;
+  an update never rewrites them, the admin applies them again on purpose.
+- A value outside the list of a standard counts as fulfilled only when the table `equivalents` in standards.json names it,
+  with its source: the check then says "fulfilled through a stronger or equal standard" (X25519MLKEM768: NIST FIPS 203,
+  RFC 10024; X25519: RFC 7748, RFC 8446, NIST SP 800-186; mlkem768x25519-sha256: NIST FIPS 203, RFC 10042; brainpool: RFC 5639,
+  7027, 8734, BSI TR-03116-4). `"deliberate": {"on": false}` makes the check and the SSH profile strictly BSI.
+- Mail offers brainpoolP256r1 (and brainpoolP256r1tls13 from Postfix 3.6), the web brainpoolP256r1tls13 where OpenSSL has it.
+  Mail keeps X25519MLKEM768 out: Postfix 3.5 and 3.8 do not take its name.
+- Mozilla modern: `efactl web-cert-set --mode ecdsa` (or the wizard item) gives the web interface its own Let's Encrypt
+  certificate with an ECDSA P-384 key; the certificate of mail and its TLSA record stay.
+- The preview names each chosen standard that stays not fulfilled, and why (an item not chosen); the dialog after Apply
+  lists what stays open. An item that is on already is not named.
+- DANE: with TLS required for all outgoing mail (encrypt), the wizard keeps it and explains why instead of stopping: Postfix
+  has no "DANE where TLSA records exist, else TLS required". Switching to DANE anyway is a box of dane-set (audited).
+- Crypto policy FUTURE: the warning says not on a mail server in production without a test (RSA 2048 partners, DKIM).
+- The sandbox of the services: on EL10 the default also takes Valkey and nginx (they ran without a SELinux denial).
+
+### Job applications for all domains
+- One rule for all domains (`application-set --domain=*`, super admins only): its addresses are the parts before the @
+  (jobs, karriere), each at the domain of the recipient. A domain with its own setting keeps it.
+
+### Mail queue: why a mail is held
+- Held mail shows its reason, from the hold line of the mail log (for the quarantine: "eFa quarantine: header X-Spam-Status:
+  Yes, score=…"); postqueue gives none.
+
+### Release upgrade to EL10: repository keys, settings files, services
+- The finish takes the signing keys of the rspamd and eFa-next repositories only with their fingerprint, keeps them as local
+  files and fetches the metadata without a question; a repository that does not answer fails a check (a production host
+  stopped rspamd updates with "Signing key not found"). Every address form of the repository files is moved to EL10.
+- The check after the upgrade names every service that ran before and not after it, the units of the host too (a warning).
+
+### Settings files no longer readable by everyone
+- The files below /etc/eFa are 0640 with the group of the service that reads them (the new group efa-conf for the web
+  interface and the portal; efa-mailconf for the mail services, outbound.json and milter-health.json; efa-dkim-api) or root
+  only; a stricter 0600 stays. The update heals existing hosts (`conf-modes-heal`). The security self-check no longer suggests
+  `chmod o-r` for them (S32).
+- The secrets of the web interface (admin password, session key, key of nginx) in /etc/efa-web are readable only for the web
+  interface and the first-run wizard (group efa-websecret), no longer for the mail services; the update heals them (S37).
+
+### Updates and pre-releases
+- A host with a pre-release (6.0.0.6-alpha2) is offered the release of the same numbers only from an answer that says it is
+  no pre-release, never a pre-release of the same numbers again; the display marks a pre-release. The way back of an update
+  is the installed version itself, for a pre-release its own packages (testing channel or GitHub), no longer the release.
+  The updater of 6.0.0.6-alpha2 itself still builds its way back from the release packages: take a VM snapshot before the
+  update from the alpha to the release.
+
+### 2FA and names in the interface
+- The banner of the guided setup names which account has no 2FA: the main admin of the web interface (login admin) or the
+  console admin over SSH, each with the way to set it up; the dashboard links to My account, 2FA. A code typed in for a login
+  without active 2FA is said to be unchecked.
+- The update display reads eFa-next installed, latest, update available.
+
+### Fixes
+- The dashboard of a domain admin failed when a notice named a domain outside its scope (only the text was filtered away);
+  such a notice now goes as a whole.
+- `efactl --self-test` refuses on a set-up host; only in CI (EFA_CI=yes) or with `--allow-service-changes`. As root it runs
+  in a mount namespace of its own: settings, state, logs and the quarantine are overlays that are thrown away, and the
+  commands that change services or the firewall do nothing there. It no longer restarts efa-cdr, switches freshclam or
+  writes ARC keys, allow maps or state files on the host (S33).
+
+### A dialog after the steps that change the system
+- After Apply of a wizard (the hardening wizard of the security standards among them) and after the long steps (release
+  upgrade, update, rollback, OS update, standards, OS hardening, the sandbox of the services, restore) a dialog says what
+  happened: per setting before and now, or the names of what changed; when a step stopped, its reason, what it had changed
+  already and what it took back, as efactl names them. A native dialog of the browser: the button has the focus, Esc
+  closes it, the page behind stays as it was. No library, the script comes from the server itself (content security policy).
+
+### Release upgrade to EL10: start with only a VM snapshot
+- The start of the release upgrade may leave out the encrypted external backup (owner, 2026-11-12): only a super admin with
+  password and 2FA, besides the snapshot box and the host name, with the sentence `without backup, snapshot only` (or
+  `ohne Backup, nur Snapshot`) typed in (`efactl release-upgrade --action=start --snapshot=yes --hostname=... --no_backup=...`).
+  The audit log names who started so and on which host, the page warns that the VM snapshot is then the only way back. Each
+  start asks again; the default stays the backup, and the check "Backup works" after the first EL10 boot stays.
+
+### Release upgrade and migration: findings of the acceptance
+- The check "Settings unchanged" after the upgrade to EL10 took package files whose mode, owner or time differed (a host
+  migrated from eFa 5) for changed settings, and the EL10 package's own sample files then failed it (postfix canonical,
+  generic, relocated, virtual; unbound example.com.conf, remote-control.conf). Only the content counts now (rpm -V size,
+  digest, link); a changed content still fails the check.
+- A check that is no condition (leftover packages kept on purpose) is logged as a warning, not as FAILED.
+- MIG-587: SMTP AUTH on port 587 of an eFa 5 host (Dovecot) is not taken over when its submission block is replaced; the
+  audit log and the dashboard say so, the migration guide tells how to switch it on (submitters with a login, or the system
+  accounts). New CI step efa5-587-auth.
+
+### Version file /etc/eFa-next-Version
+- The version of eFa-next is now in `/etc/eFa-next-Version`. `/etc/eFa-Version` stays as a symlink to it: the updater and
+  the scripts of 6.0.0.5.x and older read that name. Every reader of eFa-next takes the new name first, the old one after.
+
+### Legal texts: checked in CI, one new confirmation
+- CI checks the legal texts (`scripts/legal_check.py`, called by `scripts/license_check.py`): DISCLAIMER.md in English
+  and German with intended use, warranty and liability and the severability clause, every exclusion qualified by the law,
+  LICENSE the unchanged AGPL-3.0, every package the RPMs require in THIRD-PARTY-NOTICES.md, and the references to the
+  disclaimer in the setup, the web interface, efa-migrate and the blocklist confirmation.
+- The confirmation of a blocklist excludes liability to the maximum extent permitted by law and refers to DISCLAIMER.md
+  with its severability clause; the footer of the web interface says the same. THIRD-PARTY-NOTICES.md names the operating
+  system packages eFa-next requires, with their licenses from the CentOS Stream 9 spec files.
+- THIRD-PARTY-NOTICES.md is one of the legal texts, so their digest changes: after the update the first admin login, the
+  setup and efa-migrate ask once to confirm the legal texts again.
+- The confirmation text of the blocklists changed too (state of the terms 2026-11-13): the dashboard asks the admins once to
+  confirm each active blocklist again; active lists stay active until then.
+- Mailspike links its terms of use (mailspike.io/ip_verify/usage); its note says what they allow: free via public DNS for
+  low-volume sites, up to 100,000 messages and 100,000 DNS queries per day, larger sites contact Mailspike.
+### Tests of the functions with real mail, rspamd modules watched
+- Every CI run with an install (scripts/ci.sh --install) now sends real mail through Postfix, rspamd and the milters and
+### Sending limits for the whole cluster, tests for the open functions
+- The sending limits (recipients and target domains per sender, per sender domain and per tenant) now hold for the cluster
+  as a whole, not per node (8g): the nodes report their counts of the hour to the master every half minute over the cluster
+  connection (mutual TLS) and take the counts of the others into their Redis. A target domain reached through two nodes
+  counts once. Without a cluster nothing changes; while the master is not reached each node counts its own mail. See
+  docs/cluster.md. The Redis protocol of efa-outbound is now the library efa_redis, which also reads bulk answers and lists.
+- New tests for functions that had none (TST-1, SSO-1, M1-1, 5s, N6): the 53 writing efactl commands without a test of their
+  own; single sign-on (oidc-set, oidc-start, oidc-finish, tenant-oidc-set) end to end against a test provider with a real
+  RSA key, PKCE and signed ID tokens, including forged, unsigned, expired and foreign tokens; the ARC set of efa-cdr checked by
+  an independent verifier (dkimpy) after a change of the mail (CI step arc-independent, needs python3-dkim from EPEL); passkeys
+  in Chromium with its virtual authenticator, registration and login without a password, replay and foreign keys (CI step
+  passkey-browser, the Python of the live-test venv); taking mail back over IMAP against a Dovecot of the test with a master
+  login, move and delete (CI step retro-imap, the Dovecot of the host is not touched).
+
+### Tests of the functions with real mail, rspamd modules watched
+- Every CI run with installation (scripts/ci.sh --install) now sends real mail through Postfix, rspamd and the milters and
+  checks the result, one check per function: BEC VIP names, programs as attachments, graymail, own SHA-256 blocks, job
+  applications, warning banner, link check, tracking protection, DLP of outgoing mail, header privacy and DKIM signing
+  (scripts/live_features.py, step live-features), and the mail paths clean, spam, virus, quarantine and release (step
+  live-mail, before only in the manual live test). Incoming mail comes through XCLIENT as a client outside the own networks.
+  Nothing leaves the host: every transport waits for the time of the test, every mail of the run is deleted afterwards, and
+  each function switched on for its check is switched off again.
+- rspamd only logs an own module that fails to load and goes on without it. eFa-next now checks after every package change,
+  in the daily mail check and in CI that each switched-on module (BEC, attachments, graymail, own blocks, applications, QR
+  codes and the others) is loaded: one that is not is red on the dashboard, in `efactl status` and mailed to the admin. The
+  self-test compiles the Lua of every module, the user quarantine logs its load error like the others.
+
+### SecuriteInfo: account tier and URLs
+- The row of SecuriteInfo (Spam & virus, Virus signatures) has a choice of the account tier and a field for the
+  DatabaseCustomURL lines of the SecuriteInfo setup page. Tier Basic: at most one round of downloads every 30 minutes and at
+  most 300 kB/s, kept by the job itself (the time is written before the first request and holds across restarts and manual
+  runs; the download is read at the rate). The row shows the tier in effect and when SecuriteInfo was last asked.
+- The lines are checked strictly (https, securiteinfo.com only, a ClamAV database file, at most 40) and hold the
+  subscription key: stored for root only (0600), sent on stdin, never shown, logged or in the audit log. The page only says
+  how many URLs are stored; replace or delete them. Super admins only; `efactl clam-securiteinfo-set`.
+- Cluster: the key of SecuriteInfo stays on the master. Tier and URLs are set there only; the account ID no longer goes into
+  the cluster journal or the snapshot for a new node. A node never asks SecuriteInfo; its row says "waiting for the master"
+  until it has the checked signature files from the master, then "Signatures from the master, last received <time>". The
+  upgrade takes the account ID and URL lines out of older journal entries (audited, without the key) and off the nodes.
+  Older backups of a cluster master or node can still hold the key in the journal or the node settings: if a cluster was
+  used with SecuriteInfo, renew the key at SecuriteInfo.
+- Cluster: only the master downloads the ClamAV signatures of Sanesecurity, URLhaus, InterServer and SecuriteInfo. It lists
+  them with size and SHA-256 in a manifest and tells the nodes through the cluster journal; each node fetches what it lacks
+  over the cluster port with mutual TLS, checks size, SHA-256 and that clamscan loads it, swaps it in atomically and keeps
+  the old file when a check fails. The master serves only the names of its manifest (no links, nothing outside the folder).
+  Docs: docs/cluster.md.
+- Cluster, also from the master: the RDAP list, the lookalike domains of crt.sh, the exploited list of EUVD and the threat
+  feeds; the nodes ask none of them themselves. The API keys of threat feeds stay on the master (also removed from older
+  journal entries and from the nodes on upgrade).
+- Cluster: the IP blocklists too. Only the master fetches the feeds; a node checks the lists it gets (public networks only)
+  and loads them into its own table efa_block in one nft transaction; the firewall stays host-local, the loaded lists stay
+  when nft refuses.
+- Cluster: the official ClamAV databases too. A node stops freshclam while its master answers and gets main, daily and
+  bytecode from it, checked by clamscan; freshclam runs again in fallback and after leaving the cluster (only if eFa-next
+  turned it off). Large transfers run on their own and are tried again every ten minutes when they fail.
+- Cluster: lookalike alerts are mailed once. Only the master sends; a node in fallback notes its findings, the first node
+  of the list sends after a day without the master, and the master takes the findings of its nodes on their return and
+  alerts once per domain.
+- Cluster, master out of reach: after a grace time per source (at least two hours) a node downloads the public sources
+  itself with the same checks, never SecuriteInfo or keyed feeds; it says so on the dashboard and in the audit log, and goes
+  back to the files of the master as soon as the master answers.
+
+### Attack alert: banner on every page, lamps and gauges on the dashboard
+- Once a minute eFa-next checks the host for attacks and problems: SMTP connection floods (possible DDoS), SYN floods,
+  password guessing on SMTP AUTH and web logins, many rejects or Fail2Ban bans, spam and virus waves, a filling mail queue,
+  stopped services, a full disk, little free memory and very high load. A flood counts only above a fixed floor and well
+  above the normal value of the last hour, so a busy server stays green at its usual load.
+- Whatever is found shows as a banner right under the top bar of every admin page (red for an attack or a fault, amber for
+  something unusual), with since when, a link to the page that helps and, for super admins, the addresses that caused most of
+  it. An alert stays for five minutes after the value fell back (marked as easing), so it does not flicker.
+- The dashboard starts with *Status at a glance*: a lamp per service (mail server, spam filter, virus scanner, database,
+  cache, DNS, web server, Fail2Ban, firewall, milters) and for attacks, spam and viruses, the queue and the resources, and
+  gauges for CPU, RAM, disk, mails and spam share of the last 10 minutes, SMTP connections per minute and failed logins.
+  Banner and board renew themselves every 30 seconds while the page is visible.
+- Resource-light: no new service or timer. efa-web runs `efactl threat-run` once a minute in its load thread; it reads only
+  the new journal lines of Postfix, Fail2Ban and efa-web, the TCP counters of the kernel, two counts of the mail log (the
+  normal value of the day before is renewed every 15 minutes) and the queue folders. A page reads only the kept answer.
+- *Security > Attack alert*: the last result and the sensitivity (low: twice the limits, normal, high: half the limits).
+  Tenant admins see the alert without addresses. Docs: docs/dashboard.md.
+
+### Forms without console rules, password once per five minutes (UI-M4, UI-M5)
+- Field labels no longer carry the rules of the console: "empty keeps it" and the like are the grey text in the empty
+  field, "- for none" is a tick box Clear next to the field (it sends the - of the console), "type yes" is a tick box.
+  The labels of efactl stay as they are for the console.
+- Cards that need your password show the password and 2FA fields only when the last confirmation is over; for the
+  five minutes after it, the card says how long it still holds. The check on the server is unchanged.
+
+### Package upgrade: the submission service is left alone
+- Each package upgrade rewrote master.cf with the same content and left a master.cf.efa-submission-<time>.bak, because the
+  submission service was compared with its -o options inline. A rewrite now only happens when a field or an option really
+  differs. After the EL10 release upgrade this had made the check "Settings unchanged" fail and kept the maintenance mode on.
+
+### Security standards
+- New page *Security standards* (superadmin, step-up 2FA): choose BSI TR-02102-1/-2/-4, TR-03116-4, TR-03108, RFC 9325,
+  Mozilla modern or intermediate, NIST SP 800-52 Rev. 2 or CIS (sshd, sysctl, crypto policy). A preview shows each setting
+  now and after; applying it needs `--apply yes` (and `--confirm yes` with warnings), writes a rollback point and an audit
+  entry. The strictest value of the chosen standards is applied, never below the limit of eFa-next, never weaker than now.
+- Mozilla modern sets TLS 1.3 only for the web interface; port 587 stays at TLS 1.2. Port 25 stays opportunistic unless TLS
+  there is required on purpose.
+- `efactl standards-check` checks every standard against the settings in effect: fulfilled, over-fulfilled, not fulfilled
+  or needs DNS records, with the reason of each finding. On the dashboard, in the PDF of the hardening report, and a notice
+  for a chosen standard that is not fulfilled.
+- HSTS now with max-age 63072000 (two years), as Mozilla asks.
+### More ClamAV signatures: the card
+- Each source (URLhaus, InterServer, SecuriteInfo) has its own switch with the state in effect. Switching one on with terms not
+  yet accepted opens the terms first: the link of the provider ("no published terms" for InterServer) and a tick box. The terms
+  are accepted once; switching a source off and on again does not ask again. The account ID of SecuriteInfo has its field in
+  its row; it goes to efactl on stdin and is never shown. Super admins only; each change is in the audit log.
+- Fixed column widths: headers and badges no longer break letter by letter; on a phone the rows stack.
+- The live UI test flags any table header, pill, badge or switch narrower than its longest word, at 1280 and 390 px.
+
+### Dashboard notices open their setting
+- Each notice links to the page and the card that holds its setting, named in the link ("Domain settings → Job
+  applications"), in the expert view where only that view shows the card. Before, every notice opened Maintenance, Last
+  system update. Job applications open with the first domain that still needs an answer.
+### Web interface: 2026 look, search with suggestions
+- The search of the menu suggests while typing: pages, actions and settings with a one-line explanation (the help text of
+  the card), synonyms in English and German ("whitelist" finds the sender lists), and the mail log with a filter for an
+  address, domain, IP or queue ID. One index per login and language, only what the login may open; matched in the
+  browser, nothing per keystroke. Keyboard: / focuses, arrow keys, Enter, Esc.
+- One look for all pages: cards, tables, buttons, the menu and the sections in the style of the mail views; list tables
+  become cards on a phone; dangerous buttons ask in a small dialog of the page.
+- The lists without arguments (users, groups, tenants, sessions, tokens, blocklists and the others) show in the Standard
+  view too, not only in the Expert view; the rights of each login stay the same.
+
+### Mail log, live log and quarantine
+- Allow, block or search all mails from the sender of a mail: a click on the sender, its domain or the IP in the mail log,
+  the live log or the quarantine opens a small menu. Allow and Block write through `sender-add` and the own IP blocklist
+  (`blocklist-entry`), no new list. A dialog shows the exact entry and list first and warns on a clash with the other list,
+  on an own domain and on private, relay, cluster or own addresses (these need the confirmation; never-blocked addresses
+  stay refused). Super admins only for global entries and IPs; tenant and domain admins get a rule for an own recipient
+  domain. A message with Undo follows; every action is in the audit log with the queue ID of the mail.
+  New commands: `sender-action-check`, `sender-action`.
+- Mail log search: filters `from:`, `domain:`, `ip:`, `result:` in the search field, and the fields Domain and IP.
+- Readable tables: full width, the time as its age with the exact time on hover, badges for the result and SPF, DKIM and
+  DMARC, queue ID and IP in a fixed-width font, no wrapping of time, queue ID, IP, result and score, long values shortened
+  with the full text in the tooltip, sticky table heads, cards below 900 pixels. Details of a mail open at the side.
+- The search stands in the page address after `#` (bookmarks, links to colleagues); that part never reaches the server.
+- Quarantine: actions on the row under the mouse and in a "…" menu; tick several mails to deliver, delete or block their
+  senders at once.
+### Help for every card and field, German throughout (UI-HELP)
+- Every card of the admin interface explains in one sentence under its title what it does; an (i) next to the title opens
+  the whole explanation, and an (i) next to each field explains that field. The popups use the popover of the browser, no
+  script. The texts are in efa_help.py (444 cards, 789 fields), English and German.
+- One title per card: the second heading with the command name (": switch", ": settings") is gone.
+- German interface without English left over: the choices of every pulldown, the switch labels (Active, On/Off), Help,
+  none, Tenant, Domain and Groups are translated (de.po 3433 of 3433 texts).
+- The Admin email card no longer points to efactl admin-password for the web password: that is under My account.
+- tests/test_ui_texts.py fails for a card or field without help, for help of a command or field that does not exist, and
+  for a shown text without German translation; scripts/i18n_extract.py collects the help, card titles, labels and choices.
+
+### Wazuh agent installed by someone else
+- The release upgrade to EL10 leaves a Wazuh agent exactly as it is (the same build serves EL9 and EL10; its package scripts
+  would stop, restart or unmask it): no update, kept by leapp; if leapp would change it, the upgrade stops before the
+  reboot. After the upgrade its package, ossec.conf, client.keys and its enabled and running state must be as before, or
+  maintenance stays on. Preflight shows the agent and lists packages from other repositories.
+- The hint for an agent eFa-next did not install named a command that does not exist ("wazuh-config", without efactl and
+  without the confirmation). It now names `efactl wazuh-config --adopt yes --confirm yes`, and the status shows what
+  eFa-next finds in its ossec.conf. A missing confirmation on the console says "Add --confirm yes to confirm.".
+- Taking it over changes nothing: the settings are read from ossec.conf into wazuh.json (a copy of ossec.conf beside it),
+  no password prompt, ossec.conf and client.keys stay byte for byte, the agent is not started, stopped, restarted or
+  enrolled; an agent that is off stays off. Before, the take-over rewrote ossec.conf with the settings of eFa-next and
+  turned active response off. `--adopt no` gives it back.
+- The upgrade of eFa-next, the migration from eFa 5 and the release upgrade take an existing agent over the same way and
+  say so in their report; if its ossec.conf cannot be read, the agent stays untouched and the upgrade goes on.
+- A setting changed through eFa-next keeps what the agent had (enrollment name, groups and other values, its own blocks,
+  active response unless the admin turns it off) and restarts a taken-over agent only if it runs.
+- Ctrl+C at a password prompt ends with "aborted, nothing changed" (exit 130), without a traceback.
+
+### EL10 support
+- Tested on a fresh AlmaLinux 10 host and on an upgrade of an AlmaLinux 9 host to 10 (EL10 gate); the release upgrade in the
+  web interface stays locked until the signed repository repo.efa-next.eu/el10 exists.
+- A platform module for EL10 (AlmaLinux, Rocky, RHEL 10): Valkey instead of Redis (service, CLI, config, account), lmdb
+  instead of Berkeley DB for every Postfix table and cache, update sources from repo.efa-next.eu/el10. On EL9 nothing changes:
+  the tables stay hash, Redis stays.
+- build.bash takes AlmaLinux 10 as well as EL9: the repositories by the major version of the host (EPEL 9 or 10, rspamd
+  centos-9 or centos-10, eFa-next from repo.efa-next.eu/el9 or /el10, the GitHub mirror only for EL9) and the nginx module
+  stream only on EL9. RHEL 10 stays closed until it is tested, Rocky Linux 10 and others are refused. build-rpms.py finds the
+  packages also where mock puts them (RPMS/ without noarch/).
+- The release upgrade also switches the options in master.cf to lmdb, moves the Redis data to Valkey, switches efa-next.repo
+  and rspamd.repo to EL10, and compares the settings exported before `leapp upgrade` with those after the first EL10 boot: any
+  difference keeps the maintenance mode on. `nginx -t` is one of the checks.
+- After every change of the installed packages a check runs (efa-os-check): the configuration tests of Postfix, nginx,
+  rspamd, Unbound and fail2ban, the mail services running, and .rpmnew/.rpmsave files beside managed files. A failure is red on
+  the dashboard and mailed to the admin. The health service watches nginx, MariaDB, Unbound, fail2ban and firewalld too.
+- dnf keeps ClamAV, flask, werkzeug, waitress, pymilter and fail2ban on their tested major versions, as rspamd already.
+- Backups also hold rspamd override.d, the fail2ban jails, the ClamAV daemon settings and the SSH profile; the held mail and
+  the Redis/Valkey data are kept as data, a restore does not write them back.
+
+### Release upgrade to EL10
+- Maintenance & update has a section Release-Upgrade for super admins (API: 403 for everyone else): AlmaLinux 9 to 10 with
+  ELevate in fixed steps (`efactl release-upgrade --action=preflight|preupgrade|start|abort|status`). Preflight checks EL9,
+  eFa-next 6.0.0.6, the EL10 repository of eFa-next (missing for now, so the upgrade cannot start yet), x86-64-v3, free space (/boot: 400 MB, a warning below 600 MB, leapp decides),
+  pending updates, keyfiles and time, and warns of network drivers EL10 no longer maintains and of Postfix hash:/btree: maps.
+  Preupgrade installs ELevate with leapp vendor files for the eFa-next and rspamd repositories and stops at any inhibitor.
+  Start asks for the password, the 2FA code, a confirmed VM snapshot and the typed host name, makes an encrypted backup that
+  must reach every external target with the same checksum and pass a test extract, gives new mail 421, then runs leapp
+  upgrade. After the first EL10 boot `efa-release-upgrade-finish.service` runs mariadb-upgrade, switches the Postfix maps to
+  lmdb:, sets SELinux enforcing, removes ELevate and checks the system; mail is accepted again only when every check passes.
+  The test mails of the checks (a clean one, GTUBE, EICAR) never leave the host: the delivering transports wait while they are
+  sent, and an accepted one is deleted from the queue by its id.
+  The checks after the first EL10 boot keep their mark until they have run to their end, so a crash or power cut in between
+  runs them again at the next boot (the mail block stays on meanwhile).
+  The 421 during the upgrade also holds for the smtpd services with a client list of their own in master.cf (such as
+  submission), which the setting in main.cf did not reach; the lists of before come back with the mail.
+- leapp no longer removes eFa-next: the eFa-next repository is enabled while leapp runs (leapp takes its vendor files only
+  then), and preupgrade as well as start stop before the reboot when the leapp log shows the vendor not taken, eFa-next not
+  in the upgrade, or eFa-next or a package it needs removed. A safety net outside the packages installs eFa-next again at
+  the first EL10 boot if it is missing anyway, or keeps the maintenance mode on with a note on the console.
+  For the leapp run nginx, sendmail-milter and python3-pytz are kept (the package data of leapp-data-almalinux drops them,
+  EL10 has them), eFa-next and its direct needs come from the target repositories, and EPEL is that of the target release
+  (10.2), through leapp's own customisation files, which are put back as shipped afterwards.
+  Preflight stops on network teaming (team connections or links): EL10 has no teamd, so the host would have no network after
+  the upgrade; convert to a bond first.
+- After the first EL10 boot the checks wait for leapp's own last phase (leapp_resume.service), take leapp's names off the
+  exclude= line of dnf.conf, remove ELevate, leapp and the el9 kernels (verified afterwards), move the .rpmnew/.rpmsave files
+  beside the files eFa-next writes itself to /var/lib/eFa/release-upgrade/rpmnew/, allow perl-locale (EL10 split of
+  perl-POSIX), and no longer count unchanged files of a package as changed settings; what an admin changed still counts.
+  Once every check passed, what leapp leaves on disk goes (/etc/leapp/files, /var/lib/leapp, /root/tmp_leapp_py3; its logs
+  stay). Before the upgrade the queue drain waits only for mail on its way; deferred mail stays queued and is counted in the
+  log, it goes out on its next try after the upgrade.
+- The release upgrade is in the standard view for super admins (other logins never see it), with a red warning above the
+  form: no way back except a VM snapshot, 30 to 60 minutes without mail. Its status card shows the state, the waiting step,
+  the time of the last change and the last message first; the whole record is folded under Details.
+  See docs/release-upgrade.md.
+
+### Security
+- DNS resolver for other networks: the Unbound of this host can answer listed networks too (the second MX), IPv4 and IPv6,
+  each in Unbound and as two firewall rules for port 53 from that network only (runtime and permanent, no reload); never
+  0.0.0.0/0, nothing wider than /8 or /32, outside the private ranges only with a typed yes; rate limits on; password and
+  2FA code asked. Optional second resolver of the host (the other MX). Kept in the backup, written again on every update.
+- SELinux: no denial of fail2ban at boot on hosts without IPv6 (it asked the kernel for the IPv6 module); the request stays
+  denied, only its log entry goes, as for freshclam.
+- Migration from eFa 5: the submission service (port 587) of eFa 5 stayed in master.cf after a migration: SASL through
+  dovecot, which the migration removes, checks of its own (also a placeholder blocklist), no TLS towards relays. The
+  migration now puts the submission service of eFa-next in its place, and the update does the same on hosts migrated
+  before (master.cf kept as .bak, audited); what efactl itself sets on 587 (SASL, milters) stays. An smtps service
+  (465) of eFa 5 with the placeholder blocklist goes too.
+- Network form: IPv6 can be set to disabled, and the form shows the IPv6 that is in effect (the method of the connection,
+  or disabled with a note when the kernel has IPv6 off) instead of a default; sent unchanged, IPv6 stays as it is. The
+  consistency check finds every form field with a default or a pulldown whose current value may be missing.
+- My account (top right, every login): name and phone, a new email address (it counts once a link to it is clicked, the
+  old address gets a note), the own password, 2FA with a QR code, a new app (the old one counts until the new one is
+  confirmed), new recovery codes and 2FA off. Address, password and 2FA ask the password again, with the current 2FA code
+  if one is set up, every time; a wrong one counts as a failed login. Each change is in the audit log. A login without
+  2FA sees a warning on the dashboard. `efactl totp-setup --qr` shows the QR code on the console.
+- The top right of the web interface and the user portal always shows who is logged in (login name and role); its menu
+  holds My account and Log out. Log out is no longer at the end of the sidebar.
+- The timer jobs that start again on their own (firewall guard, CVE watch, IP blocklists, events, mail report, outbound hold,
+  Sanesecurity, reboot check) no longer stay "failed" when an update restarts the units of eFa-next in the middle of a run;
+  the automatic update and the DKIM key rotation still show such an end as a failure.
+- Removing a user now removes everything bound to it in one transaction: its 2FA secret and recovery codes, passkeys, API
+  tokens, groups and login links of the portal; its sessions end at once, and the audit log names what went. Before, the 2FA
+  secret and the passkeys stayed in the database. The update deletes such left-over rows of users removed before, once,
+  with their count in the audit log.
+- A restore that was killed (power cut, kill -9) left /etc/eFa/restore-running behind, and every update said "A restore is
+  running." for good. The marker now names its process; an update removes a marker whose process is gone (or one of an older
+  version after 2 hours), with an entry in the audit log.
+- Migration from eFa 5: after sender_access moved to the sender lists, Postfix no longer reads that file (its OK lines let a
+  faked envelope sender past every check); the report says which restriction lists changed. The allowed senders from it are
+  named on the dashboard until they are checked, with the advice to keep only exact addresses.
+- SELinux: no denials on hosts without IPv6. Redis listens on 127.0.0.1 only there (its default tried ::1), and the
+  attempt of freshclam to use IPv6 is no longer logged as a denial.
+- Test installation from the source: the command in docs/install.md and `build.bash source` take a tag as well as a branch
+  (a tag is fetched and checked out, only a branch is pulled; `git pull` failed on a tag).
+- Migration: docs/migration.md says where efa-migrate comes from (the source of the release) and what the legal
+  confirmation accepts. `efa-migrate --legal-digest` shows the texts, their digest, how to check it with sha256sum and the
+  command line of an unattended run; the prompt names the digest correctly (it is no hash of the PDF). Nothing is accepted
+  without the person.
+- efa-cluster and efa-dkim-api are not started on a host without their certificate (no cluster, no provisioning API);
+  before, a new install started them again and again every few seconds.
+- Security advisories of eFa-next (advisories/advisories.json) are published signed with each release at
+  https://repo.efa-next.eu/advisories/; the CVE watch of the hosts takes them only with a valid signature of the repository
+  key and keeps the last good copy otherwise. The first entries are the fixes of 6.0.0.5.1.
+- The advisories are published by the release step itself, signed and checked online, and name the fixed release without
+  the platform (one entry for EL9 and EL10).
+- The dashboard names an eFa-next service that failed or starts again and again (the health service reports it), instead
+  of a quiet restart loop.
+- An update of the packages on a set-up host is never taken for a first install, also when /etc/eFa-Version is missing:
+  the first-install steps would have replaced its nginx, rspamd and Postfix settings.
+- The admin web interface has no sudo rule any more: it reaches efactl only through efactl-runner, also for the backup
+  download and the backup and logo upload (as pipes handed over the socket). The rule of 6.0.0.5 and older is removed on the
+  update. `efa-web.service` now runs with `NoNewPrivileges`, a read-only file system, no capabilities, a system call filter and
+  no access to the private keys of the host.
+- Restore: the SQL of a backup runs with the database client in sandbox mode (no client commands). An unsigned backup (6.0.0.4
+  and older, efa5-export) may only be restored by the main admin. A backup with two entries of the same name is refused, and a
+  restore never writes through a link that is already on the host.
+- Single sign-on (OIDC): an account is bound to the issuer and subject of its login, no longer to the name the provider sends;
+  an e-mail address counts only when the provider marks it as checked (`email_verified`), also for the login directory of a
+  tenant. Accounts of 6.0.0.5 are bound on their next login. ID tokens that are not valid yet (`nbf`, `iat`) are refused.
+- Login directories (LDAP, OIDC, also those of tenants) are never reached at this host itself, its loopback, link-local
+  addresses (cloud metadata) or other special addresses; their connection errors stay in the log instead of the answer.
+- The web interface and the portal take the address of the browser (X-Real-IP) only from nginx, which sends a key of its own
+  with it: another local process can no longer forge an address for the audit, the login lockout and the admin allowlist.
+- efactl takes from the provisioning API (efa-dkim-api) only its two calls, word for word.
+- efactl-runner takes a pipe from the web interface, and with it the long time limit of a download, only for the backup
+  download and upload and the logo upload; any other call with a pipe is refused.
+- A settings file that is no valid JSON is named in a clear error instead of a traceback; it never counts as the default.
+- Two writers of the same settings file at once no longer take each other's temporary file (a service start could fail).
+- The outbound milter (DLP, disclaimers, PDF encryption) and the sandbox service always find the files systemd hands them,
+  also after a restore from a host without these features; before, they did not start then, and with DLP or PDF encryption on, mail on port 587 waited.
+- Files with keys are created with their final rights, never readable by everyone for a moment.
+- The header export is streamed instead of read into memory.
+- The hourly job runs each of its steps on its own: a step that fails, or a mail log that cannot be read, is logged and
+  named in the event `hourly_job_failed`; the other steps still run, the daily check of the security minimum and the EU lock
+  too.
+- The mail log service takes scan results and mail for the quarantine only from rspamd: a post from any other local
+  process is refused, so it can no longer write log entries or put mail into the quarantine.
+- Sending limits and taken-over accounts (A1, 9j): the counts per sender, sender domain and tenant are kept in Redis for the
+  running hour, so a restart of the outbound service no longer starts them from zero; if Redis does not answer they are
+  counted in memory as before. One notice per sender and hour, also after a restart.
+- Require TLS on port 25 (5t), as docs/tls-profiles.md describes it: a switch on the card TLS profile, off by default and
+  after an update, on only after the warning is confirmed (RFC 3207: a public mail server normally accepts mail without TLS);
+  the card shows the sessions on port 25 of the last 7 days and the senders without TLS. Only the SMTP service on port 25
+  requires it, never submission or the internal ports; audited.
+- Documentation says only what is built: docs/bulk.md (the pace is one per transport; own sender IP, a pace per provider,
+  warm-up and campaign statistics are planned), the known limits of 6.0.0.5 completed (docs/STATUS-6.0.0.5.md), the cluster
+  journal is AES-256-GCM, no IMAP service, internal DNS servers only for their domains (README, docs/tls-profiles.md,
+  docs/security-model.md).
+- systemd sandbox (5v h, D-1) for rspamd, clamd, freshclam and unbound, on by default for new installs and migrations from
+  eFa 5: a read-only system with only the folders each daemon writes, no /home, an own /tmp, read-only kernel tunables and
+  control groups, nothing that needs NoNewPrivileges (it blocks the SELinux domain of these daemons). Each unit is restarted
+  with it and must stay up, else it runs without and the dashboard says so. redis and nginx stay without by default (OV-1b:
+  on a real host redis met SELinux denials and nginx did not stay up); `efactl service-harden --mode on` adds them, with the
+  same fallback. An update keeps what was chosen; a host without the sandbox gets a dashboard notice that links to the card,
+  where *default* switches it on. The drop-ins live in /etc/systemd/system, so updates of the packages keep them. The
+  provisioning API and the setup wizard get the limits that leave their sudo call working.
+- ClamAV unpacks archives to a depth of 17 at most, now set by eFa-next (`MaxRecursion`, the default of ClamAV).
+- Cloned hosts (S29): `efactl clone-reset --confirm yes [--hostname NAME]`, as root on the console only and never on a member of a
+  cluster, makes new what belongs to one host only (SSH host keys, machine id and its boot entries, host name, the keys of the web
+  interface, the portal and nginx, SRS and link check keys; the backup and offline signing keys again on first use, their old
+  fingerprints shown) and names what it keeps because it encrypts existing data or belongs to the domains (docs/system.md).
+- Root login through SSH has one place, 00-efa-root.conf, written by the switch for every mode (on writes yes); the SSH hardening
+  file no longer names it. On the update the value sshd takes now goes into that file first, so no host changes its root login.
+  Other files that set PermitRootLogin (such as the one of the installer) stay and are named as overridden in the status and the
+  hardening report.
+- A fresh install no longer turns root login through SSH off on its own: the wizard asks for it (off, with an SSH key only,
+  on), prefilled with the value in effect, with the recommendation and the warning; the choice goes through the switch of
+  efactl (audited). Without a choice, as in an unattended install, it stays as it was (`ROOTSSH` in the answers sets it).
+- Single sign-on (OIDC) in the user portal: with its own redirect address at the provider (`/portal/login/oidc/callback`), for
+  the global provider and those of tenants; a checked mail address of an own domain logs in as a user of the role user, bound
+  to issuer and subject; an address an admin account has as its name or e-mail (any case) is refused there, also for a login
+  link, and portal users at the admin interface. The portal reaches the
+  provider only through efa-portal-helper, which always asks for the portal login. Off until the redirect address is set
+  (docs/users-and-access.md).
+- ARC after a change of the content milter (M1): rspamd seals a mail before efa-cdr changes it (tracking protection, links,
+  banner), so its seal no longer fit. efa-cdr now adds the next ARC set (ARC-Authentication-Results with the results of rspamd,
+  ARC-Message-Signature over the changed mail, ARC-Seal) with the domain and key rspamd sealed with, rsa-sha256 after RFC 8617;
+  the order of the milters stays. Mail it does not change, or that rspamd did not seal, stays as it is. The keys reach efa-cdr
+  as systemd credentials (/etc/eFa/arc-seal, root only, kept in step with the ARC settings).
+- Reports as PDF (5h): the daily and weekly report also as a PDF attachment of its mail (`efactl report-set --pdf on`, off
+  until switched on) and as a PDF to download from the report page (`report-show --format pdf`), each reader with the domains
+  it may see; made with the own PDF code of the hardening report (A4, page X / Y), no extra library.
+- Retention per tenant (9h) for every kind of data: besides the mail log and the reports also the audit log, the held mail of
+  the admins, the originals of disarmed attachments, reported phishing mails and the DKIM selectors seen
+  (`efactl retention-set --data ... --tenant ...`). Headers, held mail for users and emergency copies have their days per tenant in
+  their own settings; the statistics hold counts only. A mail or original of several tenants goes when the longest of their
+  days ends. Tenant admins may set shorter days only, longer ones a super admin. Every purge and change in the audit log;
+  nothing changes until days are set.
+- CI: the Forgejo job runs ci.sh in a unit of its own, so a cancelled job no longer stops it in the middle of the fresh test.
+- The rspamd repository is used only over https (its file names http for packages and key; dnf could take a new key
+  unasked); existing hosts are changed on the update.
+- A plain dnf update keeps rspamd on its major version 4; a new major version comes only with an eFa-next release
+  tested with it.
+- DKIM provisioning: the client certificate of a source must be a file with certificates only, never one with a key.
+- The web interface takes multipart bodies only for its four uploads and only after a login, before it parses them, and
+  other forms up to 4 MB: Werkzeug 2.0 of EL9 parses multipart without a limit on its parts (CVE-2023-25577, CVE-2023-46136,
+  CVE-2024-49767).
+
+### Fixes
+- PDF reports, the hardening report, legal texts and encrypted mail as PDF show every letter (Polish, Czech, Greek, Cyrillic
+  and others) instead of '?' (PDF-1): such text is set in DejaVu Sans (new dependency dejavu-sans-fonts), embedded only into
+  a PDF that needs it; a PDF in Western European letters stays as small as before. Names and titles of the document as UTF-16.
+- Submitter logins for Dovecot (SHA512-CRYPT, while PAM is on) no longer need the crypt module of Python, which is gone from
+  Python 3.13 on (PY-1): efa_shacrypt makes and checks them in plain Python, tested against the vectors of the scheme.
+- The hourly count of the sessions on port 25 (Require TLS on port 25) counts each line for the day of its time stamp, so
+  the lines before midnight stay on their day; after a rotation of the mail log the hourly job first reads the rest of the
+  rotated file, so no lines are lost between the last run and the rotation (JOB-2).
+- Migration from eFa 5: the forward-zone "." it left in unbound (all names to 8.8.8.8 or a router) goes when the root servers
+  answer over UDP and TCP; its forwarders for internal zones stay under Internal DNS. Before, the free blocklists did not
+  filter and every mail domain went to that resolver. Hosts migrated before get a dashboard notice and the one-click fix
+  dns-forward-fix (same test; if no name resolves without the forwarder, it is put back).
+- Blocklists page: one switch per list that shows the state in effect (On/Off), not the action; switching on a list with
+  unconfirmed terms opens its terms with the tick box; the Spamhaus DQS key sits in the Spamhaus rows; ID, type, score, hits
+  and errors no longer wrap, and on a phone the rows stack.
+- DNS: the local unbound resolving through the root servers is the default. The setup offers own DNS servers only as an
+  exception (servers of the own network, and only when the root servers do not answer), never a public resolver; the
+  system asks its own unbound (NetworkManager dns=none, resolv.conf 127.0.0.1), and a host that asks others gets the hint
+  and the one-click fix. An update changes nothing by itself.
+- Greylisting and BEC: a new install greylists (5 minutes, 7 days), a migration from eFa 5 switches on greylisting and the
+  BEC checks (named in the report); an update keeps what was set. The dashboard names a gap (greylisting off with its score
+  below the spam marking: mail in between got no action) and recommends both when they are off, each with its card.
+- Web interface: efactl-runner takes up to 128 waiting connections (the default was 5), and the web interface tries again
+  when the backlog is full for a moment; a page with many reads at once showed "Unknown" tiles before.
+- Hardening report: the key check reads the certificates nginx and Postfix use now (nginx -T, smtpd_tls_chain_files or
+  smtpd_tls_cert_file) and shows both when they differ; the check of the certificate end shows the date and the days left
+  instead of a number of seconds.
+- Sender lists: an allowed address or domain always gets through (owner: "immer, überall"): Postfix lets it past the RBL,
+  HELO and DNS checks (OK right after permit_mynetworks/permit_sasl_authenticated in the client, helo, sender and data
+  checks; in the recipient and relay checks only after reject_unauth_destination, never an open relay). Each pass is
+  logged and in the audit log; the page warns that sender addresses can be forged. A virus in its mail is cut out by
+  efa-cdr and the mail goes on (a note in its place, X-eFa-next-Removed, the original kept and audited); in the text itself
+  the mail is held and the recipients are told. The update takes a table efa-sender-skip-domaincheck (by hand or of the
+  first 6.0.0.6 version) over into the allow list and removes it; efa-migrate takes the OK entries of sender_access over.
+- Migration from eFa 5: a valid Let's Encrypt certificate of the host is taken over for nginx and Postfix as it is (same
+  lineage, key and key type, no new request), so a TLSA record stays right; renewals keep the key and run through the
+  webroot of nginx (the apache settings of eFa 5 go). eFa-next writes the paths itself, without the installer of certbot. Before, nginx kept the
+  self-signed certificate. New command `efactl letsencrypt-takeover`, and a dashboard notice on hosts migrated before.
+- After an update with a reboot, the post-boot check (maintenance off, health check, mail to the admin) now also runs on
+  hosts set up fresh; before, only hosts migrated from eFa 5 had it.
+
 ## 6.0.0.5.2 (release date: pending)
 
 Fix of the migration from eFa 5 on top of 6.0.0.5.1; an update keeps all settings.
@@ -576,8 +1110,7 @@ users, the database and `efactl` keep their names. `rpm -q eFa-next eFa-next-bas
   check without personal data) and a reason required to open the content of a mail in the strict audit mode
   (`content-reason-set`).
 - GDPR papers (Q6): templates for the record of processing, the technical and organisational measures and the data processing
-  agreement, as drafts for a lawyer (docs/datenschutz/). SUPPORT.md (Q8): the community way and optional paid support
-  (placeholders until 6.0.0.6).
+  agreement, as drafts for a lawyer (docs/datenschutz/). SUPPORT.md (Q8): the community way.
 - Guides (Q9): Microsoft 365, Google Workspace and Exchange, inbound and outbound through eFa-next, SPF/DKIM/DMARC and a DKIM
   import/export so mail is not signed twice. Detection rate (Q10, `scripts/detection_benchmark.py`) and a load and performance
   test (Q11, `scripts/load_test.py`) with a size recommendation in the docs and a small run in CI.

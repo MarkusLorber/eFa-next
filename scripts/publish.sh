@@ -76,7 +76,9 @@ B "sudo cat $W/repo/$DEST/repodata/repomd.xml" > "$LOCAL/repomd.xml"
 sign --detach-sign --armor -o "$LOCAL/repomd.xml.asc" "$LOCAL/repomd.xml"
 B "sudo sh -c 'cat > $W/repo/$DEST/repodata/repomd.xml.asc'" < "$LOCAL/repomd.xml.asc"
 if [ "$MODE" = release ]; then
-    printf '{"tag_name": "%s", "name": "eFa-next %s", "published_at": "%s", "body": ""}\n' "$TAG" "${TAG#v}" "$(date -u +%FT%TZ)" > "$LOCAL/latest.json"
+    # prerelease false: a host with a pre-release (6.0.0.6-alpha2) takes the release of the same numbers only from an answer that
+    # says so (efactl _update_available); without the flag the release is not offered to it.
+    printf '{"tag_name": "%s", "name": "eFa-next %s", "published_at": "%s", "prerelease": false, "body": ""}\n' "$TAG" "${TAG#v}" "$(date -u +%FT%TZ)" > "$LOCAL/latest.json"
     B "sudo sh -c 'rm -rf $W/repo/$DEST/latest && cp -a $W/repo/$DEST/$TAG $W/repo/$DEST/latest && cat > $W/repo/$DEST/latest.json'" < "$LOCAL/latest.json"
 fi
 
@@ -93,5 +95,23 @@ for f in "$TAG/SHA256SUMS" "repodata/repomd.xml"; do
     gpg --status-fd 1 --verify "$LOCAL/check.asc" "$LOCAL/check" 2>/dev/null | grep -q "VALIDSIG .* $FPR\$" || { echo "$f: signature NOT valid online"; exit 1; }
     echo "$f: signed by $FPR"
 done
+if [ "$MODE" = release ]; then
+    # The signed security advisories of this release for the CVE watch of every host (9o); one file for EL9 and EL10. The data
+    # goes first, its signature after it: a host takes the file only with a valid signature and keeps its last good copy.
+    echo "== advisories"
+    git -C "$HERE" show HEAD:advisories/advisories.json > "$LOCAL/advisories.json"
+    python -I -c 'import json, re, sys; a = json.load(open(sys.argv[1], encoding="utf-8"))["advisories"]; assert isinstance(a, list); assert all(e["id"] and len(e["fixed"]) == 3 and re.fullmatch(r"[0-9]+", e["fixed"][2]) for e in a); print(len(a), "advisories")' \
+        "$(cygpath -w "$LOCAL/advisories.json" 2>/dev/null || echo "$LOCAL/advisories.json")"
+    sign --detach-sign --no-armor -o "$LOCAL/advisories.json.sig" "$LOCAL/advisories.json"
+    B "sudo sh -c 'mkdir -p $W/repo/advisories && cat > $W/repo/advisories/advisories.json'" < "$LOCAL/advisories.json"
+    B "sudo sh -c 'cat > $W/repo/advisories/advisories.json.sig'" < "$LOCAL/advisories.json.sig"
+    B "sudo sh -c 'cd $W/repo/advisories && rsync -a --chmod=F644 -e \"$RS\" advisories.json $REPO_SSH:$REPO_ROOT/advisories/ && \
+        rsync -a --chmod=F644 -e \"$RS\" advisories.json.sig $REPO_SSH:$REPO_ROOT/advisories/'"
+    curl -fsS -o "$LOCAL/check" https://repo.efa-next.eu/advisories/advisories.json
+    curl -fsS -o "$LOCAL/check.sig" https://repo.efa-next.eu/advisories/advisories.json.sig
+    gpg --status-fd 1 --verify "$LOCAL/check.sig" "$LOCAL/check" 2>/dev/null | grep -q "VALIDSIG .* $FPR\$" || { echo "advisories: signature NOT valid online"; exit 1; }
+    cmp -s "$LOCAL/check" "$LOCAL/advisories.json" || { echo "advisories online differ from this release"; exit 1; }
+    echo "advisories: signed by $FPR"
+fi
 rm -rf "$LOCAL"
 echo "published $TAG to $U"

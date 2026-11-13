@@ -6,6 +6,7 @@ eFa-next is a mail filter appliance: it takes mail for your domains, checks it w
 
 ## Start here
 
+- **[Manual](manual/README.md)** ([Handbuch, Deutsch](manual/README.de.md)): the whole of eFa-next, chapter by chapter, with screenshots.
 - [All features](FEATURES.md) ([Deutsch](FEATURES.de.md)): what eFa-next contains, grouped, with a link to each page.
 - [Install](install.md): a fresh EL9 host.
 - [Migrate from eFa 5](migration.md): an existing eFa 5.0 host.
@@ -25,6 +26,8 @@ eFa-next is a mail filter appliance: it takes mail for your domains, checks it w
 | System | [Network, backup & restore, maintenance & update](system.md) |
 
 Everything on these pages is also a command of `efactl` on the console, with the same checks and the same audit log: `efactl --help` lists them.
+
+How the pages look and behave, for those who change them: [UI guidelines](ui-guidelines.md).
 
 ## With a mail platform
 

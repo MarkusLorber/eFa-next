@@ -1,19 +1,20 @@
-# eFa-next features (6.0.0.5)
+# eFa-next features (6.0.0.6)
 
-Everything eFa-next 6.0.0.5 contains. "Off by default" means the function is there and switched on by the admin. Every
+Everything eFa-next 6.0.0.6 contains. "Off by default" means the function is there and switched on by the admin. Every
 function is a command of `efactl` and, where it has settings, a page of the web interface, with the same checks and the same
-audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
+audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md). How to use them, chapter by chapter: the [manual](manual/README.md).
 
 ## Mail filter and detection
 
 - **rspamd with Redis** checks every mail: spam score, SPF, DKIM, DMARC (the policy of each sender), ARC, greylisting. [Protection](protection.md)
 - **ClamAV** scans for viruses, with the Sanesecurity signatures (low-risk files, checked by their GPG signature). [Protection](protection.md)
-- **More ClamAV signatures**: URLhaus, InterServer, SecuriteInfo, each after its terms are confirmed. Off by default.
+- **More ClamAV signatures**: URLhaus, InterServer, SecuriteInfo (with its account tier and own download lines, the key never shown), each after its terms are confirmed. Off by default.
 - **Extra virus scanners** over ICAP and the external services of rspamd (the operator's scanner and licence). Off by default.
 - **DNS blocklists** through the own resolver (Spamhaus with DQS key, SpamCop, PSBL and more), terms linked and confirmed. [Blocklists](rbl.md)
 - **IP blocklists** of feeds and own lists, applied in the firewall. [Protection](protection.md)
 - **Postscreen** on port 25 with pregreet check and weighted blocklists.
-- **Sender lists and rules** for addresses, domains, IP addresses and patterns. [Protection](protection.md)
+- **Sender lists and rules** for addresses, domains, IP addresses and patterns; an allowed sender always gets through, never as an open relay. [Protection](protection.md)
+- **Allow or block a sender** right from the mail log, the live log or the quarantine, with a check first and Undo. [Mail & quarantine](mail-and-quarantine.md)
 - **Rule engine**: policies and routing by sender, domain, recipient, tenant or directory group. [Protection](protection.md)
 - **Bayes and the neural network** of rspamd, trained by the spam reports admins approve.
 - **Own fuzzy store**: variants of approved spam recognised again; nothing leaves the host. Off by default.
@@ -27,6 +28,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 - **Young domains** score higher; the days as a choice.
 - **Address harvesting**: a source probing many unknown recipients is noted and banned. [Address harvesting](address-harvesting.md)
 - **Greylisting and sending limits** per sender, sender domain and tenant.
+- **The DNS resolver for other networks** (the second MX), only for the networks listed, never open.
 
 ## Phishing and impersonation
 
@@ -43,7 +45,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 ## Attachments and sandbox
 
 - **Attachment filter** with real type detection, also inside archives, and dangerous file names. [Attachments & CDR](attachments-and-cdr.md)
-- **Content disarm (CDR)** of Office and PDF files, or conversion to PDF. [Attachments & CDR](attachments-and-cdr.md)
+- **Content disarm (CDR)** of Office and PDF files; the original kept for the admin. [Attachments & CDR](attachments-and-cdr.md)
 - **Office macros** read by olevba; auto-start macros and suspicious calls score. Off by default.
 - **Encrypted ZIP archives** opened with a password found in the mail and scanned. Off by default.
 - **Sandbox**: suspicious attachments to the own CAPEv2 sandbox; the mail waits for the verdict. Off by default.
@@ -54,7 +56,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 
 - **Quarantine** with release and delete; **held mail** for users with a daily digest. [Mail & quarantine](mail-and-quarantine.md)
 - **User portal** (own process) for the own quarantine, sender lists, spam limit, 2FA and passkeys.
-- **Mail log** in MariaDB, kept by age or size, with an indexed **message search** and CSV/JSON export.
+- **Mail log** in MariaDB, kept by age or size, with an indexed **message search**, filters (`from:`, `domain:`, `ip:`, `result:`), a live log, the details of a mail at the side, and CSV/JSON export.
 - **Mail queue** page: view, hold, release, delete, re-send.
 - **Spooling** while the mail server behind is down, with reachability per destination. [Spooling](spooling.md)
 - **Emergency access**: received mail readable while the mail servers behind are down. Off by default.
@@ -68,7 +70,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 - **Archive forwarding** and **journal reports** to an external archive. [Archive](archive.md)
 - **Newsletter-friendly sending** for bulk senders. [Bulk](bulk.md)
 - **Taking mail back** out of mailboxes over IMAP after a late hit. Off by default.
-- **Mail reports** hourly, daily and weekly, as a page or by mail.
+- **Mail reports** for a day, a week or a month, as a page or a PDF; by mail daily and weekly, also as a PDF attachment.
 
 ## Encryption
 
@@ -87,7 +89,8 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 
 - **Two-factor login** (TOTP) for every user, each with an own secret and recovery codes; none asked where none is set up. [Two-factor](two-factor.md)
 - **Passkeys and security keys** (WebAuthn) as second factor or alone, per role. [Two-factor](two-factor.md)
-- **Single sign-on** with OIDC and **directory login** with LDAP/AD, groups mapped to roles. [Users & access](users-and-access.md)
+- **Single sign-on** with OIDC (admin interface, tenants and user portal) and **directory login** with LDAP/AD, groups mapped to roles. [Users & access](users-and-access.md)
+- **My account** at the top right of every page: own contact, address, password, 2FA and sessions.
 - **Roles and permissions**: super, tenant, domain, helpdesk, user, and own groups with a permission per command. [Users & access](users-and-access.md)
 - **Tenants** for service providers: customers with their domains, users and settings in three levels. [Domains & tenants](domains-and-tenants.md)
 - **Sessions** listed and ended; a rights change ends the sessions of that account.
@@ -102,7 +105,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 - **Backup targets in the EU only**, with a backup password. [Backup in the EU](backup-eu.md)
 - **GDPR requests**: access to and erasure of all data of one address. [GDPR requests](gdpr-requests.md)
 - **Pseudonyms in the mail log** after the set days. On for new installs.
-- **Retention** per tenant, every purge audited.
+- **Retention** per kind of data and per tenant (mail log, reports, audit log, held mail, originals, phishing reports), every purge audited. [Privacy](privacy-and-reason.md)
 - **Header privacy**: outgoing mail without internal Received lines and client headers. [Header privacy](header-privacy.md)
 - **Tracking protection**: tracking pixels and tracking parameters out of incoming mail. Off by default. [Privacy](privacy-and-reason.md)
 - **Privacy evidence**: drafts of the record of processing and the TOM from the real settings. [Templates](datenschutz/README.md)
@@ -116,10 +119,11 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 - **Backups** encrypted (OpenPGP AES-256) and signed (Ed25519), to S3 or SFTP targets. [Backup targets](backup-targets.md), [Signed backups](backup-signature.md)
 - **Configuration history**: each change kept with a diff, one change taken back. [Config history](config-history.md)
 - **Operation without internet**: local mirror and signed offline bundles. [Offline](offline.md)
-- **Updates** only from releases with a valid signature, automatic if wanted.
+- **Updates** only from releases with a valid signature, automatic if wanted; **back to the version before** the last update in one step; a check of the configuration after every change of the installed packages. [Upgrade](upgrade.md)
 - **Monitoring**: dashboard, milter health, events, load display. [Monitoring](monitoring-and-reports.md)
 - **SIEM export** over TLS (syslog), **EVE-JSON** export, OpenTelemetry. [EVE export](eve-export.md)
-- **Wazuh agent** setup. [Wazuh](WAZUH.md)
+- **Wazuh agent** setup, or an existing agent taken over unchanged. [Wazuh](WAZUH.md)
+- **Attack alert**: a banner on every admin page and lamps and gauges on the dashboard for floods, password guessing, spam and virus waves, stopped services and full disks. [Dashboard](dashboard.md)
 - **Internal DNS servers** and the domains they answer, with DNSSEC per domain. [DNS forwarding](dns-forwarding.md)
 - **More network interfaces** and extra uplinks per sender domain. [Interfaces](interfaces.md)
 - **Migration from eFa 5** with all Postfix settings and the sender lists. [Migration](migration.md)
@@ -130,20 +134,44 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md).
 - **Setup wizard** in English and German: legal notice, guided or manual setup, EU link, frameworks, network, 2FA, check. [First steps](first-steps.md)
 - **Guided setup**: frameworks (NIS2, DORA, BSI, ISO 27001 ...) raise the settings, 2FA for main and console admin required.
 - **Re-Setup** on a running system, only raising.
-- **Standard and Expert view**, English and German interface, search over pages and settings, dark mode.
+- **Security standards in the setup**: the wizard asks which standards the server should meet and applies the strictest value of all chosen.
+- **Standard and Expert view**, English and German interface throughout, search with suggestions over pages, settings and the mail log, help for every card and field, dark mode.
+- **Wizards** for the most common setups (domain and mail server, DKIM key, disclaimer, mail archive, hardening), next to the full cards. [Manual](manual/04-dashboard.md)
+- **Request or improve a feature**: a link in the web interface to the feature form of the project.
 
 ## Security of the system
 
-- **SELinux enforcing**, own policy module; systemd sandbox for the services that parse mail.
+- **SELinux enforcing**, own policy module; **systemd sandbox** for the services that parse mail (rspamd, ClamAV, unbound), on by default for new installs and migrations; redis and nginx on request; the web interface reaches efactl without sudo.
 - **Security minimum guard**: TLS settings under the limit go back or the service stays stopped. [Security model](security-model.md)
 - **CVE watch** of the installed packages with a red banner for reachable holes, optional self-lockdown of the web services. [CVE watch](cve-watch.md)
 - **Hardening report** (also as PDF) after BSI TR-02102. [Hardening report](hardening-report-pdf.md)
+- **Security standards**: choose BSI, RFC 9325, Mozilla, NIST or CIS, preview the change, apply it with a rollback point, and a daily check of all standards against the settings in effect. [Security standards](tls-profiles.md#security-standards-choose-apply-check)
 - **Audit log** with a strict mode and a daily signed anchor. [Audit anchor](audit-anchor.md)
+- **Hardening wizard**: the standards, the items of the operating system and of eFa-next, a preview and one rollback point; foreign services and ports only reported. [Manual](manual/09-security.md)
+- **Require TLS on port 25** on purpose, with the count of sessions without TLS of the last 7 days.
 - **Root SSH** warning and switch; the console admin with own 2FA over SSH.
 - **No Apache, PHP or Perl** of its own; reproducible builds and an SBOM per release.
 
+## Dedicated server
+
+eFa-next needs a server or VM of its own. Only eFa-next and the operating system run on it: no other server services, no other
+open ports. Monitoring or backup agents of the admin (such as Wazuh) are possible, at your own risk. eFa-next hardens and checks
+the server as a whole; the hardening wizard reports services and open ports that do not belong to eFa-next or the operating
+system. It never stops or removes them.
+
 ## Known limits
 
-- The own fuzzy store works per host; a store shared by the nodes of a cluster is not built.
-- BIMI checks the logo, not the VMC/CMC certificates.
+- The own fuzzy store works per node; a store shared by the nodes of a cluster is not built (planned for 6.0.0.7).
+- In a cluster, held mail and the mail queue stay on the node that took the mail. Admins see and act on all nodes through the master; users see in the portal only the held mail of the node the portal runs on, and get one digest per node. A quarantine shared by all nodes follows in 6.0.0.7.
+- BIMI checks the logo, not the VMC/CMC certificates (planned for 6.0.0.7).
+- Search only in the web interface, not in the text interface efa-tui (planned for 6.0.0.7).
+- Emergency access without a ZIP/MBOX export per mailbox (planned for 6.0.0.7).
+- DKIM and ARC keys stay software keys; the hardware module holds the backup signature and S/MIME keys only (planned for 6.0.0.7).
+- The release upgrade from AlmaLinux 9 to 10 is built but starts only once the signed EL10 repository of eFa-next exists; AlmaLinux 10 itself is not tested yet. [Release upgrade](release-upgrade.md)
+- Sending limits of taken-over accounts count per node, not across a cluster.
+- Single sign-on (OIDC) is not yet tested against a live provider; the ARC seal after content disarm not yet against an outside ARC checker.
+- Extra uplinks per sender domain without failover.
+- PDF files (reports, hardening report) show only Western European letters; others become `?`.
 - Perl comes at runtime only with MariaDB and rspamd, which need it themselves.
+
+All limits of this release: [STATUS-6.0.0.6.md](STATUS-6.0.0.6.md).

@@ -9,6 +9,9 @@
   "/proc": 1,
   "systemctl": 1
  },
+ "next/usr/lib/eFa/python/efa_release_upgrade.py": {
+  "dnf/rpm": 1
+ },
  "next/usr/lib/eFa/setup/efa-next-setup": {
   "/etc/sysconfig": 2,
   "systemctl": 1
@@ -20,9 +23,12 @@
  "next/usr/lib/eFa/setup/rspamd-config.sh": {
   "systemctl": 6
  },
+ "next/usr/local/sbin/efa-maillog.py": {
+  "/proc": 1
+ },
  "next/usr/local/sbin/efa-milter-health.py": {
   "/etc/sysconfig": 1,
-  "systemctl": 2
+  "systemctl": 3
  },
  "next/usr/local/sbin/efa-web.py": {
   "/proc": 4

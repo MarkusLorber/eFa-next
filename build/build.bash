@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Markus Lorber and eFa-next contributors
 # Author: Markus Lorber, Lukasz Galusinski
 #
-# eFa-next installer for a fresh EL9 host (AlmaLinux, Rocky Linux, RHEL 9).
+# eFa-next installer for a fresh EL9 host (AlmaLinux, Rocky Linux, RHEL 9) or AlmaLinux 10.
 #
 #   build.bash [ACTION] [RPM_DIR | BRANCH]
 #
@@ -29,10 +29,19 @@ umask 022
 
 ACTION="${1:-production}"
 RPM_DIR="${2:-}"
+# The major version of the host picks the repositories, as REPOSITORIES of efa_platform_el9/el10 (tests/test_build_bash.py
+# keeps both the same). check_os refuses anything but 9 and 10.
+# EFA_OS_RELEASE: another os-release file, for tests/test_build_bash.py only.
+OS_RELEASE="${EFA_OS_RELEASE:-/etc/os-release}"
+EL_MAJOR="$( (. "$OS_RELEASE" 2>/dev/null; echo "${VERSION_ID:-9}") | cut -d. -f1)"
+# As RHEL_ENABLED of efa_release_upgrade: RHEL 10 stays closed until a real run on it passed.
+RHEL10_ENABLED=no
 # 9k: the own signed repository first, the GitHub releases as a mirror; both only with SHA256SUMS signed by this key.
-REPO_URL="https://repo.efa-next.eu/el9/latest"
+REPO_URL="https://repo.efa-next.eu/el$EL_MAJOR/latest"
+# The GitHub releases carry the EL9 packages only.
 RELEASE_URL="https://github.com/MarkusLorber/eFa-next/releases/latest/download"
-KEY_URLS="https://repo.efa-next.eu/RPM-GPG-KEY-efa-next $RELEASE_URL/RPM-GPG-KEY-efa-next"
+[ "$EL_MAJOR" = 9 ] || RELEASE_URL=""
+KEY_URLS="https://repo.efa-next.eu/RPM-GPG-KEY-efa-next${RELEASE_URL:+ $RELEASE_URL/RPM-GPG-KEY-efa-next}"
 KEY_FPR="1823D6D3BB7D5AEA286E836DCFE7E07916CC8046"
 # The keys of the repositories eFa-next needs, checked before rpm imports them. Each fingerprint as two sources gave it on
 # 2026-11-08: rspamd from rspamd.com/rpm/gpg.key, keys.openpgp.org and keyserver.ubuntu.com; EPEL 9 from
@@ -40,7 +49,7 @@ KEY_FPR="1823D6D3BB7D5AEA286E836DCFE7E07916CC8046"
 RSPAMD_KEY_FPR="3FA347D5E599BE4595CA2576FFA232EDBF21E25E"
 EPEL_KEY_URL="https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9"
 EPEL_KEY_FPR="FF8AD1344597106ECE813B918A3872BF3228467C"
-RSPAMD_REPO_URL="https://rspamd.com/rpm-stable/centos-9/rspamd.repo"
+RSPAMD_REPO_URL="https://rspamd.com/rpm-stable/centos-$EL_MAJOR/rspamd.repo"
 RSPAMD_KEY_URL="https://rspamd.com/rpm/gpg.key"
 KICKSTART_CONFIG="${EFA_KICKSTART_CONFIG:-/root/eFa-kickstart.conf}"
 KICKSTART_TARGET="/var/lib/eFa/setup/kickstart.conf"
@@ -125,13 +134,22 @@ preflight() {
 }
 
 check_os() {
-    [ -r /etc/os-release ] || { echo "no /etc/os-release"; return 1; }
-    . /etc/os-release
+    [ -r "$OS_RELEASE" ] || { echo "no $OS_RELEASE"; return 1; }
+    . "$OS_RELEASE"
     case "${ID:-}" in
         almalinux|rocky|rhel|centos) ;;
         *) echo "unsupported OS: ${ID:-unknown}"; return 1 ;;
     esac
-    [ "${VERSION_ID%%.*}" = "9" ] || { echo "unsupported version: ${VERSION_ID:-}"; return 1; }
+    case "${VERSION_ID%%.*}" in
+        9) ;;
+        # The distribution stays what it is (S23): AlmaLinux 10; RHEL 10 only once tested; Rocky and others not yet.
+        10) case "$ID" in
+                almalinux) ;;
+                rhel) [ "$RHEL10_ENABLED" = yes ] || { echo "RHEL 10: not tested yet"; return 1; } ;;
+                *) echo "$ID 10: not supported"; return 1 ;;
+            esac ;;
+        *) echo "unsupported version: ${VERSION_ID:-}"; return 1 ;;
+    esac
     if ! command -v getenforce >/dev/null 2>&1 || [ "$(getenforce)" = "Disabled" ]; then
         echo "SELinux is disabled; enable it (enforcing) before installing eFa-next"
         return 1
@@ -156,13 +174,13 @@ import_key() {
 }
 
 enable_repos() {
-    . /etc/os-release
+    . "$OS_RELEASE"
     if [ "$ID" = "rhel" ]; then
         # The EPEL release package from a URL: its signature counts only with the checked EPEL key (dnf does not check
         # the signature of a package given by URL unless told to).
         import_key "$EPEL_KEY_URL" "$EPEL_KEY_FPR" || return 1
-        dnf -y --setopt=localpkg_gpgcheck=1 install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm" || return 1
-        subscription-manager repos --enable "codeready-builder-for-rhel-9-$(arch)-rpms" || return 1
+        dnf -y --setopt=localpkg_gpgcheck=1 install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$EL_MAJOR.noarch.rpm" || return 1
+        subscription-manager repos --enable "codeready-builder-for-rhel-$EL_MAJOR-$(arch)-rpms" || return 1
     else
         # epel-release comes from the repositories of the distribution, signed with its key.
         dnf -y install epel-release dnf-plugins-core || return 1
@@ -182,6 +200,8 @@ NGINX_MIN=1.25.1
 
 # 1.26 by name; only where it does not exist the newest stream the list shows (a minimal install lists none of them as found).
 enable_nginx_stream() {
+    # EL10 has no module streams: its nginx (1.26) comes from AppStream as it is.
+    [ "$EL_MAJOR" = 9 ] || { echo "nginx from AppStream (EL$EL_MAJOR, no module streams)"; return 0; }
     local stream="$NGINX_STREAM"
     dnf -y module reset nginx || return 1
     if ! dnf -y module enable "nginx:$stream"; then
@@ -223,6 +243,7 @@ get_rpms() {
     fi
     local base name
     for base in "$REPO_URL" "$RELEASE_URL"; do
+        [ -n "$base" ] || continue
         rm -f "$WORK_DIR"/SHA256SUMS*
         curl -fsSL -o "$WORK_DIR/SHA256SUMS" "$base/SHA256SUMS" &&
             curl -fsSL -o "$WORK_DIR/SHA256SUMS.asc" "$base/SHA256SUMS.asc" && signed_sums || continue
@@ -305,7 +326,7 @@ install_rpms() {
         dnf -y install "$WORK_DIR"/eFa-next-base-[0-9]*.noarch.rpm "$WORK_DIR"/eFa-next-[0-9]*.noarch.rpm || return 1
     fi
     # The package scripts write the version file only if every step passed.
-    [ -e /etc/eFa-Version ] || { echo "configuration steps failed (no /etc/eFa-Version)"; return 1; }
+    [ -e /etc/eFa-next-Version ] || { echo "configuration steps failed (no /etc/eFa-next-Version)"; return 1; }
 }
 
 SOURCE_DIR=""
@@ -328,7 +349,8 @@ get_source() {
         return 1
     fi
     if [ -n "$RPM_DIR" ]; then
-        git -C "$SOURCE_DIR" fetch origin "$RPM_DIR" && git -C "$SOURCE_DIR" checkout "$RPM_DIR" || return 1
+        # A tag needs --tags to exist here; a branch comes with the fetch above. Only a branch is pulled below.
+        git -C "$SOURCE_DIR" fetch --tags origin && git -C "$SOURCE_DIR" checkout "$RPM_DIR" || return 1
     fi
     # A branch that has an upstream follows it; a changed tree stays as it is (the build takes what is there).
     if git -C "$SOURCE_DIR" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 && [ -z "$(git -C "$SOURCE_DIR" status --porcelain)" ]; then
