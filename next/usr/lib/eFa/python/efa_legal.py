@@ -39,6 +39,35 @@ def digest(texts):
     return found.hexdigest()[:16]
 
 
+# The terms an admin accepts: LICENSE and DISCLAIMER.md. THIRD-PARTY-NOTICES.md lists the licenses of the parts and changes with
+# them; owner, 2026-11-13: after an update no new confirmation while the terms are the same and they were accepted before.
+TERMS = ('LICENSE', 'DISCLAIMER.md')
+# The digests of the released versions (all three texts) with the digest of their terms, for a confirmation of before that has
+# no terms field: 6.0.0.4 to 6.0.0.6 have the same LICENSE and DISCLAIMER.md.
+RELEASED_TERMS = {'225a332075533ba5': '76490f1b9f53d68d', '01d90ce54b3223db': '76490f1b9f53d68d', 'c1628493503b5b70': '76490f1b9f53d68d',
+                  '2b48d76e88e9c049': '76490f1b9f53d68d'}
+
+
+def terms_digest(texts):
+    """The first 16 hex digits of SHA-256 over the names and texts of the terms only (as digest(), without the notices)."""
+    found = hashlib.sha256()
+    for name in TERMS:
+        found.update(name.encode() + b'\0' + texts[name].encode('utf-8') + b'\0')
+    return found.hexdigest()[:16]
+
+
+def carry_over(record, now_digest, now_terms):
+    """The confirmation for the installed texts made from one of before, or None: only when it was a real confirmation (a digest,
+    when and who) and its terms are the same as now. A confirmation of other terms, or none, asks again."""
+    if not isinstance(record, dict) or not all(record.get(key) for key in ('digest', 'when', 'who')) or not now_digest or not now_terms:
+        return None
+    if record['digest'] == now_digest:
+        return None  # holds already
+    if (record.get('terms') or RELEASED_TERMS.get(record['digest'])) != now_terms:
+        return None
+    return {**record, 'digest': now_digest, 'terms': now_terms, 'carried_from': record['digest']}
+
+
 def read_texts(folder):
     with_texts = {}
     for name in NAMES:
@@ -167,6 +196,24 @@ def self_test():
         assert not console_confirm(first, tmp, ask=lambda prompt: 'j', say=said.append)
         assert not console_confirm(first, tmp, ask=lambda prompt: (_ for _ in ()).throw(EOFError()), say=said.append), 'no console: no'
         assert console_confirm(first, tmp, given=first, say=said.append) and not console_confirm(first, tmp, given='abc', say=said.append)
+        # Owner, 2026-11-13: a confirmation of the same terms carries over (the notices changed); other terms or none: asked again.
+        texts = read_texts(tmp)
+        terms = terms_digest(texts)
+        before = {'digest': '0123456789abcdef', 'terms': terms, 'when': '2026-11-01 10:00:00 +0100', 'who': 'admin (web)'}
+        moved = carry_over(before, digest(texts), terms)
+        assert moved['digest'] == digest(texts) and moved['carried_from'] == '0123456789abcdef' and moved['who'] == 'admin (web)'
+        assert carry_over({**before, 'terms': 'f' * 16}, digest(texts), terms) is None, 'other terms: ask again'
+        assert carry_over(None, digest(texts), terms) is None and carry_over({'digest': 'x' * 16}, digest(texts), terms) is None, 'none: ask'
+        assert carry_over({**before, 'digest': digest(texts)}, digest(texts), terms) is None, 'holds already'
+        assert carry_over({k: v for k, v in before.items() if k != 'terms'}, digest(texts), terms) is None, 'unknown digest without terms'
+        legacy = {'digest': 'c1628493503b5b70', 'when': '2026-11-05 09:00:00 +0100', 'who': 'console (root)'}
+        assert carry_over(legacy, '2b48d76e88e9c049', '76490f1b9f53d68d')['carried_from'] == 'c1628493503b5b70', '6.0.0.5.2 to 6.0.0.6'
+        assert carry_over(legacy, '2b48d76e88e9c049', 'f' * 16) is None, 'changed terms after 6.0.0.5.2: ask'
+        joined = os.path.join(here, '..', '..', '..', '..', '..')
+        if all(os.path.exists(os.path.join(joined, name)) for name in NAMES):
+            source = read_texts(joined)
+            assert RELEASED_TERMS.get(digest(source), terms_digest(source)) == terms_digest(source), \
+                'the texts of this tree: their terms digest in RELEASED_TERMS is right'
     print('self-test ok')
 
 

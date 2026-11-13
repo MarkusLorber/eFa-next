@@ -388,7 +388,7 @@ def fresh_report(plan, exists=os.path.exists, own=()):
     if plan['map_packages']:
         not_possible.append('Postfix map types need these packages first: ' + ' '.join(plan['map_packages']))
     if plan['letsencrypt']:
-        not_possible.append("Let's Encrypt certificate: get a new one with efactl letsencrypt-set")
+        not_possible.append("Let's Encrypt certificate: taken over as it is when it is valid (same key), else get a new one with efactl letsencrypt-set")
     not_possible += [f'own MailScanner rules: {path}' for path in plan['mailscanner_custom']]
     return {'taken': taken, 'adjusted': adjusted, 'not_possible': not_possible}
 

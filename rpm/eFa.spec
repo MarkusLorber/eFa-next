@@ -11,8 +11,8 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.5.2
-Release:        1%{?dist}
+Version:        6.0.0.6
+Release:        2%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -36,6 +36,8 @@ Requires:       bind-utils
 Requires:       gnupg2
 Requires:       tar
 Requires:       openldap-clients
+# PDF-1: letters outside Western European ones in the PDF reports.
+Requires:       dejavu-sans-fonts
 Obsoletes:      clamav-unofficial-sigs
 Requires:       python3
 # Only for content disarm, installed when it is switched on.
@@ -86,7 +88,7 @@ mkdir -p /var/lib/rpm-state/eFa
 # Also a reinstall after a first install whose setup failed: without the version file the setup has not finished yet.
 # A set-up host is never a first install, also when the version file is gone: the first-install steps would replace
 # its nginx, rspamd and Postfix settings.
-if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
+if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-next-Version /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
     touch /var/lib/rpm-state/eFa/first-install
 fi
 exit 0
@@ -146,6 +148,12 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Fri Nov 13 2026 Markus Lorber - 6.0.0.6-2
+- 6.0.0.6 final: a test build of 6.0.0.6-1 (EL10, November 12) was online; -2 replaces it through a normal update.
+
+* Tue Nov 10 2026 Markus Lorber - 6.0.0.6-1
+- 6.0.0.6: security fixes first (web interface without sudo, restore, single sign-on, login directories); see CHANGELOG.md.
+
 * Tue Nov 10 2026 Markus Lorber - 6.0.0.5.2-1
 - 6.0.0.5.2: migration from eFa 5 (sender_access no longer read once moved), SELinux quiet without IPv6; see CHANGELOG.md.
 

@@ -36,7 +36,8 @@ SETTING_KEYS = (
     "INTERFACE", "IPV4ADDRESS", "IPV4NETMASK", "IPV4GATEWAY", "IPV6ADDRESS",
     "IPV6MASK", "IPV6GATEWAY", "IPV6DNS", "DNSIP1", "DNSIP2", "RECURSION",
     "TZONE", "ISUTC", "CLIUSERNAME", "VMTOOLS", "MAILSERVERDNS", "LEGALACCEPTED",
-    "SETUPVARIANT", "EULINK", "EULINKCONFIRM", "FRAMEWORKS", "FRAMEWORKNOTE", "NOTICEACCEPTED", "SETUPLANG")
+    "SETUPVARIANT", "EULINK", "EULINKCONFIRM", "FRAMEWORKS", "FRAMEWORKNOTE", "NOTICEACCEPTED", "SETUPLANG", "ROOTSSH",
+    "STANDARDS")
 # The 2FA of the main admin from the guided setup: secret, last step, hashes of the recovery codes. Never kept in a file here.
 SECRET_KEYS = ("ROOTPASSWORD", "CLIPASSWORD", "WEBADMINPASSWORD", "TOTPSECRET", "TOTPSTEP", "TOTPRECOVERY",
                "CONSOLETOTPSECRET", "CONSOLETOTPSTEP", "CONSOLETOTPRECOVERY")
@@ -81,7 +82,7 @@ def _check_value(key, value):
         ok = value in ("en", "de")
     elif key in ("NOTICEACCEPTED", "EULINKCONFIRM"):
         ok = value == "" or bool(CONFIRMED_RE.match(value))
-    elif key == "FRAMEWORKS":
+    elif key in ("FRAMEWORKS", "STANDARDS"):
         ok = bool(re.match(r"^[a-z0-9,-]{0,400}$", value))
     elif key == "FRAMEWORKNOTE":
         ok = bool(re.match(r"^[\w .,;:()/&+'-]{0,200}$", value))
@@ -108,6 +109,8 @@ def _check_value(key, value):
             and os.path.isfile(rp(P("zoneinfo_dir") + "/" + value))
     elif key == "CLIUSERNAME":
         ok = bool(c.USER_RE.match(value)) and value != "root"
+    elif key == "ROOTSSH":
+        ok = value in ("", "off", "key-only", "on")
     if not ok:
         raise InputError("invalid value for %s" % key)
     return value
@@ -424,10 +427,13 @@ class Steps:
             self.pl.set_password("root", root_pw)
         if cli_pw:
             self.pl.set_password(user, cli_pw)
-            # A console user with sudo exists: no direct root login by SSH.
-            s.write_sshd_dropin(P("sshd_root_dropin"), s.HEADER +
-                                "# eFa-next: log in as the console user and use sudo.\n"
-                                "PermitRootLogin no\n")
+        # S30: root login through SSH changes only by the choice of the wizard (ROOTSSH), through the switch of efactl (which
+        # refuses off without another admin and writes the audit); without it, as in an unattended install, it stays as it is.
+        mode = self.cfg.get("ROOTSSH", "").strip().lower()
+        if mode:
+            if mode not in ROOT_SSH_MODES:
+                raise InputError("ROOTSSH: off, key-only or on")
+            c.run([c.which("efactl"), "ssh-root-set", "--mode=" + mode, "--confirm=yes"])
 
     # -- self-signed web certificate
     def cert(self):
@@ -475,7 +481,8 @@ class Steps:
             args = [efactl, "setup-variant-apply", "--variant", variant, "--eulink", need(self.cfg, "EULINK"),
                     "--notice", self.cfg["NOTICEACCEPTED"], "--lang", self.cfg.get("SETUPLANG", "en"),
                     "--console_user", self.cfg.get("CLIUSERNAME", "")]
-            for key, option in (("EULINKCONFIRM", "--noeu"), ("FRAMEWORKS", "--frameworks"), ("FRAMEWORKNOTE", "--note")):
+            for key, option in (("EULINKCONFIRM", "--noeu"), ("FRAMEWORKS", "--frameworks"), ("FRAMEWORKNOTE", "--note"),
+                                ("STANDARDS", "--standards")):
                 if self.cfg.get(key):
                     args += [option, self.cfg[key]]
             c.run(args)
@@ -551,6 +558,24 @@ def ntp_server_list(text):
     return servers
 
 
+ROOT_SSH_MODES = ("off", "key-only", "on")
+ROOT_SSH_SHOWN = {"no": "off", "prohibit-password": "key-only", "without-password": "key-only", "yes": "on"}
+
+
+def root_ssh_status():
+    """--root-ssh-status: what sshd takes now, for the wizard to show (it cannot run sshd -T itself). One line: ROOTSSH off|key-only|on."""
+    if c.read_kv(P("efa_config")).get("CONFIGURED") == "YES" and os.environ.get("SUDO_USER"):
+        print("efa-apply: this host is already configured", file=sys.stderr)
+        return 3
+    res = c.run(["sshd", "-T"], check=False)
+    found = [line.split()[1].lower() for line in (res.stdout or "").splitlines() if line.lower().startswith("permitrootlogin ") and len(line.split()) > 1]
+    if res.returncode != 0 or not found or found[0] not in ROOT_SSH_SHOWN:
+        print("efa-apply: sshd -T names no PermitRootLogin", file=sys.stderr)
+        return 1
+    print("ROOTSSH %s" % ROOT_SSH_SHOWN[found[0]])
+    return 0
+
+
 def time_sync(text):
     """--time-sync: the time servers (empty: the present ones), then the clock now. One line for the wizard:
     TIMESYNC yes|no OFFSET_BEFORE OFFSET_AFTER (seconds, - if unknown)."""
@@ -585,6 +610,7 @@ def main(argv=None, stdin_is_tty=None):
     ap.add_argument("--answers", metavar="FILE",
                     help="KEY:value answers from FILE, or '-' for stdin")
     ap.add_argument("--all", action="store_true", help="run every step")
+    ap.add_argument("--root-ssh-status", action="store_true", help="what sshd takes now for root logins")
     ap.add_argument("--time-sync", metavar="SERVERS",
                     help="use these time servers (comma list, empty: keep them) and set the clock now")
     for name in STEP_ORDER:
@@ -598,6 +624,8 @@ def main(argv=None, stdin_is_tty=None):
         return 3
     if args.time_sync is not None:
         return time_sync(args.time_sync)
+    if args.root_ssh_status:
+        return root_ssh_status()
     names = [n for n in STEP_ORDER if args.all or getattr(args, "step_" + n)]
     if not names:
         ap.error("choose --all or at least one step")

@@ -2,8 +2,10 @@
 # Author: Markus Lorber, Lukasz Galusinski
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """A mail as PDF: its header lines and text on A4 pages, its attachments embedded as files. Encrypted with qpdf, AES-256."""
+import functools
 import os
 import shutil
+import struct
 import subprocess
 import tempfile
 import textwrap
@@ -15,9 +17,129 @@ QPDF = os.environ.get('EFA_QPDF', 'qpdf')
 LINES_PER_PAGE = 64
 
 
+# PDF-1: text the standard font cannot show (Polish, Czech, Greek, Cyrillic ...) is set in DejaVu Sans (package dejavu-sans-fonts),
+# embedded only into a PDF that needs it; a PDF in Western European letters stays as small as before. Without the font such
+# letters become '?', as before.
+FONT_FILES = {b'U1': ('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+              b'U2': ('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf')}
+UNICODE_OF = {b'F1': b'U1', b'F2': b'U2'}
+
+
 def _text(value):
-    # shortcut: the standard font knows Western European letters only, others become '?'; embed a font for more.
     return value.encode('cp1252', 'replace').replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
+
+
+def _fits(value):
+    try:
+        value.encode('cp1252')
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
+@functools.lru_cache(maxsize=4)
+def _font(name):
+    """The TrueType font for U1/U2: {data, units, cmap {code point: glyph}, widths [advance], bbox, ascent, descent}; None if missing."""
+    path = next((item for item in FONT_FILES[name] if os.path.exists(item)), None)
+    if not path:
+        return None
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+        tables = {}
+        for index in range(struct.unpack('>H', data[4:6])[0]):
+            tag, _sum, offset, length = struct.unpack('>4sIII', data[12 + 16 * index:28 + 16 * index])
+            tables[tag] = offset
+        head, hhea, hmtx, cmap = tables[b'head'], tables[b'hhea'], tables[b'hmtx'], tables[b'cmap']
+        units = struct.unpack('>H', data[head + 18:head + 20])[0]
+        bbox = struct.unpack('>4h', data[head + 36:head + 44])
+        ascent, descent = struct.unpack('>2h', data[hhea + 4:hhea + 8])
+        metrics = struct.unpack('>H', data[hhea + 34:hhea + 36])[0]
+        widths = [struct.unpack('>H', data[hmtx + 4 * index:hmtx + 4 * index + 2])[0] for index in range(metrics)]
+        mapping = {}
+        subtables = struct.unpack('>H', data[cmap + 2:cmap + 4])[0]
+        found = {}
+        for index in range(subtables):
+            platform, encoding, offset = struct.unpack('>HHI', data[cmap + 4 + 8 * index:cmap + 12 + 8 * index])
+            found[(platform, encoding)] = cmap + offset
+        if (3, 10) in found and struct.unpack('>H', data[found[(3, 10)]:found[(3, 10)] + 2])[0] == 12:
+            at = found[(3, 10)]
+            for group in range(struct.unpack('>I', data[at + 12:at + 16])[0]):
+                start, end, glyph = struct.unpack('>3I', data[at + 16 + 12 * group:at + 28 + 12 * group])
+                for code in range(start, min(end, start + 65536) + 1):
+                    mapping[code] = glyph + code - start
+        else:
+            at = found[(3, 1)]
+            count = struct.unpack('>H', data[at + 6:at + 8])[0] // 2
+            ends = struct.unpack(f'>{count}H', data[at + 14:at + 14 + 2 * count])
+            starts_at = at + 16 + 2 * count
+            starts = struct.unpack(f'>{count}H', data[starts_at:starts_at + 2 * count])
+            deltas = struct.unpack(f'>{count}h', data[starts_at + 2 * count:starts_at + 4 * count])
+            ranges_at = starts_at + 4 * count
+            ranges = struct.unpack(f'>{count}H', data[ranges_at:ranges_at + 2 * count])
+            for segment in range(count):
+                for code in range(starts[segment], ends[segment] + 1):
+                    if code == 0xFFFF:
+                        continue
+                    if ranges[segment] == 0:
+                        glyph = (code + deltas[segment]) & 0xFFFF
+                    else:
+                        where = ranges_at + 2 * segment + ranges[segment] + 2 * (code - starts[segment])
+                        glyph = struct.unpack('>H', data[where:where + 2])[0]
+                        glyph = (glyph + deltas[segment]) & 0xFFFF if glyph else 0
+                    if glyph:
+                        mapping[code] = glyph
+        return {'data': data, 'units': units, 'cmap': mapping, 'widths': widths, 'bbox': bbox, 'ascent': ascent, 'descent': descent,
+                'name': os.path.basename(path)[:-4].encode()}
+    except (OSError, KeyError, struct.error, ValueError):
+        return None
+
+
+def _show(font, size, value, used):
+    """Font selection and show operator for one run of text: WinAnsi with the standard font where it fits, else glyph ids of the
+    embedded font (used collects them per font for _assemble)."""
+    if _fits(value) or _font(UNICODE_OF[font]) is None:
+        return b'/%s %s Tf (%s) Tj' % (font, str(size).encode(), _text(value))
+    name = UNICODE_OF[font]
+    cmap = _font(name)['cmap']
+    glyphs = [cmap.get(ord(char), 0) for char in value]
+    for char, glyph in zip(value, glyphs):
+        used.setdefault(name, {})[glyph] = char
+    return b'/%s %s Tf <%s> Tj' % (name, str(size).encode(), ''.join('%04x' % glyph for glyph in glyphs).encode())
+
+
+def _string(value):
+    """A PDF text string (document info, file names): literal where WinAnsi fits, else UTF-16BE with its byte order mark."""
+    if _fits(value):
+        return b'(' + _text(value) + b')'
+    return b'<feff' + value.encode('utf-16-be').hex().encode() + b'>'
+
+
+def _unicode_font(add, name, glyphs):
+    """The objects of a Type0 font with the whole TrueType file embedded, widths and ToUnicode for the glyphs used."""
+    font = _font(name)
+    scale = 1000.0 / font['units']
+    packed = zlib.compress(font['data'])
+    file_ = add(b'<< /Length %d /Length1 %d /Filter /FlateDecode >>\nstream\n' % (len(packed), len(font['data'])) + packed + b'\nendstream')
+    bbox = b' '.join(b'%d' % round(value * scale) for value in font['bbox'])
+    descriptor = add(b'<< /Type /FontDescriptor /FontName /%s /Flags 32 /FontBBox [%s] /ItalicAngle 0 /Ascent %d /Descent %d '
+                     b'/CapHeight %d /StemV 80 /FontFile2 %d 0 R >>' % (font['name'], bbox, round(font['ascent'] * scale),
+                                                                       round(font['descent'] * scale), round(font['ascent'] * scale), file_))
+    widths = font['widths']
+    w = b' '.join(b'%d [%d]' % (glyph, round(widths[min(glyph, len(widths) - 1)] * scale)) for glyph in sorted(glyphs))
+    cid = add(b'<< /Type /Font /Subtype /CIDFontType2 /BaseFont /%s /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) '
+              b'/Supplement 0 >> /FontDescriptor %d 0 R /W [%s] /CIDToGIDMap /Identity >>' % (font['name'], descriptor, w))
+    pairs = [(glyph, char) for glyph, char in sorted(glyphs.items()) if glyph]
+    chunks = [pairs[index:index + 100] for index in range(0, len(pairs), 100)]
+    cmap = (b'/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) '
+            b'/Supplement 0 >> def /CMapName /Adobe-Identity-UCS def /CMapType 2 def 1 begincodespacerange <0000> <ffff> endcodespacerange\n'
+            + b''.join(b'%d beginbfchar\n' % len(chunk) + b''.join(b'<%04x> <%s>\n' % (glyph, char.encode('utf-16-be').hex().encode())
+                                                                     for glyph, char in chunk) + b'endbfchar\n' for chunk in chunks)
+            + b'endcmap CMapName currentdict /CMap defineresource pop end end')
+    packed = zlib.compress(cmap)
+    unicode_map = add(b'<< /Length %d /Filter /FlateDecode >>\nstream\n' % len(packed) + packed + b'\nendstream')
+    return add(b'<< /Type /Font /Subtype /Type0 /BaseFont /%s /Encoding /Identity-H /DescendantFonts [%d 0 R] /ToUnicode %d 0 R >>'
+               % (font['name'], cid, unicode_map))
 
 
 def build(lines, attachments=(), info=None):
@@ -26,12 +148,14 @@ def build(lines, attachments=(), info=None):
     for line in lines:
         wrapped += textwrap.wrap(line.expandtabs(4), LINE_CHARS, replace_whitespace=False, drop_whitespace=False) or ['']
     pages = [wrapped[i:i + LINES_PER_PAGE] for i in range(0, len(wrapped), LINES_PER_PAGE)] or [[]]
-    streams = [b'BT /F1 10 Tf 12 TL 50 800 Td\n' + b''.join(b'(' + _text(line) + b') Tj T*\n' for line in page) + b'ET' for page in pages]
-    return _assemble(streams, attachments, info)
+    used = {}
+    streams = [b'BT /F1 10 Tf 12 TL 50 800 Td\n' + b''.join(_show(b'F1', 10, line, used) + b' T*\n' for line in page) + b'ET' for page in pages]
+    return _assemble(streams, attachments, info, used)
 
 
-def _assemble(streams, attachments=(), info=None):
-    """The PDF around page contents: A4 pages with Helvetica (F1) and Helvetica-Bold (F2), embedded files, document info."""
+def _assemble(streams, attachments=(), info=None, used=None):
+    """The PDF around page contents: A4 pages with Helvetica (F1) and Helvetica-Bold (F2), DejaVu Sans (U1, U2) only where used,
+    embedded files, document info."""
     objects = []
 
     def add(body):
@@ -41,23 +165,24 @@ def _assemble(streams, attachments=(), info=None):
     catalog = add(None)
     tree = add(None)
     fonts = [add(b'<< /Type /Font /Subtype /Type1 /BaseFont /%s /Encoding /WinAnsiEncoding >>' % name) for name in (b'Helvetica', b'Helvetica-Bold')]
+    extra = b''.join(b' /%s %d 0 R' % (name, _unicode_font(add, name, glyphs)) for name, glyphs in sorted((used or {}).items()))
     kids = []
     for stream in streams:
         packed = zlib.compress(stream)
         content = add(b'<< /Length %d /Filter /FlateDecode >>\nstream\n' % len(packed) + packed + b'\nendstream')
-        kids.append(add(b'<< /Type /Page /Parent %d 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R >> >> '
-                        b'/Contents %d 0 R >>' % (tree, fonts[0], fonts[1], content)))
+        kids.append(add(b'<< /Type /Page /Parent %d 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 %d 0 R /F2 %d 0 R%s >> >> '
+                        b'/Contents %d 0 R >>' % (tree, fonts[0], fonts[1], extra, content)))
     objects[tree - 1] = b'<< /Type /Pages /Count %d /Kids [%s] >>' % (len(kids), b' '.join(b'%d 0 R' % kid for kid in kids))
     names = []
     for name, data in attachments:
         packed = zlib.compress(data)
         stream = add(b'<< /Type /EmbeddedFile /Length %d /Filter /FlateDecode /Params << /Size %d >> >>\nstream\n' % (len(packed), len(data))
                      + packed + b'\nendstream')
-        spec = add(b'<< /Type /Filespec /F (' + _text(name) + b') /UF (' + _text(name) + b') /EF << /F %d 0 R >> >>' % stream)
-        names.append(b'(' + _text('%03d %s' % (len(names), name)) + b') %d 0 R' % spec)
+        spec = add(b'<< /Type /Filespec /F (' + _text(name) + b') /UF ' + _string(name) + b' /EF << /F %d 0 R >> >>' % stream)
+        names.append(_string('%03d %s' % (len(names), name)) + b' %d 0 R' % spec)
     files = b' /Names << /EmbeddedFiles << /Names [%s] >> >> /PageMode /UseAttachments' % b' '.join(names) if names else b''
     objects[catalog - 1] = b'<< /Type /Catalog /Pages %d 0 R%s >>' % (tree, files)
-    meta = add(b'<< ' + b' '.join(b'/' + key.encode() + b' (' + _text(str(value)) + b')' for key, value in info.items()) + b' >>') if info else None
+    meta = add(b'<< ' + b' '.join(b'/' + key.encode() + b' ' + _string(str(value)) for key, value in info.items()) + b' >>') if info else None
     out = bytearray(b'%PDF-1.7\n%\xe2\xe3\xcf\xd3\n')
     offsets = []
     for number, body in enumerate(objects, 1):
@@ -90,7 +215,8 @@ GRAY = (0.392, 0.396, 0.388)
 
 def _fit(text, size, width):
     """Lines of at most width points; Helvetica is about half its size wide per letter (wider letters fit, as the guess is low)."""
-    chars = max(int(width / (size * 0.52)), 8)
+    # DejaVu Sans (PDF-1) is wider than Helvetica.
+    chars = max(int(width / (size * (0.52 if _fits(str(text)) or _font(b'U1') is None else 0.6))), 8)
     return textwrap.wrap(str(text), chars) or ['']
 
 
@@ -98,7 +224,7 @@ def report(title, blocks, info=None, footer=''):
     """A report as PDF bytes. blocks: ('h', text), ('p', text) or ('table', [(header, width), ...], rows) with rows of cells,
     where a row may end with a status ('ok', 'warning', 'error', 'na') drawn as a colored mark in front of the first cell.
     Every page gets the title on top and "page X / Y" with footer at the bottom."""
-    pages, ops = [], []
+    pages, ops, used = [], [], {}
     y = TOP - 30
 
     def new_page():
@@ -108,7 +234,7 @@ def report(title, blocks, info=None, footer=''):
         y = TOP - 30
 
     def text(x, line, size=10, bold=False, color=(0, 0, 0)):
-        ops.append(b'%.3f %.3f %.3f rg BT /%s %d Tf %.1f %.1f Td (%s) Tj ET' % (*color, b'F2' if bold else b'F1', size, x, y, _text(line)))
+        ops.append(b'%.3f %.3f %.3f rg BT %.1f %.1f Td %s ET' % (*color, x, y, _show(b'F2' if bold else b'F1', size, line, used)))
 
     def room(height):
         if y - height < BOTTOM:
@@ -170,7 +296,7 @@ def report(title, blocks, info=None, footer=''):
         mark = f'page {number} / {len(pages)}'
         text(MARGIN + WIDTH - len(mark) * 4.2, mark, 8, False, GRAY)
         streams.append(b'\n'.join(page))
-    return _assemble(streams, (), info)
+    return _assemble(streams, (), info, used)
 
 
 def available():
@@ -237,6 +363,27 @@ def self_test():
             f.flush()
             done = subprocess.run(['qpdf', '--check', f.name], capture_output=True)
         assert done.returncode == 0 and b'No syntax or stream encoding errors' in done.stdout, done.stdout[-300:]
+    # PDF-1: letters outside WinAnsi in DejaVu Sans, embedded only then; without the font they stay '?' as before.
+    if _font(b'U1') is not None:
+        plain = build(['Grüße'])
+        assert b'/U1' not in plain and b'FontFile2' not in plain, 'a Western European PDF embeds no font'
+        mixed = report('Bericht Łódź', [('p', 'Žluťoučký kůň, Ελληνικά, Кириллица')], info={'Title': 'Łódź'})
+        text = b''.join(page_streams(mixed))
+        assert b'/FontFile2' in mixed and b'/Identity-H' in mixed and b'/ToUnicode' in mixed and b'/U1 10 Tf <' in text, 'embedded'
+        assert b'/U2 9 Tf <' in text and b'%04x' % _font(b'U1')['cmap'][ord('Ł')] in text, 'bold title and the glyph of the letter'
+        assert b'<feff' + 'Łódź'.encode('utf-16-be').hex().encode() + b'>' in mixed, 'title as UTF-16'
+        if shutil.which('qpdf'):
+            with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+                f.write(mixed)
+                f.flush()
+                done = subprocess.run(['qpdf', '--check', f.name], capture_output=True)
+            assert done.returncode == 0 and b'No syntax or stream encoding errors' in done.stdout, done.stdout[-300:]
+        if shutil.which('pdftotext'):
+            with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+                f.write(mixed)
+                f.flush()
+                done = subprocess.run(['pdftotext', f.name, '-'], capture_output=True)
+            assert 'Žluťoučký kůň' in done.stdout.decode() and 'Кириллица' in done.stdout.decode(), done.stdout[:300]
     print('self-test ok')
 
 

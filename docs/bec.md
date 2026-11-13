@@ -1,7 +1,7 @@
 # Impersonation & BEC
 
 Catches business email compromise: a stranger who pretends to be a known person or a known domain. On after a fresh install (from
-6.0.0.4.1); after an upgrade it stays as it was, so on an upgraded host turn it on under Protection, Impersonation & BEC (or
+6.0.0.4.1) and after a migration from eFa 5 (from 6.0.0.6); after an upgrade it stays as it was (the dashboard recommends it), so on an upgraded host turn it on under Protection, Impersonation & BEC (or
 `sudo efactl bec-set --mode on`), then set the scores and lists. Nothing is rejected on these checks alone — they add a score that the spam
 limit weighs.
 

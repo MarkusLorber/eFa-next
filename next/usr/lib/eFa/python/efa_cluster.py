@@ -12,7 +12,9 @@ import io
 import ipaddress
 import json
 import os
+import re
 import ssl
+import stat
 import subprocess
 import tempfile
 import time
@@ -156,6 +158,65 @@ def call(base, host, port, path, body=None, timeout=10, expected=None):
         connection.close()
 
 
+# 6.0.0.6: download-only data in a cluster. Only the master downloads; its manifest lists the files of each kind with size and
+# SHA-256. A node fetches a file it lacks over the mutual TLS of the cluster and checks it before it swaps it in.
+SYNC_DIRS = {'clamav': '/var/lib/clamav', 'rspamd': '/etc/rspamd', 'maps': '/etc/rspamd/maps.d', 'state': '/var/lib/eFa',
+             'blocklists': '/var/lib/eFa/blocklists'}
+SYNC_MANIFEST = '/var/lib/eFa/cluster-manifest.json'
+SYNC_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,120}')
+SYNC_MAX = 300 * 1024 * 1024
+
+
+def served_file(manifest, kind, name, folder, limit=SYNC_MAX):
+    """The open file the master hands a node, and its size: only a plain name of its current manifest, no link, a regular file
+    within the limit. Anything else is a PermissionError."""
+    items = manifest.get('kinds', {}).get(kind) if isinstance(manifest, dict) else None
+    if not isinstance(items, dict) or not isinstance(name, str) or name not in items or not SYNC_NAME.fullmatch(name) or '..' in name or not folder:
+        raise PermissionError('not a file of the manifest')
+    try:
+        fd = os.open(os.path.join(folder, name), os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        raise PermissionError('not a file of the manifest')
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+        os.close(fd)
+        raise PermissionError('not a regular file within the limit')
+    return fd, info.st_size
+
+
+def fetch_file(base, host, port, path, target, limit, expected=None, timeout=120):
+    """A file of the master into target, read in blocks: (size, SHA-256). As call(): the master must show its known certificate."""
+    expected = expected or peer_fingerprint(base, host, port)
+    if not expected:
+        raise OSError(f'{host}:{port} is no known member of this cluster')
+    connection = http.client.HTTPSConnection(host, int(port), timeout=timeout, context=context(base))
+    try:
+        connection.connect()
+        if fingerprint_der(connection.sock.getpeercert(binary_form=True)) != expected:
+            raise OSError(f'{host}:{port} answered with another certificate than the one of that member')
+        connection.request('GET', path)
+        answer = connection.getresponse()
+        if answer.status != 200:
+            raise OSError(f'HTTP {answer.status}')
+        length = answer.headers.get('Content-Length', '')
+        if not length.isdigit() or int(length) > limit:
+            raise OSError('larger than the manifest says')
+        digest, size = hashlib.sha256(), 0
+        with open(target, 'wb') as f:
+            while True:
+                block = answer.read(65536)
+                if not block:
+                    break
+                size += len(block)
+                if size > limit:
+                    raise OSError('larger than the manifest says')
+                digest.update(block)
+                f.write(block)
+        return size, digest.hexdigest()
+    finally:
+        connection.close()
+
+
 def fetch_ca(host, port, timeout=10):
     """The CA of a master, read without trust; the caller compares its fingerprint with the one the master showed."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -293,6 +354,18 @@ def scrubbed(entry):
     return entry
 
 
+def journal_redact(base, commands):
+    """Takes the secrets out of every entry of these commands, whether the nodes have it or not; returns how many changed."""
+    with _locked(base):
+        entries = journal_read(base)
+        changed = [{**entry, 'secrets': [], 'secrets_note': 'redacted'} if entry.get('command') in commands and entry.get('secrets') else entry
+                   for entry in entries]
+        count = sum(1 for old, new in zip(entries, changed) if old is not new)
+        if count:
+            _journal_write(base, changed)
+        return count
+
+
 def journal_scrub(base, confirmed):
     """Removes secrets and file contents from every entry up to the number all nodes confirmed."""
     with _locked(base):
@@ -305,6 +378,9 @@ def journal_scrub(base, confirmed):
 
 # 9d: the bans of Fail2Ban hold on every node. Each node reports its bans, the master keeps them an hour and hands them back.
 BAN_SECONDS = 3600
+# CL-RECIDIVE: the bans of other nodes go into this jail (jail.d/efa-cluster.local), which recidive does not count and no node
+# reports again as its own.
+SHARED_JAIL = 'efa-cluster'
 
 
 def f2b_banned(run=subprocess.run):
@@ -351,12 +427,94 @@ def merge_bans(table, reported, source, now=None, unbanned=None):
     lifted = {address for address, until in (unbanned or {}).items() if until > now}
     table = {key: item for key, item in table.items() if item['until'] > now and item['address'] not in lifted}
     for jail, address in reported:
-        if address not in lifted:
+        if address not in lifted and jail != SHARED_JAIL:
             table[f'{jail} {address}'] = {'jail': jail, 'address': address, 'until': now + BAN_SECONDS, 'from': source}
     return table
 
 
+# 8g: the send limits of efa-outbound for the whole cluster. Each node reports its counts of the running hour every half minute
+# (absolute values, so a lost report heals itself); the master answers with the sums of all other nodes, which the node writes
+# into its Redis next to its own counts (see RedisCounts in efa-outbound). Target domains are sent as names, at most RATE_DOMAINS
+# per sender, so a domain reached from two nodes counts once; a report older than RATE_SECONDS no longer counts.
+RATE_KEYS = 3000
+RATE_DOMAINS = 150
+RATE_DOMAINS_TOTAL = 30000
+RATE_SECONDS = 120
+RATE_KINDS = ('who:', 'domain:', 'tenant:')
+RATE_TTL = 7200
+
+
+def rate_clean(report, most=RATE_DOMAINS):
+    """A report or an answer as it came over the network: {key: [recipients, [domains]]}, everything else dropped."""
+    clean = {}
+    if not isinstance(report, dict):
+        return clean
+    for key, value in list(report.items())[:RATE_KEYS]:
+        if not (isinstance(key, str) and key.startswith(RATE_KINDS) and len(key) <= 400 and key.isprintable()):
+            continue
+        if not (isinstance(value, list) and len(value) == 2 and isinstance(value[0], int) and 0 <= value[0] < 10 ** 9 and isinstance(value[1], list)):
+            continue
+        clean[key] = [value[0], sorted({item.lower() for item in value[1] if isinstance(item, str) and 0 < len(item) <= 253 and item.isprintable()})[:most]]
+    return clean
+
+
+def rate_report(call, hour):
+    """The counts of this node in the hour, from the local Redis: the senders with the most recipients first."""
+    own = call([('HGETALL', f'efa:rate:own:{hour}')])[0] or []
+    counts = {key: int(value) for key, value in zip(own[::2], own[1::2]) if key.startswith(RATE_KINDS)}
+    keys = sorted(counts, key=lambda key: (-counts[key], key))[:RATE_KEYS]
+    who = [key for key in keys if key.startswith('who:')]
+    members = dict(zip(who, call([('SMEMBERS', f'efa:rate:{key}:{hour}:d') for key in who]))) if who else {}
+    report, budget = {}, RATE_DOMAINS_TOTAL
+    for key in keys:
+        domains = sorted(members.get(key) or [])[:min(RATE_DOMAINS, budget)]
+        budget -= len(domains)
+        report[key] = [counts[key], domains]
+    return report
+
+
+def merge_rates(table, node, hour, report, now=None):
+    """The table of the master with the report of one node; reports of another hour or older than RATE_SECONDS are gone."""
+    now = time.time() if now is None else now
+    table = {name: item for name, item in table.items() if item['at'] > now - RATE_SECONDS and item['hour'] >= hour - 1}
+    table[node] = {'hour': hour, 'at': now, 'keys': rate_clean(report)}
+    return table
+
+
+def peer_rates(table, node, hour, now=None):
+    """What all other nodes counted in the hour: {key: [recipients, [domains]]}."""
+    now = time.time() if now is None else now
+    total = {}
+    for name, item in table.items():
+        if name == node or item['hour'] != hour or item['at'] <= now - RATE_SECONDS:
+            continue
+        for key, (recipients, domains) in item['keys'].items():
+            found = total.setdefault(key, [0, set()])
+            found[0] += recipients
+            found[1].update(domains)
+    return {key: [recipients, sorted(domains)[:RATE_DOMAINS * 4]] for key, (recipients, domains) in total.items()}
+
+
+def rate_apply(call, hour, peers):
+    """The counts of the other nodes into the local Redis, next to the own ones (:pr recipients, :pd target domains)."""
+    commands = []
+    for key, (recipients, domains) in rate_clean(peers, RATE_DOMAINS * 4).items():
+        base = f'efa:rate:{key}:{hour}'
+        commands += [('SET', base + ':pr', recipients, 'EX', RATE_TTL), ('DEL', base + ':pd')]
+        if domains:
+            commands += [('SADD', base + ':pd', *domains), ('EXPIRE', base + ':pd', RATE_TTL)]
+    if commands:
+        call(commands)
+    return len(commands)
+
+
 def self_test():
+    # 8g: the counts of the other nodes, cleaned, of the same hour and fresh only.
+    table = merge_rates({}, 'mx-2', 5, {'who:a': [3, ['x.example']], 'evil': [1, []]}, now=1000)
+    table = merge_rates(table, 'mx-3', 5, {'who:a': [2, ['x.example', 'y.example']]}, now=1010)
+    assert peer_rates(table, 'mx-1', 5, now=1010) == {'who:a': [5, ['x.example', 'y.example']]}
+    assert peer_rates(table, 'mx-2', 5, now=1010) == {'who:a': [2, ['x.example', 'y.example']]} and peer_rates(table, 'mx-1', 6, now=1010) == {}
+    assert peer_rates(table, 'mx-1', 5, now=1000 + RATE_SECONDS + 1) == {'who:a': [2, ['x.example', 'y.example']]}
     assert valid_name('mx-2') and not valid_name('MX') and not valid_name('-x') and not valid_name('a b')
     with tempfile.TemporaryDirectory() as etc:
         base = folder(etc)
@@ -434,6 +592,19 @@ def self_test():
         journal_scrub(base, 2)
         text = json.dumps(journal_read(base))
         assert 'Geheim-Passwort-1' not in text and 'UFJJVkFURSBLRVk=' not in text, 'no secret left after all nodes confirmed'
+        # 6.0.0.6: the secrets of named commands go at once, confirmed or not; order, numbers and other secrets stay.
+        journal_append(base, [{'type': 'command', 'command': 'clam-source-set', 'args': {'source': 'securiteinfo'}, 'secrets': ['EXAMPLEKEY' * 2]},
+                              {'type': 'command', 'command': 'pdf-password-set', 'args': {}, 'secrets': ['Other-Secret-2']},
+                              {'type': 'command', 'command': 'clam-securiteinfo-set', 'args': {'tier': 'basic'}, 'secrets': ['RGF0YWJhc2VDdXN0b21VUkwgRVhBTVBMRUtFWQ==']}])
+        assert journal_redact(base, {'clam-source-set', 'clam-securiteinfo-set'}) == 2 and journal_redact(base, {'clam-source-set'}) == 0
+        entries = journal_read(base)
+        assert [entry['seq'] for entry in entries] == [1, 2, 3, 4, 5] and entries[3]['secrets'] == ['Other-Secret-2']
+        assert entries[2]['secrets'] == [] and entries[4]['secrets_note'] == 'redacted' and entries[4]['args'] == {'tier': 'basic'}
+        text = json.dumps(entries)
+        assert 'EXAMPLEKEY' not in text and 'RGF0YWJhc2VDdXN0b21VUkwgRVhBTVBMRUtFWQ==' not in text
+        for name in os.listdir(base):
+            with open(os.path.join(base, name), 'rb') as f:
+                assert b'EXAMPLEKEY' not in f.read(), name
     print('self-test ok')
 
 

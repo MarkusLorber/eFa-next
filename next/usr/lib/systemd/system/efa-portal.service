@@ -10,6 +10,7 @@ Wants=efa-portal-helper.service
 Type=simple
 User=efa-portal
 Group=efa-portal
+SupplementaryGroups=efa-conf
 Environment=EFA_WEB_MODE=portal
 ExecStart=/usr/bin/python3 /usr/local/sbin/efa-web.py
 Restart=always

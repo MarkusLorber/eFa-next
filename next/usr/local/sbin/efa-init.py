@@ -115,6 +115,35 @@ def resolves(name, server):
     return has_address(done.stdout)
 
 
+ROOT_SERVERS = ('198.41.0.4', '193.0.14.129')  # a. and k.root-servers.net
+root_cache = []
+
+
+def roots_answer():
+    """MIG-DNS: whether the root servers answer from here over UDP and TCP; then this server resolves itself (once per run)."""
+    if not root_cache:
+        found = set()
+        for server in ROOT_SERVERS:
+            for proto in ('udp', 'tcp'):
+                try:
+                    done = subprocess.run(['dig', '+norecurse', '+time=3', '+tries=1', *(['+tcp'] if proto == 'tcp' else []), f'@{server}', '.', 'NS'],
+                                          capture_output=True, text=True, timeout=15)
+                except (subprocess.SubprocessError, OSError):
+                    continue
+                if 'status: NOERROR' in done.stdout:
+                    found.add(proto)
+        root_cache.append(found >= {'udp', 'tcp'})
+    return root_cache[0]
+
+
+def internal_dns_server(value):
+    """A DNS server of your own network, and only when this server cannot reach the root servers: a public resolver (8.8.8.8)
+    makes the free blocklists stop answering, and every mail domain would go to it."""
+    if not is_ip(4)(value) or ipaddress.ip_address(value).is_global:
+        return False
+    return not roots_answer()
+
+
 def mail_server_resolves(name):
     """Asks the resolver Postfix will use: the local Unbound, or the forwarders the admin chose."""
     if is_ip(4)(name):
@@ -162,18 +191,30 @@ STEPS = [
      'label': 'Prefix', 'error': 'A prefix from 1 to 128.', 'check': in_range(1, 128), 'if': 'configipv6', 'default': '64'},
     {'slug': 'ipv6gateway', 'title': 'IPv6 gateway', 'help': 'The router this server sends to other networks through over IPv6.',
      'label': 'Gateway', 'error': 'An IPv6 address such as 2001:db8::1.', 'check': is_ip(6), 'if': 'configipv6', 'now': 'ipv6gateway'},
-    {'slug': 'configrecursion', 'title': 'DNS', 'help': 'This server resolves names itself (recommended), or asks two DNS servers of yours.',
+    {'slug': 'configrecursion', 'title': 'DNS', 'help': 'This server resolves names itself through the root servers (recommended: the free '
+     'blocklists answer only then). Own DNS servers are an exception, only when the root servers cannot be reached from here.',
      'label': 'Resolve names itself?', 'error': 'Choose yes or no.', 'yesno': True, 'default': 'yes'},
-    {'slug': 'dns1', 'title': 'First DNS server', 'help': 'The DNS server this server asks first.',
-     'label': 'DNS server', 'error': 'An IPv4 address such as 192.0.2.53.', 'check': is_ip(4), 'unless': 'configrecursion', 'now': 'dns1'},
-    {'slug': 'dns2', 'title': 'Second DNS server', 'help': 'The DNS server this server asks when the first does not answer.',
-     'label': 'DNS server', 'error': 'An IPv4 address such as 192.0.2.54.', 'check': is_ip(4), 'unless': 'configrecursion', 'now': 'dns2'},
+    {'slug': 'dns1', 'title': 'First DNS server', 'help': 'Exception: the DNS server of your network this server asks first. The free blocklists '
+     'then often do not answer.',
+     'label': 'DNS server', 'error': 'An IPv4 address in your own network, such as 192.168.1.53, and only when the root servers cannot be reached '
+     'from here (they answer now: go back and let this server resolve names itself). A public resolver such as 8.8.8.8 is not offered.',
+     'check': internal_dns_server, 'unless': 'configrecursion', 'now': 'dns1'},
+    {'slug': 'dns2', 'title': 'Second DNS server', 'help': 'The DNS server of your network this server asks when the first does not answer.',
+     'label': 'DNS server', 'error': 'An IPv4 address in your own network, such as 192.168.1.54, and only when the root servers cannot be reached '
+     'from here. A public resolver such as 8.8.8.8 is not offered.', 'check': internal_dns_server, 'unless': 'configrecursion', 'now': 'dns2'},
     {'slug': 'webpassword', 'title': 'Web admin password', 'help': 'The password of the main admin of the web interface.',
      'label': 'Password', 'error': 'At least 12 characters.', 'password': True},
     {'slug': 'cliusername', 'title': 'Console admin', 'help': 'The user for the admin console over SSH; root cannot log in for it.',
      'label': 'User name', 'error': 'Small letters, digits, - and _, not root.', 'check': lambda v: CLI_USER_RE.match(v) and v != 'root'},
     {'slug': 'clipassword', 'title': 'Console admin password', 'help': 'The password of the console admin.',
      'label': 'Password', 'error': 'At least 12 characters.', 'password': True},
+    {'slug': 'rootssh', 'title': 'Root login through SSH',
+     'help': 'Off or with an SSH key only is recommended. Off also stops the SSH keys of root: then only the console admin of the '
+             'steps before (sudo, password) can log in over SSH, so check that login before you close this session. Shown is what '
+             'is in effect now; it stays like that unless you choose another value.',
+     'label': 'Root login through SSH', 'error': 'Choose off, with an SSH key only, or on.', 'choices': lambda: ['off', 'key-only', 'on'],
+     'shown': lambda value: {'off': tr('Off'), 'key-only': tr('With an SSH key only'), 'on': tr('On, also with a password')}.get(value, value),
+     'now': 'rootssh'},
     {'slug': 'configvirtual', 'title': 'Hypervisor tools', 'help': 'The guest tools of the hypervisor this server runs on, if it is a virtual machine.',
      'label': 'Install the hypervisor tools?', 'error': 'Choose yes or no.', 'yesno': True, 'now': 'virtual'},
     {'slug': 'configutc', 'title': 'Hardware clock', 'help': 'Whether the clock of the hardware runs on UTC (recommended; Windows on the same machine uses local time).',
@@ -242,6 +283,14 @@ def system_now():
             found['ntpservers'] = ', '.join(line.split()[1] for line in f if line.split()[:1] in (['server'], ['pool']) and len(line.split()) > 1)
     except OSError:
         pass
+    try:
+        # What sshd takes now; the wizard cannot run sshd -T itself, efa-apply answers through its sudo rule.
+        done = subprocess.run(EFA_TIME_SYNC + ['--root-ssh-status'], capture_output=True, text=True, timeout=30)
+        line = next((line.split() for line in done.stdout.splitlines() if line.startswith('ROOTSSH ')), [])
+        if line[1:2] and line[1] in ('off', 'key-only', 'on'):
+            found['rootssh'] = line[1]
+    except (OSError, subprocess.SubprocessError):
+        pass
     answers['system'] = found
     return found
 BY_SLUG = {step['slug']: step for step in STEPS}
@@ -250,7 +299,7 @@ GROUPS = [('Server', ('hostname', 'domainname', 'email')),
           ('Network', ('interface', 'configipv4', 'ipv4address', 'ipv4netmask', 'ipv4gateway', 'ipv6dns', 'configipv6', 'ipv6address',
                        'ipv6prefix', 'ipv6gateway')),
           ('DNS', ('configrecursion', 'dns1', 'dns2')),
-          ('Admins', ('webpassword', 'cliusername', 'clipassword')),
+          ('Admins', ('webpassword', 'cliusername', 'clipassword', 'rootssh')),
           ('System', ('configvirtual', 'configutc', 'timezone', 'ntpservers')),
           ('Mail server', ('mailserver', 'mailserverdns'))]
 GROUP_OF = {slug: group for group, slugs in GROUPS for slug in slugs}
@@ -375,6 +424,20 @@ def csrf_token():
     if 'csrf' not in session:
         session['csrf'] = secrets.token_urlsafe(32)
     return session['csrf']
+
+
+# Werkzeug 2.0.3 of EL9 (CVE-2023-46136, CVE-2024-49767): the wizard is open without login before the setup, and protect()
+# reads the form of every POST. It has text forms only: no multipart, and a body far below this cap.
+MAX_FORM = 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = MAX_FORM
+
+
+@app.before_request
+def body_limits():
+    if request.mimetype == 'multipart/form-data':
+        abort(415)
+    if (request.content_length or 0) > MAX_FORM:
+        abort(413)
 
 
 @app.before_request
@@ -558,11 +621,12 @@ def language():
 
 # 6.0.0.5: before the settings the note on presets (Text A), the setup variant (B), the EU link (C, in both variants), without EU
 # link the typed confirmation (D), and only guided the frameworks (E). Each confirmation keeps the digest of the text as shown.
+# HARD-W: the step of the frameworks also holds the security standards, in both variants (manual: the standards only).
 FIRST = ('notice', 'variant', 'eulink', 'noeu', 'frameworks')
 
 
 def first_steps():
-    return [slug for slug in FIRST if (slug != 'noeu' or answers.get('eulink') == 'no') and (slug != 'frameworks' or answers.get('variant') == 'guided')]
+    return [slug for slug in FIRST if slug != 'noeu' or answers.get('eulink') == 'no']
 
 
 def first_form(slug):
@@ -575,7 +639,8 @@ def first_form(slug):
         return efa_setup.eulink_html(tr, answers.get('eulink', ''))
     if slug == 'noeu':
         return efa_setup.noeu_html(tr, lang)
-    return efa_setup.frameworks_html(tr, answers.get('frameworks', []), answers.get('note', ''))
+    standards = efa_setup.standards_html(tr, answers.get('standards', []))
+    return efa_setup.frameworks_html(tr, answers.get('frameworks', []), answers.get('note', '')) + standards if answers.get('variant') == 'guided' else standards
 
 
 def first_take(slug, form):
@@ -588,6 +653,8 @@ def first_take(slug, form):
     elif slug == 'variant':
         if form.get('variant') not in efa_setup.VARIANTS:
             return tr(efa_setup.VARIANT_TITLE)
+        if answers.get('variant') != form['variant']:
+            answers.pop('frameworks', None)  # the page of the frameworks asks again: guided shows the frameworks too
         answers['variant'] = form['variant']
     elif slug == 'eulink':
         if form.get('eulink') not in ('yes', 'no'):
@@ -600,10 +667,13 @@ def first_take(slug, form):
             return tr('Tick the box and type the phrase to confirm.')
         answers['noeu'] = efa_setup.confirmation(efa_setup.noeu_digest(tr, lang))
     else:
-        note = form.get('note', '').strip()
+        guided = answers.get('variant') == 'guided'
+        note = form.get('note', '').strip() if guided else ''
         if not efa_setup.NOTE_RE.match(note):
             return tr(efa_setup.FRAMEWORKS_OTHER)
-        answers.update(frameworks=efa_setup.frameworks_clean(form.getlist('frameworks')), note=note)
+        frameworks = efa_setup.frameworks_clean(form.getlist('frameworks')) if guided else []
+        # The same standards as the hardening wizard; a framework with a documented mapping adds its standards.
+        answers.update(frameworks=frameworks, note=note, standards=efa_setup.standards_taken(form.getlist('standards'), frameworks))
     return None
 
 
@@ -850,7 +920,8 @@ def verify():
         # 5y: the digest of the legal texts that were confirmed with the box.
         answers['legal'] = legal_digest()
         if commit['state'] != 'running':
-            commit.update(state='running', log='', target=new_address(), fqdn='.'.join((answers['hostname'], answers['domainname'])))
+            commit.update(state='running', log='', target=new_address(), fqdn='.'.join((answers['hostname'], answers['domainname'])),
+                          ssh_later=any(title == 'SSH' for title, _shown in efa_setup.standards_summary(tr, answers.get('standards', []))))
             log.info('setup started')
             threading.Thread(target=run_commit, daemon=True).start()
         return redirect(url_for('progress'))
@@ -861,10 +932,12 @@ def verify():
     for slug, label, shown in (('variant', tr(efa_setup.VARIANT_TITLE), tr(efa_setup.VARIANT_TEXT[answers['variant']][0])),
                                ('eulink', tr(efa_setup.EULINK_TITLE), tr('Yes') if answers['eulink'] == 'yes' else tr('No')),
                                ('frameworks', tr(efa_setup.FRAMEWORKS_TITLE), ', '.join(chosen + ([answers['note']] if answers.get('note') else [])))):
-        if slug in first_steps():
+        if slug in first_steps() and (slug != 'frameworks' or answers.get('variant') == 'guided'):
             rows += render_template_string(row, l=label, v=shown)
     for title, note in efa_setup.notes(answers.get('frameworks', [])):
         rows += render_template_string(row, l=title, v=f'{tr(note)} ({tr(efa_setup.NONBINDING)})')
+    for title, shown in efa_setup.standards_summary(tr, answers.get('standards', [])):
+        rows += render_template_string(row, l=title, v=shown)
     summary = f'<h3>{te("Start")} <a href="{url_for("first", slug="variant")}">{change}</a></h3><table>{rows}</table>'
     active = {item['slug'] for item in active_steps()}
     for group, slugs in GROUPS:
@@ -914,6 +987,7 @@ def commit_answers():
              'IPV6GATEWAY': a['ipv6gateway'] if static6 else '', 'RECURSION': yes_no(a['configrecursion']),
              'DNSIP1': '' if recursion else a.get('dns1', ''), 'DNSIP2': '' if recursion else a.get('dns2', ''),
              'WEBADMINPASSWORD': a['webpassword'], 'CLIUSERNAME': a['cliusername'], 'CLIPASSWORD': a['clipassword'],
+             'ROOTSSH': a.get('rootssh', ''),
              'VMTOOLS': yes_no(a['configvirtual']), 'ISUTC': yes_no(a['configutc']), 'TZONE': a['timezone'],
              'MAILSERVER': a['mailserver']}
     if a.get('mailserverunresolved') == 'yes':
@@ -928,6 +1002,8 @@ def commit_answers():
             lines['FRAMEWORKS'] = ','.join(a['frameworks'])
         if a.get('note'):
             lines['FRAMEWORKNOTE'] = a['note']
+        if a.get('standards'):
+            lines['STANDARDS'] = ','.join(a['standards'])
         if a.get('totp_step'):
             lines.update(TOTPSECRET=efa_totp.secret_text(a['totp_secret']), TOTPSTEP=a['totp_step'], TOTPRECOVERY=','.join(a['totp_recovery']))
             if a.get('ctotp_saved'):
@@ -977,6 +1053,8 @@ def follow_page(moving):
     text = (te('The settings are applied now; the connection to the old address ends. This page opens the new one as soon as it answers.')
             if moving and commit['state'] != "done" else te('Configuration complete. The system restarts now; this page opens the login as soon as the server answers.'))
     name = f'<p>{te("By name, once DNS knows it:")} <code>https://{escape(fqdn)}/</code></p>' if fqdn else ''
+    if commit.get('ssh_later'):
+        name += f'<p class="warn" role="note">{te(efa_setup.SSH_LATER)}</p>'
     return page(f"""<h2>{title}</h2><p class="help">{text}</p>
 <p class="addr"><a class="btn next" href="{escape(target)}">{escape(target)}</a></p>{name}
 <p id="follow" role="status" data-url="{escape(target)}" data-next="{te('Next check in {s} s')}" data-checking="{te('Checking...')}">
@@ -1034,8 +1112,11 @@ def self_test():
     answers.clear()
     answers.update(hostname='mx1', domainname='example.org', email='a@example.org', interface='eth0', configipv4='no', ipv6dns='no',
                    configipv6='no', configrecursion='yes', webpassword='web-password-1', cliusername='efaadmin',
-                   clipassword='cli-password-1', configvirtual='no', configutc='yes', timezone='UTC', ntpservers='192.0.2.123', mailserver='10.0.0.5')
+                   clipassword='cli-password-1', rootssh='on', configvirtual='no', configutc='yes', timezone='UTC', ntpservers='192.0.2.123',
+                   mailserver='10.0.0.5')
     lines = commit_answers().splitlines()
+    # S30: the choice of root login goes to efa-apply as given; a fresh install keeps on unless the admin picks another value.
+    assert 'ROOTSSH:on' in lines
     assert 'RECURSION:YES' in lines and 'IPV4ADDRESS:' in lines and 'WEBADMINPASSWORD:web-password-1' in lines and 'ISUTC:YES' in lines
     assert not [line for line in lines if line.startswith('MAILSERVERDNS')]
     answers.update(mailserver='mail.corp.example', mailserverunresolved='yes', mailserverdns='10.0.0.53')
@@ -1045,6 +1126,11 @@ def self_test():
     client = app.test_client()
     with client.session_transaction() as sess:
         sess['csrf'] = 'token'
+    # Body limits before protect() reads the form: no multipart at all, no body over MAX_FORM.
+    assert [f.__name__ for f in app.before_request_funcs[None]][:2] == ['body_limits', 'protect']
+    assert client.post('/unlock', data={'csrf': 'token', 'code': 'x'}, content_type='multipart/form-data').status_code == 415
+    assert client.post('/unlock', data=b'csrf=token&code=' + b'x' * MAX_FORM, content_type='application/x-www-form-urlencoded').status_code == 413
+    assert app.config['MAX_CONTENT_LENGTH'] == MAX_FORM
     # Nothing opens without the setup code of the console, and only so many wrong tries.
     with tempfile.TemporaryDirectory() as folder:
         setup_code_write(folder + '/code')
@@ -1068,16 +1154,27 @@ def self_test():
     assert client.post('/first/eulink', data={'csrf': 'token', 'eulink': 'no'}).headers['Location'].endswith('/first/noeu')
     assert 'Tick the box' in client.post('/first/noeu', data={'csrf': 'token', 'noeu': 'yes', 'phrase': 'at my risk'}).get_data(as_text=True)
     assert 'Tick the box' in client.post('/first/noeu', data={'csrf': 'token', 'phrase': 'at my own risk'}).get_data(as_text=True) and 'noeu' not in answers
-    assert client.post('/first/noeu', data={'csrf': 'token', 'noeu': 'yes', 'phrase': 'At my own risk'}).headers['Location'].endswith('/step/hostname')
-    assert client.get('/first/frameworks').headers['Location'].endswith('/verify'), 'manual: no frameworks'
+    assert client.post('/first/noeu', data={'csrf': 'token', 'noeu': 'yes', 'phrase': 'At my own risk'}).headers['Location'].endswith('/first/frameworks')
+    manual = client.get('/first/frameworks').get_data(as_text=True)
+    assert 'name="standards"' in manual and 'name="frameworks"' not in manual, 'manual: the standards, no frameworks'
+    client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['nis2'], 'standards': ['rfc9325']})
+    assert answers['frameworks'] == [] and answers['standards'] == ['rfc9325']
     lines = commit_answers().splitlines()
     assert 'SETUPVARIANT:manual' in lines and 'EULINK:no' in lines and [line for line in lines if line.startswith('EULINKCONFIRM:')]
-    assert not [line for line in lines if line.startswith(('TOTP', 'FRAMEWORKS'))]
+    assert not [line for line in lines if line.startswith(('TOTP', 'FRAMEWORKS'))] and 'STANDARDS:rfc9325' in lines
     # Guided: the frameworks, then the 2FA of the main admin is a must before the setup runs.
     client.post('/first/variant', data={'csrf': 'token', 'variant': 'guided'})
     assert client.get('/verify').headers['Location'].endswith('/first/frameworks')
     client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['pci-dss', 'nis2', 'bogus'], 'note': 'own rules'})
     assert answers['frameworks'] == ['nis2', 'pci-dss'] and client.get('/verify').headers['Location'].endswith('/twofactor')
+    assert answers['standards'] == [] and 'name="standards" value="cis-el"' in client.get('/first/frameworks').get_data(as_text=True)
+    assert not [line for line in commit_answers().splitlines() if line.startswith('STANDARDS')], 'none chosen: no STANDARDS for efa-apply'
+    # HARD-W: the standards of the hardening wizard; BSI TR-02102 as a framework leads to its parts.
+    client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['pci-dss', 'nis2', 'bsi-tr02102'], 'note': 'own rules',
+                                           'standards': ['rfc9325', 'cis-el', 'evil']})
+    assert answers['standards'] == ['bsi-02102-1', 'bsi-02102-2', 'rfc9325', 'bsi-02102-4', 'cis-el'], answers['standards']
+    client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['pci-dss', 'nis2'], 'note': 'own rules', 'standards': ['bsi-02102-2', 'rfc9325', 'cis-el']})
+    assert answers['standards'] == ['bsi-02102-2', 'rfc9325', 'cis-el']
     setup_page = client.get('/twofactor').get_data(as_text=True)
     assert '<svg' in setup_page and 'name="code"' in setup_page and efa_totp.grouped(answers['totp_secret']) in setup_page
     window = {efa_totp.hotp(answers['totp_secret'], int(time.time() // 30) + delta) for delta in (-1, 0, 1, 2)}
@@ -1114,6 +1211,7 @@ def self_test():
     assert client.post('/twofactor', data={'csrf': 'token', 'saved': 'yes'}).headers['Location'].endswith('/verify')
     lines = commit_answers().splitlines()
     assert 'SETUPVARIANT:guided' in lines and 'FRAMEWORKS:nis2,pci-dss' in lines and 'FRAMEWORKNOTE:own rules' in lines and 'SETUPLANG:en' in lines
+    assert 'STANDARDS:bsi-02102-2,rfc9325,cis-el' in lines
     assert efa_totp.secret_from_text(next(line for line in lines if line.startswith('TOTPSECRET:'))[11:]) == answers['totp_secret']
     assert efa_totp.secret_from_text(next(line for line in lines if line.startswith('CONSOLETOTPSECRET:'))[18:]) == answers['ctotp_secret']
     # German from the catalog. A switch keeps the confirmations (each keeps the digest of the text as shown) and becomes the admin's language.
@@ -1146,11 +1244,16 @@ def self_test():
     time_sync = lambda servers: (synced_runs.append(servers) or True, 0.0042)
     pages = [kind for kind, _slug in journey()]
     assert [slug for _kind, slug in journey()].index('ntpservers') < len(pages), 'the time step is a step'
+    # MIG-DNS: an own DNS server only of the own network and only when the root servers do not answer from here.
+    root_cache[:] = [True]
+    assert not internal_dns_server('192.168.1.53'), 'the root servers answer: this server resolves itself'
+    root_cache[:] = [False]
+    assert internal_dns_server('192.168.1.53') and not internal_dns_server('8.8.8.8') and not internal_dns_server('1.1.1.1')
     # One walk forward through all steps and back again: the values stay, each step after the first has Back, the number counts.
     values = {'hostname': 'mx1', 'domainname': 'example.org', 'email': 'a@example.org', 'interface': 'eth0', 'configipv4': 'yes',
               'ipv4address': '192.0.2.10', 'ipv4netmask': '255.255.255.0', 'ipv4gateway': '192.0.2.1', 'ipv6dns': 'no', 'configipv6': 'no',
               'configrecursion': 'no', 'dns1': '192.0.2.53', 'dns2': '192.0.2.54', 'webpassword': long_enough, 'cliusername': 'efaadmin',
-              'clipassword': long_enough, 'configvirtual': 'no', 'configutc': 'yes', 'timezone': 'UTC', 'ntpservers': '192.0.2.123',
+              'clipassword': long_enough, 'rootssh': 'on', 'configvirtual': 'no', 'configutc': 'yes', 'timezone': 'UTC', 'ntpservers': '192.0.2.123',
               'mailserver': '192.0.2.25'}
     BY_SLUG['interface']['choices'] = lambda: ['eth0']
     BY_SLUG['timezone']['choices'] = lambda: ['Europe/Vienna', 'UTC']
@@ -1283,4 +1386,4 @@ if __name__ == '__main__':
     setup_code_write()
     answers_load()
     log.info('wizard ready, %d answers kept from before', len(answers))
-    serve(app, host='127.0.0.1', port=8080, threads=4)
+    serve(app, host='127.0.0.1', port=8080, threads=4, max_request_body_size=MAX_FORM)

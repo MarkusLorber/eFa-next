@@ -29,7 +29,9 @@ for _folder in ('/usr/lib/eFa/python', os.path.join(os.path.dirname(os.path.absp
     if os.path.isdir(_folder) and _folder not in sys.path:
         sys.path.insert(0, _folder)
 from efa_links import link_target, link_token  # noqa: E402
+import efa_arc  # noqa: E402
 import efa_bimi  # noqa: E402
+import efa_clamd  # noqa: E402
 import efa_host  # noqa: E402
 from efa_mime import BROKEN, Unwritable, hand_back, mime_header_changes, to_bytes  # noqa: E402
 
@@ -42,6 +44,32 @@ MAX_URL = 2000
 STORE = os.environ.get('EFA_CDR_STORE', '/var/lib/efa-cdr')
 MAX_MAIL = 30 * 1024 * 1024
 HEADER = 'X-eFa-CDR'
+# M1-1: the ARC keys of the domains rspamd seals for (systemd credentials arc-seal_<domain>.key and .selector, written by efactl).
+ARC_KEYS = os.environ.get('CREDENTIALS_DIRECTORY', '/nonexistent')
+ARC_DOMAIN = re.compile(r'^[a-z0-9.-]{1,253}$')
+
+
+def arc_reseal_headers(headers, changed, keys=ARC_KEYS, host=None, now=None):
+    """M1-1: rspamd sealed the mail (ARC instance n) before this milter changed it: the headers of instance n+1 over the changed
+    mail, with the domain and selector of that seal and the results rspamd wrote. [] when rspamd did not seal or no key is here."""
+    sets = efa_arc.arc_sets(headers)
+    if not sets:
+        return []
+    domain = efa_arc.tag(sets[max(sets)]['as'], 'd').lower()
+    if not ARC_DOMAIN.match(domain):
+        return []
+    try:
+        with open(os.path.join(keys, f'arc-seal_{domain}.key'), 'rb') as f:
+            key = f.read()
+        with open(os.path.join(keys, f'arc-seal_{domain}.selector')) as f:
+            selector = f.read().strip()
+    except OSError:
+        return []
+    host = host or efa_host.own_hostname()
+    results = next((value.split(';', 1)[1].strip() for name, value in headers
+                    if name.lower() == 'authentication-results' and value.strip().split(';', 1)[0].strip() == host and ';' in value), '')
+    body = changed.split(b'\r\n\r\n', 1)[1] if b'\r\n\r\n' in changed else changed.split(b'\n\n', 1)[1]
+    return efa_arc.seal(headers, body, domain, selector, key, host, results, now)
 # Macro-enabled OOXML: the parts and content types to drop or turn into those of the plain format.
 VBA_PARTS = re.compile(r'(^|/)(vbaProject\.bin|vbaData\.xml|_rels/vbaProject\.bin\.rels)$', re.I)
 MACRO_TYPES = {
@@ -439,6 +467,68 @@ def settings(path=SETTINGS, cache={}):
     return cache['value']
 
 
+# MIG-ALLOW (owner, 2026-11-11): a virus in mail of an allowed sender is cut out and the mail goes on, with a note in the body and
+# a header; the original is kept (cdr-list, cdr-release). A virus that is not in a part of its own (in the text) cannot be cut
+# out: the mail is held and its recipients are told. rspamd lets such a mail through only while this milter is in the chain.
+ALLOW_MAP = os.environ.get('EFA_SENDER_ALLOW_MAP', '/etc/rspamd/local.d/maps.d/efa-sender-allow.map')
+REMOVED_HEADER = 'X-eFa-next-Removed'
+
+
+def allowed_sender(sender, path=ALLOW_MAP):
+    """Whether the sender is on the allow list (an exact address, or its domain), as rspamd looks it up."""
+    sender = (sender or '').strip().lower()
+    try:
+        with open(path) as f:
+            entries = {line.split('#', 1)[0].strip().lower() for line in f}
+    except OSError:
+        return False
+    return bool(sender) and (sender in entries or sender.rpartition('@')[2] in entries)
+
+
+def strip_viruses(raw, scan):
+    """(the mail without its infected parts or None, [(part name, virus)], virus that cannot be cut out or ''). scan(bytes) gives
+    the name of a virus or ''; OSError when the scanner does not answer."""
+    message = email.message_from_bytes(raw, policy=email.policy.compat32)
+    removed = []
+    for part in message.walk():
+        if part.is_multipart():
+            continue
+        found = scan(part.get_payload(decode=True) or b'')
+        if not found:
+            continue
+        name = part.get_filename() or ''
+        if not name and part.get_content_maintype() == 'text':
+            return None, removed, found  # in the text itself: not a part to cut out
+        name = re.sub(r'[\s,;=]+', '_', name or part.get_content_type())[:100]
+        removed.append((name, found))
+        for header in ('Content-Type', 'Content-Disposition', 'Content-Transfer-Encoding', 'Content-ID', 'Content-Description'):
+            del part[header]
+        part['Content-Type'] = 'text/plain'
+        part.set_payload(f'eFa-next removed the attachment "{name}": the virus scanner found {found}. The original is kept for '
+                         'the administrator.\n', charset='utf-8')
+    if not removed:
+        found = scan(raw)
+        return None, [], found
+    cut = to_bytes(message)
+    found = scan(cut)
+    return (None, removed, found) if found else (cut, removed, '')
+
+
+def virus_notice(sender, rcpts, found):
+    """Tells the recipients that a mail for them is held: its virus could not be cut out."""
+    import smtplib
+    from email.message import EmailMessage
+    for rcpt in rcpts:
+        note = EmailMessage()
+        note['From'], note['To'] = f'postmaster@{efa_host.own_hostname()}', rcpt
+        note['Subject'] = 'Mail held: virus / Mail angehalten: Virus'
+        note.set_content(f'A mail from {sender} to you is held: the virus scanner found {found} and it could not be cut out. '
+                         f'Your administrator can look at it.\n\nEine Mail von {sender} an Sie ist angehalten: Der Virenscanner fand '
+                         f'{found}, und es ließ sich nicht herausschneiden. Ihr Administrator kann sie ansehen.\n')
+        with smtplib.SMTP('127.0.0.1', JOURNAL_PORT, timeout=30) as server:
+            server.send_message(note, from_addr='', to_addrs=[rcpt])
+
+
 def store_original(raw, sender, rcpts, done, folder=STORE):
     """The original, for the admin: efactl cdr-list shows it, cdr-release delivers it unchanged."""
     os.makedirs(folder, mode=0o700, exist_ok=True)
@@ -502,6 +592,31 @@ def run_milter():
             try:
                 wanted = settings()
                 clean, done, key = None, [], None
+                if allowed_sender(self.sender):
+                    try:
+                        cut, removed, held = strip_viruses(raw, efa_clamd.clamd_scan)
+                    except OSError as err:
+                        # rspamd let a virus of an allowed sender through for this milter: without the scan, no mail goes on.
+                        syslog.syslog(syslog.LOG_ERR, f'virus scan of an allowed sender not possible, deferred: {err}')
+                        self.setreply('451', '4.7.1', 'The virus scan is not possible at the moment, try again later')
+                        return Milter.TEMPFAIL
+                    parts = ','.join(name for name, _virus in removed) or '-'
+                    if held:
+                        key = store_original(raw, self.sender, self.rcpts, [f'virus {held} held, it could not be cut out'])
+                        self.quarantine(f'virus {held} of an allowed sender, not in a part of its own')
+                        try:
+                            virus_notice(self.sender, self.rcpts, held)
+                        except (OSError, *BROKEN) as err:
+                            syslog.syslog(syslog.LOG_ERR, f'notice of the held mail not sent: {err}')
+                        syslog.syslog(syslog.LOG_WARNING, f'virus held from=<{self.sender}> to={",".join(self.rcpts)} found={held} parts={parts} original={key}')
+                        return Milter.ACCEPT
+                    if cut is not None:
+                        key = store_original(raw, self.sender, self.rcpts, [f'virus removed: {parts}'])
+                        syslog.syslog(syslog.LOG_WARNING, f'virus removed from=<{self.sender}> to={",".join(self.rcpts)} found={removed[0][1]} '
+                                                          f'parts={parts} original={key}')
+                        self.addheader(REMOVED_HEADER, '; '.join(f'{name} ({virus})' for name, virus in removed))
+                        raw = clean = cut
+                        done.append(f'virus removed: {parts}')
                 if wanted.get('cdr'):
                     try:
                         clean, done = disarm(raw)
@@ -551,6 +666,12 @@ def run_milter():
                     return Milter.ACCEPT
                 hand_back(self, self.headers, clean)
                 self.addheader(HEADER, '; '.join(done) + (f'; original {key}' if key else ''))
+                try:
+                    for name, value in arc_reseal_headers(self.headers, clean):
+                        # On top, before the headers of the receiving server, where ARC sets belong.
+                        self.addheader(name, value, 0)
+                except (OSError, ValueError, *BROKEN) as err:
+                    syslog.syslog(syslog.LOG_ERR, f'no new ARC seal for {",".join(self.rcpts)}: {err}')
                 syslog.syslog(syslog.LOG_INFO, f'changed for {",".join(self.rcpts)}: {"; ".join(done)}' + (f' (original {key})' if key else ''))
             except Exception as err:  # mail flow first: a mail it cannot handle goes on unchanged
                 syslog.syslog(syslog.LOG_ERR, f'left unchanged: {err}')
@@ -576,7 +697,7 @@ def run_milter():
         self.addheader('Authentication-Results', f'{efa_host.own_hostname()}; {note}')
     Disarm.bimi_headers = bimi_headers
     Milter.factory = Disarm
-    Milter.set_flags(Milter.ADDHDRS | Milter.CHGHDRS | Milter.CHGBODY)
+    Milter.set_flags(Milter.ADDHDRS | Milter.CHGHDRS | Milter.CHGBODY | Milter.QUARANTINE)
     Milter.runmilter('efa-cdr', f'inet:{PORT}@127.0.0.1', timeout=120)
     # A connection that comes in while Python shuts down crashes pymilter: end without the shutdown.
     os._exit(0)
@@ -595,6 +716,45 @@ def test_pdf(objects):
 
 
 def self_test():
+    # MIG-ALLOW: a virus of an allowed sender is cut out of its part, the rest goes on; in the text itself it is held.
+    fake = lambda data: 'Eicar-Test' if b'EICAR-TEST' in data else ''
+    attached = (b'From: a@ai.local\r\nTo: b@example.org\r\nSubject: x\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n'
+                b'--b\r\nContent-Type: text/plain\r\n\r\nHello\r\n--b\r\nContent-Type: application/octet-stream\r\n'
+                b'Content-Disposition: attachment; filename="bad file.com"\r\nContent-Transfer-Encoding: base64\r\n\r\n'
+                + base64.b64encode(b'X5O!EICAR-TEST') + b'\r\n--b--\r\n')
+    cut, removed, held = strip_viruses(attached, fake)
+    assert removed == [('bad_file.com', 'Eicar-Test')] and not held and b'EICAR-TEST' not in cut and b'Hello' in cut
+    assert 'removed the attachment' in email.message_from_bytes(cut).get_payload()[1].get_payload(decode=True).decode()
+    assert strip_viruses(b'From: a@ai.local\r\nSubject: x\r\n\r\nEICAR-TEST in the text\r\n', fake) == (None, [], 'Eicar-Test')
+    assert strip_viruses(b'From: a@ai.local\r\nSubject: x\r\n\r\nclean\r\n', fake) == (None, [], '')
+    with tempfile.NamedTemporaryFile('w', suffix='.map', delete=False) as f:
+        f.write('ai.local\nfriend@x.example\n')
+    assert allowed_sender('Arnold-IT@ai.local', f.name) and allowed_sender('friend@x.example', f.name) and not allowed_sender('other@x.example', f.name)
+    assert not allowed_sender('', f.name) and not allowed_sender('a@ai.local', f.name + '.missing')
+    os.remove(f.name)
+    # M1-1: rspamd sealed (instance 1), this milter changed the body: instance 2 with the key of that domain makes the chain hold
+    # again; without a key, or without a seal of rspamd, nothing is added.
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    arc_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private = arc_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    public = arc_key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    keys = tempfile.mkdtemp()
+    base = [('From', 'a@far.example'), ('To', 'b@own.example'), ('Subject', 'offer'),
+            ('Authentication-Results', 'mx.own.example; spf=pass smtp.mailfrom=far.example')]
+    original = b'Hello http://t.example/?utm_source=x\r\n'
+    rspamd_set = efa_arc.seal(base, original, 'own.example', 'efa-arc', private, 'mx.own.example', 'spf=pass', now=100)
+    headers = rspamd_set + base
+    changed = b'From: a@far.example\r\n\r\nHello http://t.example/\r\n'
+    assert arc_reseal_headers(headers, changed, keys, 'mx.own.example') == [], 'no key here: nothing'
+    with open(os.path.join(keys, 'arc-seal_own.example.key'), 'wb') as f:
+        f.write(private)
+    with open(os.path.join(keys, 'arc-seal_own.example.selector'), 'w') as f:
+        f.write('efa-arc\n')
+    new = arc_reseal_headers(headers, changed, keys, 'mx.own.example', now=200)
+    assert efa_arc.tag(new[0][1], 'i') == '2' and 'spf=pass smtp.mailfrom=far.example' in new[2][1]
+    assert efa_arc.verify(new + headers, b'Hello http://t.example/\r\n', public)
+    assert arc_reseal_headers(base, changed, keys, 'mx.own.example') == [], 'rspamd did not seal: nothing'
     # 6/8h: the journal names the envelope with the BCC recipients and holds the mail; in by the recipients, out by the sender.
     journal = {'in': {'own.example': 'in@archive.example'}, 'out': {'own.example': 'out@archive.example'}}
     assert journal_targets(journal, 'a@far.example', ['b@own.example', 'c@far.example']) == ['in@archive.example']

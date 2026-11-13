@@ -10,7 +10,7 @@ Type=simple
 User=efa-mail
 Group=efa-mail
 # Reads the settings of root:efa-web 0640; as its own user it gets no root efactl through efactl-runner.
-SupplementaryGroups=efa-web
+SupplementaryGroups=efa-web efa-mailconf
 ExecStart=/usr/bin/python3 /usr/local/sbin/efa-maillog.py
 Restart=always
 RestartSec=5

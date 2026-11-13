@@ -3,6 +3,7 @@
 # Copyright (C) 2026 Markus Lorber and eFa-next contributors
 # Author: Markus Lorber, Lukasz Galusinski
 """Every source file of eFa-next names its license in its first lines: SPDX AGPL-3.0-or-later, the copyright line and the author.
+Then the legal texts, rules L1 to L15 (scripts/legal_check.py).
 
     scripts/license_check.py [--fix] [--self-test]     --fix adds the lines where they are missing (after a shebang)
 """
@@ -90,6 +91,15 @@ def main():
         for item in found:
             print(f'license: {os.path.relpath(path, ROOT)}: {item}')
             bad += 1
+    # The legal texts (L1 to L15, scripts/legal_check.py); findings waiting for the owner are shown, not counted.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import legal_check
+    found = legal_check.problems()
+    for item in found:
+        print(f'license: open, for the owner: {item}' if item in legal_check.OPEN else f'license: {item}')
+        bad += item not in legal_check.OPEN
+    for item in sorted(legal_check.OPEN - set(found)):
+        print(f'license: fixed, take it out of legal_check.OPEN: {item}')
     print('license: ok' if not bad else f'license: FAILED, {bad} problems')
     return 1 if bad else 0
 

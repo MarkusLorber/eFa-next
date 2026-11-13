@@ -13,8 +13,8 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.5.2
-Release:        1%{?dist}
+Version:        6.0.0.6
+Release:        2%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -32,7 +32,11 @@ Requires:       systemd
 Requires:       postfix
 Requires:       rsyslog
 Requires:       mariadb-server
+%if 0%{?rhel} >= 10
+Requires:       valkey
+%else
 Requires:       redis
+%endif
 Requires:       rspamd
 Requires:       nginx
 Requires:       clamav
@@ -89,7 +93,7 @@ mkdir -p /var/lib/rpm-state/eFa-base
 # Also a reinstall after a first install whose setup failed: without the version file the setup has not finished yet.
 # A set-up host is never a first install, also when the version file is gone: the first-install steps would replace
 # its nginx, rspamd and Postfix settings.
-if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
+if ! grep -Eqs '^eFa-([6-9]|[1-9][0-9])\.' /etc/eFa-next-Version /etc/eFa-Version && ! grep -Eqs '^[[:space:]]*CONFIGURED[[:space:]]*:[[:space:]]*YES' /etc/eFa/eFa-Config; then
     touch /var/lib/rpm-state/eFa-base/first-install
 fi
 exit 0
@@ -132,6 +136,7 @@ fi
 /usr/lib/eFa/python/efa_monitor.py
 /usr/lib/eFa/python/efa_platform.py
 /usr/lib/eFa/python/efa_platform_el9.py
+/usr/lib/eFa/python/efa_platform_el10.py
 /usr/lib/eFa/python/efa_services.py
 %attr(0755,root,root) /usr/sbin/efa-configure
 %attr(0755,root,root) /usr/sbin/efa-monitor
@@ -148,6 +153,12 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Fri Nov 13 2026 Markus Lorber - 6.0.0.6-2
+- 6.0.0.6 final: a test build of 6.0.0.6-1 (EL10, November 12) was online; -2 replaces it through a normal update.
+
+* Tue Nov 10 2026 Markus Lorber - 6.0.0.6-1
+- 6.0.0.6: security fixes first (web interface without sudo, restore, single sign-on, login directories); see CHANGELOG.md.
+
 * Tue Nov 10 2026 Markus Lorber - 6.0.0.5.2-1
 - 6.0.0.5.2: migration from eFa 5 (sender_access no longer read once moved), SELinux quiet without IPv6; see CHANGELOG.md.
 

@@ -19,7 +19,7 @@ from unittest import mock
 sys.dont_write_bytecode = True
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 for name in ('grp', 'pwd', 'fcntl', 'syslog', 'termios', 'resource'):
-    sys.modules.setdefault(name, types.ModuleType(name))
+    sys.modules.setdefault(name, __import__(name) if importlib.util.find_spec(name) else types.ModuleType(name))
 for folder in ('next/usr/lib/eFa/python', 'src/eFa/root/usr/lib/eFa/python', 'src/eFa-base/root/usr/lib/eFa/python'):
     if os.path.join(ROOT, folder) not in sys.path:
         sys.path.insert(0, os.path.join(ROOT, folder))
@@ -81,7 +81,7 @@ class EfactlCallTests(unittest.TestCase):
         units = os.path.join(ROOT, 'next', 'usr', 'lib', 'systemd', 'system')
         for path in [os.path.join(units, f'{s}.service.d', 'efa-floor.conf') for s in ('postfix', 'nginx', 'dovecot')] + [os.path.join(units, 'efa-floor-guard.service')]:
             with open(path, encoding='utf-8') as f:
-                command = re.search(r'^Exec\w+=/usr/sbin/efactl (.+)$', f.read(), re.M).group(1)
+                command = re.search(r'^Exec\w+=\+?/usr/sbin/efactl (.+)$', f.read(), re.M).group(1)
             parse(shlex.split(command))
 
     def test_drives_the_packaged_efa_apply(self):

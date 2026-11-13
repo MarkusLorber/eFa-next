@@ -22,7 +22,9 @@ MILTER_PORT = 8999
 HTTP_PORT = 8905
 INTERVAL = 10
 HEADER = 'X-Milter-Failed'
-SERVICES = ('postfix', 'rspamd', 'redis', 'clamd@scan')
+# Redis on EL9, Valkey on EL10 (same port, same data). Also the services a mail filter needs besides the scanners (PKG-3).
+REDIS_UNIT = 'valkey' if os.path.exists('/usr/lib/systemd/system/valkey.service') else 'redis'
+SERVICES = ('postfix', 'rspamd', REDIS_UNIT, 'clamd@scan', 'nginx', 'mariadb', 'unbound', 'fail2ban', 'firewalld')
 # MSMilter refuses connections after a probe session and reloads its lists on each one, so never connect to it.
 LISTEN_ONLY = (33333,)
 # Optional site-specific systemd units, one per line. Logged and shown in /health, but not marked in mail.
@@ -106,6 +108,27 @@ def extra_services():
     return [line for line in lines if line]
 
 
+WIZARD_RUN_DIR = '/run/efa-init'
+
+
+def broken_units(listing=None, wizard_dir=None):
+    """eFa-next services that failed or start again and again (a missing credential file, a crash at the start): the
+    dashboard names them instead of a quiet restart loop. Also efa-web skipped by its condition (the folder of the wizard)
+    while no wizard runs: it would stay off until a reboot."""
+    if listing is None:
+        listing = subprocess.run(['systemctl', 'list-units', '--all', '--no-legend', '--plain', 'efa-*.service'],
+                                 capture_output=True, text=True, timeout=10).stdout
+    if wizard_dir is None:
+        wizard_dir = os.path.isdir(WIZARD_RUN_DIR)
+    fields = [line.split() for line in listing.splitlines()]
+    found = sorted(f[0] for f in fields if len(f) >= 4 and (f[2] == 'failed' or f[3] == 'auto-restart'))
+    states = {f[0]: f[2] for f in fields if len(f) >= 3}
+    if wizard_dir and states.get('efa-init.service') not in ('active', 'activating', 'reloading') and \
+            states.get('efa-web.service', 'inactive') != 'active':
+        found.append(f'efa-web.service (skipped: {WIZARD_RUN_DIR} left without the wizard)')
+    return found
+
+
 def check_once():
     global state, checked_at
     new = {f'milter:{p}': probe(p) for p in milter_ports()}
@@ -113,6 +136,7 @@ def check_once():
     active = services_active(list(SERVICES) + extras)
     new.update({f'service:{s}': active[s] for s in SERVICES})
     new.update({f'extra:{s}': active[s] for s in extras})
+    new.update({f'unit:{u}': False for u in broken_units()})
     for name, ok in new.items():
         if state.get(name, True) != ok:
             syslog.syslog(syslog.LOG_INFO if ok else syslog.LOG_CRIT, f'{name} {"recovered" if ok else "DOWN"}')
@@ -190,6 +214,16 @@ def run_milter():
 
 
 def self_test():
+    listing = ('efa-web.service loaded active running eFa-next web interface\n'
+               'efa-outbound.service loaded activating auto-restart eFa-next outbound milter\n'
+               'efa-cdr.service loaded failed failed eFa-next content milter\n'
+               'efa-firstboot.service loaded inactive dead eFa-next first boot\n')
+    assert broken_units(listing, False) == ['efa-cdr.service', 'efa-outbound.service'], 'a restart loop and a failed unit, not a oneshot'
+    # WEB-RESTART: efa-web skipped while the folder of the wizard is left without the wizard: named; with the wizard: not.
+    skipped = 'efa-web.service loaded inactive dead eFa-next web interface\nefa-init.service loaded failed failed eFa-next first-run wizard\n'
+    assert broken_units(skipped, True)[-1].startswith('efa-web.service (skipped') and 'efa-web.service (skipped' not in ' '.join(broken_units(skipped, False))
+    with_wizard = 'efa-web.service loaded inactive dead eFa-next web interface\nefa-init.service loaded active running eFa-next first-run wizard\n'
+    assert not [item for item in broken_units(with_wizard, True) if 'skipped' in item], 'the wizard runs: efa-web waits for it on purpose'
     srv = socket.create_server(('127.0.0.1', 0))
     port = srv.getsockname()[1]
 
