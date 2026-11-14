@@ -52,6 +52,19 @@
       "web_rce": false,
       "summary": "A package update of 6.0.0.6 deleted the second factor (2FA) of the main admin of the web interface as a left-over row: the login took the password alone. Set up 2FA again after updating.",
       "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.1"
+    },
+    {
+      "id": "EFA-2026-005",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.2", "2"],
+      "cves": [],
+      "severity": "Important",
+      "vector": "",
+      "cwe": "CWE-416",
+      "remote": true,
+      "web_rce": false,
+      "summary": "rspamd before 4.3.0: worker crash on crafted headers, use-after-free and out-of-bounds reads in the milter, ARC and Authentication-Results spoofing. Fixed by requiring rspamd 4.3.0.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.2"
     }
   ]
 }

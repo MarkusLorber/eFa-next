@@ -1,6 +1,24 @@
 # Changelog
 
-## 6.0.0.6.1 (release date: pending)
+## 6.0.0.6.2 (release date: pending)
+
+### Security: rspamd 4.3.0 is the minimum (CVE-4)
+- eFa-next-base requires rspamd 4.3.0 or newer (by its arch-bound name: the rspamd packages also provide a plain "rspamd"
+  without a version, which met a plain "rspamd >= 4.3.0" with 4.2.3 too), so the update takes 4.3.0 along; the lock against a
+  new major version (rspamd 5) stays. The CVE watch names a host before 6.0.0.6.2-2 (EFA-2026-005). rspamd 4.3.0 fixes:
+  a worker abort on an HTTP header without colon and on an empty Deliver-To header; use-after-free and reads out of bounds in
+  the milter (CONNECT, MACRO and ESMTP arguments, a second end of body); DKIM keys of another type than k= declares and RSA keys
+  under 1024 bits; ARC forwarders trusted only for what they vouched for, ARC sets chosen by their i= tag; sender text in
+  Authentication-Results escaped, so it cannot add a result of its own; SPF records evaluated in the order of their terms.
+- The link check counts only PHISHING itself as phishing: PHISHING_REWRITE_ALLOWED (an allowed URL wrapper), PHISHING_QUERY
+  (score 0) and PHISHED_EXCLUDED no longer block a link. The new URL_DISPLAY_MISMATCH (score 0) has a German text in the
+  mail details.
+- The live test checks the ARC chain after efa-cdr changed a mail with dkimpy: i=1 by rspamd, i=2 by efa-cdr, the DMARC result
+  of rspamd carried into i=2.
+- efa-sasl (port 587): a login name or address with a NUL character is logged with a placeholder instead of breaking the
+  connection (syslog refuses NUL; found by the fuzz test under Python 3.12 on EL10).
+
+## 6.0.0.6.1 (2026-11-14)
 
 ### Security: the 2FA of the main admin (S38)
 - The clean-up of left-over rows of removed logins (part of every package update) took the accounts that are no row of the user

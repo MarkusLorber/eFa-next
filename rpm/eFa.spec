@@ -11,8 +11,8 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.1
-Release:        1%{?dist}
+Version:        6.0.0.6.2
+Release:        2%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -148,6 +148,12 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-2
+- With eFa-next-base 6.0.0.6.2-2 (rspamd 4.3.0 really pulled along).
+
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-1
+- 6.0.0.6.2: rspamd 4.3.0 is the minimum (worker crash, milter use-after-free, ARC and Authentication-Results); see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.1-1
 - 6.0.0.6.1: the 2FA of the main admin is never removed as a left-over row; a missing 2FA table refuses the login (S38); see CHANGELOG.md.
 

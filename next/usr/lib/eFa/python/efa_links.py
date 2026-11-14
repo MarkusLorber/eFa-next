@@ -7,8 +7,9 @@ import hashlib
 import hmac
 import re
 
-# Symbols of rspamd that mean a listed or phishing address.
-DANGEROUS = re.compile(r'^(URIBL_|SURBL_|DBL_|RSPAMD_URIBL|PH_SURBL|ABUSE_SURBL|CRACKED_SURBL|MSBL_EBL|SEM_URIBL|PHISHED_|PHISHING|EFA_RBL_|EFA_YOUNG_DOMAIN)')
+# Symbols of rspamd that mean a listed or phishing address. PHISHING only by its exact name: since rspamd 4.3.0
+# PHISHING_REWRITE_ALLOWED (an allowed URL wrapper) and PHISHING_QUERY (score 0) are notes, as PHISHED_EXCLUDED always was.
+DANGEROUS = re.compile(r'^(URIBL_|SURBL_|DBL_|RSPAMD_URIBL|PH_SURBL|ABUSE_SURBL|CRACKED_SURBL|MSBL_EBL|SEM_URIBL|PHISHED_(?!EXCLUDED$)|PHISHING$|EFA_RBL_|EFA_YOUNG_DOMAIN)')
 
 
 def _b64(data):
@@ -68,6 +69,7 @@ def self_test():
     assert link_target(with_tenant[:-1] + '8', key) is None, 'the tenant is signed with the address'
     assert link_target(with_tenant + 'x', key) is None
     assert dangerous(['DBL_SPAM', 'MIME_GOOD', 'URIBL_BLACK', 'PHISHING']) == ['DBL_SPAM', 'PHISHING', 'URIBL_BLACK']
+    assert dangerous(['PHISHING_REWRITE_ALLOWED', 'PHISHING_QUERY', 'URL_DISPLAY_MISMATCH', 'PHISHED_EXCLUDED', 'PHISHED_OPENPHISH']) == ['PHISHED_OPENPHISH']
     print('self-test ok')
 
 

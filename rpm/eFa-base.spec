@@ -13,8 +13,8 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.1
-Release:        1%{?dist}
+Version:        6.0.0.6.2
+Release:        2%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -37,7 +37,11 @@ Requires:       valkey
 %else
 Requires:       redis
 %endif
+# 4.3.0: fixes of crashes of the workers and of the milter, ARC and Authentication-Results (CVE-4); the major lock stays in rspamd.repo.
 Requires:       rspamd
+# rspamd 4.3.0 at least (EFA-2026-005). Its packages also provide a plain "rspamd" without a version, which meets any
+# "rspamd >= x": only the arch-bound name carries the version, so dnf really takes 4.3.0 along with this update.
+Requires:       (rspamd(x86-64) >= 4.3.0 or rspamd(aarch-64) >= 4.3.0)
 Requires:       nginx
 Requires:       clamav
 Requires:       clamd
@@ -153,6 +157,12 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-2
+- rspamd 4.3.0 required by its arch-bound name: the plain Provides of rspamd met "rspamd >= 4.3.0" with 4.2.3 too.
+
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-1
+- 6.0.0.6.2: rspamd 4.3.0 is the minimum (worker crash, milter use-after-free, ARC and Authentication-Results); see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.1-1
 - 6.0.0.6.1: the 2FA of the main admin is never removed as a left-over row; a missing 2FA table refuses the login (S38); see CHANGELOG.md.
 

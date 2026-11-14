@@ -20825,6 +20825,7 @@ SYMBOL_DE = {
     'FORGED_SENDER': 'Der Absender im Umschlag passt nicht zum Absender im Kopf.', 'FROM_NEQ_ENVFROM': 'Der Absender im Kopf unterscheidet sich vom Umschlag.',
     'MISSING_MID': 'Die Mail hat keine Message-ID.', 'MISSING_DATE': 'Die Mail hat kein Datum.', 'HFILTER_HOSTNAME_UNKNOWN': 'Der Name des sendenden Servers ist unbekannt.',
     'MANY_INVISIBLE_PARTS': 'Die Mail hat viele unsichtbare Teile.', 'PHISHING': 'Ein Link zeigt auf eine andere Adresse als sein Text.',
+    'URL_DISPLAY_MISMATCH': 'Hinweis: die Domain eines Links weicht von seinem Text ab (ohne Punkte).',
     'URIBL_BLACK': 'Ein Link führt zu einer Domain auf der Blockliste URIBL.', 'DBL_SPAM': 'Ein Link führt zu einer Domain auf der Blockliste Spamhaus DBL.',
     'FUZZY_DENIED': 'Die Mail gleicht bekanntem Spam (Fuzzy-Hash).', 'GREYLIST': 'Greylisting: der Server soll später nochmals senden.',
 }
@@ -35322,10 +35323,10 @@ def self_test():
                 key = lambda evr: (int(evr[0] or 0), [int(x) for x in evr[1].split('.')], evr[2])
                 return key(a) < key(b)
             old_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.5', '1.el9')]}, tree_older, set(), {}, {})
-            new_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.1', '1.el9')]}, tree_older, set(), {}, {})
+            new_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.2', '2.el9')]}, tree_older, set(), {}, {})
             assert old_host and not new_host and not lockdown_trigger(old_host), (len(old_host), len(new_host))
             # The release of the fix has no platform part: a host on EL10 with the fix counts as fixed too.
-            assert not advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.1', '1.el10')]}, tree_older, set(), {}, {})
+            assert not advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.2', '2.el10')]}, tree_older, set(), {}, {})
             # S38 (EFA-2026-004): a host on 6.0.0.6 gets exactly that one.
             assert [item for item in advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6', '2.el10')]}, tree_older, set(), {}, {})], 'EFA-2026-004 for 6.0.0.6'
         # 9o-b: lock once, open after the patch, no lock again after a release by hand for the same items.

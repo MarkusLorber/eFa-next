@@ -40,6 +40,7 @@ FAIL_DELAY = 2.0
 # Per login name and per client address: this many failures in the window, then every try fails at once.
 FAIL_LIMIT, FAIL_WINDOW = 5, 600
 USER_RE = re.compile(r'^[^\x00-\x20\x7f:]{1,256}$')
+LOG_UNSAFE = re.compile(r'[\x00-\x1f\x7f]')
 CHALLENGES = {'LOGIN': (base64.b64encode(b'Username:').decode(), base64.b64encode(b'Password:').decode())}
 
 
@@ -111,11 +112,16 @@ class Limiter:
                 self.failures = {key: times for key, times in self.failures.items() if times and now - times[-1] < FAIL_WINDOW}
 
 
+def logged(text):
+    """A name or address from the client for the log: no NUL (syslog refuses it) and no line end of its own."""
+    return LOG_UNSAFE.sub('?', text[:64])
+
+
 def check(user, password, client, logins, limiter, delay=FAIL_DELAY):
     """(ok, reason): the login of a submitter. Unknown names cost the same time as wrong passwords."""
     keys = ('user:' + user, 'ip:' + client)
     if limiter.blocked(keys):
-        syslog.syslog(syslog.LOG_WARNING, f'efa-sasl: too many failed logins for {user[:64]} from {client}')
+        syslog.syslog(syslog.LOG_WARNING, f'efa-sasl: too many failed logins for {logged(user)} from {logged(client)}')
         time.sleep(delay)
         return False, 'Too many failed logins, try again later.'
     stored = logins.get(user) if USER_RE.fullmatch(user) else None
@@ -123,7 +129,7 @@ def check(user, password, client, logins, limiter, delay=FAIL_DELAY):
     if not ok:
         limiter.failed(keys)
         # Fail2Ban reads this line; Postfix logs its own "SASL ... authentication failed" too.
-        syslog.syslog(syslog.LOG_WARNING, f'efa-sasl: login failed for {user[:64]} from {client}')
+        syslog.syslog(syslog.LOG_WARNING, f'efa-sasl: login failed for {logged(user)} from {logged(client)}')
         time.sleep(delay)
         return False, 'Authentication failed.'
     return True, ''
@@ -272,6 +278,7 @@ def serve():
 
 def self_test():
     import tempfile
+    assert logged('a\x00b\nc') == 'a?b?c' and len(logged('x' * 100)) == 64, 'EL10 fuzz: NUL in a name never reaches syslog'
     stored = scrypt_hash('secret pass')
     assert verify('secret pass', stored) and not verify('wrong', stored) and not verify('x', '{PLAIN}x') and not verify('x', '{SCRYPT}bad')
     legacy = '{SHA512-CRYPT}' + efa_shacrypt.make('old pass')

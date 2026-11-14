@@ -18,6 +18,7 @@ import email.message
 import glob
 import hashlib
 import json
+import os
 import re
 import smtplib
 import subprocess
@@ -311,6 +312,46 @@ def check_links(r, undo):
     return 'link goes over /l/'
 
 
+def check_arc_after_cdr(r, undo):
+    """rspamd seals the incoming mail (ARC i=1), efa-cdr changes it and seals again (i=2): dkimpy, not our code, checks the chain
+    of the mail in the queue (rspamd 4.3.0 parses ARC sets by their i= tag and its results from the raw header). The results of
+    i=2 are those rspamd wrote, DMARC among them."""
+    try:
+        import dkim
+    except ImportError:
+        raise Skip('python3-dkimpy missing')
+    shown = lambda: next((row for row in efactl('arc-show').get('arc_domains', []) if row['domain'] == r.domain), {})
+    if not shown().get('active'):
+        before = set(glob.glob(f'{DKIM_DIR}/arc/{r.domain}.*'))
+        efactl('arc-set', domain=r.domain, mode='on', key='own', bits='2048', selector='')
+        # The own key the test made goes again with the setting; efactl writes arc.conf and the seal keys of efa-cdr anew.
+        undo.append(lambda: ([os.remove(path) for path in set(glob.glob(f'{DKIM_DIR}/arc/{r.domain}.*')) - before],
+                             efactl('arc-set', domain=r.domain, mode='default')))
+        time.sleep(5)  # rspamd reloaded, efa-cdr restarted with the new key
+    row = shown()
+    assert row.get('active') and row.get('dns'), f'ARC is not on for {r.domain}: {row.get("note") or row}'
+    record = row['dns'].encode()
+    name = f'{row["selector"]}._domainkey.{r.domain}'
+    # Tracking protection changes the body and needs no public address of the host (the link check does).
+    html = f'<p>News</p><a href="https://shop.example.org/item?id=7&utm_source=efa-live-{r.run}">item</a>'
+    mail = r.message('arc', body='News', html=html)
+    qid = content_check(r, undo, 'tracking-set', 'tracking-status', {'mode': 'on'}, {'mode': 'off'}, mail, 'tracking removed')
+    raw = subprocess.run(['postcat', '-hbq', qid], capture_output=True, timeout=30).stdout
+    message = re.sub(rb'\r?\n', b'\r\n', raw)
+    seals = re.findall(rb'^ARC-Seal:[^\r]*(?:\r\n[ \t][^\r]*)*', message, re.M | re.I)
+    instances = sorted(int(found) for seal in seals for found in re.findall(rb'\bi=(\d+)', seal)[:1])
+    assert instances == [1, 2], f'ARC-Seal instances {instances}, wanted [1, 2] (rspamd, then efa-cdr)'
+    cv, _results, reason = dkim.arc_verify(message, dnsfunc=lambda qname, timeout=5: record
+                                           if (qname.decode() if isinstance(qname, bytes) else qname).rstrip('.') == name else None)
+    assert cv == dkim.CV_Pass, f'dkimpy: ARC chain {cv!r} ({reason})'
+    aar = {int(i): text for i, text in re.findall(rb'^ARC-Authentication-Results:\s*i=(\d+);\s*[^;]*;((?:[^\r]|\r\n[ \t])*)', message, re.M | re.I)}
+    words = lambda text: re.sub(rb'\s+', b' ', text).strip()
+    assert 1 in aar and 2 in aar and b'dmarc=' in aar[1], f'ARC-Authentication-Results without dmarc: {aar}'
+    assert words(aar[1]) == words(aar[2]), f'i=2 results differ from those of rspamd: {words(aar[1])[:120]} / {words(aar[2])[:120]}'
+    dmarc = words(re.search(rb'dmarc=\S+', aar[2]).group(0)).decode()
+    return f'i=1 rspamd, i=2 efa-cdr, cv=pass, {dmarc}'
+
+
 def check_tracking(r, undo):
     html = (f'<p>News</p><a href="https://shop.example.org/item?id=7&utm_source=efa-live-{r.run}&fbclid=x">item</a>'
             '<img src="https://pixel.mailchimp.com/open.gif" width="1" height="1">')
@@ -379,6 +420,7 @@ CHECKS = (
     ('warning banner', check_banner),
     ('link check', check_links),
     ('tracking protection (M1)', check_tracking),
+    ('ARC after efa-cdr (M1-1)', check_arc_after_cdr),
     ('DLP IBAN outgoing', check_dlp),
     ('header privacy outgoing (M2)', check_header_privacy),
     ('DKIM outgoing', check_dkim),
