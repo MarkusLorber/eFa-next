@@ -843,6 +843,7 @@ step rpm-build python3 -I build/build-rpms.py --next-dir next --out "$OUT/rpms"
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step maintenance-cidr-live python3 -I scripts/maintenance_cidr_live.py
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step cluster-recidive-live sh scripts/cluster_recidive_live.sh
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step selftest-hermetic-live sh scripts/selftest_hermetic_live.sh
+[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step totp-failclosed-live sh scripts/totp_failclosed_live.sh
 # T-2: the mail paths of the live test in every run: clean, GTUBE, EICAR, quarantine list and release, outbound into the queue.
 # Nothing leaves the host (defer_transports for the time of the step, main.cf as before afterwards).
 live_mail_step() {

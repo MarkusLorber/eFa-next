@@ -11,8 +11,8 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6
-Release:        2%{?dist}
+Version:        6.0.0.6.1
+Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -148,6 +148,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.1-1
+- 6.0.0.6.1: the 2FA of the main admin is never removed as a left-over row; a missing 2FA table refuses the login (S38); see CHANGELOG.md.
+
 * Fri Nov 13 2026 Markus Lorber - 6.0.0.6-2
 - 6.0.0.6 final: a test build of 6.0.0.6-1 (EL10, November 12) was online; -2 replaces it through a normal update.
 

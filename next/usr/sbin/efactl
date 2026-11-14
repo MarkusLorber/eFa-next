@@ -2515,7 +2515,7 @@ def _system_notices():
                            '.rpmnew/.rpmsave file.', files=', '.join(rpmnew[:5]) + (' ...' if len(rpmnew) > 5 else ''))])
     system = _system_state()
     if system['state'] == 'failed':
-        found += _notice_at('maint', 'update-status', [_text('Last system update failed: {result}', result=system['result'])])
+        found += _notice_at('maint', 'update-status', [_text('Last system update ({date}) failed: {result}', date=system.get('finished') or '?', result=system['result'])])
     setup_failed = setup_failed_state()
     if setup_failed:
         found += _notice_at('maint', 'update-status', [_text('The setup of the eFa-next package ({mode}, {at}) did not finish these steps: {steps}. '
@@ -3452,9 +3452,27 @@ def user_remove_statements(username, who):
                ('DELETE FROM users WHERE username = %s', (username,))])
 
 
-def orphan_statements():
-    """Rows of logins that are gone (removed by 6.0.0.6 or older, which left the second factor and the passkeys behind)."""
-    return [f'DELETE t FROM {table} t LEFT JOIN users u ON u.username = t.username WHERE u.username IS NULL' for table in USER_ROWS]
+# S38: the accounts that are no row of users on purpose start with @ (the main admin @admin, the console admins): never an orphan.
+ORPHAN_WHERE = "SUBSTR(username, 1, 1) <> '@' AND username NOT IN (SELECT username FROM users)"
+
+
+def orphan_selects():
+    """The names of logins that are gone (removed by 6.0.0.6 or older, which left the second factor and the passkeys behind)."""
+    return [f'SELECT DISTINCT username FROM {table} WHERE {ORPHAN_WHERE}' for table in USER_ROWS]
+
+
+def orphan_statements(names):
+    """Only the rows of these names, found by orphan_selects and named in the audit before they go."""
+    marks = ', '.join(['%s'] * len(names))
+    return [(f'DELETE FROM {table} WHERE username IN ({marks}) AND {ORPHAN_WHERE}', tuple(names)) for table in USER_ROWS]
+
+
+def totp_active_count():
+    """The second factors switched on; an error as text (counted on both sides of an update or a release upgrade)."""
+    try:
+        return _admin_query('SELECT COUNT(*) AS n FROM user_totp WHERE active = 1')[0]['n']
+    except Exception as err:  # pymysql errors have no common base here
+        return f'error: {str(err)[:80]}'
 
 
 def _admin_transaction(statements):
@@ -4655,8 +4673,10 @@ def _totp_row(username):
     try:
         rows = _admin_query('SELECT secret, active, last_step, recovery FROM user_totp WHERE username = %s', (username,))
     except pymysql.MySQLError as err:
-        if err.args and err.args[0] == 1146:  # no table yet: nobody has a second factor
-            return None
+        if err.args and err.args[0] == 1146:
+            # S38: a missing table never counts as "no second factor"; the login is refused (efactl maillog-setup makes it again).
+            _audit('2FA table user_totp missing: login refused')
+            raise EfaError('2FA cannot be checked (table user_totp missing): login refused. On the console: sudo efactl maillog-setup.')
         raise  # any other error fails the login, it never skips the factor
     return rows[0] if rows else None
 
@@ -5434,14 +5454,28 @@ def console_2fa_enroll(args):
     return {'user': user, 'active': True, 'recovery_codes': codes, 'note': 'Keep these codes safe, each works once. They are not shown again.'}
 
 
+def main_admin_2fa_lost(lines, active):
+    """S38: the main admin switched 2FA on (audit) and never off or reset, but has none now: the time it went on, else None."""
+    on = None
+    for line in lines:
+        if '2FA switched on by @admin' in line or '2FA of @admin set up in the setup wizard' in line:
+            on = line[:19]
+        elif '2FA switched off by @admin' in line or '2FA of @admin reset' in line:
+            on = None
+    return None if active else on
+
+
 def totp_banner():
     """Red on the dashboard: the guided setup asks for 2FA, and a main or console admin has none (a reset, or a host of before)."""
+    active = (_safe(lambda: _totp_row('@admin'), None) or {}).get('active')
+    lost = _safe(lambda: main_admin_2fa_lost(_read_lines(AUDIT_LOG), active), None)
+    found = [_text('The 2FA of the main admin (login admin) was switched on ({date}) and is gone without being switched off or reset: '
+                   'the login takes the password alone. Set it up again under My account and check the audit log.', date=lost)] if lost else []
     if not setup_guided():
-        return []
+        return found
     # Owner, 2026-11-12: "I have 2FA and still the message". Two different accounts: the main admin of the web interface (login
     # admin) and the console admin of the setup (an SSH login, its own 2FA). Each line names exactly which one has none.
-    found = []
-    if not (_safe(lambda: _totp_row('@admin'), None) or {}).get('active'):
+    if not active:
         found.append(_text('The main admin of the web interface (login admin) has no active 2FA (the guided setup asks for it). '
                            'Logged in as admin: My account, Two-factor login (2FA), Set up.'))
     console = _cli_user()
@@ -14761,6 +14795,7 @@ def _ru_baseline(facts):
             counts[name] = _admin_query(f'SELECT COUNT(*) AS n FROM {table}')[0]['n']
         except Exception as err:  # pymysql errors have no common base here; the count then shows the error on both sides
             counts[name] = f'error: {str(err)[:80]}'
+    counts['totp_active'] = totp_active_count()  # S38: no second factor lost on the way
     dkim = sorted(_file_sha256(path) for path in glob.glob(DKIM_DIR + '/*') if os.path.isfile(path))
     return {'os_id': lib.os_id(facts.get('os_release', '')), 'addresses': facts['addresses'], 'routes': facts['routes'], 'firewall': facts['firewall'],
             'wazuh': facts.get('wazuh', {}),
@@ -15728,11 +15763,16 @@ def _update_install_steps(state):
         backup = backup_now(None)['backup']
     except (OSError, ValueError, EfaError, subprocess.CalledProcessError) as err:
         return f'Not installed: {err}'
+    totp_before = totp_active_count()
     with _firewall_lock(900):
         done = subprocess.run(['dnf', '-y', 'upgrade'] + packages, capture_output=True, text=True)
     version_ok = _version_tuple(_update_installed()) == _version_tuple(new)
     problems = [] if done.returncode == 0 and version_ok else [f'dnf failed: {(done.stderr or done.stdout)[-300:]}']
     problems = problems or _update_health()
+    # S38: an update never takes a second factor away (the setup of the package ran in between).
+    totp_after = totp_active_count()
+    if not problems and totp_after != totp_before:
+        problems = [f'second factors switched on: {totp_before} before, {totp_after} after']
     if not problems:
         # The way back for update-rollback: the verified packages of the version before, and the backup taken right before.
         _json_write(UPDATE_PREVIOUS, {'version': current, 'packages': rollback, 'backup': backup, 'installed': new,
@@ -16345,10 +16385,13 @@ GRANT INSERT ON efa.delivered_iocs TO 'efa_log'@'localhost';
     subprocess.run(['mysql', '--user=root'], input=sql, text=True, env=_mysql_env(), check=True, capture_output=True)
     _exporter_write()
     _headers_policy_write()
-    # S31, once per host: what removed logins of 6.0.0.6 and older left behind (2FA secrets, passkeys, tokens, groups).
-    orphans = _admin_transaction([(sql, ()) for sql in orphan_statements()])
+    # S31: what removed logins of 6.0.0.6 and older left behind (2FA secrets, passkeys, tokens, groups); S38: the names first,
+    # never an account with @ (the main admin), and each name in the audit.
+    names = sorted({row['username'] for sql in orphan_selects() for row in _admin_query(sql)})
+    orphans = _admin_transaction(orphan_statements(names)) if names else [0] * len(USER_ROWS)
     if any(orphans):
-        _audit('left-over rows of removed users deleted: ' + ', '.join(f'{table} {count}' for table, count in zip(USER_ROWS, orphans)))
+        _audit(f"left-over rows of removed users deleted ({', '.join(names)[:600]}): "
+               + ', '.join(f'{table} {count}' for table, count in zip(USER_ROWS, orphans)))
     return {'maillog_setup': 'done', 'orphans_removed': dict(zip(USER_ROWS, orphans))}
 
 
@@ -32822,7 +32865,18 @@ def self_test():
             assert mem.execute(f"SELECT COUNT(*) FROM {table} WHERE username = 'stays@example.com'").fetchone()[0] == 1, table
         assert mem.execute("SELECT ended_by FROM web_sessions WHERE username = 'gone@example.com'").fetchone()[0] == 'self-test'
         assert mem.execute("SELECT purpose FROM quarantine_links").fetchall() == [('release',)], 'its login link goes, other links stay'
-        assert all('LEFT JOIN users' in sql and 'IS NULL' in sql for sql in orphan_statements()) and len(orphan_statements()) == len(USER_ROWS)
+        # S38: the sweep with the main admin and a console admin present: only the removed login goes.
+        for table in USER_ROWS:
+            mem.execute(f"INSERT INTO {table} (username) VALUES ('@admin'), ('@console:ops'), ('old@example.com')")
+        found = sorted({row[0] for sql in orphan_selects() for row in mem.execute(sql)})
+        assert found == ['old@example.com'], found
+        for sql, params in orphan_statements(found):
+            mem.execute(sql.replace('%s', '?'), params)
+        for table in USER_ROWS:
+            assert sorted(row[0] for row in mem.execute(f'SELECT username FROM {table}')) == ['@admin', '@console:ops', 'stays@example.com'], table
+        assert main_admin_2fa_lost(['2026-11-10 23:16:00 2FA switched on by @admin', '2026-11-12 20:30:17 left-over rows'], False) == '2026-11-10 23:16:00'
+        assert main_admin_2fa_lost(['2026-11-10 23:16:00 2FA switched on by @admin'], True) is None
+        assert main_admin_2fa_lost(['2026-11-10 23:16:00 2FA switched on by @admin', '2026-11-11 08:00:00 2FA switched off by @admin'], False) is None
         # MIG-587: the submission line of eFa 5 as a migration left it (postconf -P), against the one of eFa-next.
         efa5 = {'smtpd_tls_security_level': 'encrypt', 'smtpd_sasl_auth_enable': 'yes', 'smtpd_sasl_type': 'dovecot',
                 'smtpd_sasl_path': 'private/auth', 'smtpd_sasl_security_options': 'noanonymous', 'smtpd_sasl_local_domain': '$myhostname',
@@ -34534,13 +34588,20 @@ def self_test():
         globals().update(_totp_row=lambda user: {'secret': totp_seal(rfc, user), 'active': 1, 'last_step': 0, 'recovery': json.dumps([recovery_hash('aaaa-bbbb-cccc')])}
                          if user == 'anna' else None, totp_policy=lambda: {'user': 'required'}, _admin_query=lambda *a: written.append(a) or [])
         assert totp_check('nobody', None) is True
-        saved_banner = {name: globals()[name] for name in ('setup_guided', '_totp_row', '_console_row', '_cli_user')}
+        saved_banner = {name: globals()[name] for name in ('setup_guided', '_totp_row', '_console_row', '_cli_user', 'AUDIT_LOG')}
         try:
-            globals().update(setup_guided=lambda: True, _totp_row=lambda user: {'active': 1}, _console_row=lambda user: None, _cli_user=lambda: 'ops')
+            globals().update(setup_guided=lambda: True, _totp_row=lambda user: {'active': 1}, _console_row=lambda user: None, _cli_user=lambda: 'ops',
+                             AUDIT_LOG=tmp + '/no-audit.log')
             assert [str(text) for text in totp_banner()] == [str(_text('The console admin {user} (the SSH login of the setup, not the web interface) has no 2FA of its own '
                                                                      '(the guided setup asks for it). On the console: sudo efactl console-2fa-enroll.', user='ops'))]
             globals().update(_totp_row=lambda user: None, _console_row=lambda user: {'active': True})
             assert len(totp_banner()) == 1 and 'login admin' in str(totp_banner()[0])
+            # S38: switched on in the audit and gone: red even without the guided setup.
+            with open(tmp + '/no-audit.log', 'w') as f:
+                f.write('2026-11-10 23:16:00 2FA switched on by @admin' + chr(10))
+            globals().update(setup_guided=lambda: False)
+            assert len(totp_banner()) == 1 and '2026-11-10 23:16:00' in str(totp_banner()[0])
+            os.remove(tmp + '/no-audit.log')
         finally:
             globals().update(saved_banner)
         rejected(lambda code: totp_check('anna', code), None, '000000')
@@ -35251,7 +35312,7 @@ def self_test():
             assert len(_advisories(state)) == 4
         finally:
             urllib.request.urlopen, globals()['_lib'] = saved_feed
-        # The advisories of the source tree (published signed with each release): a host on 6.0.0.5 gets them, one on 6.0.0.5.1
+        # The advisories of the source tree (published signed with each release): a host on 6.0.0.5 gets them, one on 6.0.0.6.1
         # does not, and none of them locks the web interface (a DoS is no web hole).
         tree_feed = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'advisories', 'advisories.json')
         if os.path.exists(tree_feed):
@@ -35261,10 +35322,12 @@ def self_test():
                 key = lambda evr: (int(evr[0] or 0), [int(x) for x in evr[1].split('.')], evr[2])
                 return key(a) < key(b)
             old_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.5', '1.el9')]}, tree_older, set(), {}, {})
-            new_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.5.1', '1.el9')]}, tree_older, set(), {}, {})
+            new_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.1', '1.el9')]}, tree_older, set(), {}, {})
             assert old_host and not new_host and not lockdown_trigger(old_host), (len(old_host), len(new_host))
             # The release of the fix has no platform part: a host on EL10 with the fix counts as fixed too.
-            assert not advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.5.1', '1.el10')]}, tree_older, set(), {}, {})
+            assert not advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.1', '1.el10')]}, tree_older, set(), {}, {})
+            # S38 (EFA-2026-004): a host on 6.0.0.6 gets exactly that one.
+            assert [item for item in advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6', '2.el10')]}, tree_older, set(), {}, {})], 'EFA-2026-004 for 6.0.0.6'
         # 9o-b: lock once, open after the patch, no lock again after a release by hand for the same items.
         calls, saved_lock = [], _lockdown
         globals()['_lockdown'] = lambda on, mode, trigger: calls.append((on, mode))

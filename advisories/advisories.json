@@ -39,6 +39,19 @@
       "web_rce": false,
       "summary": "An update of a set-up host without /etc/eFa-Version ran the first-install steps, which replaced its nginx, rspamd and Postfix settings.",
       "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.5.1"
+    },
+    {
+      "id": "EFA-2026-004",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.1", "1"],
+      "cves": [],
+      "severity": "Important",
+      "vector": "",
+      "cwe": "CWE-306",
+      "remote": true,
+      "web_rce": false,
+      "summary": "A package update of 6.0.0.6 deleted the second factor (2FA) of the main admin of the web interface as a left-over row: the login took the password alone. Set up 2FA again after updating.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.1"
     }
   ]
 }

@@ -4546,8 +4546,8 @@ msgstr "Port 587 bietet seit der Migration kein SMTP-AUTH an: eFa 5 hatte es üb
 msgid "A package update left new versions beside changed files: {files}. Compare and merge them, then remove the .rpmnew/.rpmsave file."
 msgstr "Ein Paket-Update hat neue Versionen neben geänderten Dateien abgelegt: {files}. Vergleichen und zusammenführen, dann die .rpmnew/.rpmsave-Datei entfernen."
 
-msgid "Last system update failed: {result}"
-msgstr "Letztes Systemupdate fehlgeschlagen: {result}"
+msgid "Last system update ({date}) failed: {result}"
+msgstr "Letztes Systemupdate ({date}) fehlgeschlagen: {result}"
 
 msgid "The setup of the eFa-next package ({mode}, {at}) did not finish these steps: {steps}. The output is in {log}; install the package again (dnf reinstall eFa-next) once the cause is fixed."
 msgstr "Das Setup des eFa-next-Pakets ({mode}, {at}) hat diese Schritte nicht abgeschlossen: {steps}. Die Ausgabe steht in {log}; das Paket erneut installieren (dnf reinstall eFa-next), sobald die Ursache behoben ist."
@@ -4617,6 +4617,9 @@ msgstr "EU-Einstellungen wieder gesperrt: {reason}. Prüfen Sie die Einstellunge
 
 msgid "New in this version: Re-Setup asks for the EU link and the frameworks and raises the settings to match, never lower (Security, Setup variant)."
 msgstr "Neu in dieser Version: Re-Setup fragt nach EU-Bezug und Regelwerken und hebt die Einstellungen passend an, senkt nie (Sicherheit, Einrichtungsvariante)."
+
+msgid "The 2FA of the main admin (login admin) was switched on ({date}) and is gone without being switched off or reset: the login takes the password alone. Set it up again under My account and check the audit log."
+msgstr "Die 2FA des Hauptadmins (Login admin) wurde eingeschaltet ({date}) und fehlt, ohne dass sie ausgeschaltet oder zurückgesetzt wurde: der Login nimmt nur das Passwort. Richten Sie sie unter Mein Konto neu ein und prüfen Sie das Audit-Log."
 
 msgid "The main admin of the web interface (login admin) has no active 2FA (the guided setup asks for it). Logged in as admin: My account, Two-factor login (2FA), Set up."
 msgstr "Der Hauptadmin der Weboberfläche (Login admin) hat keine aktive 2FA (die geführte Einrichtung verlangt sie). Als admin angemeldet: Mein Konto, Zwei-Faktor-Anmeldung (2FA), Einrichten."
