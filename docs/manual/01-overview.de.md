@@ -52,7 +52,7 @@ Das Menü links hat sieben Gruppen:
 | Gruppe | Seiten |
 |---|---|
 | Übersicht | Dashboard |
-| Mail & Quarantäne | Mail-Routing, Zurückgehaltene Mail, Quarantäne, Mail-Warteschlange, Mail-Log |
+| Mail & Quarantäne | Mail-Routing, Zurückgehaltene Mail, Quarantäne, Mail-Warteschlange, Mail-Log, Datenschutz & Compliance |
 | Schutz | Spam & Viren, Blocklisten, IP-Sperrlisten, Absenderlisten, Regeln, Identitätsbetrug & BEC |
 | Domains & Mandanten | DKIM, ARC & DMARC, Schutz vor Datenabfluss, Massenversand, Archiv-Weitergabe, Verschlüsselte PDF-Mail, Disclaimer, Domain-Einstellungen, Mandanten |
 | Benutzer & Zugriff | Mein Konto, Benutzer, Gruppen, Sicherheitsstandards, Sicherheit |

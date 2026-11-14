@@ -96,13 +96,13 @@ Overview, the path over the servers with the time per hop, the authentication re
 
 ### Export headers
 
-*Export headers* (under the search) writes a ZIP with one file per mail and `index.csv`, for the same filters. Above 5,000 mails it runs in the background; the link works when it is done, for 24 hours. On the console:
+*Export headers* (page Privacy & Compliance) writes a ZIP with one file per mail and `index.csv`, with the filters of the message search. Above 5,000 mails it runs in the background; the link works when it is done, for 24 hours. On the console:
 
 ```bash
 efactl headers-export --rcpt '*@example.com' --date_from 2026-11-01 --out /var/lib/eFa/exports/november.zip
 ```
 
-Headers of all mail are stored for 30 days by default (*Storage & privacy* on this page, and per tenant or domain under Domain settings).
+Headers of all mail are stored for 30 days by default (*Storage & privacy* on the page Privacy & Compliance, and per tenant or domain under Domain settings).
 
 ## Held mail encrypted at rest (D3)
 

@@ -1,6 +1,6 @@
 # Requests of data subjects (GDPR Art. 15 and 17)
 
-Under Mail log, Data of one person (GDPR) (D1). For the admins of the domain of the address only.
+Under Privacy & Compliance, Data of one person (GDPR) (D1). For the admins of the domain of the address only.
 
 ## Access (Art. 15)
 

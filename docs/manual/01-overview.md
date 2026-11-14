@@ -52,7 +52,7 @@ The menu on the left has seven groups:
 | Group | Pages |
 |---|---|
 | Overview | Dashboard |
-| Mail & quarantine | Mail routing, Held mail, Quarantine, Mail queue, Mail log |
+| Mail & quarantine | Mail routing, Held mail, Quarantine, Mail queue, Mail log, Privacy & Compliance |
 | Protection | Spam & virus, Blocklists, IP blocklists, Sender lists, Rules, Impersonation & BEC |
 | Domains & tenants | DKIM, ARC & DMARC, Data loss prevention, Bulk mail, Archive handover, Encrypted PDF mail, Disclaimers, Domain settings, Tenants |
 | Users & access | My account, Users, Groups, Security standards, Security |

@@ -13,8 +13,8 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.2
-Release:        2%{?dist}
+Version:        6.0.0.6.3
+Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -157,6 +157,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.3-1
+- 6.0.0.6.3: mail log search window, page Privacy & Compliance, language pill, dashboard and footer; see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-2
 - rspamd 4.3.0 required by its arch-bound name: the plain Provides of rspamd met "rspamd >= 4.3.0" with 4.2.3 too.
 

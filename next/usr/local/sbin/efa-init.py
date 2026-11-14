@@ -370,7 +370,7 @@ PAGE = """<!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8"><ti
 <meta http-equiv="refresh" content="{{ refresh }}{% if refresh_to %};url={{ refresh_to }}{% endif %}">{% endif %}
 <style>{{ css|safe }}{{ chips|safe }}</style><script src="/wizard.js" defer></script></head><body>
 <main class="solo"><header class="brand bar">{{ logo|safe }}
-<nav class="seg" aria-label="{{ language }}"><a href="?lang=en" lang="en"{% if lang == 'en' %} class="cur" aria-current="true"{% endif %}>English</a><a href="?lang=de" lang="de"{% if lang == 'de' %} class="cur" aria-current="true"{% endif %}>Deutsch</a></nav></header>
+{{ langpill|safe }}</header>
 <div class="card">{% if number %}<p class="step">{{ step_text }}</p><div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="{{ total }}" aria-valuenow="{{ number }}" aria-label="{{ step_text }}"><i style="width:{{ (100 * number / total)|round }}%"></i></div>
 <ol class="groups">{% for name, state in groups %}<li class="{{ state }}"{% if state == 'cur' %} aria-current="step"{% endif %}>{{ name }}</li>{% endfor %}</ol>{% endif %}
 {% if note %}<p class="ok" role="status">{{ note }}</p>{% endif %}{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{{ body|safe }}</div></main></body></html>"""
@@ -396,10 +396,11 @@ def page(body, error=None, refresh=False, where=None, refresh_to=None):
             groups.append((tr(name), state))
     title = re.search(r'<h2>(.*?)</h2>', body)
     return render_template_string(PAGE, body=body, error=tr(error) if error else None, refresh=refresh, refresh_to=refresh_to,
-                                  lang=session.get('lang', 'en'), css=efa_style.TOKENS + efa_style.BASE, logo=efa_style.LOGO,
+                                  lang=session.get('lang', 'en'), css=efa_style.TOKENS + efa_style.BASE + efa_style.LANG_PILL, logo=efa_style.LOGO,
+                                  langpill=efa_style.lang_pill(session.get('lang', 'en'), tr('Language')),
                                   chips=efa_setup.CHIPS_CSS, number=number, total=total, groups=groups,
                                   title=re.sub('<[^>]+>', '', title.group(1)) if title else 'eFa-next',
-                                  step_text=tr('Step {number} of {total}').format(number=number, total=total), note=session.pop('note', None), suffix=tr('eFa-next setup'), language=tr('Language'))
+                                  step_text=tr('Step {number} of {total}').format(number=number, total=total), note=session.pop('note', None), suffix=tr('eFa-next setup'))
 
 
 def actions(where, label='Next', link=None):
@@ -938,7 +939,7 @@ def verify():
         rows += render_template_string(row, l=title, v=f'{tr(note)} ({tr(efa_setup.NONBINDING)})')
     for title, shown in efa_setup.standards_summary(tr, answers.get('standards', [])):
         rows += render_template_string(row, l=title, v=shown)
-    summary = f'<h3>{te("Start")} <a href="{url_for("first", slug="variant")}">{change}</a></h3><table>{rows}</table>'
+    summary = f'<h3>{te("Start")} <a class="btn s sm" href="{url_for("first", slug="variant")}">{change}</a></h3><table>{rows}</table>'
     active = {item['slug'] for item in active_steps()}
     for group, slugs in GROUPS:
         items = [BY_SLUG[slug] for slug in slugs if slug in active]
@@ -954,14 +955,14 @@ def verify():
             elif 'shown' in item:
                 value = item['shown'](value)
             rows += render_template_string(row, l=tr(item['title'] if item.get('password') else item['label']), v=value)
-        summary += f'<h3>{te(group)} <a href="{url_for("step", slug=items[0]["slug"])}">{change}</a></h3><table>{rows}</table>'
+        summary += f'<h3>{te(group)} <a class="btn s sm" href="{url_for("step", slug=items[0]["slug"])}">{change}</a></h3><table>{rows}</table>'
     if answers.get('variant') == 'guided':
-        summary += f'<h3>2FA <a href="{url_for("twofactor")}">{change}</a></h3><table>{render_template_string(row, l=tr("2FA of my login"), v="OK")}</table>'
+        summary += f'<h3>2FA <a class="btn s sm" href="{url_for("twofactor")}">{change}</a></h3><table>{render_template_string(row, l=tr("2FA of my login"), v="OK")}</table>'
     return page(f"""<h2>{te('Check the settings')}</h2><p class="help">{te('Nothing is changed yet. Check each group; the setup starts with the button below.')}</p>
 {summary}
 <form method="post"><input type="hidden" name="csrf" value="{csrf_token()}">
 <p><label><input type="checkbox" name="accept" value="yes" required> {te(DISCLAIMER_SHORT)}
-(<a href="https://github.com/MarkusLorber/eFa-next/blob/master/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">DISCLAIMER.md</a>)</label></p>
+<a class="btn s sm" href="https://github.com/MarkusLorber/eFa-next/blob/master/DISCLAIMER.md" target="_blank" rel="noopener noreferrer">DISCLAIMER.md <span aria-hidden="true">&#8599;</span></a></label></p>
 {actions(('verify', None), 'Start the setup')}</form>""", where=('verify', None))
 
 

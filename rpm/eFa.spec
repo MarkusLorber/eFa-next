@@ -11,8 +11,8 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.2
-Release:        2%{?dist}
+Version:        6.0.0.6.3
+Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
 URL:            https://github.com/MarkusLorber/eFa-next
@@ -148,6 +148,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Sat Nov 14 2026 Markus Lorber - 6.0.0.6.3-1
+- 6.0.0.6.3: mail log search window, page Privacy & Compliance, language pill, dashboard and footer; see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.2-2
 - With eFa-next-base 6.0.0.6.2-2 (rspamd 4.3.0 really pulled along).
 

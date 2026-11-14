@@ -2,7 +2,7 @@
 
 *Übersicht › Dashboard* ist die erste Seite nach der Anmeldung.
 
-![Dashboard](../images/manual/dash.png)
+![Dashboard](../images/manual/dash.de.png)
 
 ## Status auf einen Blick
 

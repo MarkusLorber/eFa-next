@@ -10,7 +10,7 @@ choosing a framework does not mean the system complies with it (Text A of the se
 | Setting | What eFa-next sets | Where |
 | --- | --- | --- |
 | 2FA for all admins | `totp-policy-set` to required for super, tenant, domain, manager, helpdesk, readonly and auditor | Users, 2FA |
-| Audit log 1 year / 5 years | `retention-set --data audit` to at least 365 / 1825 days (default 400) | Mail log, Storage & privacy |
+| Audit log 1 year / 5 years | `retention-set --data audit` to at least 365 / 1825 days (default 400) | Privacy & Compliance, Storage & privacy |
 | TLS profile | BSI TR-02102-2 when the profile is not one of those the framework accepts (a custom list counts as not accepted) | Security, TLS profile |
 | Security self check every day | `security-check-set --mode on` (more often than the weekly hardening report asked for) | Security, Security self check |
 

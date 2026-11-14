@@ -62,8 +62,8 @@ attachments are saved one by one; a ZIP or MBOX export of a whole mailbox is pla
 
 ## Mail log
 
-*Mail & quarantine › Mail log* searches all mail by sender, recipient, subject, result, date and the header fields From,
-Reply-To, Return-Path and X-Mailer. The search field also takes filters:
+*Mail & quarantine › Mail log* shows *Mail log: search* with *Check a mail* beside it, and below them the button
+*Advanced search*. The quick search takes one search term; its field also takes filters:
 
 | Filter | Finds |
 |---|---|
@@ -79,12 +79,24 @@ A click on a row opens the details at the side: overview, the path over the serv
 authentication results, the DNS evidence and the raw headers. With the right *export*: headers as `.txt` or evidence as JSON.
 
 The search is part of the page address after `#` (bookmarks, links for colleagues); that part never reaches the server.
-*Output: CSV file* downloads the result, *Export headers* writes a ZIP of the headers of all matching mail.
 
 *Check a mail* takes a saved mail (`.eml`, up to 10 MB) and shows the verdict of rspamd; nothing is kept or learned.
 
-*Data of one person (GDPR)* exports or deletes everything about one address (chapter 12). *Storage & privacy* sets how long
-the mail log and the headers are kept (chapter 12).
+### Advanced search
+
+*Advanced search* opens the message search in a window of its own (without a script, in a new tab). It has every filter:
+sender, recipient, words in the subject, IP address, queue ID, result, from and to date, Message-ID and the header fields
+From, Reply-To, Return-Path and X-Mailer, and how many results. The mails found are listed right below the filters, the
+newest first. *CSV file* and *JSON file* download the result (right *export*). The filters are posted, never part of the
+address, so no address or subject lands in a web server log.
+
+The switch *Live filtering* adds new mail that matches the filters at the top of the list, every 5 seconds. It asks only
+while it is on and the window is in view, and only for the mail after the newest one shown. A tenant admin sees only the
+mail of the own domains, as in every search.
+
+![Advanced search with live filtering](../images/manual/advanced-search.png)
+
+*Export headers*, *Data of one person (GDPR)* and *Storage & privacy* are on the page *Privacy & Compliance* (chapter 12).
 
 ### Live log
 

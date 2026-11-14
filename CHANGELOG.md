@@ -1,5 +1,65 @@
 # Changelog
 
+## 6.0.0.6.3 (release date: pending)
+
+### Behaviour change: attachment settings take effect as saved
+- Where the attachment checks are on, *Hiding file names* now works as saved; until 6.0.0.6.2 it counted nothing. A host
+  migrated from eFa 5 has it on *Reject the mail*: from this update it rejects mail with a file name of over 150 characters,
+  with a CLSID `{...}` or with ten or more spaces in a row, also inside archives. The rule of the dangerous endings of the
+  setup runs again too and rejects such a file, and a program found by its content, before any score. To mark such mail as
+  spam instead: *Protection > Spam & virus > Attachments*, set *Dangerous endings* and *Hiding file names* to *Mark as spam*,
+  or `efactl attachment-set --mode on --action mark --names mark`.
+- *Dangerous endings* on *Mark as spam* stays a mark: the rule of the setup, which runs again now, then scores the spam mark
+  (6) instead of rejecting, counted once with MIME_BAD_EXTENSION. *Reject the mail* rejects before any score. With the
+  attachment checks off, the rule of the setup rejects such files as before.
+
+### Attachment checks: two rules with one name
+- The check of file names that hide what the file is was named EFA_BAD_FILENAME like the rule of the dangerous endings of the
+  setup. With the attachment checks on, rspamd kept only one of the two: the check of the names, with a score of 0, and the
+  rule of the endings never ran. The check is now EFA_HIDDEN_FILENAME and counts with the score chosen at *Hiding file names*
+  (off: 0). A mail with it, over the limit, is released by a super admin only, as with the other attachment checks. The
+  update writes the attachment settings again as saved, only where the attachment checks are on.
+- The results of the sender rules (EFA_SENDER_RULE_ALLOW, EFA_SENDER_RULE_BLOCK) belong to their rule; rspamd warned at every
+  configtest.
+
+### Mail log: advanced search in its own window, and the page Privacy & Compliance
+- Mail log shows *Mail log: search* with *Check a mail* beside it, and below them the button *Advanced search*.
+- *Advanced search* opens the message search in a window of its own (without a script, a new tab): every filter, and the
+  mails found right below them, with CSV and JSON download. The filters are posted, never part of the address.
+- *Live filtering* (a switch) adds new mail that matches the filters at the top, every 5 seconds, only while it is on and the
+  window is in view, and only the mail after the newest one shown (`efactl message-search --after_id`). Tenant admins see the
+  mail of their domains only, as in every search.
+- New page *Mail & quarantine › Privacy & Compliance* with *Data of one person (GDPR)*, *Export headers* and
+  *Storage & privacy*, moved there from Mail log and now in the standard view. Bookmarks of the old cards
+  (`/p/log#gdpr-export` and the others) lead to the new page.
+
+### Web interface: one language pill, no plain text links
+- The login page, the setup wizard and the user menu at the top right share one language switch: a pill with the flag and
+  DE / EN, the language in effect in lime. In the user menu it keeps the language in My settings (as the Language field
+  there); in the user portal it holds for the session.
+- No plain underlined text link is left in the web interface: links are buttons, small pills (footer, terms of use,
+  websites of lists, legal texts, search hits) or menu entries. The addresses stay the same. The self-test fails for a page
+  with a link that has no class.
+- A switch that is on (Live filtering, the sources of ClamAV and others) shows its text at a contrast of at least 4.5:1
+  (WCAG AA), in the light and the dark scheme; the text of Live filtering was grey on green.
+
+### Dashboard: what needs a hand first
+- "Needs attention" stands right under the title, before the lamps and gauges, with the number of notices. Each notice has a
+  button to its card instead of an underlined text link; the title of the button names the page and the card. Without a
+  notice and with all services running the dashboard says so in one green line.
+- The lamps of the status board are compact pills: two rows instead of three.
+- The tiles come right after the status board; the load table is folded under "Load" (it opens by itself when a limit is
+  exceeded for longer) with a button to Limits and alerts; the whole card is no longer one link.
+- The DKIM rotation check is one tile (last run, next run below it) instead of two.
+- The values of the tiles, the queue and mail counts, the legend of the chart and the texts of the load card follow the
+  language of the reader (they were English in German too). The tile Today shows the mails as value and the size and shares
+  below; the tile Queues shows active and deferred, the held mails below.
+
+### Every page: the footer takes less room
+- The footer is one or two small lines (about 40 px at 1440 px width instead of about 95 px), so it covers less of every page;
+  the sentence "eFa-next is a private open source project" only from 1800 px. All links and the disclaimer stay. The sticky
+  buttons of long forms sit right above it.
+
 ## 6.0.0.6.2 (release date: pending)
 
 ### Security: rspamd 4.3.0 is the minimum (CVE-4)

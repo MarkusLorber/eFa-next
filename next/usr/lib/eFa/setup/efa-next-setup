@@ -170,6 +170,12 @@ else
     step /usr/sbin/efactl service-harden --mode keep
 fi
 step /usr/sbin/efactl efa-headers-apply
+# 6.0.0.6.3: the check of hidden file names was named like the multimap rule of the endings, and the rule of the endings never
+# ran; written again with the settings the admin chose (hidden names as EFA_HIDDEN_FILENAME, endings on mark as a score), only
+# where the attachment checks are on: the Lua file stays when they are switched off, so it says nothing.
+if python3 -I -c 'import json, sys; sys.exit(0 if json.load(open("/etc/eFa/attachments.json")).get("enabled") is True else 1)' 2>/dev/null; then
+    step /usr/sbin/efactl attachment-set --mode on
+fi
 # S30: root login through SSH in one file; the value sshd takes now stays (the hardening file of the base setup loses its line).
 [ "$1" = first-install ] || step python3 -I -c 'import sys; sys.path.insert(0, "/usr/lib/eFa/python"); import efa_services; efa_services.sshd_root_upgrade()'
 # efactl for the web interface, loaded once: restarted so it runs the code of this package; running calls go on.

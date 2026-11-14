@@ -2,7 +2,9 @@
 
 ## How long data is kept
 
-*Mail & quarantine › Mail log › Storage & privacy* shows for each kind of data how long it is kept and where that is set.
+*Mail & quarantine › Privacy & Compliance › Storage & privacy* shows for each kind of data how long it is kept and where that is set.
+
+![Privacy & Compliance](../images/manual/privacy.png)
 
 | Data | Set with |
 |---|---|
@@ -36,7 +38,7 @@ Details: [privacy-and-reason.md](../privacy-and-reason.md), [header-privacy.md](
 
 ## GDPR requests
 
-*Mail log › Data of one person (GDPR)*:
+*Privacy & Compliance › Data of one person (GDPR)*:
 
 - **Export (Art. 15):** everything eFa-next holds about one mail address.
 - **Erase (Art. 17):** deletes the data of one address for good; needs a reason (such as the date and number of the request)

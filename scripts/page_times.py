@@ -118,9 +118,14 @@ def check_standard(web):
         # Counters (mails today, queues, processes, times) move between the two renders: they are masked, the tiles, their
         # titles, states and notices are compared as they are.
         masked = lambda text: re.sub(r'\d+(?:[.:,]\d+)*', '#', text)
-        # The block of the tiles: from its start to the next card (a closing pattern of divs depends on the last tile).
-        block = lambda text: text[text.find('<div class="tiles">'):text.find('<div class="card', text.find('<div class="tiles">'))] \
-            if '<div class="tiles">' in text else ''
+        # The block of the tiles: from its start to the next card (a closing pattern of divs depends on the last tile); the
+        # folded load card is a card too.
+        def block(text):
+            start = text.find('<div class="tiles">')
+            if start < 0:
+                return ''
+            ends = [found for found in (text.find('<div class="card', start), text.find('<details class="card', start)) if found >= 0]
+            return text[start:min(ends)] if ends else text[start:]
         tiles, other_tiles = [masked(block(html))], [masked(block(expert[slug]))]
         if tiles != other_tiles:
             a, b = ''.join(tiles), ''.join(other_tiles)

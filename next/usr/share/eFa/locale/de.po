@@ -124,8 +124,11 @@ msgstr "Mail-Log"
 msgid "Search delivered and rejected mail."
 msgstr "Zugestellte und abgewiesene Mail durchsuchen."
 
-msgid "Search"
-msgstr "Suche"
+msgid "Privacy & Compliance"
+msgstr "Datenschutz & Compliance"
+
+msgid "Data of one person, the export of headers, and how long what is kept."
+msgstr "Daten einer Person, der Export von Headern und wie lange was aufbewahrt wird."
 
 msgid "Data of one person (GDPR)"
 msgstr "Daten einer Person (DSGVO)"
@@ -954,6 +957,9 @@ msgstr "Ergebnisse"
 
 msgid "Empty, or csv for a file"
 msgstr "Leer, oder csv für eine Datei"
+
+msgid "Only entries after this ID"
+msgstr "Nur Einträge nach dieser ID"
 
 msgid "SIEM export: settings"
 msgstr "SIEM-Export: Einstellungen"
@@ -4180,9 +4186,6 @@ msgstr "IP-Adresse des sendenden Servers"
 msgid "Mail log: live"
 msgstr "Mail-Log: live"
 
-msgid "Only entries after this ID"
-msgstr "Nur Einträge nach dieser ID"
-
 msgid "Mail log: days to keep"
 msgstr "Mail-Log: Aufbewahrung in Tagen"
 
@@ -4927,6 +4930,15 @@ msgstr "24 h max."
 msgid "Last hour"
 msgstr "Letzte Stunde"
 
+msgid "Load average"
+msgstr "Lastmittel"
+
+msgid "Network: in {} Mbit/s, out {} Mbit/s."
+msgstr "Netzwerk: ein {} Mbit/s, aus {} Mbit/s."
+
+msgid "{}: {} GB free of {} GB ({}% used)."
+msgstr "{}: {} GB frei von {} GB ({} % belegt)."
+
 msgid "none"
 msgstr "keine"
 
@@ -5097,6 +5109,9 @@ msgstr "Aktuell:"
 
 msgid "None"
 msgstr "Keine"
+
+msgid "Search"
+msgstr "Suche"
 
 msgid "Mail search"
 msgstr "Mail-Suche"
@@ -5338,11 +5353,29 @@ msgstr "Prüfungen"
 msgid "No mail matches. Fewer filters or a shorter text find more."
 msgstr "Keine Mail passt. Weniger Filter oder ein kürzerer Text finden mehr."
 
+msgid "Needs attention"
+msgstr "Braucht Aufmerksamkeit"
+
+msgid "Open"
+msgstr "Öffnen"
+
+msgid "Nothing needs attention."
+msgstr "Nichts braucht Aufmerksamkeit."
+
 msgid "Last hour per minute"
 msgstr "Letzte Stunde je Minute"
 
-msgid "Needs attention"
-msgstr "Braucht Aufmerksamkeit"
+msgid "Mails"
+msgstr "Mails"
+
+msgid "Viruses"
+msgstr "Viren"
+
+msgid "CPU, RAM, disks and network: now, 15 min, 24 h"
+msgstr "CPU, RAM, Festplatten und Netzwerk: jetzt, 15 Min., 24 h"
+
+msgid "Limits and alerts"
+msgstr "Grenzen und Alarme"
 
 msgid "Remove"
 msgstr "Entfernen"
@@ -5638,6 +5671,9 @@ msgstr "Das Urteil von rspamd für eine .eml-Datei: Aktion, Score und jede Regel
 msgid "Mail (.eml, up to 10 MB)"
 msgstr "Mail (.eml, bis 10 MB)"
 
+msgid "Advanced search"
+msgstr "Erweiterte Suche"
+
 msgid "manifest.json, body.html and/or body.txt, media/ and attachments/. Checked whole before anything changes."
 msgstr "manifest.json, body.html und/oder body.txt, media/ und attachments/. Wird vollständig geprüft, bevor sich etwas ändert."
 
@@ -5658,6 +5694,21 @@ msgstr "ZIP herunterladen"
 
 msgid "More on this page in the expert view:"
 msgstr "Mehr auf dieser Seite in der Expertenansicht:"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "RAM"
+msgstr "RAM"
+
+msgid "Swap"
+msgstr "Auslagerung"
+
+msgid "Disk used"
+msgstr "Festplatte belegt"
+
+msgid "Disk I/O busy"
+msgstr "Festplatten-E/A ausgelastet"
 
 msgid "Super admin"
 msgstr "Super-Admin"
@@ -5875,15 +5926,6 @@ msgstr "Spam und Viren"
 msgid "Resources"
 msgstr "Ressourcen"
 
-msgid "CPU"
-msgstr "CPU"
-
-msgid "RAM"
-msgstr "RAM"
-
-msgid "Disk used"
-msgstr "Festplatte belegt"
-
 msgid "Mails in 10 min"
 msgstr "Mails in 10 Min."
 
@@ -5895,6 +5937,81 @@ msgstr "SMTP-Verbindungen pro Minute"
 
 msgid "Failed logins in 10 min"
 msgstr "Fehl-Anmeldungen in 10 Min."
+
+msgid "Unknown"
+msgstr "Unbekannt"
+
+msgid "{} down"
+msgstr "{} ausgefallen"
+
+msgid "Down:"
+msgstr "Ausgefallen:"
+
+msgid "Running"
+msgstr "Läuft"
+
+msgid "All services run."
+msgstr "Alle Dienste laufen."
+
+msgid "{} not answering"
+msgstr "{} antworten nicht"
+
+msgid "Not answering:"
+msgstr "Antworten nicht:"
+
+msgid "All answering"
+msgstr "Alle antworten"
+
+msgid "All milters of the chain answer."
+msgstr "Alle Milter der Kette antworten."
+
+msgid "{} mails"
+msgstr "{} Mails"
+
+msgid "{} MB · clean {}% · spam {}% · high score {}% · viruses {} · blocked files {}"
+msgstr "{} MB · sauber {} % · Spam {} % · hoher Score {} % · Viren {} · gesperrte Dateien {}"
+
+msgid "top virus {}"
+msgstr "häufigster Virus {}"
+
+msgid "{} active, {} deferred"
+msgstr "{} aktiv, {} zurückgestellt"
+
+msgid "{}: {} inbound, {} outbound"
+msgstr "{}: {} eingehend, {} ausgehend"
+
+msgid "All queues are empty."
+msgstr "Alle Warteschlangen sind leer."
+
+msgid "{} held"
+msgstr "{} angehalten"
+
+msgid "1 message"
+msgstr "1 Nachricht"
+
+msgid "{} messages"
+msgstr "{} Nachrichten"
+
+msgid "next: {}"
+msgstr "nächste: {}"
+
+msgid "{} problems, {} warnings"
+msgstr "{} Probleme, {} Warnungen"
+
+msgid "{} met, {} not"
+msgstr "{} erfüllt, {} nicht"
+
+msgid "checked {}"
+msgstr "geprüft {}"
+
+msgid "counts"
+msgstr "zählt"
+
+msgid "counts from {} each"
+msgstr "zählt ab je {}"
+
+msgid "{} spam, {} ham learned"
+msgstr "{} Spam, {} Ham gelernt"
 
 msgid "{} is down"
 msgstr "{} läuft nicht"
@@ -5911,11 +6028,38 @@ msgstr "Automatische Sicherung ist aus"
 msgid "Maintenance mode is on"
 msgstr "Wartungsmodus ist an"
 
+msgid "Many mails wait in the queues"
+msgstr "Viele Mails warten in den Warteschlangen"
+
 msgid "Last hour: {} mails, {} spam, {} viruses; most in one minute: {}."
 msgstr "Letzte Stunde: {} Mails, {} Spam, {} Viren; höchstens in einer Minute: {}."
 
 msgid "Nothing found."
 msgstr "Nichts gefunden."
+
+msgid "Message search: all filters at once, the mails found below them."
+msgstr "Mailsuche: alle Filter auf einmal, darunter die gefundenen Mails."
+
+msgid "CSV file"
+msgstr "CSV-Datei"
+
+msgid "JSON file"
+msgstr "JSON-Datei"
+
+msgid "Live filtering: on"
+msgstr "Live-Filter: an"
+
+msgid "Live filtering: off"
+msgstr "Live-Filter: aus"
+
+msgid "Live filtering not available, log in again if needed."
+msgstr "Live-Filter nicht verfügbar, bei Bedarf neu anmelden."
+
+msgid "Mails found"
+msgstr "Gefundene Mails"
+
+msgid "Live filtering adds new mails that match the filters at the top, every 5 seconds while this window is in view."
+msgstr "Der Live-Filter fügt neue Mails, die zu den Filtern passen, oben an: alle 5 Sekunden, solange dieses Fenster sichtbar ist."
 
 msgid "2FA: set up the app"
 msgstr "2FA: App einrichten"
@@ -5955,9 +6099,6 @@ msgstr "Letzte Sicherung"
 
 msgid "DKIM rotation check"
 msgstr "DKIM-Rotationsprüfung"
-
-msgid "Next rotation check"
-msgstr "Nächste Rotationsprüfung"
 
 msgid "Security check"
 msgstr "Sicherheitsprüfung"
@@ -6522,12 +6663,6 @@ msgstr "Abgewiesen"
 
 msgid "On the page"
 msgstr "Auf der Seite"
-
-msgid "CSV file"
-msgstr "CSV-Datei"
-
-msgid "JSON file"
-msgstr "JSON-Datei"
 
 msgid "TLS (syslog over TLS, RFC 5425)"
 msgstr "TLS (Syslog über TLS, RFC 5425)"

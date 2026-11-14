@@ -49,6 +49,7 @@ cursor:pointer;text-decoration:none;display:inline-block;margin:12px 10px 0 0;tr
 button:hover,a.btn:hover{filter:brightness(.95)}a.btn.s:hover,button.s:hover{filter:none;border-color:var(--border)}
 input:hover,select:hover{border-color:var(--ink)}
 a.btn.s,button.s{background:var(--field);border-color:var(--line);color:var(--ink);font-weight:400}
+a.btn.sm{padding:2px 12px;margin:0 0 0 8px;border-radius:999px;font-size:13px;vertical-align:middle}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px}
 .seg a{padding:3px 12px;text-decoration:none;color:var(--ink);background:var(--card)}.seg a.cur{background:var(--lime);color:#2a2e22;font-weight:600}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line);vertical-align:top}
@@ -67,3 +68,43 @@ ol.groups .done::before{content:"\\2713  ";color:var(--ok)}ol.groups .cur{color:
 h3{font-size:15px;margin:18px 0 4px;display:flex;justify-content:space-between}h3 a{font-weight:400;font-size:13px}.card th{width:45%}.addr .btn{font-size:22px;padding:12px 22px}
 @media (max-width:560px){.codes{grid-template-columns:1fr}.card{padding:16px}.bar svg{max-width:11rem}}
 """
+
+# 6.0.0.6 UI-PILL: one language switch for the login page, the setup wizard and the user menu at the top right: a pill with a
+# flag and the short name of each language, the language in effect filled in lime. The flags are decoration (aria-hidden); the
+# name of the language is the label of each choice.
+FLAGS = {
+    'de': '<svg viewBox="0 0 30 20" aria-hidden="true" focusable="false"><rect width="30" height="20" fill="#fff"/>'
+          '<rect width="30" height="6.67" fill="#ED2939"/><rect y="13.33" width="30" height="6.67" fill="#ED2939"/></svg>',
+    'en': '<svg viewBox="0 0 60 40" aria-hidden="true" focusable="false"><rect width="60" height="40" fill="#012169"/>'
+          '<path d="M0 0 60 40M60 0 0 40" stroke="#fff" stroke-width="8"/><path d="M0 0 60 40M60 0 0 40" stroke="#C8102E" stroke-width="3"/>'
+          '<path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="12"/><path d="M30 0v40M0 20h60" stroke="#C8102E" stroke-width="7"/></svg>'}
+LANG_NAMES = (('de', 'DE', 'Deutsch'), ('en', 'EN', 'English'))
+LANG_PILL = """.langpill{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:999px;background:var(--field);margin:0;vertical-align:middle}
+.langpill a,.langpill button{display:inline-flex;align-items:center;gap:6px;margin:0;padding:3px 11px;border:0;border-radius:999px;background:transparent;
+color:var(--ink);font:inherit;font-size:13px;font-weight:600;line-height:1.4;text-decoration:none;cursor:pointer;filter:none}
+.langpill a:hover,.langpill button:hover{background:var(--hover,rgba(0,0,0,.06));color:var(--ink)}
+.langpill .cur,.langpill .cur:hover{background:var(--lime);color:#2a2e22}
+.langpill svg{width:18px;height:12px;border-radius:2px;box-shadow:0 0 0 1px #0003;flex:none}
+.bar .langpill{background:transparent;border-color:#5b6058}.bar .langpill a:not(.cur){color:#f2f2f2}.bar .langpill a:not(.cur):hover{background:#ffffff1a}
+"""
+
+
+def lang_pill(current, label, action=None, csrf=None):
+    """The language pill as HTML. Without action: links ?lang=xx (login page, setup wizard: nothing is saved, the page shows
+    itself again in that language). With action: one form that posts lang=xx with the CSRF token (the user menu)."""
+    from html import escape
+    items = []
+    for code, short, name in LANG_NAMES:
+        on = code == current
+        state = ' class="cur" aria-current="true"' if on else ''
+        inner = f'{FLAGS[code]}<span>{short}</span>'
+        if action is None:
+            items.append(f'<a href="?lang={code}" lang="{code}"{state} hreflang="{code}" title="{name}" aria-label="{name}">{inner}</a>')
+        else:
+            pressed = ' class="cur" aria-pressed="true"' if on else ' aria-pressed="false"'
+            items.append(f'<button name="lang" value="{code}" lang="{code}"{pressed} title="{name}" aria-label="{name}">{inner}</button>')
+    body = ''.join(items)
+    if action is None:
+        return f'<nav class="langpill" aria-label="{escape(label)}">{body}</nav>'
+    return (f'<form method="post" action="{escape(action)}" class="langpill" role="group" aria-label="{escape(label)}">'
+            f'<input type="hidden" name="csrf" value="{escape(csrf or "")}">{body}</form>')

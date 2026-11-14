@@ -271,9 +271,10 @@ local function check(task)
   end
 end
 
-rspamd_config:register_symbol({name = 'EFA_SENDER_RULE', type = 'prefilter', callback = check, priority = 10})
-rspamd_config:register_symbol({name = 'EFA_SENDER_RULE_BLOCK', type = 'virtual', parent = -1, score = 0.0})
-rspamd_config:register_symbol({name = 'EFA_SENDER_RULE_ALLOW', type = 'virtual', parent = -1, score = -6.0})
+local rule_id = rspamd_config:register_symbol({name = 'EFA_SENDER_RULE', type = 'prefilter', callback = check, priority = 10})
+-- The two results belong to the prefilter (without a parent rspamd registers them as real symbols and warns).
+rspamd_config:register_symbol({name = 'EFA_SENDER_RULE_BLOCK', type = 'virtual', parent = rule_id, score = 0.0})
+rspamd_config:register_symbol({name = 'EFA_SENDER_RULE_ALLOW', type = 'virtual', parent = rule_id, score = -6.0})
 rspamd_config:set_metric_symbol({name = 'EFA_SENDER_RULE_ALLOW', score = -6.0, group = 'efa'})
 LUA
 : >> "$RSPAMD_LOCAL/maps.d/efa-sender-rules.map"

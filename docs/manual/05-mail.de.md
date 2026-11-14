@@ -65,8 +65,8 @@ der Admin benachrichtigt wird (`queue-alarm-set`).
 
 ## Mail-Log
 
-*Mail & Quarantäne › Mail-Log* durchsucht alle Mail nach Absender, Empfänger, Betreff, Ergebnis, Datum und den Headerfeldern
-From, Reply-To, Return-Path und X-Mailer. Das Suchfeld nimmt auch Filter:
+*Mail & Quarantäne › Mail-Log* zeigt *Mail-Log: suchen* mit *Mail prüfen* daneben, darunter die Schaltfläche *Erweiterte Suche*.
+Die schnelle Suche nimmt einen Suchbegriff; ihr Feld nimmt auch Filter:
 
 | Filter | Findet |
 |---|---|
@@ -75,20 +75,33 @@ From, Reply-To, Return-Path und X-Mailer. Das Suchfeld nimmt auch Filter:
 | `ip:192.0.2.1` | Mail von diesem sendenden Server |
 | `result:reject` | Mail mit diesem Ergebnis (`no_action` für keine Aktion) |
 
-![Mail-Log](../images/manual/log.png)
+![Mail-Log](../images/manual/log.de.png)
 
 Die Tabelle zeigt die Zeit als Alter (genaue Zeit beim Darüberfahren), das Ergebnis sowie SPF, DKIM und DMARC als Abzeichen und
 die Queue-ID. Ein Klick auf eine Zeile öffnet die Details seitlich: Überblick, der Weg über die Server mit der Zeit je Station,
 die Ergebnisse der Prüfungen, die DNS-Belege und die rohen Header. Mit dem Recht *export*: Header als `.txt` oder Belege als JSON.
 
 Die Suche steht in der Adresse der Seite nach `#` (Lesezeichen, Links für Kollegen); dieser Teil erreicht nie den Server.
-*Ausgabe: CSV-Datei* lädt das Ergebnis herunter, *Header exportieren* schreibt ein ZIP mit den Headern aller passenden Mails.
 
 *Mail prüfen* nimmt eine gespeicherte Mail (`.eml`, bis 10 MB) und zeigt das Urteil von rspamd; nichts wird aufbewahrt oder
 gelernt.
 
-*Daten einer Person (DSGVO)* exportiert oder löscht alles zu einer Adresse (Kapitel 12). *Speicherung & Datenschutz* legt fest,
-wie lange Mail-Log und Header aufbewahrt werden (Kapitel 12).
+### Erweiterte Suche
+
+*Erweiterte Suche* öffnet die Mailsuche in einem eigenen Fenster (ohne Skript in einem neuen Tab). Sie hat alle Filter: Absender,
+Empfänger, Wörter im Betreff, IP-Adresse, Queue-ID, Ergebnis, Datum von und bis, Message-ID und die Headerfelder From, Reply-To,
+Return-Path und X-Mailer sowie die Anzahl der Ergebnisse. Die gefundenen Mails stehen direkt unter den Filtern, die neueste zuerst.
+*CSV-Datei* und *JSON-Datei* laden das Ergebnis herunter (Recht *export*). Die Filter werden gesendet, nie Teil der Adresse, so
+landet keine Adresse und kein Betreff im Log des Webservers.
+
+Der Schalter *Live-Filter* fügt neue Mail, die zu den Filtern passt, alle 5 Sekunden oben an. Er fragt nur, solange er an und das
+Fenster sichtbar ist, und nur nach den Mails nach der neuesten gezeigten. Ein Mandanten-Admin sieht wie bei jeder Suche nur die
+Mail der eigenen Domains.
+
+![Erweiterte Suche mit Live-Filter](../images/manual/advanced-search.de.png)
+
+*Header exportieren*, *Daten einer Person (DSGVO)* und *Speicherung & Datenschutz* sind auf der Seite *Datenschutz & Compliance*
+(Kapitel 12).
 
 ### Live-Log
 

@@ -124,8 +124,8 @@ class Run:
     def mid(self, mail):
         return str(mail['Message-ID']).strip('<>')
 
-    def symbols(self, mail, seconds=60):
-        """The symbols rspamd gave this mail, from its history (found by the Message-ID); None if it is not there."""
+    def row(self, mail, seconds=60):
+        """The history row of rspamd for this mail (found by the Message-ID); None if it is not there."""
         wanted = self.mid(mail)
         for _ in range(seconds):
             try:
@@ -134,10 +134,17 @@ class Run:
                 rows = []
             for row in rows:
                 if str(row.get('message-id', '')).strip('<>') == wanted:
-                    found = row.get('symbols') or {}
-                    return set(found) if isinstance(found, (dict, list)) else set()
+                    return row
             time.sleep(1)
         return None
+
+    def symbols(self, mail, seconds=60):
+        """The symbols rspamd gave this mail, from its history; None if it is not there."""
+        row = self.row(mail, seconds)
+        if row is None:
+            return None
+        found = row.get('symbols') or {}
+        return set(found) if isinstance(found, (dict, list)) else set()
 
     def headers(self, qid, seconds=30):
         """The headers of a queued mail of this run, after all milters; '' when it is not in the queue."""
@@ -188,29 +195,84 @@ def check_bec_vip(r, undo):
     raise AssertionError(f'EFA_BEC_VIP_NAME missing after a minute, rspamd gave {sorted(found)}')
 
 
-def check_attachment_executable(r, undo):
-    state = efactl('attachment-status')
-    # With the endings on reject, rspamd's own MIME_BAD_EXTENSION (it finds the program by its content too) reaches the reject
-    # score first and rspamd checks no further symbol: the endings on mark for the time of the check, programs on reject.
-    efactl('attachment-set', mode='on', action='mark', executables='reject')
-    keep = {key: state[key] for key in ('action', 'encrypted', 'macros', 'names', 'executables') if state.get(key)}
-    undo.append(lambda: efactl('attachment-set', mode='on' if state.get('enabled') else 'off', **keep))
-    state = {**state, 'executables': 'reject'}
-    assert wait_symbol('EFA_EXECUTABLE'), 'rspamd did not load the attachment module'
-    # A program by its content (MZ) behind a harmless ending. attachment-set reloads rspamd with the new weights: a new mail
-    # every 5 seconds until the workers have them.
+# The attachment settings of a host migrated from eFa 5 (as efa-migrate wrote them, kept up to 6.0.0.6.2): all on reject.
+MIGRATED_ATTACHMENTS = {'action': 'reject', 'enabled': True, 'encrypted': 'mark', 'executables': 'reject', 'macros': 'mark', 'names': 'reject',
+                        'extensions': [
+        'ade', 'adp', 'ani', 'app', 'application', 'bat', 'cab', 'ceo', 'chm', 'cmd', 'cnf', 'com', 'cpl', 'cur', 'exe', 'fdf',
+        'gadget', 'hta', 'ico', 'img', 'inf', 'ins', 'iso', 'its', 'jar', 'job', 'js', 'jse', 'lnk', 'mad', 'maf', 'mag', 'mam',
+        'maq', 'mar', 'mas', 'mat', 'mau', 'mav', 'maw', 'mda', 'mdz', 'mhtml', 'msc', 'msi', 'msp', 'mst', 'pif', 'prf', 'ps1',
+        'psc1', 'pst', 'reg', 'scf', 'scr', 'sct', 'shb', 'shs', 'url', 'vb', 'vbe', 'vbs', 'vhd', 'vhdx', 'vsmacros', 'vss',
+        'vst', 'vsw', 'ws', 'wsc', 'wsf', 'wsh', 'xll', 'xnk']}
+ATTACH_FILE = '/etc/eFa/attachments.json'
+ATTACH_MULTIMAP = '/etc/rspamd/override.d/multimap.conf'
+MZ_FILE = b'MZ\x90\x00' + b'\x00' * 60 + b'efa-live'
+ELF_FILE = b'\x7fELF\x02\x01\x01\x00' + b'\x00' * 56 + b'efa-live'
+
+
+def attachment_mail(r, name, content, done, what):
+    """attachment-set reloads rspamd: a new mail every 5 seconds until done(symbols) says the workers have the new settings."""
     for _ in range(12):
-        mail = r.message('executable', attachment=('report.dat', b'MZ\x90\x00' + b'\x00' * 60 + b'efa-live'))
+        mail = r.message('attachment', attachment=(name, content))
         code, text, _qid = r.send(mail)
-        found = r.symbols(mail)
-        assert found is not None, f'not in the history of rspamd ({code} {text[:80]})'
-        if 'EFA_EXECUTABLE' in found:
-            break
+        row = r.row(mail)
+        assert row is not None, f'not in the history of rspamd ({code} {text[:80]})'
+        found = row.get('symbols') or {}
+        if done(found):
+            return code, found, float(row.get('score') or 0)
         time.sleep(5)
-    assert 'EFA_EXECUTABLE' in found, f'EFA_EXECUTABLE missing after a minute, rspamd gave {sorted(found)}'
-    if state.get('executables', 'reject') == 'reject' and code < 500:
-        raise AssertionError(f'EFA_EXECUTABLE set, but the mail was not rejected: {code} {text[:80]}')
-    return f'EFA_EXECUTABLE, SMTP {code}'
+    raise AssertionError(f'{what} missing after a minute ({name[:40]}), rspamd gave {sorted(found)}')
+
+
+def weight(found, symbol):
+    return float((found.get(symbol) or {}).get('score') or 0)
+
+
+def check_attachment_modes(r, undo):
+    state = efactl('attachment-status')
+    saved = open(ATTACH_FILE).read() if os.path.exists(ATTACH_FILE) else None
+    keep = {key: state[key] for key in ('action', 'encrypted', 'macros', 'names', 'executables') if state.get(key)}
+
+    def restore():
+        if saved is None:
+            os.remove(ATTACH_FILE)
+        else:
+            with open(ATTACH_FILE, 'w') as out:
+                out.write(saved)
+        efactl('attachment-set', mode='on' if state.get('enabled') else 'off', **keep)
+    undo.append(restore)
+    # A program by its content (ELF) behind a harmless ending: not on the endings list, so it reaches EFA_EXECUTABLE.
+    efactl('attachment-set', mode='on', action='mark', executables='reject', names='off')
+    assert wait_symbol('EFA_EXECUTABLE'), 'rspamd did not load the attachment module'
+    code, _found, _score = attachment_mail(r, 'report.dat', ELF_FILE, lambda found: 'EFA_EXECUTABLE' in found, 'EFA_EXECUTABLE')
+    assert code >= 500, f'ELF: EFA_EXECUTABLE set, programs on reject, but SMTP {code}'
+    done = [f'ELF: EFA_EXECUTABLE, SMTP {code}']
+    # Endings on mark: a Windows program (MZ, detected.exe) gets the mark once (EFA_BAD_FILENAME 6, MIME_BAD_EXTENSION without
+    # weight), no reject. Programs by content off, else EFA_EXECUTABLE rejects it.
+    efactl('attachment-set', mode='on', action='mark', executables='off', names='off')
+    assert os.path.exists(ATTACH_MULTIMAP), f'endings on mark: {ATTACH_MULTIMAP} missing'
+    code, found, score = attachment_mail(r, 'report.dat', MZ_FILE, lambda found: weight(found, 'EFA_BAD_FILENAME') > 0, 'EFA_BAD_FILENAME with a score')
+    assert code < 500 and weight(found, 'EFA_BAD_FILENAME') == 6.0 and weight(found, 'MIME_BAD_EXTENSION') == 0, \
+        f'MZ on mark: SMTP {code}, score {score}, {sorted(found)}'
+    done.append(f'MZ on mark: EFA_BAD_FILENAME 6, score {score:.1f}, SMTP {code}')
+    # Endings on reject: the endings rule of the setup again, it rejects detected.exe before any score.
+    efactl('attachment-set', mode='on', action='reject', executables='off', names='off')
+    assert not os.path.exists(ATTACH_MULTIMAP), f'endings on reject: {ATTACH_MULTIMAP} is still there'
+    code, found, _score = attachment_mail(r, 'report.dat', MZ_FILE,
+                                          lambda found: 'EFA_BAD_FILENAME' in found and weight(found, 'EFA_BAD_FILENAME') == 0, 'EFA_BAD_FILENAME as reject')
+    assert code >= 500, f'MZ on reject: SMTP {code}, {sorted(found)}'
+    done.append(f'MZ on reject: SMTP {code}')
+    # A host migrated from eFa 5 with exactly its settings, as the update writes them again: names that hide the file go.
+    with open(ATTACH_FILE, 'w') as out:
+        json.dump(MIGRATED_ATTACHMENTS, out)
+    efactl('attachment-set', mode='on')
+    for name in ('report{3F2504E0-4F89-11D3-9A0C-0305E82C3301}.pdf', 'invoice' + ' ' * 12 + '.pdf', 'a' * 160 + '.pdf'):
+        code, found, _score = attachment_mail(r, name, b'%PDF-1.4 efa-live',
+                                              lambda found: bool({'EFA_BAD_FILENAME', 'EFA_HIDDEN_FILENAME'} & set(found)), 'a hidden name')
+        assert code >= 500, f'migrated: {name[:40]} not rejected: SMTP {code}, {sorted(found)}'
+    code, found, _score = attachment_mail(r, 'report.dat', MZ_FILE, lambda found: 'EFA_BAD_FILENAME' in found, 'EFA_BAD_FILENAME')
+    assert code >= 500, f'migrated: MZ not rejected: SMTP {code}'
+    done.append('migrated (eFa 5 settings): CLSID, spaces, long name and MZ rejected')
+    return '; '.join(done)
 
 
 def check_graymail(r, undo):
@@ -412,7 +474,7 @@ def check_dkim(r, _undo):
 
 CHECKS = (
     ('BEC VIP name (8c)', check_bec_vip),
-    ('attachment: program by content', check_attachment_executable),
+    ('attachment: endings modes, programs, migrated', check_attachment_modes),
     ('graymail mark (9d)', check_graymail),
     ('own block: SHA-256 (M5)', check_own_hash),
     ('job applications (8j)', check_applications),

@@ -1,6 +1,6 @@
 # Privacy defaults & a reason for content
 
-eFa-next is sparing with data from the start, and it can require a reason before anyone opens the content of a mail. Under Mail ›
+eFa-next is sparing with data from the start, and it can require a reason before anyone opens the content of a mail. Under Privacy & Compliance ›
 Storage & privacy, and Security › the strict audit mode.
 
 ## Sparing defaults
@@ -18,7 +18,7 @@ Storage & privacy, and Security › the strict audit mode.
 
 ## Retention per kind of data and per tenant (9h)
 
-Mail log, Storage & privacy, Retention shows how long each kind of data is kept and where that is set: mail log and message
+Privacy & Compliance, Storage & privacy, Retention shows how long each kind of data is kept and where that is set: mail log and message
 search, headers, quarantine, audit log, DMARC and TLS reports, originals of disarmed attachments, reported phishing mails.
 A tenant can keep its mail log and its reports shorter or longer than the global days
 (`efactl retention-set --data maillog --days 30 --tenant <name>`, `--days inherit` for the global days again); its rows are

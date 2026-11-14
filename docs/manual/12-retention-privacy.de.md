@@ -2,8 +2,10 @@
 
 ## Wie lange Daten bleiben
 
-*Mail & Quarantäne › Mail-Log › Speicherung & Datenschutz* zeigt für jede Datenart, wie lange sie bleibt und wo das eingestellt
+*Mail & Quarantäne › Datenschutz & Compliance › Speicherung & Datenschutz* zeigt für jede Datenart, wie lange sie bleibt und wo das eingestellt
 wird.
+
+![Datenschutz & Compliance](../images/manual/privacy.de.png)
 
 | Daten | Eingestellt mit |
 |---|---|
@@ -38,7 +40,7 @@ Details: [privacy-and-reason.md](../privacy-and-reason.md), [header-privacy.md](
 
 ## DSGVO-Anfragen
 
-*Mail-Log › Daten einer Person (DSGVO)*:
+*Datenschutz & Compliance › Daten einer Person (DSGVO)*:
 
 - **Auskunft (Art. 15):** alles, was eFa-next zu einer Mailadresse hält.
 - **Löschung (Art. 17):** löscht die Daten einer Adresse endgültig; braucht einen Grund (etwa Datum und Nummer der Anfrage) und ein

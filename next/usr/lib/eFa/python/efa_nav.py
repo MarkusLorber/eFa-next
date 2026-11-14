@@ -51,11 +51,14 @@ NAV = [
                       ('Alarm', ['queue-alarm-set'], 'advanced')],
          'autoload': ['queue-list'],
          'notes': {'spool-set': 'After a server is back, Postfix starts with this many connections and raises them while delivery works.'}},
+        # 6.0.0.6 (Hans): the quick search with Check a mail beside it, the message search with all filters in its own window
+        # (Advanced search); what is about privacy is its own page, Privacy & Compliance.
         {'slug': 'log', 'title': 'Mail log', 'sub': 'Search delivered and rejected mail.', 'load': ['my-settings'],
-         'sections': [('Search', ['message-search', 'maillog-search', 'maillog-live', 'sender-action-check', 'sender-action']),
-                      ('Data of one person (GDPR)', ['gdpr-export', 'gdpr-delete'], 'advanced'), ('Export headers', ['headers-export'], 'advanced'),
+         'sections': [('', ['maillog-search', 'message-search', 'maillog-live', 'sender-action-check', 'sender-action'])]},
+        {'slug': 'privacy', 'title': 'Privacy & Compliance', 'sub': 'Data of one person, the export of headers, and how long what is kept.',
+         'sections': [('Data of one person (GDPR)', ['gdpr-export', 'gdpr-delete']), ('Export headers', ['headers-export']),
                       ('Storage & privacy', ['retention-status', 'retention-set', 'pseudonymise-status', 'pseudonymise-set', 'content-reason-set', 'subject-display-set', 'headers-store-set',
-                                             'maillog-retention-set', 'maillog-size-set', 'maillog-purge'], 'advanced')]}]),
+                                             'maillog-retention-set', 'maillog-size-set', 'maillog-purge'])]}]),
     ('Protection', [
         {'slug': 'spam', 'title': 'Spam & virus', 'sub': 'When mail is greylisted, marked or rejected, and the extra virus signatures.',
          'sections': [('Spam', ['spam-scores-set', 'greylisting-set', 'subject-get', 'subject-set', 'bayes-status']),
@@ -348,6 +351,9 @@ for _group, _pages in NAV:
 PAGES = {page['slug']: page for _, pages in NAV for page in pages}
 # Pages of earlier versions, now part of another one: old links and bookmarks keep working.
 MOVED = {'relay': 'flow', 'limits': 'flow', 'virus': 'spam', 'rot': 'dkim', 'dmarcrec': 'dkim', 'fwtest': 'sec'}
+# Cards of earlier versions now on another page: (old page, card) to the new page. The fragment (#card) never reaches the server, so
+# the old page sends the browser on (copy.js).
+MOVED_CARDS = {('log', name): 'privacy' for name in PAGES['privacy']['commands']}
 # A status shown inside the card of its switch: one card per topic.
 STATUS_OF = {'disclaimer-set': 'disclaimer-status', 'disclaimer-template-set': 'disclaimer-status', 'disclaimer-template-remove': 'disclaimer-status', 'disclaimer-restore': 'disclaimer-status', 'disclaimer-import': 'disclaimer-status', 'retention-set': 'retention-status', 'bulk-set': 'bulk-status', 'archive-set': 'archive-status', 'archive-remove': 'archive-status', 'pdf-set': 'pdf-status', 'pdf-password-set': 'pdf-status', 'dlp-set': 'dlp-status', 'dlp-rule-set': 'dlp-status', 'spool-set': 'spool-status', 'phish-set': 'phish-status', 'banner-set': 'banner-status', 'milter-health-set': 'milter-health-status', 'mta-sts-set': 'mta-sts-show', 'dane-set': 'dane-status', 'links-set': 'links-status', 'ml-set': 'ml-status', 'ml-train': 'ml-status', 'cdr-set': 'cdr-status', 'attachment-set': 'attachment-status', 'neural-set': 'neural-status', 'bec-set': 'bec-status', 'bec-vip-set': 'bec-status', 'bec-partner-set': 'bec-status', 'my-settings-set': 'my-settings', 'audit-mode': 'audit-strict-status', 'audit-rules-set': 'audit-strict-status', 'security-check-set': 'security-status', 'siem-set': 'siem-status', 'otlp-set': 'otlp-status', 'api-set': 'api-status', 'oidc-set': 'oidc-status', 'ldap-set': 'ldap-status',
              'uq-set': 'uq-status', 'report-set': 'report-status', 'sanesecurity-set': 'sanesecurity-status', 'firewall-guard-set': 'firewall-guard-status',

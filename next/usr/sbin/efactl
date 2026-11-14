@@ -559,7 +559,7 @@ local rspamd_util = require 'rspamd_util'
 local ucl = require 'ucl'
 local LIMIT = %(score)s
 local DANGER = {'CLAM_VIRUS_FAIL', 'MIME_BAD_EXTENSION', 'MIME_DOUBLE_BAD_EXTENSION', 'MIME_ENCRYPTED_ARCHIVE', 'EFA_EXECUTABLE',
-                'EFA_BAD_FILENAME', 'EFA_MACRO'}
+                'EFA_BAD_FILENAME', 'EFA_HIDDEN_FILENAME', 'EFA_MACRO'}
 rspamd_config:register_symbol({
   name = 'EFA_USER_QUARANTINE',
   type = 'postfilter',
@@ -6969,8 +6969,14 @@ def message_search(args):
         raise EfaError(f'Limit must be 1 to {top}.')
     filters = {key: getattr(args, key, '') or '' for key in ('sender', 'rcpt', 'subject', 'ip', 'qid', 'action', 'date_from', 'date_to', 'message_id',
                                                                  'header_from', 'reply_to', 'return_path', 'x_mailer')}
+    # 6.0.0.6: live filtering of the advanced search asks only for the rows after the newest it shows (the primary key, cheap).
+    after = (getattr(args, 'after_id', '') or '').strip()
+    if after and not after.isdigit():
+        raise EfaError('after_id must be a number.')
     readable = pseudo_days() and (identity_now is None or 'mail.view_headers' in identity_now['grants'])
     where, params = search_where(filters, identity_now['domains'] if identity_now else None, _pseudo_key() if readable else None)
+    if after:
+        where, params = (where + ' AND ' if where else 'WHERE ') + 'id > %s', params + [int(after)]
     db = _maillog_db()
     try:
         with db.cursor() as cur:
@@ -21395,6 +21401,8 @@ ATTACH_FILE = ETC + '/eFa/attachments.json'
 ATTACH_TYPES_CONF = RSPAMD_DIR + '/local.d/mime_types.conf'
 ATTACH_GROUP_CONF = RSPAMD_DIR + '/local.d/mime_types_group.conf'
 ATTACH_LUA = RSPAMD_DIR + '/efa-attachments.lua'
+# Endings on mark: the endings rule of the setup (multimap EFA_BAD_FILENAME, reject before any score) gets a score instead.
+ATTACH_MULTIMAP_CONF = RSPAMD_DIR + '/override.d/multimap.conf'
 ATTACH_LOAD_LINE = ("do local ok, err = pcall(dofile, '" + ATTACH_LUA + "'); if not ok then require('rspamd_logger').errx(rspamd_config, 'efa-attachments: %s', err) end end "
                     "-- efa-attachments\n")
 ATTACH_DANGEROUS = ('ade', 'adp', 'app', 'application', 'bat', 'chm', 'cmd', 'com', 'cpl', 'gadget', 'hta', 'img', 'inf', 'ins', 'iso', 'jar', 'js', 'jse',
@@ -21429,7 +21437,9 @@ end})
 local function hiding(name)
   return #name > 150 or name:find('{[%%x%%-]+}') and #name:match('{([%%x%%-]+)}') >= 25 or name:find('%%s%%s%%s%%s%%s%%s%%s%%s%%s%%s')
 end
-rspamd_config:register_symbol({name = 'EFA_BAD_FILENAME', score = %(names)s, group = 'efa_attachments',
+-- EFA_HIDDEN_FILENAME, not EFA_BAD_FILENAME: that name belongs to the multimap rule of the setup (endings, reject). With one
+-- name rspamd kept only this check, at a score of 0, and dropped the rule of the endings.
+rspamd_config:register_symbol({name = 'EFA_HIDDEN_FILENAME', score = %(names)s, group = 'efa_attachments',
   description = 'A file name that hides what the file is', callback = function(task)
   for _, part in ipairs(task:get_parts() or {}) do
     local name = part:get_filename()
@@ -21477,8 +21487,19 @@ def attach_texts(state):
     # The group of rspamd caps its symbols at 10: reject has to get above the reject limit.
     group = ('max_score = 30;\nsymbols {\n' + f'  "MIME_BAD_EXTENSION" {{ weight = {bad}; }}\n  "MIME_DOUBLE_BAD_EXTENSION" {{ weight = {ATTACH_SCORES[state["action"]]}; }}\n'
              f'  "MIME_ENCRYPTED_ARCHIVE" {{ weight = {ATTACH_SCORES[state["encrypted"]]}; }}\n}}\n')
-    return types, group, ATTACH_LUA_TEXT % {'score': ATTACH_SCORES[state['macros']], 'names': ATTACH_SCORES[state.get('names', 'off')],
-                                            'executables': ATTACH_SCORES[state.get('executables', 'off')]}
+    lua = ATTACH_LUA_TEXT % {'score': ATTACH_SCORES[state['macros']], 'names': ATTACH_SCORES[state.get('names', 'off')],
+                             'executables': ATTACH_SCORES[state.get('executables', 'off')]}
+    multimap = None
+    if state['action'] == 'mark':
+        # The endings rule of the setup with the mark as its score instead of the reject; otherwise as the setup writes it.
+        multimap = ('EFA_BAD_FILENAME {\n  type = "filename";\n  map = "$LOCAL_CONFDIR/local.d/maps.d/efa-bad-filenames.map";\n'
+                    f'  regexp = true;\n  score = {ATTACH_SCORES["mark"]};\n  description = "Attachment type not allowed (mark)";\n}}\n')
+        # One mark, not two: for the same file the weight of MIME_BAD_EXTENSION goes (~), EFA_BAD_FILENAME stays (-).
+        lua += ("-- Endings on mark: EFA_BAD_FILENAME and MIME_BAD_EXTENSION for the same file count the mark once.\n"
+                "rspamd_config:add_composite('EFA_BAD_FILENAME_ONCE', '-EFA_BAD_FILENAME & ~MIME_BAD_EXTENSION')\n"
+                "rspamd_config:set_metric_symbol({name = 'EFA_BAD_FILENAME_ONCE', score = 0.0, group = 'efa_attachments',\n"
+                "  description = 'The mark of a dangerous ending counted once'})\n")
+    return types, group, lua, multimap
 
 
 def attachment_status(_args):
@@ -21501,11 +21522,12 @@ def attachment_set(args):
         if any(not re.fullmatch(r'[a-z0-9]{1,12}', item) for item in items):
             raise EfaError('Endings: letters and digits, such as exe or js.')
         state['extensions'] = sorted(change(set(state['extensions']), items))
-    files = (ATTACH_TYPES_CONF, ATTACH_GROUP_CONF, ATTACH_LUA, RSPAMD_LOCAL_LUA)
+    files = (ATTACH_TYPES_CONF, ATTACH_GROUP_CONF, ATTACH_LUA, RSPAMD_LOCAL_LUA, ATTACH_MULTIMAP_CONF)
     old = [open(path).read() if os.path.exists(path) else None for path in files]
     lua_local = re.sub(r'^.*-- efa-attachments\n', '', old[3] or '', flags=re.M)
+    multimap = None
     if state['enabled']:
-        types, group, lua = attach_texts(state)
+        types, group, lua, multimap = attach_texts(state)
         _write(ATTACH_TYPES_CONF, types)
         _write(ATTACH_GROUP_CONF, group)
         _write(ATTACH_LUA, lua)
@@ -21514,6 +21536,11 @@ def attachment_set(args):
         for path in (ATTACH_TYPES_CONF, ATTACH_GROUP_CONF):
             if os.path.exists(path):
                 os.remove(path)
+    # Checks off or endings on reject: the endings rule as the setup wrote it (reject before any score).
+    if multimap:
+        _write(ATTACH_MULTIMAP_CONF, multimap)
+    elif os.path.exists(ATTACH_MULTIMAP_CONF):
+        os.remove(ATTACH_MULTIMAP_CONF)
     _write(RSPAMD_LOCAL_LUA, lua_local)
     if not _rspamd_config_ok():
         for path, text in zip(files, old):
@@ -30178,7 +30205,8 @@ COMMANDS = {
                                 {'name': 'return_path', 'label': 'Return-Path, * as wildcard', 'required': False},
                                 {'name': 'x_mailer', 'label': 'X-Mailer, * as wildcard', 'required': False},
                                 {'name': 'limit', 'label': 'Results', 'required': False, 'default': '100'},
-                                {'name': 'format', 'label': 'Empty, or csv for a file', 'required': False}]},
+                                {'name': 'format', 'label': 'Empty, or csv for a file', 'required': False},
+                                {'name': 'after_id', 'label': 'Only entries after this ID', 'required': False, 'web': False}]},
     'siem-status': {'func': siem_status, 'title': 'SIEM export', 'args': [], 'writes': False},
     'siem-set': {'func': siem_set, 'title': 'SIEM export: settings', 'writes': True,
                  'args': [{'name': 'mode', 'label': 'on or off', 'required': True},
@@ -31784,6 +31812,7 @@ def menu():
 
 
 def self_test():
+    assert "name = 'EFA_HIDDEN_FILENAME'" in ATTACH_LUA_TEXT and "name = 'EFA_BAD_FILENAME'" not in ATTACH_LUA_TEXT, 'one symbol, one name'
     # The hourly job: a failing early step is named, the later ones (the security minimum, the EU lock) still run.
     ran = []
 
@@ -35366,7 +35395,11 @@ def self_test():
         assert rspamc_learn_result('Results for file: stdin\nsuccess = true;\nscan_time = 0.1;\n') == 'learned'
         assert rspamc_learn_result('error = "<x@y> has been already learned as spam, ignore it";') == 'learned before'
         assert rspamc_learn_result('error = "no statfile";\n') == 'no statfile'
-        types, group, lua = attach_texts({**ATTACH_DEFAULTS, 'extensions': ['js', 'exe'], 'encrypted': 'off', 'macros': 'reject'})
+        types, group, lua, multimap = attach_texts({**ATTACH_DEFAULTS, 'extensions': ['js', 'exe'], 'encrypted': 'off', 'macros': 'reject'})
+        assert multimap is None and 'EFA_BAD_FILENAME_ONCE' not in lua, 'endings on reject: the rule of the setup, unchanged'
+        _types, _group, marked, multimap = attach_texts({**ATTACH_DEFAULTS, 'action': 'mark'})
+        assert 'score = 6.0;' in multimap and 'prefilter' not in multimap and 'action' not in multimap and 'efa-bad-filenames.map' in multimap
+        assert "'-EFA_BAD_FILENAME & ~MIME_BAD_EXTENSION'" in marked, 'endings on mark: the mark counts once'
         assert types == 'bad_extensions { exe = 4; js = 4; }\nbad_archive_extensions { exe = 4; js = 4; }\n', types
         assert group.startswith('max_score = 30;') and '"MIME_BAD_EXTENSION" { weight = 4.0; }' in group and '"MIME_ENCRYPTED_ARCHIVE" { weight = 0.0; }' in group
         assert 'score = 16.0' in lua and '//' not in lua and 'utf8.' not in lua and 'exe' in ATTACH_DANGEROUS and 'js' in ATTACH_DANGEROUS
