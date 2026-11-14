@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.0.0.6.1 (release date: pending)
+
+### Security: the 2FA of the main admin (S38)
+- The clean-up of left-over rows of removed logins (part of every package update) took the accounts that are no row of the user
+  table on purpose for left-overs: the second factor of the main admin (login admin) was deleted, and the login took the
+  password alone from then on. Accounts that start with @ (the main admin, the console admins) are never touched now; the
+  clean-up first lists the removed logins and names each one in the audit log.
+- A missing table of the second factors no longer counts as "no 2FA": the login is refused with a clear error
+  (on the console: `sudo efactl maillog-setup`).
+- An update and the release upgrade compare the number of second factors switched on before and after; a difference fails the
+  update (with its way back) or the check of the release upgrade.
+- The dashboard warns in red when the audit log shows that the main admin switched 2FA on and it is gone without being switched
+  off or reset. Set it up again under My account.
+
 ## 6.0.0.6 (release date: pending)
 
 ### Release upgrade: new mail held for every sender
