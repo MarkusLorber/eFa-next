@@ -47,6 +47,29 @@ sudo efactl restore --name <file> --confirm yes
 A restore that was cut off (power cut) is detected and does not block later updates. A backup that holds the settings of
 Postfix and nginx is restored only by the main admin (or root on the console).
 
+## Settings from another host
+
+To take only some settings over, not the whole backup: *Settings: export parts for another host* on the old host,
+*Settings: take over parts from another host* on the new one (System › Backup & restore, super admin only, password and 2FA
+again). Both hosts run the same version of eFa-next.
+
+- **Parts:** `spam` (action scores, symbol scores, greylisting and its exceptions, graymail, BEC), `attachments`
+  (attachment rules), `lists` (allow and block lists of senders), `disclaimer` (disclaimers and templates), `reports`
+  (reports by mail, daily mail). Domains, tenants and users live in the database: for them use a backup or the migration.
+- **Never in the file:** host name, keys, certificates, database passwords, users and 2FA, the cluster role.
+- The file is signed with the backup key of the old host and encrypted with a password (at least 12 characters). The new
+  host reads it only with that password and the fingerprint of the old host (`efactl backup-key-show` there).
+- First a **preview** lists each value that would change (old and new); only `--confirm yes` takes them over. Shared files
+  change only in the keys and lines of the chosen part. Postfix and rspamd check the result; if one refuses, everything
+  goes back as it was. The change is in the audit log and the configuration history (`history-undo` takes it back).
+- Not on a cluster member: there the settings come from the master.
+
+```bash
+sudo efactl settings-export --parts spam,lists                     # on the old host; asks for the password twice
+sudo efactl settings-import --file /var/tmp/efa-settings-....tar.gz.gpg --parts spam --signer "<fingerprint>" --preview yes
+sudo efactl settings-import --file /var/tmp/efa-settings-....tar.gz.gpg --parts spam --signer "<fingerprint>" --confirm yes
+```
+
 ## Cloning a VM
 
 A copy of a virtual machine keeps the secrets of its origin (SSH host keys, machine id, session and signing keys). Run on the

@@ -4,6 +4,30 @@
 
 ![Maintenance & update](../images/manual/maint.png)
 
+## The Update card
+
+The first card of the page holds everything an update needs:
+
+- **Installed → Available**: the version now and the newest release, with a badge (*Security update*, *Update available*,
+  *Up to date*).
+- Five facts: the eFa-next release, the number of operating system updates found by the last check (*Show* lists them), whether
+  a restart is due, the last check (*Check now*) and the mode of the automatic updates (*Adjust*).
+- One button, **Update now**: eFa-next and the operating system packages in one go, as *Update system* below.
+- While it runs: a **progress bar** with the percentage, *Step 4 of 5: Operating system (27 of 46 packages)*, the time left,
+  the steps (backup, check packages, eFa-next, operating system, health check, reboot) and the last line of dnf. The card
+  renews itself every 3 seconds while the page is in view; the whole page is not reloaded. When the web interface restarts
+  during the update the card says so and tries again. Outside minute 20 to 50 it shows *Starts at 10:20*.
+- Afterwards: the result with its time and duration, and *Back to the version before* when that is possible.
+
+The time left comes from the steps of the last update on this host (the first time: fixed estimates); the operating system step
+counts the packages dnf has done. The same card shows the install of an eFa-next release alone (*Install the eFa-next update
+now*, or *auto* in the maintenance window). The other update cards are folded below it (*Automatic updates*, *Back to the
+version before, checks after package updates*); *Update details* in the expert view keeps the single steps.
+
+```bash
+sudo efactl update-progress     # what the card shows: versions, pending, step, percentage, time left
+```
+
 ## eFa-next updates
 
 eFa-next comes from its own signed repository (`https://repo.efa-next.eu`, GitHub releases as a mirror). A release is taken only
@@ -65,6 +89,11 @@ Updates of the operating system cannot be rolled back this way: take a VM snapsh
 - *Advanced* (expert): milter order, extra services, *Repair databases*.
 
 ## Release upgrade from AlmaLinux 9 to 10
+
+eFa-next on EL9 (AlmaLinux, Rocky Linux and RHEL 9) has support and security updates until 2027-05-31. From 2026-12-01 the
+dashboard of an EL9 host warns (yellow: plan the release upgrade), from 2027-06-01 it is red: no more updates, only the move to
+version 10 with the release upgrade or a migration, which stay open. AlmaLinux 9 itself gets security updates until
+2032-05-31; that is the date of the operating system, not of eFa-next.
 
 *Release-Upgrade* (super admins only, with a red warning above it) upgrades the operating system of a running host from
 AlmaLinux 9 to AlmaLinux 10 with ELevate (leapp), in fixed steps:

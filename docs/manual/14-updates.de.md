@@ -4,6 +4,32 @@
 
 ![Wartung & Update](../images/manual/maint.png)
 
+## Die Karte Update
+
+Die erste Karte der Seite enthält alles, was ein Update braucht:
+
+- **Installiert → Verfügbar**: die Version jetzt und das neueste Release, mit einem Hinweis (*Sicherheits-Update*,
+  *Update verfügbar*, *Aktuell*).
+- Fünf Angaben: das eFa-next-Release, die Zahl der Betriebssystem-Updates der letzten Prüfung (*Anzeigen* listet sie), ob ein
+  Neustart fällig ist, die letzte Prüfung (*Jetzt prüfen*) und die Art der automatischen Updates (*Anpassen*).
+- Ein Knopf, **Jetzt aktualisieren**: eFa-next und die Pakete des Betriebssystems in einem Schritt, wie *System aktualisieren*.
+- Während es läuft: ein **Fortschrittsbalken** mit Prozent, *Schritt 4 von 5: Betriebssystem (27 von 46 Paketen)*, der
+  Restzeit, den Schritten (Sicherung, Pakete prüfen, eFa-next, Betriebssystem, Gesundheitscheck, Neustart) und der letzten Zeile
+  von dnf. Die Karte erneuert sich alle 3 Sekunden, solange die Seite sichtbar ist; die ganze Seite wird nicht neu geladen.
+  Startet die Weboberfläche während des Updates neu, sagt die Karte das und versucht es wieder. Außerhalb von Minute 20 bis 50
+  zeigt sie *Startet um 10:20*.
+- Danach: das Ergebnis mit Uhrzeit und Dauer, und *Zurück zur Version davor*, wenn das möglich ist.
+
+Die Restzeit kommt aus den Schritten des letzten Updates auf diesem Server (beim ersten Mal feste Schätzwerte); der Schritt
+Betriebssystem zählt die Pakete, die dnf fertig hat. Dieselbe Karte zeigt auch die Installation eines eFa-next-Releases allein
+(*eFa-next-Update jetzt installieren*, oder *auto* im Wartungsfenster). Die übrigen Update-Karten sind darunter eingeklappt
+(*Automatische Updates*, *Zurück zur Version davor, Prüfung nach Paket-Updates*); *Update im Einzelnen* in der Expertenansicht
+behält die einzelnen Schritte.
+
+```bash
+sudo efactl update-progress     # was die Karte zeigt: Versionen, offene Updates, Schritt, Prozent, Restzeit
+```
+
 ## eFa-next-Updates
 
 eFa-next kommt aus seiner eigenen signierten Paketquelle (`https://repo.efa-next.eu`, GitHub-Releases als Spiegel). Ein Release
@@ -67,6 +93,11 @@ Updates des Betriebssystems lassen sich so nicht zurücknehmen: Vor großen Upda
 - *Erweitert* (Experte): Milter-Reihenfolge, zusätzliche Dienste, *Datenbanken reparieren*.
 
 ## Release-Upgrade von AlmaLinux 9 auf 10
+
+eFa-next auf EL9 (AlmaLinux, Rocky Linux und RHEL 9) hat Unterstützung und Sicherheitsupdates bis 31.05.2027. Ab 01.12.2026
+warnt das Dashboard eines EL9-Hosts (gelb: Release-Upgrade planen), ab 01.06.2027 ist es rot: keine Updates mehr, nur noch der
+Wechsel auf Version 10 mit dem Release-Upgrade oder einer Migration, die beide offen bleiben. AlmaLinux 9 selbst erhält
+Sicherheitsupdates bis 31.05.2032; das ist das Datum des Betriebssystems, nicht von eFa-next.
 
 *Release-Upgrade* (nur Super-Admins, mit roter Warnung darüber) hebt das Betriebssystem eines laufenden Hosts von AlmaLinux 9 auf
 AlmaLinux 10, mit ELevate (leapp), in festen Schritten:

@@ -1,6 +1,6 @@
 # 7. Viruses, attachments and links
 
-All on *Protection › Spam & virus*, each a card of its own.
+All on *Protection › Viruses, attachments & links*, each a card of its own.
 
 ## Virus scan (ClamAV)
 

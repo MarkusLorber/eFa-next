@@ -13,7 +13,7 @@ grau ohne aktuellen Wert:
   Fail2Ban, Firewall, Milter.
 - **Aus der Angriffsprüfung:** Angriffe, Spam und Viren, Mail-Warteschlange, Ressourcen.
 
-Die Zeiger zeigen CPU, RAM und Platte in Gebrauch, Mails und Spamanteil der letzten 10 Minuten, SMTP-Verbindungen je Minute und
+Die Zeiger zeigen CPU, RAM, Auslagerung (bernstein ab 50 %, rot ab 80 %, grau „Keine Auslagerung“ ohne Swap) und Platte in Gebrauch, Mails und Spamanteil der letzten 10 Minuten, SMTP-Verbindungen je Minute und
 Fehlanmeldungen der letzten 10 Minuten. Das farbige Band jedes Zeigers zeigt, wo Gelb und Rot beginnen. Tafel und Banner
 erneuern sich alle 30 Sekunden, solange die Seite sichtbar ist.
 
@@ -29,7 +29,7 @@ Ungewöhnliches, mit seit wann und einem Link zur Seite, die hilft. Super-Admins
 beitrugen; Mandanten-Admins sehen die Warnung ohne Adressen; das Benutzerportal zeigt keine. Eine Warnung bleibt fünf Minuten
 nach dem Rückgang des Werts stehen, als abklingend markiert.
 
-*Benutzer & Zugriff › Sicherheit › Angriffswarnung* zeigt das letzte Ergebnis und stellt die Empfindlichkeit ein: *hoch* halbiert
+*Sicherheit & Datenschutz › Sicherheit › Angriffswarnung* zeigt das letzte Ergebnis und stellt die Empfindlichkeit ein: *hoch* halbiert
 die Grenzen, *niedrig* verdoppelt sie (`efactl threat-set`, Super-Admins). Die Grenzen je Art:
 [dashboard.md](../dashboard.md#attack-alert-on-every-page).
 
@@ -76,6 +76,19 @@ Das Textmenü der Konsole (efa-tui) hat noch keine Suche; geplant für 6.0.0.7.
 Die Fußzeile jeder Seite verlinkt den Quellcode, diese Dokumentation, den Haftungsausschluss, die Autoren und die Hinweise zu
 Drittsoftware. **Funktion wünschen oder verbessern** steht im Menü oben rechts (Kapitel 3): Es öffnet das Formular für
 Funktionswünsche des Projekts auf GitHub.
+
+## Eigenes Layout
+
+*Dashboard anpassen* unten auf der Seite ordnet das Dashboard nur für Ihre Anmeldung: einen Block nach oben oder unten schieben,
+ausblenden oder auf halbe Breite stellen, sodass sich zwei halbe Blöcke eine Zeile teilen (auf dem Telefon nimmt wieder jeder die
+ganze Breite). Die Blöcke sind Status auf einen Blick, Mailfluss, Übersichtskacheln, die letzte Stunde und die Last.
+*Braucht Aufmerksamkeit* und die Sicherheitswarnungen bleiben immer oben und lassen sich nicht ausblenden. Die Knöpfe gehen mit der
+Tastatur und auf dem Telefon; mit der Maus lässt sich eine Zeile auch ziehen. *Zurück zum Standard-Layout* nimmt alles zurück. Das
+Layout steht in Ihren Einstellungen in der Datenbank.
+
+```bash
+efactl my-settings-set --dashboard load:up      # auch down, hide, show, half, full, to=<Position> oder reset
+```
 
 ## Auf dem Telefon
 

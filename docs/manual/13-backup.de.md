@@ -48,6 +48,31 @@ sudo efactl restore --name <Datei> --confirm yes
 Ein abgebrochener Restore (Stromausfall) wird erkannt und blockiert spätere Updates nicht. Eine Sicherung mit den Einstellungen
 von Postfix und nginx stellt nur der Haupt-Admin (oder root auf der Konsole) wieder her.
 
+## Einstellungen von einem anderen Host
+
+Um nur einige Einstellungen zu übernehmen statt der ganzen Sicherung: *Einstellungen: Bereiche für einen anderen Host
+exportieren* auf dem alten Host, *Einstellungen: Bereiche von einem anderen Host übernehmen* auf dem neuen (System › Sicherung &
+Wiederherstellung, nur Super-Admin, Passwort und 2FA erneut). Beide Hosts haben dieselbe Version von eFa-next.
+
+- **Bereiche:** `spam` (Aktionswerte, Symbolwerte, Greylisting mit Ausnahmen, Graymail, BEC), `attachments` (Anhangregeln),
+  `lists` (Erlaubt- und Sperrlisten der Absender), `disclaimer` (Disclaimer und Vorlagen), `reports` (Berichte per Mail,
+  tägliche Mail). Domains, Mandanten und Benutzer stehen in der Datenbank: dafür eine Sicherung oder die Migration.
+- **Nie in der Datei:** Host-Name, Schlüssel, Zertifikate, Datenbank-Passwörter, Benutzer und 2FA, die Cluster-Rolle.
+- Die Datei ist mit dem Sicherungsschlüssel des alten Hosts signiert und mit einem Passwort (mindestens 12 Zeichen)
+  verschlüsselt. Der neue Host liest sie nur mit diesem Passwort und dem Fingerabdruck des alten Hosts (`efactl backup-key-show`
+  dort).
+- Zuerst zeigt eine **Vorschau** jeden Wert, der sich ändern würde (alt und neu); erst `--confirm yes` übernimmt. Gemeinsame
+  Dateien ändern sich nur in den Schlüsseln und Zeilen des gewählten Bereichs. Postfix und rspamd prüfen das Ergebnis; lehnt
+  einer ab, geht alles zurück. Die Änderung steht im Audit-Log und in der Konfigurations-Historie (`history-undo` nimmt sie
+  zurück).
+- Nicht auf einem Cluster-Mitglied: dort kommen die Einstellungen vom Master.
+
+```bash
+sudo efactl settings-export --parts spam,lists                     # auf dem alten Host; fragt zweimal nach dem Passwort
+sudo efactl settings-import --file /var/tmp/efa-settings-....tar.gz.gpg --parts spam --signer "<Fingerabdruck>" --preview yes
+sudo efactl settings-import --file /var/tmp/efa-settings-....tar.gz.gpg --parts spam --signer "<Fingerabdruck>" --confirm yes
+```
+
 ## Eine VM klonen
 
 Eine Kopie einer virtuellen Maschine behält die Geheimnisse ihres Originals (SSH-Hostschlüssel, Machine-ID, Sitzungs- und

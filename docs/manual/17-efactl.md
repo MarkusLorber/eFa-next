@@ -114,6 +114,9 @@ Commands marked *writes* change the system; the others only read.
 | Command | Title |
 |---|---|
 | `message-search` | Message search |
+| `search-saved` | Saved searches |
+| `search-save` | Saved searches: save the filters *(writes)* |
+| `search-delete` | Saved searches: delete one *(writes)* |
 | `maillog-search` | Mail log: search |
 | `maillog-live` | Mail log: live |
 | `sender-action-check` | Sender of a mail: what allow or block would do |
@@ -134,12 +137,14 @@ Commands marked *writes* change the system; the others only read.
 
 ## Protection
 
-### Spam & virus
+### Spam filter, viruses and attachments
 
 | Command | Title |
 |---|---|
 | `spam-scores-set` | Spam scores *(writes)* |
 | `greylisting-set` | Greylisting *(writes)* |
+| `greylisting-status` | Greylisting: exceptions |
+| `greylisting-exception-set` | Greylisting: an exception that never waits *(writes)* |
 | `subject-get` | Subject marking: show |
 | `subject-set` | Subject marking: set *(writes)* |
 | `bayes-status` | Bayes classifier |
@@ -157,6 +162,8 @@ Commands marked *writes* change the system; the others only read.
 | `unlock-set` | Encrypted archives: open with the password of the mail and scan *(writes)* |
 | `ole-status` | Office macros (oletools) |
 | `ole-set` | Office macros: read by olevba and scored *(writes)* |
+| `pyzor-status` | Pyzor |
+| `pyzor-set` | Pyzor: checksums of incoming mail compared by a Pyzor server *(writes)* |
 | `tracking-status` | Tracking protection |
 | `tracking-set` | Tracking protection: pixels and link parameters out of incoming mail *(writes)* |
 | `tracking-list-set` | Tracking protection: exceptions and own tracking hosts *(writes)* |
@@ -527,6 +534,12 @@ Commands marked *writes* change the system; the others only read.
 | Command | Title |
 |---|---|
 | `report-show` | Report: show or print |
+| `mail-history` | Mail history: calendar and course |
+| `geoip-status` | GeoIP: country and network |
+| `geoip-set` | GeoIP: switch *(writes)* |
+| `geoip-import` | GeoIP: import a file *(writes)* |
+| `geoip-lookup` | GeoIP: look up an address |
+| `geoip-report` | Countries of the delivering servers |
 | `report-status` | Reports by mail |
 | `report-set` | Reports by mail: switch *(writes)* |
 | `mailreport-today` | Today |
@@ -567,7 +580,7 @@ Commands marked *writes* change the system; the others only read.
 | `dns-share-del` | DNS for other networks: remove *(writes)* |
 | `dns-share-secondary-set` | Second DNS resolver of this host (the other MX) *(writes)* |
 
-### Network & certificate
+### Network, DNS & certificate
 
 | Command | Title |
 |---|---|
@@ -606,6 +619,8 @@ Commands marked *writes* change the system; the others only read.
 | `backup-password-set` | Password for automatic backups *(writes)* |
 | `backup-key-show` | Backups: fingerprint of the signing key |
 | `restore` | Restore a backup *(writes)* |
+| `settings-export` | Settings: export parts for another host *(writes)* |
+| `settings-import` | Settings: take over parts from another host *(writes)* |
 | `backup-download` | Backup: where it is |
 | `backup-read` | Backup: raw download |
 | `backup-import` | Backup: store an uploaded file *(writes)* |
@@ -647,6 +662,7 @@ Commands marked *writes* change the system; the others only read.
 |---|---|
 | `update-pending` | Pending updates |
 | `update-status` | Last system update |
+| `update-progress` | Update: versions and progress (the Update card) |
 | `update-system` | Update system *(writes)* |
 | `autoupdate-status` | eFa-next updates |
 | `autoupdate-set` | Automatic eFa-next updates *(writes)* |

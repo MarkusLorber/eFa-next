@@ -14,9 +14,13 @@ package metadata of that host, unless marked "check".
 | rspamd | 4.2.3 | Apache-2.0 | https://rspamd.com | package, rspamd repository |
 | nginx | 1.26.3 | BSD-2-Clause | https://nginx.org | OS package |
 | Postfix | 3.5.25 | (IPL-1.0 AND GPL-2.0-or-later) OR (EPL-2.0 AND GPL-2.0-or-later); package metadata says "IBM" | http://www.postfix.org | OS package |
+| postfix-lmdb | 3.8.5 | (IPL-1.0 OR EPL-2.0) AND GPL-2.0-or-later AND BSD-4-Clause-UC | http://www.postfix.org | OS package (EL10) |
+| lmdb-libs | 0.9.32 | OLDAP-2.8 | https://www.symas.com/lmdb | OS package (EL10, through postfix-lmdb) |
 | MariaDB | 10.5.29 | GPL-2.0-only AND LGPL-2.1-only (check) | https://mariadb.org | OS package |
 | ClamAV | 1.4.6 | GPL-2.0-only | https://www.clamav.net | package |
 | Sanesecurity signatures | downloaded at run time, not shipped | terms of Sanesecurity, see sanesecurity.com. Credit: Sanesecurity. The eFa-next package holds only their public signing key | https://www.sanesecurity.com |
+| DB-IP Lite Country and ASN (GeoIP data) | downloaded at run time, only with GeoIP on, not shipped | CC-BY-4.0. Credit: IP geolocation by DB-IP (db-ip.com), shown under every table with countries | https://db-ip.com |
+| Pyzor | EPEL version, installed only with Pyzor on, not shipped | GPL-2.0 (check). Run as a separate program (`pyzor check`), never imported into eFa-next code | https://github.com/SpamExperts/pyzor | EPEL package |
 | Unbound | 1.24.2 | BSD-3-Clause (check) | https://nlnetlabs.nl/projects/unbound/ | OS package |
 | Redis | 7.2.16 | BSD-3-Clause AND BSD-2-Clause AND MIT AND BSL-1.0 | https://redis.io | package. This version is from before the license change of Redis 7.4 |
 | Fail2Ban | 1.1.0 | GPL-2.0-or-later | https://www.fail2ban.org | package |
@@ -24,6 +28,7 @@ package metadata of that host, unless marked "check".
 | GnuPG | 2.3.3 | GPL-3.0-or-later | https://www.gnupg.org | OS package, called as a program |
 | BIND utilities (dig) | 9.16.23 | MPL-2.0 | https://www.isc.org | OS package, called as a program |
 | OpenSSL | 3.5.8 | Apache-2.0 | https://www.openssl.org | OS package |
+| qpdf | 10.3.1 | (Artistic-2.0 OR Apache-2.0) AND MIT | https://qpdf.sourceforge.io | OS package, called as a program: content disarm of PDF files and the PDF encryption |
 | dejavu-sans-fonts | 2.37 | Bitstream-Vera AND LicenseRef-Public-Domain | https://dejavu-fonts.github.io | OS package, the font of the PDF reports for letters outside Western European ones |
 | OpenSSH | 9.9p1 | BSD (check exact text) | https://www.openssh.com | OS package |
 | Certbot | 3.1.0 | Apache-2.0 | https://certbot.eff.org | package |

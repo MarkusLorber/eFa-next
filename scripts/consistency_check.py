@@ -37,6 +37,8 @@ for name, cmd in COMMANDS.items():
     status, keys = nav.FORM_SOURCE[name]
     if status not in COMMANDS or COMMANDS[status]['writes'] or [arg for arg in COMMANDS[status]['args'] if arg.get('required')]:
         problems.append(f'{name}: bad status command {status}')
+    # A secret field may be in FORM_SOURCE too: its key is the yes/no of a stored value (token_stored), never the value.
+    keys = {key: value for key, value in keys.items() if key not in [arg['name'] for arg in cmd['args'] if arg.get('secret')]}
     if set(fields) != set(keys):
         problems.append(f'{name}: fields and FORM_SOURCE keys differ: {sorted(set(fields) ^ set(keys))}')
 problems += [f'FORM_NEW/FORM_KEYED and FORM_SOURCE: {name}' for name in sorted((nav.FORM_NEW | nav.FORM_KEYED) & set(nav.FORM_SOURCE))]
@@ -90,7 +92,9 @@ for name, (status, keys) in sorted(nav.FORM_SOURCE.items()):
         key = keys.get(arg['name'])
         value = nav.form_value(outputs[status], key) if key else None
         options = [item['value'] for item in arg.get('choices', [])]
-        if options and value not in (None, '') and value not in options:
+        # A field with many choices ('many', tick boxes) is a comma list: each part is one of the options.
+        given = [part.strip() for part in str(value).split(',')] if arg.get('many') and value not in (None, '') else [value]
+        if options and value not in (None, '') and any(part not in options for part in given):
             problems.append(f'{name} --{arg["name"]}: {status} gives {value!r}, none of {options}')
 print('\n'.join(problems) or f'consistency: ok, {len(COMMANDS)} commands, form values of {len(outputs) - skipped} status commands '
                             f'({skipped} need a host)')

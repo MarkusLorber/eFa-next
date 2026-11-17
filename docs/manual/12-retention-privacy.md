@@ -2,7 +2,7 @@
 
 ## How long data is kept
 
-*Mail & quarantine › Privacy & Compliance › Storage & privacy* shows for each kind of data how long it is kept and where that is set.
+*Security & privacy › Privacy & Compliance › Storage & privacy* shows for each kind of data how long it is kept and where that is set.
 
 ![Privacy & Compliance](../images/manual/privacy.png)
 

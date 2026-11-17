@@ -62,6 +62,34 @@ def symbols_known():
         return set()
 
 
+def wait_weight(symbol, weight, seconds=60):
+    """After a setting changed: wait until every rspamd worker scores the symbol with the new weight. systemctl reload returns
+    before the workers have the new config, and a mail in between gets the old weight."""
+    for _ in range(seconds):
+        try:
+            done = subprocess.run(['rspamc', 'counters', '-j'], capture_output=True, text=True, timeout=30)
+            if any(item['symbol'] == symbol and float(item.get('weight', 0)) == weight for item in json.loads(done.stdout)):
+                time.sleep(2)  # the counters come from one worker; a moment for the others
+                return True
+        except (OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired):
+            pass
+        time.sleep(1)
+    return False
+
+
+def wait_scanned(mail, symbol, seconds=60):
+    """Until rspamd gives this mail the symbol in a direct scan (rspamc): a list read on a reload, not only a loaded module."""
+    for _ in range(seconds):
+        try:
+            done = subprocess.run(['rspamc', '-j', 'symbols'], input=mail.as_bytes(), capture_output=True, timeout=30)
+            if symbol in json.loads(done.stdout).get('symbols', {}):
+                return True
+        except (OSError, ValueError, AttributeError, subprocess.TimeoutExpired):
+            pass
+        time.sleep(1)
+    return False
+
+
 def wait_symbol(symbol, seconds=60):
     """After a setting changed: wait until rspamd has the symbol of the feature loaded."""
     for _ in range(seconds):
@@ -250,6 +278,7 @@ def check_attachment_modes(r, undo):
     # weight), no reject. Programs by content off, else EFA_EXECUTABLE rejects it.
     efactl('attachment-set', mode='on', action='mark', executables='off', names='off')
     assert os.path.exists(ATTACH_MULTIMAP), f'endings on mark: {ATTACH_MULTIMAP} missing'
+    assert wait_weight('EFA_EXECUTABLE', 0.0), 'rspamd still scores programs by content after they were switched off'
     code, found, score = attachment_mail(r, 'report.dat', MZ_FILE, lambda found: weight(found, 'EFA_BAD_FILENAME') > 0, 'EFA_BAD_FILENAME with a score')
     assert code < 500 and weight(found, 'EFA_BAD_FILENAME') == 6.0 and weight(found, 'MIME_BAD_EXTENSION') == 0, \
         f'MZ on mark: SMTP {code}, score {score}, {sorted(found)}'
@@ -296,7 +325,9 @@ def check_own_hash(r, undo):
     efactl('own-hash-set', action='add', sha256=digest, name=f'efa-live {r.run}', scope='all')
     undo.append(lambda: efactl('own-hash-set', action='remove', sha256=digest, scope='all'))
     assert wait_symbol('EFA_OWN_HASH'), 'rspamd did not load the own block list'
-    time.sleep(3)  # the list itself is read on the reload that loaded the module
+    # The list is read on the reload own-hash-set starts; on a host whose module was loaded before, the symbol is known at once
+    # (2026-11-17, a new install: 3 seconds were too short). A probe of its own until rspamd has the new list.
+    assert wait_scanned(r.message('own hash probe', attachment=('blocked.bin', content)), 'EFA_OWN_HASH'), 'rspamd did not read the new hash'
     mail = r.message('own hash', attachment=('blocked.bin', content))
     code, text, _qid = r.send(mail)
     found = r.symbols(mail)

@@ -6,8 +6,10 @@
 then every step, the confirmation, and the progress page until it says done. The host keeps its name, interface and address;
 mail goes to 192.0.2.25 (TEST-NET-1). The passwords are made here and written only to the file given (root, 0600).
     fresh_wizard.py --creds FILE --host NAME --domain DOMAIN --interface DEV --ipv4 ADDR --prefix N --gateway GW --timezone ZONE
+                    [--standards ID,ID]   the security standards to tick (default: bsi-02102-2,rfc9325)
 """
 import argparse
+import html
 import http.cookiejar
 import os
 import re
@@ -59,6 +61,9 @@ def main():
     parser = argparse.ArgumentParser()
     for name in ('creds', 'host', 'domain', 'interface', 'ipv4', 'prefix', 'gateway', 'timezone'):
         parser.add_argument('--' + name, required=True)
+    # 2026-11-16: Mozilla modern on a name that is not public stopped the variant step (Let's Encrypt): scripts/ci.sh runs it
+    # with EFA_CI_FRESH_STANDARDS=bsi-02102-2,rfc9325,moz-modern.
+    parser.add_argument('--standards', default='bsi-02102-2,rfc9325')
     args = parser.parse_args()
     web_pw, cli_pw = secrets.token_urlsafe(18), secrets.token_urlsafe(18)
     fd = os.open(args.creds, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -72,7 +77,7 @@ def main():
     # 6.0.0.5: the note on presets, the setup variant (manual: no 2FA to set up here) and the EU link come first. HARD-W: then
     # two security standards; the setup sets the strictest of both (scripts/ci.sh checks it). Not the SSH profile.
     for slug, fields in (('notice', {'notice': 'yes'}), ('variant', {'variant': 'manual'}), ('eulink', {'eulink': 'yes'}),
-                         ('frameworks', {'standards': ['bsi-02102-2', 'rfc9325']})):
+                         ('frameworks', {'standards': [sid for sid in args.standards.split(',') if sid]})):
         where, page = post(web, '/first/' + slug, fields)
         if where == '/first/' + slug:
             error = re.search(r'role="alert">([^<]+)<', page)
@@ -107,8 +112,14 @@ def main():
         raise SystemExit('wizard: after the last step not on /verify but on ' + where)
     where, _page = post(web, '/verify', {'accept': 'yes'})
     deadline = time.time() + 900
+    shown = ''
     while time.time() < deadline:
         page = web.open(BASE + '/progress', timeout=30).read().decode()
+        # The line under the progress bar: which step of efa-apply runs now, into the CI log once per step.
+        now = re.search(r'id="setup-now"[^>]*>(.*?)</p>', page)
+        if now and re.sub(r'<[^>]+>|\s*\(.*\)', '', now.group(1)) != shown:
+            shown = re.sub(r'<[^>]+>|\s*\(.*\)', '', now.group(1))
+            print('wizard: ' + html.unescape(shown))
         if 'Configuration complete' in page:
             print('wizard: configuration complete')
             return 0

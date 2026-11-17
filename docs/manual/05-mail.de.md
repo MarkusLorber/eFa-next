@@ -4,7 +4,7 @@ Die Menügruppe *Mail & Quarantäne*.
 
 ## Mail-Routing
 
-*Mail & Quarantäne › Mail-Routing* legt fest, für welche Domains eFa-next Mail annimmt und wohin es sie zustellt.
+*Domains & Routing › Mail-Routing* legt fest, für welche Domains eFa-next Mail annimmt und wohin es sie zustellt.
 
 ![Mail-Routing](../images/manual/flow.png)
 
@@ -22,7 +22,7 @@ Anleitungen je Mailplattform: [Microsoft 365](../guide-microsoft-365.md), [Googl
 
 ## Zurückgehaltene Mail
 
-*Mail & Quarantäne › Zurückgehaltene Mail* ist Mail, die eFa-next für ihre Empfänger aufbewahrt, statt sie abzuweisen. Sie ist
+*Täglich › Zurückgehaltene Mail* ist Mail, die eFa-next für ihre Empfänger aufbewahrt, statt sie abzuweisen. Sie ist
 aus, bis sie unter *Einstellungen* am Ende der Seite eingeschaltet wird (`efactl uq-set`): ab welcher Punktzahl Mail behalten
 wird, wie viele Tage, ob jeder Empfänger täglich eine Übersicht mit Links bekommt und ob Benutzer allein freigeben dürfen.
 
@@ -42,7 +42,7 @@ meine Mail*. Zurückgehaltene Mail kann je Mandant verschlüsselt gespeichert we
 
 ## Quarantäne
 
-*Mail & Quarantäne › Quarantäne* enthält Spam und Viren, die in der Mail-Warteschlange zurückgehalten werden. *Zustellen* und
+*Täglich › Quarantäne* enthält Spam und Viren, die in der Mail-Warteschlange zurückgehalten werden. *Zustellen* und
 *Header* erscheinen in der Zeile unter der Maus; alle Aktionen stehen im Menü „…" der Zeile. Mehrere Zeilen ankreuzen, um sie auf
 einmal zuzustellen, zu löschen oder ihre Absender zu sperren; jede Sammelaktion fragt vorher.
 
@@ -56,7 +56,7 @@ gezeigt, ihre Anhänge werden einzeln gespeichert; ein ZIP- oder MBOX-Export ein
 
 ## Mail-Warteschlange
 
-*Mail & Quarantäne › Mail-Warteschlange* listet die Mail, die Postfix noch nicht zugestellt hat: eine oder alle anhalten,
+*Täglich › Mail-Warteschlange* listet die Mail, die Postfix noch nicht zugestellt hat: eine oder alle anhalten,
 freigeben, neu einreihen oder löschen (`efactl queue-action`), oder *alle jetzt versuchen* (`queue-flush`). Der Zwischenspeicher
 legt fest, wie lange Mail auf einen ausgefallenen Server wartet (etwa `5d`), *Alarm*, ab wie vielen wartenden Mails oder Stunden
 der Admin benachrichtigt wird (`queue-alarm-set`).
@@ -65,7 +65,7 @@ der Admin benachrichtigt wird (`queue-alarm-set`).
 
 ## Mail-Log
 
-*Mail & Quarantäne › Mail-Log* zeigt *Mail-Log: suchen* mit *Mail prüfen* daneben, darunter die Schaltfläche *Erweiterte Suche*.
+*Täglich › Mail-Log* zeigt *Mail-Log: suchen* mit *Mail prüfen* daneben, darunter die Schaltfläche *Erweiterte Suche*.
 Die schnelle Suche nimmt einen Suchbegriff; ihr Feld nimmt auch Filter:
 
 | Filter | Findet |
@@ -93,6 +93,12 @@ Empfänger, Wörter im Betreff, IP-Adresse, Queue-ID, Ergebnis, Datum von und bi
 Return-Path und X-Mailer sowie die Anzahl der Ergebnisse. Die gefundenen Mails stehen direkt unter den Filtern, die neueste zuerst.
 *CSV-Datei* und *JSON-Datei* laden das Ergebnis herunter (Recht *export*). Die Filter werden gesendet, nie Teil der Adresse, so
 landet keine Adresse und kein Betreff im Log des Webservers.
+
+*Mails, auf die zutrifft* (6.0.0.6.4) verknüpft die Filter: *alle Filter (UND)* wie bisher oder *mindestens ein Filter (ODER)*,
+etwa ein Absender oder eine IP-Adresse. Der Zeitraum und die Domains eines Mandanten-Admins gelten immer zusätzlich, egal was
+gewählt ist. *Gespeicherte Suchen* behalten die Filter (nie Ergebnisse) unter einem Namen, nur für die eigene Anmeldung, höchstens 20:
+*Diese Filter speichern als* speichert das Formular, *Suche laden* füllt es wieder und sucht, *Löschen* entfernt eine. Auf der Konsole:
+`efactl search-save --name <Name> --sender '*@example.net' --match any`, `efactl search-saved`, `efactl search-delete --name <Name>`.
 
 Der Schalter *Live-Filter* fügt neue Mail, die zu den Filtern passt, alle 5 Sekunden oben an. Er fragt nur, solange er an und das
 Fenster sichtbar ist, und nur nach den Mails nach der neuesten gezeigten. Ein Mandanten-Admin sieht wie bei jeder Suche nur die

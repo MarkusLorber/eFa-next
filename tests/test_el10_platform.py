@@ -23,6 +23,7 @@ OS_RELEASE = {
     'el9': 'NAME="AlmaLinux"\nVERSION_ID="9.8"\nID="almalinux"\nID_LIKE="rhel centos fedora"\n',
     'el10': 'NAME="AlmaLinux"\nVERSION_ID="10.1"\nID="almalinux"\nID_LIKE="rhel centos fedora"\n',
     'rocky10': 'NAME="Rocky Linux"\nVERSION_ID="10.0"\nID="rocky"\nID_LIKE="rhel centos fedora"\n',
+    'rhel10': 'NAME="Red Hat Enterprise Linux"\nVERSION_ID="10.1"\nID="rhel"\nID_LIKE="centos fedora"\n',
     'el8': 'NAME="AlmaLinux"\nVERSION_ID="8.10"\nID="almalinux"\nID_LIKE="rhel centos fedora"\n',
     'debian': 'NAME="Debian GNU/Linux"\nVERSION_ID="12"\nID=debian\n',
 }
@@ -48,12 +49,23 @@ class Detect(RootTestCase):
         self.assertIs(type(self.detect('el9')), efa_platform_el9.EL9)
         self.assertIs(type(self.detect('el10')), efa_platform_el10.EL10)
         self.assertIs(type(self.detect('rocky10')), efa_platform_el10.EL10)
+        self.assertIs(type(self.detect('rhel10')), efa_platform_el10.EL10)
         for name in ('el8', 'debian'):
             with self.assertRaises(c.StepError):
                 self.detect(name)
 
 
 class Differences(unittest.TestCase):
+    def test_oval_of_the_10_releases(self):
+        # G7-4: the CVE watch of an EL10 host reads the advisories of its own release, never those of 9.
+        url = efa_platform_el10.EL10.OVAL_SOURCES['almalinux']
+        self.assertIn('10', url.rsplit('/', 1)[1])
+        self.assertNotIn('-9', url)
+        # R7-1: Rocky 10 and RHEL 10 publish no OVAL file (404): no feed rather than a dead address, and never the one of 9.
+        self.assertIsNone(efa_platform_el10.EL10.OVAL_SOURCES['rocky'])
+        self.assertIsNone(efa_platform_el10.EL10.OVAL_SOURCES['rhel'])
+        self.assertEqual(set(efa_platform_el10.EL10.OVAL_SOURCES), set(efa_platform_el9.EL9.OVAL_SOURCES))
+
     def test_valkey_on_el10(self):
         el9, el10 = efa_platform_el9.EL9(), efa_platform_el10.EL10()
         self.assertEqual(el9.service('redis'), 'redis')
@@ -138,6 +150,38 @@ class MapType(RootTestCase):
         self.assertTrue(el10['smtp_tls_session_cache_database'].startswith('lmdb:'))
         self.assertNotIn('hash:', ' '.join(el10.values()))
         self.assertNotIn('btree:', ' '.join(el10.values()))
+
+
+class OvalNotices(unittest.TestCase):
+    """R7-1: a missing or failing OVAL feed is said on the dashboard, never silently blind."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.efactl = load_efactl()
+
+    def notices(self, status, ok_age):
+        return self.efactl.oval_notices(status, 1000000 - ok_age, 1000000)
+
+    def test_good_feed_is_quiet(self):
+        for status in ('', 'loaded', 'unchanged'):
+            self.assertEqual(self.notices(status, 10 * 86400), [], status)
+
+    def test_no_feed_for_the_distribution(self):
+        found = self.notices('no OVAL data for this system', 0)
+        self.assertEqual(len(found), 1)
+        self.assertIn('publishes no OVAL', found[0])
+
+    def test_refused_address_and_broken_file_at_once(self):
+        for status in ('not loaded: HTTP 404', 'parse failed: not a bzip2 file'):
+            found = self.notices(status, 60)
+            self.assertEqual(len(found), 1, status)
+            self.assertIn(status, found[0])
+
+    def test_network_error_only_after_a_day(self):
+        status = 'not loaded, the last copy is used: timed out'
+        self.assertEqual(self.notices(status, 3600), [])
+        self.assertEqual(self.notices('not loaded: HTTP 503', 3600), [])
+        self.assertEqual(len(self.notices(status, 86400 + 60)), 1)
 
 
 if __name__ == '__main__':

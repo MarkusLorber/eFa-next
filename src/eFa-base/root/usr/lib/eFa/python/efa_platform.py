@@ -41,6 +41,9 @@ class Platform:
     FIREWALL_SERVICES = {}
     # eFa-next oneshot jobs that are never restarted or enabled as plain services
     EFA_ONESHOTS = ()
+    # eFa-next services that only their own switch turns on (efactl): the setup never enables them; an update restarts them
+    # when they run
+    EFA_OPT_IN = ()
     # services that the setup turns off if they exist
     UNNEEDED_SERVICES = ()
 
@@ -70,6 +73,10 @@ class Platform:
 
     def service_is_active(self, name):
         """True if running or starting."""
+        raise NotImplementedError
+
+    def service_restarts(self, names):
+        """{name: automatic restarts of the unit since it was started (systemd NRestarts)}; a unit that does not exist is left out."""
         raise NotImplementedError
 
     def service_is_enabled(self, name):
@@ -185,6 +192,10 @@ class Platform:
         """Installed packages: {name: [(epoch, version, release), ...]}. Reads only."""
         raise NotImplementedError
 
+    def package_required_by(self, package):
+        """Installed packages that require something the installed package provides: [name, ...]. Reads only."""
+        raise NotImplementedError
+
     def version_older(self, installed, fixed):
         """True if the (epoch, version, release) installed is older than the fixed one."""
         raise NotImplementedError
@@ -215,6 +226,10 @@ class Platform:
 
     def memory_used_percent(self):
         """Share of the memory in use, what the system could not give a new process without swapping (0 to 100)."""
+        raise NotImplementedError
+
+    def meminfo_text(self):
+        """The memory counters of the kernel as text (/proc/meminfo on Linux), '' when they cannot be read."""
         raise NotImplementedError
 
     def package_verify(self, path):

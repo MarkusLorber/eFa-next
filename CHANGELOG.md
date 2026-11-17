@@ -1,6 +1,247 @@
 # Changelog
 
-## 6.0.0.6.3 (release date: pending)
+## 6.0.0.6.4 (release date: pending)
+
+### Environment of a host: production, test or development
+- *System › Maintenance › Environment* (`efactl environment-set --env prod|test|dev`, super admin, audited, only this host in
+  a cluster) marks a host as test (the host name in amber) or development (in red) under the logo of every page, the login
+  page too, as other enterprise products do. Production, the default, shows no mark. A host with the dev flag of the setup
+  wizard is always development. While that flag counts, the environment cannot be set to test or production (efactl
+  refuses with the reason); the dashboard line about the flag is red only when the host is not set to development.
+- On a development host the hint "Your login has no 2FA" has a *Confirm* button: per user, only for the own login, audited,
+  and void as soon as the host is test or production again. Test and production hosts have no button.
+
+### Development hosts: setup wizard without setup code
+- A root-only file `/etc/eFa/dev-no-setup-code` (regular file, `root:root`, not writable for group or others, made by hand)
+  lets the setup wizard open without the setup code. Any other file there is ignored with a reason in the journal. While it
+  counts, the wizard shows a red note on every page; `efactl status` and `efactl security-check` warn as long as the file
+  exists. eFa-next never creates it. For development hosts only (docs/install.md).
+
+### Known issue: VirtualBox and the EL10 kernel 6.12.0-211.74.x
+- Under VirtualBox 7.2 the AlmaLinux 10.2 kernel 6.12.0-211.74.x freezes early at boot (`evm: HMAC attrs: 0x1`); 6.12.0-211.7.3
+  boots. Not a fault of eFa-next; workaround in the install guide (older kernel in GRUB, `grubby --set-default`).
+
+### Stored secrets: stored or not set, and Remove
+- Next to the fields of stored secrets a chip says "stored" or "not set": OpenTelemetry token, single sign-on client secret,
+  LDAP service account password, sandbox API token, the Spamhaus DQS key ("not set (free public mirrors)") and the SecuriteInfo
+  account ID. The value never goes to the browser, not even a part of it; the read commands give only yes or no.
+- *Remove* deletes a stored secret (`efactl secret-remove`), with the rights of its setting and an entry in the audit log; it is
+  refused while the feature that needs it is on. Without its DQS key a Spamhaus list asks the free public mirrors again.
+
+### Fixed: system update and domain check
+- The system update (Maintenance & update, Update system) no longer stops when one upgrade cannot be installed, for example
+  an EPEL package that needs a newer library than the distribution ships ("nothing provides ..."). dnf leaves such upgrades
+  out (`best=False`, `--skip-broken`) and installs the rest; it never removes or downgrades a package for it. The held-back
+  packages are listed in the progress of the Update card, the update log, the mail to the admin and a dashboard notice; a
+  security update among them is named first and marked, and so is one that eFa-next requires. The next update tries again.
+- dnf errors are shown with their whole problem lines; the first characters of the message were cut off before.
+- Domain check: on a host without an IPv6 route the IPv6 resolvers are left out of the run after one question; before, every
+  IPv6 question waited 3 seconds, a domain took over half a minute and "Check now" failed from about four domains on.
+
+### Fixed: new installs
+- A new install no longer starts with the notice "Security minimum: settings under the limit were set back": the setup sets
+  the Postfix cipher grades to high and the cipher list of the default TLS profile (BSI TR-02102-2) from the start, only while
+  unset (an updated host keeps its TLS profile).
+- A new install keeps clamd@scan in the systemd sandbox. The setup applied the sandbox before clamd@scan was configured, and
+  the check took its failed start for a fault of the sandbox. A unit that is not running gets the sandbox without a start
+  (it runs in it from its next start); for a running one, one failed start is tried once more, a unit goes back without the sandbox only when it then runs without it, and
+  one that runs neither way keeps the sandbox. The event keeps the last journal lines of the unit.
+- The milter health service no longer logs every service DOWN on each boot (it starts before Postfix): within 120 seconds
+  of its start no DOWN line; what is still down after that is logged once.
+- No attack alert "service down: efa-web (skipped)" at the end of the first boot: the wizard stops and efa-web starts right
+  after; the milter health service names a skipped efa-web only when two checks in a row see it.
+- The attack alert counts a service as down only when the check a minute before saw it down too: a restart (rspamd right
+  after the first boot of a new install) is no alarm any more; a real outage alarms a minute later. A service in a restart
+  loop alarms at once, even when it is up at every check: 3 automatic restarts within 10 minutes (systemd NRestarts).
+- New installs work again: rspamd 4.3.0 (el9) no longer creates its user `_rspamd`, so the setup stopped at the blocklists
+  (every new install since 6.0.0.6.2). eFa-next-base now creates the user itself (`/usr/lib/sysusers.d/efa-rspamd.conf`) and
+  gives it the folders of rspamd. Updated hosts already have the user.
+- EL10: a new install no longer stops at Postfix ("chdir(/var/spool/postfix): No such file or directory"). On EL10 Postfix makes
+  its spool through tmpfiles.d, whose trigger runs only after the setup of eFa-next; the setup now makes it first.
+- EL10: eFa-next-base requires postfix-lmdb. It was only a weak dependency of postfix, and without it every Postfix table of
+  the setup failed ("unsupported dictionary type: lmdb").
+- A new install no longer greets the admin with false alarms: while the setup wizard runs, the check after package updates and
+  the attack alert wait (the setup stops and starts services on purpose), so the dashboard showed "After a package update:
+  efa-web is not running" and "Problem on this server: ... services down" after a clean setup. The fresh install of the CI
+  checks that a new host shows no red banner, no attack alert and no failed check after packages.
+- `efactl user-2fa-reset --username @admin` works on the console again (it is the only place for it); it said "Not your own".
+- The setup with the standard *Mozilla modern* no longer stops and takes the whole variant step back when Let's Encrypt fails
+  (2026-11-16: a name that is not public, no account): the setup never sets the own web certificate, the web interface keeps
+  its certificate and the item stays open under Security standards. A security standards run no longer stops at the web
+  certificate either; it lists it as not set and keeps the rest. eFa-next never asks Let's Encrypt for a name that is not
+  public (`.local`, `.test`, ..., or one without a public address).
+- No false alarms after the setup, second part (2026-11-17, found on a real new install): the checks now wait until the
+  first boot after the setup is done (efa-init enabled or the first-boot marker, not only efa-init running: the package scripts
+  restart it); the first boot drops check results from before; and right after any boot (5 minutes) services that are still
+  starting are no "Problem on this server" (efa-web checked before clamd, unbound and nginx were up).
+- Content disarm is on after the first boot at any time: qpdf is now a dependency of eFa-next (EL9 and EL10 AppStream) and
+  comes with the package. Before, the first boot installed it on its own and only between minute 20 and 50, so a host whose
+  first boot fell outside that window kept content disarm off. Updated hosts get qpdf with the next update of eFa-next.
+- The red attack banner shows the name of the service list and its button "Dashboard" again: both had white text on their
+  white field (since the links became chips on 2026-11-13).
+- Dashboard: *Confirm*, *Hide* and *Show again* of a notice keep the page where it is again. They never did: the form has a
+  field named "action", which hides form.action, so the background post went to a wrong address and the page was loaded anew
+  at the top. Found with a browser test.
+- Long forms: the action bar that stays in sight no longer covers the last fields (the sticky footer covered the end of the
+  page, so the form could not scroll far enough; since 2026-11-11). Focused fields scroll above bar and footer. *Network*:
+  the address and gateway fields for manual show only while IPv4 or IPv6 is set to manual; they keep their values.
+- OpenTelemetry export: the fields for the token and the API key header show only for the authentication that needs them;
+  the signals are three tick boxes (events, mail log, metrics) instead of free text; the switch "Check the certificate" is
+  gone: the certificate of the receiver is always checked (it already was), an own CA goes into *Own CA file*.
+- A field that belongs to another choice (OpenTelemetry authentication, the long forms) is really hidden now: the form style
+  kept such a row visible, only disabled.
+- The dashboard no longer fails (500) when a read answers in another form (an older or half answer): it shows the notices
+  and a line that some values could not be read; the reason goes to the log of efa-web.
+- The eFa-next logo of the web interface and the portal opens the website https://efa-next.eu/ (new tab, no referrer) instead
+  of the repository; the footer pill *Source code* still leads to the repository.
+- Setup wizard: the time servers come pre-filled with the NTP pool of the server's country, from its time zone (tzdata,
+  offline): Europe/Vienna gives at.pool.ntp.org, Europe/Berlin de.pool.ntp.org. A zone without a country gives the continent
+  (europe.pool.ntp.org), then pool.ntp.org. A name of the NTP pool goes to chrony as a pool line (up to four of its servers),
+  any other name or address as a server line. Servers an admin set (Re-Setup, migration) stay; the pool of the distribution
+  counts as not set.
+- Setup wizard, page Security standards: a short line at the standards whose part the setup leaves for later (the SSH
+  profile of BSI TR-02102-4 and CIS; the web certificate of Mozilla modern), made from the list of what the setup skips, so
+  it stays true. The long text stays on the check page.
+  (a name that is not public, no account): the setup never sets the own web certificate as part of the standards. For a
+  public name the wizard asks in its own step *Let's Encrypt* for the e-mail and the accepted Subscriber Agreement and checks
+  that the name resolves to a public address; then one request at the end of the setup. Without it, for a name that is not
+  public, or on a development host with `/etc/eFa/dev-no-setup-code`, the self-signed certificate stays and the check page says so.
+- Let's Encrypt is never overdone: each request first runs against the staging server (`--dry-run`), then once for real,
+  keeps a certificate that is not due yet, and never retries. After a failure no new request for an hour (dashboard notice),
+  unless the admin gives `force=yes`. A security standard run no longer stops at the web certificate; it lists it as not set.
+- Setup wizard: *Start over* on every page and on the error page (with a question first) forgets every entry of this run and
+  goes back to the start; after a failed setup the next run no longer comes with the choices of the failed one ticked.
+  What the setup already set on the system stays, the next run sets it again; the setup code stays valid.
+- The self-test of the setup wizard no longer writes into the state of a wizard that waits on the same host.
+- A manual setup after a failed guided one no longer sends the frameworks of the guided run: efa-apply keeps the answers of
+  an earlier run and the wizard left empty keys out, so they stayed. The wizard now always sends the frameworks, their note,
+  the standards and the typed confirmation, empty too; frameworks and note only with guided.
+- A new install keeps Pyzor off: the setup no longer starts its service, which failed without its settings every 5 seconds
+  and made the status *down*.
+
+### EL9: support until 2027-05-31
+- eFa-next on EL9 (AlmaLinux, Rocky Linux and RHEL 9): support and security updates until 2027-05-31, then no more updates,
+  only the migration to eFa-next 6.x on version 10 (release upgrade); SECURITY.md, manual chapter 14. The dashboard of an EL9 host
+  warns from 2026-12-01 (yellow, to the release upgrade card; it can be confirmed or hidden) and is red from 2027-06-01 (a
+  banner without a button). The notice also names the dates of the OS itself (security updates until 2032-05-31). EL10
+  hosts never show it; the dates never lock the release upgrade or a migration.
+- README and the feature list say what EL10 takes: fresh installs on AlmaLinux, Rocky Linux and RHEL 10 (G7-4), the release
+  upgrade from 9 to 10 on AlmaLinux only.
+
+### Dashboard: confirm or hide a notice
+- Each notice under *Needs attention* has *Confirm* and *Hide*. Confirmed: away for 30 days, back earlier when its text changes
+  (another domain, another count). Hidden: away until shown again, also when only a number in it changes. *Confirmed or hidden
+  notices* below lists them with *Show again*. Per server (`/var/lib/eFa/notice-ack.json`, not in the backup, not sent to
+  cluster nodes), for admins with *settings.edit*, each step in the audit log; `efactl notice-ack`. A stopped service, the
+  queues and problems of the security check have no buttons: they go only once their cause is fixed.
+- The page stays where it is: the buttons post in the background and only the list of notices is drawn anew.
+
+### Blocklists and virus signature sources: the page no longer jumps
+- *Confirm the terms*, the on/off switches and the Spamhaus DQS key post in the background; the page keeps its place and the
+  row shows the new state with a short confirmation. Without JavaScript the form posts as before.
+
+### Menu by use
+- Menu by use: daily work on top, no duplicate categories, *My account* in the user menu at the top right. New pages
+  *Viruses, attachments & links* and *Firewall*; old pages and card links lead to the new place (301).
+
+### Mail routing page by task
+- Mail routing page: reorganised by task (inbound, outbound, relays, transports), with a short explanation per section.
+
+### Impersonation & BEC page by task
+- Impersonation & BEC page: arranged by task, one card per protection, status at a glance; expert options folded away.
+
+### Sender lists: the dialog stays open
+- Sender lists: removing, adding or moving entries keeps the dialog open and shows the result in it (before, the page reloaded
+  and the dialog closed).
+
+### Hardening wizard: web certificate with several HTTPS blocks
+- A host migrated from eFa 5 can have two HTTPS server blocks in `/etc/nginx/conf.d/efa.conf` (the default server and one of the
+  certbot installer of eFa 5). The web certificate stopped with "unknown form" after the SSH profile and the kernel settings
+  had changed. Now every HTTPS block gets the web certificate; going back puts each block's own certificate back.
+- The wizard checks the nginx file before it changes anything, and a stop halfway takes back what that run changed at once
+  ("Taken back: ..."), instead of leaving the host half hardened.
+- Going back (rollback and the stop) puts the SSH profile and the kernel settings back as they were. A file of an older version
+  ("outdated") counted as off, so going back removed the SSH profile file and kept the new kernel settings file.
+
+### 2FA code fields
+- The fields for a 2FA code are as wide as a code (login, password confirmation, wizards, Re-Setup); recovery codes still fit.
+
+### Maintenance & update: one Update card with a progress bar
+- The page starts with one card *Update*: installed and available version, operating system updates pending, restart
+  needed, last check (*Check now*), the mode of the automatic updates, and one button *Update now*.
+- While an update runs the card shows a progress bar with the percentage, the step (*Step 4 of 5: Operating system, 27 of 46
+  packages*), the time left and the last line of dnf. Only that part renews, every 3 seconds while the page is in view; the
+  whole page no longer reloads every 10 seconds. When the web interface restarts during the update the card says so and tries
+  again; afterwards it shows the result, its duration and *Back to the version before*.
+- The same card shows the install of an eFa-next release alone (*Install now*, or *auto* in the window).
+- The other update cards are folded below it; *Check now* and *Install now* as single cards are in the expert view.
+- New: `efactl update-progress` (versions, pending, step, percentage, time left; reads only small files).
+Nine additions from the comparison with efa-project.org (EFA-NG), chosen on 2026-11-15. Everything new that talks to the
+outside is off by default and needs an explicit opt-in.
+
+### Mail log: Any (OR) or All (AND) of the filters, and saved searches (G7-1)
+- The advanced search combines its filters with *All* (AND) or *Any* (OR). The scope of the login (the domains of a tenant)
+  and the date range always stay AND around the filters, so an OR can never widen what a tenant sees (tested).
+- Saved searches per login: name and filters, at most 20, in the database (`efactl search-save`, `search-list`,
+  `search-delete`). The filters stay in the POST body, never in the address or the nginx log.
+
+### Greylisting: own exceptions (G7-2)
+- Networks (IP/CIDR) and domains of sending servers that never wait (`efactl greylisting-exception-set`, card *Greylisting
+  exceptions*). A domain matches the reverse DNS name of the sending server, never the forgeable sender address. In a
+  cluster the master hands the maps to every node.
+
+### Dashboard: swap gauge, and an own layout per login (G7-3, G7-7)
+- A *Swap* gauge next to CPU, RAM and disk, from `/proc/meminfo`: amber from 50 %, red from 80 %, grey with "no swap". Also in
+  `/metrics` and in the resource check.
+- *Customize dashboard*: show or hide blocks, change their order and width (half/full), with up/down buttons (keyboard,
+  phone) and native drag and drop (HTML5, no library); *Reset* brings the standard layout back. Mandatory cards (attack
+  banner, Needs attention) always stay. Kept per login in the database.
+
+### Reports: mail history, calendar and course over 30/90/365 days (G7-8)
+- Daily numbers (processed, spam, virus, held, rejected) in the small table `maillog_daily`, filled by the hourly job, not
+  counted on each page view, without any address; kept as long as the mail log retention says.
+- A month calendar with the numbers per day (a click opens the search for that day) and a course over 30, 90 or 365 days as
+  SVG from the server, without a JavaScript library. Tenants see their domains.
+- A mail between two own domains of the same tenant or admin counts once in their history, not once per domain (R7-6).
+- The history page is in the language of the reader (German and English) and has a link back to the mail report (R7-8).
+- The first count of the kept mail log goes 30 days per hourly run, newest first, instead of up to 400 days in one run, so
+  the other hourly jobs no longer wait for it (R7-7).
+
+### GeoIP with country and network, only local (G7-6)
+- Own reader for the MMDB format (Python standard library). The DB-IP Lite Country and ASN files (CC BY 4.0) are fetched once a
+  month when GeoIP is on, checked for size and format and only then swapped in; or imported from a file or the signed offline
+  bundle. No address is ever sent anywhere.
+- Country (flag, code) and network in the hop table, the mail log and the mail details; report *Countries of the delivering
+  servers*. The credit line of DB-IP stands under every table with countries. Off by default; turning it on confirms the terms.
+
+### Take over selected settings from another host (G7-9)
+- `efactl settings-export --parts <list>` writes a signed, encrypted file with only the chosen parts (spam values and
+  greylisting, attachment rules, sender allow/block lists, disclaimers, reports); `settings-import --preview` shows the
+  difference per value, `--confirm yes` takes it over, with a full revert on any failure.
+- Never taken over: host name, keys, certificates, database passwords, users and 2FA, cluster role. Domains and tenants live
+  in the database and are not part of it. Super admin only, with the second factor again in the web (System › Backup &
+  restore); every take-over is in the audit log and the config history (`history-undo`).
+- The import reads the file once into a root-only folder (a symbolic link, for example in /tmp, is refused) and checks only
+  that copy; a file that unpacks to more than 256 MB is refused (R7-12).
+
+### Rocky Linux 10 and RHEL 10 for fresh installs (G7-4)
+- `build.bash` accepts AlmaLinux, Rocky Linux and RHEL 10 (CRB name per distribution, EPEL 10, Valkey); security notices per
+  distribution (OVAL). Checked by unit tests only, not yet on a real Rocky 10 or RHEL 10 machine.
+- Rocky Linux 10 and RHEL 10 publish no OVAL file (the addresses answered 404): the CVE watch there uses the eFa-next feed and
+  EUVD and says on the dashboard that the OVAL source is missing. A failing OVAL feed (HTTP 4xx or a broken file at once, a
+  network or server error after a day) is named on the dashboard and in the security check, and no longer stops the job (R7-1).
+- The release upgrade 9 → 10 stays AlmaLinux only; on Rocky and RHEL the button says why it is off.
+
+### Pyzor as opt-in (G7-5)
+- `efactl pyzor-set` (card *Spam filter › Pyzor*, off by default): only a checksum of each incoming mail goes to the Pyzor
+  server (public.pyzor.org or your own), never the mail or its addresses. Turning it on asks for a typed yes per server, with EU
+  relation also the typed transfer confirmation; super admin only, second factor again in the web, strict audit log.
+- The sandboxed service efa-pyzor runs `pyzor check` (EPEL) as a separate program and keeps answers 10 minutes; a hit gives
+  `EFA_PYZOR` with 2.0 points (0 to 20). Off stops the service; the package stays.
+- Each mail waits at most 3 seconds for Pyzor (rspamd 3 s, the server 2 s); after 3 failures in a row efa-pyzor pauses for
+  5 minutes, and the pause is shown in `pyzor-status` and on the dashboard (R7-5).
+
+## 6.0.0.6.3 (2026-11-15)
 
 ### Behaviour change: attachment settings take effect as saved
 - Where the attachment checks are on, *Hiding file names* now works as saved; until 6.0.0.6.2 it counted nothing. A host
@@ -60,7 +301,7 @@
   the sentence "eFa-next is a private open source project" only from 1800 px. All links and the disclaimer stay. The sticky
   buttons of long forms sit right above it.
 
-## 6.0.0.6.2 (release date: pending)
+## 6.0.0.6.2 (2026-11-15)
 
 ### Security: rspamd 4.3.0 is the minimum (CVE-4)
 - eFa-next-base requires rspamd 4.3.0 or newer (by its arch-bound name: the rspamd packages also provide a plain "rspamd"

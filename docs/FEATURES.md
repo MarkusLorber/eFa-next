@@ -167,7 +167,7 @@ system. It never stops or removes them.
 - Search only in the web interface, not in the text interface efa-tui (planned for 6.0.0.7).
 - Emergency access without a ZIP/MBOX export per mailbox (planned for 6.0.0.7).
 - DKIM and ARC keys stay software keys; the hardware module holds the backup signature and S/MIME keys only (planned for 6.0.0.7).
-- The release upgrade from AlmaLinux 9 to 10 is built but starts only once the signed EL10 repository of eFa-next exists; AlmaLinux 10 itself is not tested yet. [Release upgrade](release-upgrade.md)
+- On EL10 fresh installs on AlmaLinux 10, Rocky Linux 10 and RHEL 10; Rocky Linux and RHEL 10 are not yet tested on a real host and have no OVAL security advisories yet (the CVE watch says so). The release upgrade from AlmaLinux 9 to 10 runs with the signed EL10 repository since 6.0.0.6 (AlmaLinux only). [Release upgrade](release-upgrade.md)
 - Sending limits of taken-over accounts count per node, not across a cluster.
 - Single sign-on (OIDC) is not yet tested against a live provider; the ARC seal after content disarm not yet against an outside ARC checker.
 - Extra uplinks per sender domain without failover.

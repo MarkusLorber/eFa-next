@@ -7,6 +7,12 @@ Stelle, mit `efa-migrate`. Die Kurzfassung steht in [migration.md](migration.md)
 **Es gibt keinen automatischen Weg zurück.** Der einzige Rückweg ist ein VM-Snapshot (oder ein vollständiges Image), den
 Sie unmittelbar vor der Migration anlegen.
 
+**Ab 6.0.0.6.3 gelten die aus eFa 5 übernommenen Anhangseinstellungen wirklich.** Mails mit verschleiertem Dateinamen
+(über 150 Zeichen, eine CLSID `{...}`, zehn oder mehr Leerzeichen hintereinander) werden dann abgewiesen, ebenso gefährliche
+Dateiendungen und Programme, die am Inhalt erkannt werden. Um solche Mails stattdessen zu markieren: *Schutz > Viren, Anhänge & Links >
+Anhänge*, *Gefährliche Dateiendungen* und *Verschleierte Dateinamen* auf *Als Spam markieren* stellen (oder
+`efactl attachment-set --mode on --action mark --names mark`).
+
 ## 1. Voraussetzungen
 
 - **eFa 5.0.x** auf **AlmaLinux 9, Rocky Linux 9 oder RHEL 9** (x86-64). Ältere Versionen (eFa 4 und davor) werden nicht unterstützt.

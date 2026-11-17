@@ -9,7 +9,7 @@ The state of the server at a glance: mail system, milters, quarantine, last back
 The first card of the dashboard. Each lamp is green when all is normal, amber when something is unusual and red for an attack
 or a fault; grey means no current value. Lamps: mail server (Postfix), spam filter (rspamd), virus scanner (ClamAV), database,
 cache, DNS resolver, web server, Fail2Ban, firewall, milters, and four from the attack check: attacks, spam and viruses, mail
-queue, resources. The gauges show CPU, RAM and disk in use, mails and the spam share of the last 10 minutes, SMTP connections
+queue, resources. The gauges show CPU, RAM, swap (amber from 50 %, red from 80 %, grey "No swap" on a host without swap) and disk in use, mails and the spam share of the last 10 minutes, SMTP connections
 per minute and failed logins of the last 10 minutes; the coloured band of each gauge shows where amber and red begin.
 
 ## Attack alert on every page
@@ -43,3 +43,6 @@ A tenant admin sees only what belongs to the tenant:
 On a phone the menu comes first, then the page:
 
 <img src="images/phone-dash.png" alt="Dashboard on a phone" width="300">
+
+Each login can arrange its own dashboard under *Customize dashboard*: order, hide, half width, and back to the standard layout.
+*Needs attention* and the security warnings always stay on top. See [the manual](manual/04-dashboard.md#your-own-layout).

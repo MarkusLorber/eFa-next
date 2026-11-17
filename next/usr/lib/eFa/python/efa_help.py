@@ -176,6 +176,8 @@ CARD = {
     'graymail-mine-set': 'Your own choice for newsletters to your mailbox.',
     'graymail-set': 'Newsletters and other wanted bulk mail: whether they are recognised and what happens with them for users without their own choice.',
     'graymail-status': 'How newsletters and similar bulk mail are handled for all, and your own choice.',
+    'greylisting-status': 'The networks and domains of sending servers that greylisting never delays.',
+    'greylisting-exception-set': 'A network or the domain of a sending server whose mail never waits, such as a partner or an own system.',
     'greylisting-set': 'Asks unknown senders to try again after a few minutes. Real mail servers do, much spam never comes back.',
     'group-list': 'The predefined and your own groups, with permissions, scope and members.',
     'group-map-list': 'Which group of the directory (LDAP or OIDC) gets which eFa-next group.',
@@ -288,6 +290,8 @@ CARD = {
     'pseudonymise-set': 'Replaces the part before the @ of every address in the mail log by a pseudonym after some days. Searches by domain still work.',
     'pseudonymise-status': 'After how many days addresses in the mail log are replaced by pseudonyms.',
     'pwned-check-set': 'New passwords are also checked against known data breaches. Only the first 5 characters of the password hash leave the host (k-anonymity), never the password.',
+    'pyzor-set': 'Compares a checksum of each incoming mail with the spam reports of other operators at a Pyzor server. Only the checksum leaves this server.',
+    'pyzor-status': 'Whether Pyzor is on, which server it asks and the score of a hit.',
     'qr-set': 'Reads QR codes in pictures and PDF files and checks their links, against phishing with QR codes (quishing).',
     'qr-status': 'Whether QR codes in pictures and PDF files are read and their links checked.',
     'quarantine-days-set': 'How long quarantined mail is kept before it is deleted automatically.',
@@ -314,6 +318,14 @@ CARD = {
     'release-upgrade': 'Upgrades this host from EL9 to EL10 in fixed steps: check, prepare, start. Start makes an encrypted backup first (or none, with the typed sentence: then only the VM snapshot leads back) and needs your password, 2FA code and the host name. Only for super admins.',
     'release-upgrade-status': 'State, last check and the end of the log of the release upgrade. Read only.',
     'report-set': 'Sends the report by mail to the admin and to each tenant admin with an address: yesterday every day, the last 7 days on Mondays.',
+    'settings-export': 'Packs only the chosen parts of the settings into one file, signed by this host and encrypted with a password.',
+    'settings-import': 'Takes chosen parts over from the file of another host: first a preview of each value, then with yes.',
+    'geoip-status': 'GeoIP shows the country and network (ASN) of sending servers, from local files of DB-IP Lite; no address is sent anywhere.',
+    'geoip-set': 'GeoIP on or off. On, this server downloads the DB-IP Lite files once a month (CC BY 4.0); off removes them.',
+    'geoip-import': 'For a server without internet: a DB-IP Lite file copied here by hand, checked like a download.',
+    'geoip-lookup': 'The country and network of one address, from the local files.',
+    'geoip-report': 'How much mail came from servers in which country, with spam and rejects, over the last days.',
+    'mail-history': 'A calendar of one month with the mails, spam, viruses and rejects of each day, and the course of the last 30, 90 or 365 days.',
     'report-show': 'Mail flow, threats, authentication and TLS for a period, for all or one domain. Opens as a page you can print to PDF.',
     'report-status': 'Shows which reports are sent by mail.',
     'reports-in-set': 'One of your addresses receives the DMARC and TLS reports of other servers; eFa-next reads them instead of delivering them.',
@@ -358,6 +370,7 @@ CARD = {
     'session-list': 'Your active logins, also on other devices. End one you do not know.',
     'settings': 'All current values of this server at a glance, read only. Change them on the page of each topic.',
     'setup-offer-dismiss': 'After an update or migration the dashboard offers a Re-Setup once. This hides the offer.',
+    'notice-ack': 'A notice of the dashboard: confirm it (away for 30 days, back earlier when it changes), hide it (away until shown again) or show it again. Only for this server; each step is in the audit log.',
     'setup-variant-status': 'Shows the setup variant (guided or manual), the EU link, the frameworks, when each text was confirmed, and what a Re-Setup would raise. Re-Setup at /resetup never lowers a setting.',
     'siem-set': 'Sends mail, audit, firewall, event and Fail2Ban lines through rsyslog to your SIEM, encrypted with TLS. A target rsyslog refuses is not kept.',
     'siem-status': 'Shows whether logs are sent to a SIEM and where.',
@@ -996,6 +1009,10 @@ FIELD = {
         'mode': 'On recognises newsletters; off treats them like any other mail.',
         'subject': 'Text before the subject of a marked newsletter, such as [Newsletter]; - for none.',
     },
+    'greylisting-exception-set': {
+        'action': 'Add or remove the exception.',
+        'value': 'An IP address or network (at most /16 for IPv4, /32 for IPv6), or the domain of the sending server as its reverse DNS name shows it. The sender address does not count: it can be forged.',
+    },
     'greylisting-set': {
         'days': 'How long a sender that came back stays known and is not delayed again.',
         'minutes': 'How long a new sender must wait before the retry counts. 5 minutes is common.',
@@ -1110,6 +1127,8 @@ FIELD = {
     },
     'web-cert-set': {
         'mode': "ecdsa: own certificate for the web (port 80 must be reachable under its names, with a Let's Encrypt account). mail: the certificate of Postfix.",
+        'email': "The contact address of the Let's Encrypt account; empty uses the one given before.",
+        'force': "After a failed request Let's Encrypt is paused for an hour; yes asks again now. Mind the rate limits of Let's Encrypt.",
     },
     'letsencrypt-rollover': {
         'step': 'Do the steps in order and wait for DNS between them.',
@@ -1117,6 +1136,7 @@ FIELD = {
     'letsencrypt-set': {
         'domain': 'The public host name of this server.',
         'email': "Let's Encrypt writes here before a certificate expires.",
+        'force': "After a failed request Let's Encrypt is paused for an hour; yes asks again now. Mind the rate limits of Let's Encrypt.",
     },
     'letsencrypt-takeover': {
         'domain': 'Host name of the certificate; empty for the Postfix host name.',
@@ -1170,6 +1190,7 @@ FIELD = {
         'mode': 'Switches maintenance mode on or off.',
     },
     'message-search': {
+        'match': 'All: a mail must meet every condition. Any: one of them is enough; the time span and your domains always apply.',
         'action': 'Only mail with this result, such as rejected or marked as spam.',
         'date_from': 'Start of the time span, such as 2026-11-05 or 2026-11-05 08:00.',
         'date_to': 'End of the time span, in the same form.',
@@ -1261,7 +1282,6 @@ FIELD = {
         'headers': 'Extra HTTP headers the receiver needs.',
         'mode': 'Switches the export on or off.',
         'signals': 'Which data is sent.',
-        'verify': 'Checks the certificate of the receiver. Leave it on.',
     },
     'outbound-limits-set': {
         'action': 'What happens to mail over the limit: only log, slow the sender down, hold the mail in the queue, or reject it. Hold is the safest for taken over accounts.',
@@ -1336,6 +1356,13 @@ FIELD = {
     'pwned-check-set': {
         'mode': 'Switches the check on or off.',
     },
+    'pyzor-set': {
+        'accept': 'Once per server: yes accepts that a checksum of every incoming mail goes to the Pyzor server.',
+        'confirm': 'Only with EU relation and a server outside the own networks: type the sentence shown to allow the transfer.',
+        'mode': 'Off is the default. On asks the Pyzor server about each incoming mail.',
+        'server': 'host:port; public.pyzor.org:24441 is the public server of the Pyzor project. Run your own for a closed network.',
+        'weight': 'The score a Pyzor hit adds to the spam score; 2.0 is the default.',
+    },
     'qr-set': {
         'mode': 'On is recommended. Needs the packages zbar and poppler-utils.',
     },
@@ -1405,6 +1432,40 @@ FIELD = {
         'daily': 'The report of yesterday every morning.',
         'pdf': 'Adds the report as a PDF attachment.',
         'weekly': 'The report of the last 7 days every Monday.',
+    },
+    'settings-export': {
+        'parts': 'spam, attachments, lists, disclaimer or reports; several with commas.',
+        'password': 'At least 12 characters; the other host needs it to read the file.',
+        'password2': 'The same password again.',
+    },
+    'settings-import': {
+        'confirm': 'yes takes the values over; empty only shows them.',
+        'file': 'The file of settings-export, copied to /var/tmp, /tmp, /media or /mnt.',
+        'parts': 'Which parts of the file to take over; the others stay as they are.',
+        'password': 'The password given at the export.',
+        'preview': 'yes only shows what would change.',
+        'signer': 'The fingerprint the export showed; without it only a file of this host is read.',
+    },
+    'geoip-set': {
+        'accept_terms': 'Once: yes accepts that the files come from download.db-ip.com under CC BY 4.0.',
+        'mode': 'On fetches the files now and then once a month; off removes them.',
+    },
+    'geoip-import': {
+        'file': 'A .mmdb or .mmdb.gz file of DB-IP Lite under /var/tmp, /tmp, /media or /mnt.',
+        'kind': 'Country or network (ASN): the file must hold that kind.',
+    },
+    'geoip-lookup': {
+        'ip': 'An IPv4 or IPv6 address; private addresses have no country.',
+    },
+    'geoip-report': {
+        'days': 'The time span: the last 7, 30, 90 or 365 days.',
+        'domain': 'Only the mail of this domain; empty for all you may see.',
+    },
+    'mail-history': {
+        'days': 'How many days the line chart below the calendar shows.',
+        'domain': 'Only the mail of this domain; empty for all you may see.',
+        'format': 'Page opens the calendar; values give the numbers as JSON.',
+        'month': 'The month of the calendar, like 2026-11; empty for this month.',
     },
     'report-show': {
         'domain': 'Only this domain; empty for all you may see.',
@@ -1882,9 +1943,12 @@ CARD.update({
     'threat-status': 'Once a minute eFa-next checks this server for attacks and problems: connection floods, SYN floods, password guessing, '
                      'spam and virus waves, a filling mail queue, stopped services, a full disk. Anything found shows as a banner on every '
                      'page and as lamps and gauges on the dashboard. The check only reads what the server counts anyway.',
+    'environment-status': 'Whether this host is marked as production, test or development.',
+    'environment-set': 'Marks this host as test (amber) or development (red): the web interface shows the host name in that colour on every page, the login page too. Production shows no mark.',
     'threat-set': 'How early the attack alert speaks up. High warns at half the limits, low only at twice the limits.',
 })
 FIELD.update({
+    'environment-set': {'env': 'Production for a host that serves real mail. The mark is only for the eyes; nothing else changes.'},
     'threat-set': {'sensitivity': 'Normal fits most servers. Choose high for a small server with little mail, low for a large one with many '
                                   'connections where normal warns too often.'},
 })

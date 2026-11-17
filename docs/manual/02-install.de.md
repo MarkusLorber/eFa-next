@@ -3,7 +3,14 @@
 ## Voraussetzungen
 
 - **Betriebssystem:** ein frisches, minimales AlmaLinux 9, Rocky Linux 9, CentOS Stream 9 oder RHEL 9 (getestet auf AlmaLinux 9).
-  AlmaLinux 10 wird angenommen, ist aber noch nicht getestet; RHEL 10 und Rocky Linux 10 werden abgelehnt, bis sie getestet sind.
+  Version 10 von AlmaLinux, Rocky Linux und RHEL wird ebenfalls angenommen; Rocky Linux 10 und RHEL 10 sind noch nicht auf einem
+  echten Host getestet (RHEL braucht ein registriertes System). CentOS Stream 10 wird abgelehnt. Das Release-Upgrade 9 → 10 gibt es
+  bisher nur für AlmaLinux.
+- **VirtualBox und der EL10-Kernel 6.12.0-211.74.x:** unter VirtualBox 7.2 friert dieser Kernel früh beim Start ein, die letzte
+  Zeile auf der Konsole ist `evm: HMAC attrs: 0x1`, und der Host bekommt nie ein Netz. Kernel 6.12.0-211.7.3 startet. Im
+  GRUB-Menü den älteren Kernel wählen und ihn als Standard behalten, bis ein behobener Kernel kommt:
+  `grubby --set-default /boot/vmlinuz-6.12.0-211.7.3.el10_2.x86_64`. Andere Hypervisoren und echte Server sind nach
+  bisherigem Stand nicht betroffen.
 - **Netz:** eine feste IP-Adresse, ein Hostname im DNS mit passendem PTR-Eintrag, HTTPS-Zugang zu den Paketquellen.
 - **Größe** (Lasttest auf 4 CPUs und 7,5 GB RAM: etwa 2.700 Mails je Minute durch alle Filter):
 
@@ -89,7 +96,7 @@ Der Assistent beginnt auf Englisch (der Link oben schaltet auf Deutsch) und geht
 Dann richtet sich der Host ein und startet neu. Bekommt er eine neue Adresse, zeigt die Seite sie und öffnet sie, sobald sie
 antwortet.
 
-**Re-Setup** stellt dieselben Fragen später für das laufende System: *Benutzer & Zugriff › Sicherheit › Einrichtungsvariante*, die
+**Re-Setup** stellt dieselben Fragen später für das laufende System: *Sicherheit & Datenschutz › Sicherheit › Einrichtungsvariante*, die
 Adresse `/resetup` oder `sudo efactl resetup`. Es zeigt alte und neue Werte, macht eine Sicherung und hebt Einstellungen nur an.
 Von manuell zu geführt ist frei; von geführt zu manuell braucht Passwort und 2FA-Code, und 2FA bleibt an.
 

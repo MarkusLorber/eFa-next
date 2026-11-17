@@ -48,6 +48,18 @@ class CommonTests(RootTestCase):
         self.assertFalse(c.valid_email("a@b.example\nBcc:x"))
 
 
+class NewInstallTlsFloor(unittest.TestCase):
+    def test_new_install_tls_meets_the_floor(self):
+        """2026-11-17: a new install had the stock cipher grade medium, and floor-check set it back with a notice."""
+        import test_threat
+        e = test_threat.load_efactl()
+        bsi = e.TLS_PROFILES['bsi']['ciphers']
+        defaults = s.efactl_defaults()
+        self.assertEqual(defaults['tls_high_cipherlist'], bsi, 'the cipher list of the default profile of efactl')
+        values = {**s.postfix_fixed('hash'), **defaults}
+        self.assertEqual(e.floor_postfix_findings(values, [], cipher_problem=lambda v: None if v == bsi else 'weak'), [])
+
+
 class StepTests(RootTestCase):
     def run_all(self):
         return c.run_steps(s.INSTALL_STEPS, s.INSTALL_ORDER)
@@ -87,6 +99,18 @@ class StepTests(RootTestCase):
         self.assertFalse([cmd for cmd in second if cmd[:2] == ["postconf", "-e"]])
         self.assertFalse([cmd for cmd in second
                           if any(a.startswith("--add-service=") for a in cmd)])
+
+    def test_postfix_spool_of_tmpfiles_first(self):
+        """EL10: the spool comes from tmpfiles.d, whose rpm trigger runs after the setup; the postfix step makes it itself."""
+        s.step_postfix()
+        self.assertNotIn(["systemd-tmpfiles", "--create", "postfix.conf"], self.runner.calls, "EL9: the rpm has the folders")
+        self.write("usr/lib/tmpfiles.d/postfix.conf", "d /var/spool/postfix 0755 root root -\n")
+        s.step_postfix()
+        self.assertIn(["systemd-tmpfiles", "--create", "postfix.conf"], self.runner.calls)
+        for path in ("/var/spool/postfix", "/var/lib/postfix"):
+            self.assertIn(["restorecon", "-R", path], self.runner.calls, path)
+        # The data folder is made before the labels, not by the first postfix call afterwards.
+        self.assertTrue(os.path.isdir(self.path("var/lib/postfix")))
 
     def test_postfix_parameters(self):
         s.step_postfix()

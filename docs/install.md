@@ -4,10 +4,15 @@
 of Linux, DNS, SMTP and TLS. Not intended for consumers or private persons and not released for that use; see
 [DISCLAIMER.md](../DISCLAIMER.md). The setup asks you to confirm this.
 
-For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, or with AlmaLinux 10 (not tested yet); tested on AlmaLinux 9. RHEL 10 and Rocky Linux 10 are refused until they are tested. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
+For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, or with version 10 of AlmaLinux, Rocky Linux or RHEL; tested on AlmaLinux 9 and 10. Rocky Linux 10 and RHEL 10 are accepted since 6.0.0.6.4 but not yet tested on a real host, and their CVE watch has no OVAL data, because Rocky and Red Hat publish no OVAL file for 10 yet ([CVE watch](cve-watch.md)) (RHEL needs a registered system for its CRB repository). CentOS Stream 10 is refused. For an existing eFa 5.0, see [Migrate from eFa 5](migration.md).
 
 ## Requirements
 
+- **VirtualBox and the EL10 kernel 6.12.0-211.74.x:** under VirtualBox 7.2 this kernel freezes early at boot, the last line on
+  the console is `evm: HMAC attrs: 0x1`, and the host never gets a network. Kernel 6.12.0-211.7.3 boots. Choose the older
+  kernel in the GRUB menu, then keep it as the default until a fixed kernel comes:
+  `grubby --set-default /boot/vmlinuz-6.12.0-211.7.3.el10_2.x86_64`. Other hypervisors and real servers are not affected
+  as far as known.
 - A fixed IP address and a host name in DNS, with a matching PTR record.
 - Access to the package repositories over HTTPS.
 - Size, from the load test (`scripts/load_test.py`, Q11) on 4 CPUs and 7.5 GB RAM: about 2,700 mails per minute through Postfix
@@ -79,7 +84,7 @@ system. It never stops or removes them.
    To check the key yourself: `curl -fsSL https://repo.efa-next.eu/RPM-GPG-KEY-efa-next | gpg --show-keys`.
 
 2. Open the setup wizard in a browser: `https://<host name or IP>/`. On the first start the host has a self-signed placeholder
-   certificate, so the browser warns once; a real certificate comes later (System, Network & certificate, Let's Encrypt).
+   certificate, so the browser warns once; a real certificate comes later (System, Network, DNS & certificate, Let's Encrypt).
    The wizard asks for the setup code, which only root on the host can read: `sudo cat /run/efa-init/setup-code`.
 
 3. The wizard starts in English; the link at the top switches to German. First it shows a note on presets and recommendations
@@ -99,6 +104,11 @@ system. It never stops or removes them.
    and BSI TR-02102 add the TR-02102 parts. Port 25 stays opportunistic, and the SSH profile after BSI TR-02102-4 is not set by
    the setup: it goes back after 10 minutes unless a new SSH login confirms it, so set it later in the hardening wizard
    (Security standards). The last page shows per standard what is set; none chosen keeps the defaults of eFa-next.
+   *Mozilla modern* wants an own ECDSA certificate for the web interface from Let's Encrypt: for a public name the wizard
+   asks in the step **Let's Encrypt** for a contact e-mail and the acceptance of the Subscriber Agreement and checks that the
+   name resolves to a public address; the setup then asks Let's Encrypt once (a dry run against staging first). For a name
+   that is not public, without the data, or if Let's Encrypt fails, the self-signed certificate stays and the rest is set.
+   After a failure eFa-next asks Let's Encrypt again only after an hour or with `force=yes` (rate limits).
 
    After the console admin the wizard asks for **root login through SSH** (off, with an SSH key only, on), prefilled with what
    sshd takes now. Off or key-only is recommended; off also stops the SSH keys of root, so only the console admin logs in over SSH
@@ -198,6 +208,20 @@ password once more ("Your password, to confirm").
 
 The code is made new at each start of the wizard: `sudo systemctl restart efa-init`, then `sudo cat /run/efa-init/setup-code`.
 After ten wrong codes the wizard refuses all codes until that restart.
+
+### Development hosts only: wizard without setup code
+
+On a development host an admin can switch the setup code off by hand. Never on a production host: anyone who reaches port 443 then
+reaches the wizard.
+
+    sudo install -o root -g root -m 0600 /dev/null /etc/eFa/dev-no-setup-code
+    sudo systemctl restart efa-init
+
+efa-init reads the file at its start and takes it only if it is a regular file (not a symlink) of `root:root` that group and
+others cannot write; otherwise it ignores it and writes why to the journal (`journalctl -u efa-init`). While it counts, every
+page of the wizard shows a red note "Dev mode: setup code switched off - not for production", and after the setup
+`efactl status` (dashboard) and `efactl security-check` warn as long as the file exists. The file stays for every Re-Setup;
+no part of eFa-next creates or removes it. Back to the code: `sudo rm /etc/eFa/dev-no-setup-code`, then restart efa-init.
 
 ### Forgotten password or locked out
 

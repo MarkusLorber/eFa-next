@@ -17,7 +17,7 @@ import time
 
 # The source tree first, so a self test there uses its own libraries, not the installed ones.
 sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../lib/eFa/python'), '/usr/lib/eFa/python']
-from efa_nav import FORM_SOURCE, NAV, form_value  # noqa: E402
+from efa_nav import ADMIN_NAV as NAV, FORM_SOURCE, form_value  # noqa: E402  every card once (the portal cards are not for the console)
 
 EFACTL = os.environ.get('EFA_TUI_EFACTL', '/usr/sbin/efactl')
 # Destructive: a second question before efactl runs them, besides the confirmation field of the command.
@@ -508,7 +508,7 @@ def self_test():
     assert [field_kind(arg) for arg in sample['args']] == ['text', 'secret', 'text', 'switch', 'choice', 'confirm'] and field_label(sample['args'][3]) == 'Active'
     assert show_text({'a': 1, 'b': [1, 2], 'c': {'d': None}}) == ['a: 1', 'b:', '  1', '  2', 'c:', '  d: ']
     tree = menu_tree({'status': {}, 'reboot': {}, 'brand-new': {}})
-    assert tree[0][0] == 'Overview' and tree[-1] == (TEXT['other'], [(TEXT['other'], ['brand-new'])])
+    assert tree[0][0] == 'Daily' and tree[-1] == (TEXT['other'], [(TEXT['other'], ['brand-new'])])
     if os.geteuid() == 0:
         pty_test()
     print('self-test ok')

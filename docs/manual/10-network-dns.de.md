@@ -1,17 +1,17 @@
 # 10. Netzwerk, DNS und Zertifikat
 
-Die Seiten *System › Netzwerk & Zertifikat* und *System › DNS-Resolver für weitere Netze*.
+Die Seiten *System › Netzwerk, DNS & Zertifikat* und *System › DNS-Resolver für weitere Netze*.
 
 ## Netzwerk
 
-*Netzwerk & Zertifikat › Hauptschnittstelle*: Hostname, IPv4 (manuell oder automatisch) und IPv6 (auto, manuell, ignorieren oder
+*Netzwerk, DNS & Zertifikat › Hauptschnittstelle*: Hostname, IPv4 (manuell oder automatisch) und IPv6 (auto, manuell, ignorieren oder
 abgeschaltet; die Seite zeigt das wirksame IPv6). Eine Adressänderung gilt nach einem Neustart.
 
 *Weitere Schnittstellen* fügt Schnittstellen mit einer Rolle hinzu (etwa ein eigenes Admin- oder Sicherungsnetz) und ihre Routen.
 Wie bei der Firewall wartet eine Änderung auf *Bestätigen* und wird ohne zurückgenommen. Details: [interfaces.md](../interfaces.md),
 [network.md](../network.md).
 
-![Netzwerk & Zertifikat](../images/manual/net.png)
+![Netzwerk, DNS & Zertifikat](../images/manual/net.png)
 
 ## DNS: der eigene Resolver
 

@@ -71,6 +71,8 @@ session_checked = {}
 SESSION_CHECK_SECONDS = 15
 
 REPO_URL = 'https://github.com/MarkusLorber/eFa-next'
+# Hans 2026-11-17: the logo opens the website of the project; the footer pill "Source code" keeps the repository.
+WEBSITE_URL = 'https://efa-next.eu/'
 # A plain link to the form of the project: nothing of this host goes with it (no version, no host name).
 FEATURE_URL = REPO_URL + '/issues/new?template=feature_request.yml'
 # The source tree first, so a self test there uses its own libraries, not the installed ones.
@@ -78,7 +80,11 @@ sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../
 import efa_style  # noqa: E402  the logo and colours, shared with efa-init
 # Same drawing as assets/logo.svg (efa_style), inline: the login page shows it too.
 LOGO = efa_style.LOGO
-BRAND = '<a class="brand" href="' + REPO_URL + '" target="_blank" rel="noopener noreferrer">' + LOGO + '</a>'
+# The environment mark (efactl environment-set) under the logo of every page: filled in per request by environment_mark().
+BRAND = '<a class="brand" href="' + WEBSITE_URL + '" target="_blank" rel="noopener noreferrer">' + LOGO + '</a>{{ environment_mark|safe }}'
+ENVIRONMENT_FILE = '/etc/eFa/environment.json'
+# Colours of the tokens that the contrast test of the self-test checks 4.5:1, light and dark.
+ENVIRONMENT_STYLE = {'test': 'background:var(--note);color:var(--note-ink)', 'dev': 'background:var(--card);color:var(--bad)'}
 FLAG_AT = """<svg viewBox="0 0 30 20" role="img" aria-label="Austria"><rect width="30" height="20" fill="#fff"/>
 <rect width="30" height="6.67" fill="#ED2939"/><rect y="13.33" width="30" height="6.67" fill="#ED2939"/></svg>"""
 FLAG_EU = """<svg viewBox="0 0 30 20" role="img" aria-label="European Union"><rect width="30" height="20" fill="#003399"/>
@@ -90,7 +96,10 @@ FLAG_EU = """<svg viewBox="0 0 30 20" role="img" aria-label="European Union"><re
 
 # The sidebar. Each page offers the listed efactl commands: read commands without arguments show their output,
 # all others a form. 'load' only fetches data for the page, 'show' lists current values from `efactl settings`.
-from efa_nav import FORM_NEW, FORM_SOURCE, MOVED, MOVED_CARDS, NAV, NOTE_SHORT, PAGES, STATUS_OF, form_value  # noqa: E402  the menu, shared with efa-tui
+from efa_nav import ADMIN_NAV, ADMIN_PAGES, FORM_NEW, FORM_SOURCE, MOVED, MOVED_CARDS, NOTE_SHORT, STATUS_OF, form_value  # noqa: E402  the menu, shared with efa-tui
+from efa_nav import NAV as PORTAL_NAV, PAGES as PORTAL_PAGES  # noqa: E402
+# 6.0.0.6.x (Hans): every card once in the admin interface; the cards of the user portal only in the portal.
+NAV, PAGES = (PORTAL_NAV, PORTAL_PAGES) if PORTAL else (ADMIN_NAV, ADMIN_PAGES)
 import efa_help  # noqa: E402  the help texts of cards and fields, shared with efa-tui
 import efa_i18n  # noqa: E402
 import efa_legal  # noqa: E402
@@ -163,8 +172,8 @@ CURRENT = {
 # 9l start page picture: off until a better drawing exists; only this switch turns it back on, there is no option in the UI.
 FLOW_PICTURE = False
 # These run from buttons or popups of another card; subject-get only fills a form.
-HIDDEN_CARDS = {'clam-source-set', 'clam-securiteinfo-set', 'sender-action', 'sender-action-check', 'admin-2fa-verify', 'resetup', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'mail-check', 'disclaimer-import', 'disclaimer-export', 'flow-status', 'flow-set', 'threat-run', 'neural-settings', 'ml-settings', 'dkim-generate', 'dkim-generate-ed25519', 'audit-note', 'refusal-note', 'mail-show', 'uq-content', 'quarantine-content', 'session-open', 'session-check', 'events-run', 'uq-link-view', 'uq-link-use', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'oidc-start', 'oidc-finish', 'user-verify', 'token-check', 'audit-purge', 'metrics', 'subject-get', 'dmarc-record-history', 'maillog-live', 'relay-networks-set', 'relay-networks-remove',
-                'relay-networks-apply', 'relay-networks-discard', 'load-notify', 'firewall-revert', 'firewall-guard-run', 'web-harden', 'audit-rspamd', 'update-system-run', 'update-post-boot', 'update-now', 'backup-download', 'backup-read', 'backup-import', 'update-run', 'sender-add', 'sender-remove', 'sender-move', 'sender-list-set', 'sanesecurity-run', 'rbl-apply', 'mailreport-run'}
+HIDDEN_CARDS = {'notice-ack', 'clam-source-set', 'clam-securiteinfo-set', 'sender-action', 'sender-action-check', 'admin-2fa-verify', 'resetup', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'mail-check', 'disclaimer-import', 'disclaimer-export', 'flow-status', 'flow-set', 'threat-run', 'neural-settings', 'ml-settings', 'dkim-generate', 'dkim-generate-ed25519', 'audit-note', 'refusal-note', 'mail-show', 'uq-content', 'quarantine-content', 'session-open', 'session-check', 'events-run', 'uq-link-view', 'uq-link-use', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'oidc-start', 'oidc-finish', 'user-verify', 'token-check', 'audit-purge', 'metrics', 'subject-get', 'dmarc-record-history', 'maillog-live', 'relay-networks-set', 'relay-networks-remove',
+                'relay-networks-apply', 'relay-networks-discard', 'load-notify', 'firewall-revert', 'firewall-guard-run', 'web-harden', 'audit-rspamd', 'update-system-run', 'update-post-boot', 'update-now', 'backup-download', 'backup-read', 'backup-import', 'update-run', 'sender-add', 'sender-remove', 'sender-move', 'sender-list-set', 'sanesecurity-run', 'rbl-apply', 'mailreport-run', 'update-progress'}
 DANGER = {'gdpr-delete', 'dkim-remove', 'reboot', 'halt', 'restore', 'release-upgrade', 'update-rollback', 'quarantine-delete', 'quarantine-purge', 'maillog-purge'}
 
 BLOCK = '{% block %}{% endblock %}'
@@ -194,7 +203,7 @@ small.now{grid-column:2;color:var(--muted);margin-top:-4px}
 @media(max-width:760px){small.now{grid-column:1}}
 aside a.nav.on{background:rgba(192,207,72,.14);border-left-color:var(--lime);color:#fff}
 aside form{padding:18px 22px 0}
-main{flex:1;min-width:0;padding:28px 36px;max-width:980px}
+main{flex:1;min-width:0;padding:28px 36px calc(28px + var(--footer-h,52px));max-width:980px}html{scroll-padding-bottom:calc(var(--footer-h,52px) + 64px)}
 main.solo{flex:none;width:100%;max-width:420px;margin:auto;padding:16px}
 main.solo .brand{padding:18px 22px;border-radius:12px 12px 0 0}
 main.solo .card{border-radius:0 0 12px 12px}
@@ -253,7 +262,7 @@ table.rbl th.n,table.rbl td.n{white-space:nowrap;width:1%}form.dqs{margin-top:4p
 .card p.h{margin:0 0 14px;color:var(--gray);font-size:13px}
 .card.done{border-color:var(--lime);border-width:2px}
 .err{color:var(--bad);font-weight:500;overflow-wrap:anywhere}
-.row{display:grid;grid-template-columns:230px 1fr;gap:6px 18px;align-items:center;margin:10px 0}
+.row{display:grid;grid-template-columns:230px 1fr;gap:6px 18px;align-items:center;margin:10px 0}.row[hidden]{display:none}.secret{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.secret input{flex:1;min-width:12em}
 /* 6.0.0.6: Mail log: the quick search and Check a mail side by side; the filters of the advanced search in two columns. */
 .duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:0 18px;align-items:start}.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:0 24px}#adv-form>.btns{position:static;margin:14px 0 0;padding:0;border:0;background:none}
 .row label{font-weight:500}
@@ -271,6 +280,7 @@ form:has(input[name=encrypt]:checked) .encryptbox{display:grid}
 dialog#live-log,dialog.popup{width:min(1400px,96vw);height:90vh;border:1px solid var(--line);border-radius:12px;padding:16px;color:var(--ink);background:var(--card)}
 dialog#live-log[open],dialog.popup[open]{display:flex;flex-direction:column;gap:10px}
 dialog::backdrop{background:rgba(0,0,0,.45)}
+#sender-note{margin:0;padding:8px 12px;border-radius:8px;border-left:4px solid var(--ok);background:var(--bg);font-size:13px;overflow-wrap:anywhere}#sender-note.bad{border-left-color:var(--bad);color:var(--bad);font-weight:500}
 .live-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.live-head h2{margin:0;font-size:17px}.live-head span{flex:1;color:var(--gray);font-size:13px}
 .live-filters{display:flex;gap:8px;flex-wrap:wrap}.live-filters input,.live-filters select{width:auto;flex:1 1 130px;max-width:none}
 .live-table{flex:1;overflow:auto;border:1px solid var(--line);border-radius:8px}.live-table th{position:sticky;top:0;background:var(--card)}.live-table tr:hover td{background:var(--hover);cursor:pointer}
@@ -332,7 +342,7 @@ footer .mie{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--
 footer svg{height:20px;width:auto;border-radius:2px;box-shadow:0 0 0 1px #0002}
 footer .fl a{padding:0 8px;margin:1px 2px;font-size:12px;line-height:1.45}
 .att td{overflow-wrap:normal;hyphens:auto}
-@media(max-width:760px){.wrap{flex-direction:column}aside{width:100%}main{padding:20px 16px}.row{grid-template-columns:1fr}
+@media(max-width:760px){.wrap{flex-direction:column}aside{width:100%}main{padding:20px 16px calc(20px + var(--footer-h,52px))}.row{grid-template-columns:1fr}
 footer{padding:6px 12px;gap:10px;font-size:11px;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto}footer .long{display:none}footer svg{height:14px}
 #load-card th:last-child,#load-card td:last-child{display:none}#load-card td,#load-card th{padding:6px 4px;overflow-wrap:normal}}
 @media print{footer{position:static}.pending{position:static}}
@@ -342,7 +352,7 @@ dialog.resultdlg::backdrop{background:rgba(0,0,0,.45)}dialog.resultdlg h2{margin
 /* 6.0.0.6: the attack banner on every page (sticky under the top bar) and the lamps and gauges of the dashboard. */
 .threat{position:sticky;top:0;z-index:21;display:flex;gap:12px 16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin:0 0 18px;padding:12px 16px;
 border-radius:10px;border:2px solid var(--warn);background:var(--pend);color:var(--pend-ink)}.threat.alert{border-color:var(--bad);background:var(--bad);color:#fff}
-.threat.alert a{color:#fff}.threat .tb-text{flex:1;min-width:14rem}.threat ul{margin:4px 0 0;padding-left:18px}.threat li{margin:2px 0}.threat small{opacity:.9;overflow-wrap:anywhere}
+.threat.alert a{color:#fff}.threat.alert a.chip,.threat.alert a.btn{color:var(--ink)}.threat .tb-text{flex:1;min-width:14rem}.threat ul{margin:4px 0 0;padding-left:18px}.threat li{margin:2px 0}.threat small{opacity:.9;overflow-wrap:anywhere}
 .threat .tb-since{opacity:.85;white-space:nowrap}.threat .btn{margin:0}.threat .pill{color:var(--ink)}
 .beacon{flex:none;width:14px;height:14px;margin-top:4px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 0 var(--warn);animation:beacon 1.6s infinite}
 .threat.alert .beacon{background:#fff;box-shadow:0 0 0 0 rgba(255,255,255,.8)}
@@ -399,6 +409,7 @@ main{max-width:1240px}
 .card form:has(>.row:nth-of-type(6))>*{grid-column:1/-1}.card form:has(>.row:nth-of-type(6))>.row:not(.warnbox){grid-column:auto;grid-template-columns:1fr;gap:4px;margin:8px 0}
 .card form:has(>.row:nth-of-type(6))>.row small.now{grid-column:1;margin-top:0}.card form:has(>.row:nth-of-type(6))>.row input,.card form:has(>.row:nth-of-type(6))>.row select{max-width:none}}
 @media (max-width:760px){.row input[type=text],.row input[type=password],.row select{max-width:none}}
+input[type=text].otp,.row input[type=text].otp{width:calc(9ch + 22px);max-width:calc(9ch + 22px);font-variant-numeric:tabular-nums;letter-spacing:.08em}
 .card form:has(.row:nth-of-type(7))>.btns{position:sticky;bottom:44px;z-index:3;margin:14px -20px -18px;padding:10px 20px;background:var(--card);border-top:1px solid var(--line);border-radius:0 0 14px 14px}
 @media (max-width:760px){table.data,table.data tbody,table.data tr,table.data td{display:block;width:100%}table.data tr:first-child{display:none}
 table.data tr{border-bottom:1px solid var(--line);padding:6px 0}table.data td{border:0;padding:2px 0}table.data td:empty{display:none}
@@ -415,14 +426,31 @@ a.btn.s,button.s{padding:4px 12px;font-size:13px}
 .att-card{border-left:4px solid var(--warn)}.att-card h2 .count{display:inline-block;min-width:1.6em;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--note);color:var(--note-ink);font-size:12px;text-align:center;vertical-align:2px}
 ul.att{list-style:none;margin:8px 0 0;padding:0}ul.att li{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)}ul.att li:last-child{border-bottom:0;padding-bottom:0}
 ul.att .att-text{flex:1 1 10rem;min-width:0;overflow-wrap:anywhere}ul.att .dot{flex:none}ul.att a.btn{margin-left:auto;white-space:nowrap}
+ul.att .att-do{display:flex;gap:6px}ul.att form{display:inline;margin:0}.att-done ul.att li .pill{white-space:nowrap}p.stay-done{margin:0 0 8px}
 p.allok{display:flex;align-items:center;gap:4px;margin:0 0 18px;padding:10px 16px;border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:14px;background:var(--card);font-weight:600}
 ul.lamps{display:flex;flex-wrap:wrap;gap:8px}.lamp{padding:4px 12px 4px 8px;border-radius:999px;white-space:nowrap;font-size:14px}.lamp .led{width:12px;height:12px}
 .board h2{margin-bottom:10px}.gauges{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
 .tile .v{font-size:19px;line-height:1.3}
+/* G7-7: the blocks of the dashboard in the order of the login; a half block shares its row with the next half one. */
+.dashgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px}.dashgrid>*{grid-column:1/-1;min-width:0}.dashgrid>.half{grid-column:auto}
+@media (max-width:760px){.dashgrid>.half{grid-column:1/-1}}
+ul.dlay{list-style:none;margin:8px 0;padding:0}ul.dlay li{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:6px 0;border-bottom:1px solid var(--line)}
+ul.dlay li[draggable]{cursor:grab}ul.dlay li.over{border-top:2px solid var(--accent, #2563eb)}ul.dlay .dname{flex:1 1 10rem}ul.dlay .off{color:var(--gray)}
 details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap}details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary::before{content:"";align-self:center;width:7px;height:7px;border-right:2px solid var(--gray);border-bottom:2px solid var(--gray);transform:rotate(-45deg);transition:transform .15s}
 details.fold[open]>summary::before{transform:rotate(45deg)}details.fold>summary h2{margin:0}details.fold>summary .h{margin:0}details.fold[open]>summary{margin-bottom:10px}
 details.fold #load-card>h2{display:none}
+details.accfold>.card{border:0;box-shadow:none;padding:0;margin:8px 0 0;background:none}details.accfold>.card>h2{display:none}
+dl.accgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 18px;margin:0}dl.accgrid dt{color:var(--gray);font-size:13px}dl.accgrid dd{margin:2px 0 0}dl.accgrid .badge{float:none;display:inline-block;margin:0 6px 0 0}
+.upd-ver{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;font-size:20px;font-weight:600;margin:4px 0 12px}.upd-ver small{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.upd-ver .arrow{color:var(--muted);padding-bottom:2px}.upd .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 12px}
+.upd .fact{background:var(--soft);border-radius:8px;padding:8px 10px;font-size:13px}.upd .fact b{display:block;font-size:15px;margin:1px 0 4px}.upd .fact form{display:inline}
+.upd .fact button,.upd .fact .btn{padding:2px 10px;font-size:12px;margin:0}.upd .bar{height:14px;background:var(--soft);border:1px solid var(--border);border-radius:7px;overflow:hidden;margin:6px 0 4px}
+.upd .bar i{display:block;height:100%;background:var(--lime);transition:width .6s}.upd .upd-now{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;margin:4px 0}
+.upd .steps{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:8px 0}.upd .steps li{font-size:12.5px;padding:3px 9px;border-radius:12px;background:var(--soft);color:var(--muted)}
+.upd .steps li.done{background:var(--pill-g);color:var(--pill-g-ink)}.upd .steps li.now{background:var(--lime);color:#2b2f1a;font-weight:600}.upd .steps li.failed{background:var(--bad);color:#fff;font-weight:600}
+.upd .upd-line{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);margin:4px 0;overflow-wrap:anywhere}.upd .last{border-radius:8px;padding:8px 12px;margin:0 0 12px}
+.upd .last.ok{background:var(--pill-g);color:var(--pill-g-ink)}.upd .last.bad{background:var(--note);color:var(--bad)}.upd pre.upd-log{max-height:24em;overflow:auto;font-size:12px}
 </style></head><body data-yes="{{ _('Yes, do it') }}" data-no="{{ _('Cancel') }}"><div class="wrap">{% block %}{% endblock %}</div>
 <footer><span class="mie">""" + FLAG_AT + FLAG_EU + """ {{ _('Made in Europe, Austria') }}</span>
 <span class="fl"><span class="long">{{ _('eFa-next is a private open source project:') }} </span><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """\">{{ _('Source code') }}</a><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """/blob/master/docs/README.md\">{{ _('Documentation') }}</a>
@@ -867,20 +895,38 @@ SENDERS_JS = """(function () {
   if (!box) return;
   var data = null, name = 'allow', page = 0, size = 50, sortBy = 'entry', ascending = true, chosen = {};
   var csrf = box.getAttribute('data-csrf'), body = document.getElementById('sender-rows'), t = JSON.parse(box.getAttribute('data-texts'));
-  var search = document.getElementById('sender-search'), info = document.getElementById('sender-info');
-  function post(command, fields) {
-    var form = document.createElement('form');
-    form.method = 'post';
-    form.action = box.getAttribute('data-run') + command;
-    fields.csrf = csrf;
-    Object.keys(fields).forEach(function (key) {
-      var input = document.createElement('input');
-      input.type = 'hidden'; input.name = key; input.value = fields[key];
-      form.appendChild(input);
-    });
-    document.body.appendChild(form);
-    form.submit();
+  var search = document.getElementById('sender-search'), info = document.getElementById('sender-info'), note = document.getElementById('sender-note');
+  // 6.0.0.6.4: add, remove and move stay in the dialog (Hans 2026-11-15): the answer comes as JSON (json=1, JSON_RUN),
+  // the lists are loaded again and the result shows as one line above the table; the page under the dialog never reloads.
+  function say(text, bad) {
+    note.textContent = text || ''; note.className = bad ? 'bad' : ''; note.hidden = !text;
   }
+  function counts() {
+    ['allow', 'block', 'rules'].forEach(function (list) {
+      var button = document.querySelector('[data-manage="' + list + '"]'), tile = button && button.closest('.tile'), value = tile && tile.querySelector('.v');
+      if (value && data && data[list]) value.textContent = data[list].length;
+    });
+  }
+  function load() {
+    return fetch(box.getAttribute('data-url'), {credentials: 'same-origin'}).then(function (reply) { return reply.json(); }).then(function (json) {
+      data = json; draw(); counts();
+    });
+  }
+  function post(command, fields) {
+    var form = new URLSearchParams();  // not FormData: multipart is refused outside the uploads (body_limits)
+    fields.csrf = csrf; fields.json = '1';
+    Object.keys(fields).forEach(function (key) { form.append(key, fields[key]); });
+    say('');
+    return fetch(box.getAttribute('data-run') + command, {method: 'POST', body: form, credentials: 'same-origin'}).then(function (reply) {
+      var kind = reply.headers.get('Content-Type') || '';
+      if (!reply.ok || kind.indexOf('application/json') < 0) throw new Error(t.failed + ' (HTTP ' + reply.status + ')');
+      return reply.json();
+    }).then(function (answer) {
+      if (!answer.ok) throw new Error(answer.error || t.failed);
+      return load().then(function () { return answer.result || {}; });
+    }).catch(function (err) { say(err.message, true); throw err; });
+  }
+  function quiet() {}
   function rows() {
     var needle = search.value.toLowerCase();
     return data[name].filter(function (row) { return JSON.stringify(row).toLowerCase().indexOf(needle) >= 0; }).sort(function (a, b) {
@@ -920,7 +966,11 @@ SENDERS_JS = """(function () {
       var actions = document.createElement('td'), move = document.createElement('button');
       actions.className = 'acts';
       move.type = 'button'; move.textContent = other(row) === 'allow' ? t.to_allow : t.to_block;
-      move.addEventListener('click', function () { post('sender-move', {entry: row.entry, to: other(row)}); });
+      move.addEventListener('click', function () {
+        post('sender-move', {entry: row.entry, to: other(row)}).then(function (result) {
+          say((result.to === 'allow' ? t.moved_allow : t.moved_block).replace('{entry}', result.moved || row.entry));
+        }, quiet);
+      });
       var remove = document.createElement('button');
       remove.type = 'button'; remove.textContent = t.remove; remove.className = 'd';
       remove.addEventListener('click', function () { removeEntries([row.entry]); });
@@ -935,17 +985,20 @@ SENDERS_JS = """(function () {
   }
   function removeEntries(entries) {
     if (entries.length) {
-      efaConfirm(t.remove_q + '\\n' + entries.join(', '), function () { post('sender-remove', {entries: entries.join(' '), confirm: 'yes'}); }, box);
+      efaConfirm(t.remove_q + '\\n' + entries.join(', '), function () {
+        post('sender-remove', {entries: entries.join(' '), confirm: 'yes'}).then(function (result) {
+          (result.removed || entries).forEach(function (entry) { delete chosen[entry]; });
+          say(t.removed.replace('{list}', (result.removed || entries).join(', ')));
+        }, quiet);
+      }, box);
     }
   }
   function open(list, needle) {
-    name = list; page = 0; chosen = {}; search.value = needle || '';
+    name = list; page = 0; chosen = {}; search.value = needle || ''; say('');
     document.getElementById('sender-title').textContent = t.titles[list];
     document.getElementById('sender-add-box').style.display = list === 'rules' ? 'none' : '';
     box.showModal();
-    fetch(box.getAttribute('data-url'), {credentials: 'same-origin'}).then(function (reply) { return reply.json(); }).then(function (json) {
-      data = json; draw();
-    });
+    load();
   }
   document.querySelectorAll('[data-manage]').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -967,7 +1020,14 @@ SENDERS_JS = """(function () {
     removeEntries(Object.keys(chosen).filter(function (key) { return chosen[key]; }));
   });
   function addNow(entries, comment) {
-    if (entries.trim()) post('sender-add', {list: name, entries: entries, comment: comment});
+    if (!entries.trim()) return;
+    post('sender-add', {list: name, entries: entries, comment: comment}).then(function (result) {
+      var lines = [];
+      if ((result.added || []).length) lines.push(t.added.replace('{list}', result.added.join(', ')));
+      if ((result.skipped || []).length) lines.push(t.skipped.replace('{list}', result.skipped.join(', ')));
+      document.getElementById('sender-new').value = ''; document.getElementById('sender-comment').value = '';
+      say(lines.join(' '));
+    }, quiet);
   }
   document.getElementById('sender-add').addEventListener('click', function () {
     addNow(document.getElementById('sender-new').value, document.getElementById('sender-comment').value);
@@ -996,12 +1056,52 @@ SENDERS_JS = """(function () {
       if (entries.length) efaConfirm(t.add_q + '\\n' + entries.join(', '), function () { addNow(entries.join(' '), ''); }, box);
     };
     reader.readAsText(event.target.files[0]);
+    event.target.value = '';
   });
 })();"""
-COPY_JS = """// 6.0.0.6: a bookmark of a card that moved to another page (efa_nav.MOVED_CARDS) opens it there.
+COPY_JS = """// 2026-11-17: a row with data-when="<field>=<value>" (efactl arg 'when') shows only while that field has that value; hidden it
+// is disabled, so it is not sent, and it keeps what it holds for when it shows again.
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('form [data-when]').forEach(function (row) {
+    var rule = row.getAttribute('data-when').match(/^([\\w-]+)(!?=)(.*)$/), form = row.closest('form');
+    if (!rule) return;
+    rule = [rule[1], rule[3], rule[2] === '!='];
+    var source = form && form.querySelector('[name="' + rule[0] + '"]');
+    if (!source) return;
+    function sync() {
+      var picked = source.type === 'radio' ? (form.querySelector('[name="' + rule[0] + '"]:checked') || {}).value : source.value;
+      var on = rule[2] ? picked !== rule[1] : picked === rule[1];
+      row.hidden = !on;
+      row.querySelectorAll('input, select, textarea').forEach(function (field) { field.disabled = !on; });
+    }
+    form.addEventListener('change', function (event) { if (event.target.name === rule[0]) sync(); });
+    sync();
+  });
+});
+// 6.0.0.6: a bookmark of a card that moved to another page (efa_nav.MOVED_CARDS) opens it there.
 document.addEventListener('DOMContentLoaded', function () {
   var map = document.querySelector('[data-moved]'), to = map && location.hash ? JSON.parse(map.getAttribute('data-moved'))[location.hash.slice(1)] : null;
   if (to) location.replace(to);
+});
+// 6.0.0.6.x: a link to a card in a closed fold (My account) opens the fold.
+function efaOpenHash() {
+  var card = location.hash && document.getElementById(location.hash.slice(1));
+  for (var d = card && card.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+}
+document.addEventListener('DOMContentLoaded', efaOpenHash);
+window.addEventListener('hashchange', efaOpenHash);
+// Mail routing (Hans 2026-11-15): a search box with data-filter shows only the entries (data-item) of its list that hold the text;
+// a group (data-group) without a hit hides, folded entries open while searching. Without a script the whole list stays.
+document.addEventListener('input', function (event) {
+  var box = event.target, list = box.matches && box.matches('input[data-filter]') ? document.querySelector(box.getAttribute('data-filter')) : null;
+  if (!list) return;
+  var q = box.value.trim().toLowerCase(), items = list.querySelectorAll('[data-item]'), hits = 0;
+  items.forEach(function (item) { var hit = !q || item.getAttribute('data-item').toLowerCase().indexOf(q) >= 0; item.hidden = !hit; if (hit) hits += 1; });
+  list.querySelectorAll('[data-group]').forEach(function (group) { group.hidden = !group.querySelector('[data-item]:not([hidden])'); });
+  list.querySelectorAll('details.more').forEach(function (more) { if (q) more.open = true; });
+  var none = document.getElementById(box.id + '-none'), count = document.getElementById(box.id + '-count');
+  if (none) none.hidden = hits > 0;
+  if (count) count.textContent = q ? hits + ' / ' + items.length : '';
 });
 // 6.0.0.6: a button with data-popup opens its page as a window of its own (the advanced search); without a script, a new tab.
 document.addEventListener('click', function (event) {
@@ -1240,7 +1340,36 @@ setInterval(function () {
       });
     });
   });
-}, 30000);"""
+}, 30000);
+document.addEventListener('DOMContentLoaded', function () {
+  // The Update card while an update runs (Hans 2026-11-15): every 3 seconds while the page is seen. The web interface restarts
+  // during an update: then a note, and it tries again. When the update has ended, the page loads again with the result.
+  var live = document.getElementById('update-live');
+  if (!live) return;
+  var misses = 0;
+  function tick() {
+    if (document.hidden) return;
+    fetch(live.getAttribute('data-url'), {credentials: 'same-origin'}).then(function (reply) {
+      if (reply.redirected || reply.status === 401 || reply.status === 403) { location.reload(); return; }
+      if (!reply.ok) throw new Error(reply.status);
+      return reply.text().then(function (html) {
+        misses = 0;
+        var box = document.createElement('div');
+        box.innerHTML = html;
+        var fresh = box.querySelector('.upd-live');
+        if (!fresh) return;
+        if (['waiting', 'running', 'rebooting'].indexOf(fresh.getAttribute('data-state')) < 0) { location.hash = 'update-system'; location.reload(); return; }
+        live.innerHTML = box.innerHTML;
+      });
+    }).catch(function () {
+      misses += 1;
+      var off = live.querySelector('.upd-off');
+      if (off) off.hidden = misses < 2;
+    });
+  }
+  setInterval(tick, 3000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+});"""
 RUF_WARNING = ('Privacy: failure reports (ruf) can contain personal data such as message headers, addresses and parts '
                'of message content. Under the GDPR a legal basis and a processing agreement with the report receiver '
                'may be needed. Many receivers do not send them at all.')
@@ -1252,7 +1381,7 @@ LOGIN = PAGE.replace(BLOCK, SOLO + """<div class="card">{{ lang_pill(ui_lang(), 
 <input type="hidden" name="csrf" value="{{ csrf }}"><div class="row"><label for="username">{{ _('Mail address') if portal_mode else _('User name, empty for the main admin') }}</label>
 <input type="text" id="username" name="username" autocomplete="username" value="{{ username or '' }}"></div><div class="row"><label for="password">{{ _('Password') }}</label>
 <input type="password" id="password" name="password" autofocus></div>
-<div class="row"><label for="code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></div>
+<div class="row"><label for="code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>
 <input type="hidden" name="assertion" value="">
 <div class="btns"><button class="p">{{ _('Log in') }}</button><button type="button" id="passkey-login" hidden>{{ _('Use a passkey') }}</button></div>
 <p class="err" id="passkey-error" hidden>{{ _('The passkey did not work. Log in with password and code.') }}</p></form><script src="/passkey.js"></script>{% if sso or tenant_sso %}<form method="get" action="{{ url_for('oidc_login') }}">
@@ -1273,12 +1402,14 @@ MAIL_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></scri
 <h1>Mail {{ view.mail.id }}</h1><p class="sub">{{ view.mail.ts }} · {{ view.mail.sender }} → {{ view.mail.rcpt }}</p>
 <div class="card"><h2>{{ _('Overview') }}</h2><table>{% for key, label in (('subject', 'Subject'), ('action', 'Result'), ('score', 'Score'), ('spf', 'SPF'), ('dkim', 'DKIM'), ('dmarc', 'DMARC'), ('ip', 'Client IP'),
                       ('qid', 'Queue ID'), ('message_id', 'Message-ID'), ('header_from', 'From header'), ('reply_to', 'Reply-To'), ('return_path', 'Return-Path'), ('x_mailer', 'X-Mailer')) %}
-<tr><td>{{ label }}</td><td>{{ view.mail[key] if view.mail[key] is not none else '' }}</td></tr>{% endfor %}</table></div>
+<tr><td>{{ label }}</td><td>{{ view.mail[key] if view.mail[key] is not none else '' }}</td></tr>{% endfor %}
+{% if view.mail.origin %}<tr><td>{{ _('Origin') }}</td><td>{{ view.mail.origin }}</td></tr>{% endif %}</table></div>
 <details class="section" open><summary>{{ _('Why this result') }}</summary><div class="card">{% if view.verdict %}<table class="data"><tr><th>Check</th><th>Score</th><th>Meaning</th></tr>
 {% for item in view.verdict %}<tr><td>{{ item.symbol }}</td><td>{{ item.score }}</td><td>{{ (item.text_de if lang == 'de' and item.text_de else item.text) or '' }}</td></tr>{% endfor %}</table>
 {% else %}<p class="h">No checks stored for this mail: mail before this version has none.</p>{% endif %}</div></details>
-<details class="section" open><summary>{{ _('Path over the servers') }}</summary><div class="card">{% if view.received %}<table class="data"><tr><th>Hop</th><th>Time</th><th>Seconds</th></tr>
-{% for hop in view.received %}<tr><td>{{ hop.hop }}</td><td>{{ hop.time }}</td><td>{{ hop.seconds if hop.seconds is not none else '' }}</td></tr>{% endfor %}</table>
+<details class="section" open><summary>{{ _('Path over the servers') }}</summary><div class="card">{% if view.received %}{% set geo = view.received|selectattr('origin')|list %}<table class="data"><tr><th>Hop</th><th>Time</th><th>Seconds</th>{% if geo %}<th>{{ _('Origin') }}</th>{% endif %}</tr>
+{% for hop in view.received %}<tr><td>{{ hop.hop }}</td><td>{{ hop.time }}</td><td>{{ hop.seconds if hop.seconds is not none else '' }}</td>{% if geo %}<td>{{ hop.origin or '' }}</td>{% endif %}</tr>{% endfor %}</table>
+{% if view.geo_credit %}<p class="h">{{ view.geo_credit }}</p>{% endif %}
 {% else %}<p class="h">{{ view.headers_note or 'No Received lines.' }}</p>{% endif %}</div></details>
 <details class="section" open><summary>{{ _('Checks: authentication, ARC, DKIM') }}</summary><div class="card">{% for item in view.checks %}<p><b>{{ item.name }}</b>: {{ item.value }}</p>
 {% else %}<p class="h">None in the stored headers.</p>{% endfor %}{% for item in view.spam %}<p class="h">{{ item.name }}: {{ item.value }}</p>{% endfor %}</div></details>
@@ -1312,7 +1443,130 @@ LOAD_CARD = """<h2>{{ _('Load') }}</h2>{% if not rows %}<p class="h">{{ _('Colle
 <p class="h">{{ _('Load average') }} {{ extra.load|join(' / ') }} (1, 5, 15 min, {{ extra.cpus }} CPUs). {{ _('Network: in {} Mbit/s, out {} Mbit/s.').format(last.rx, last.tx) }}</p>
 <p class="h">{% for disk in extra.disks %}{{ _('{}: {} GB free of {} GB ({}% used).').format(disk.mount, disk.free, disk.size, disk.used) }} {% endfor %}</p>
 {% for text in advice %}<p class="warnbox">{{ text }}</p>{% endfor %}{% endif %}"""
-MAIN = PAGE.replace(BLOCK, """
+# The moving part of the Update card (Hans 2026-11-15): renewed every few seconds while an update runs and the page is seen.
+UPDATE_LIVE = """{% set p = u.progress %}<div class="upd-live" data-state="{{ p.state }}">
+{% if p.state == 'waiting' %}<p><b>{{ _('Starts at {}').format(p.at[11:16] if p.at else '?') }}</b>{% if left %} ({{ left }}){% endif %}. {{ _('System updates start only between minute {} and {} of the hour.').format(u.window[0], u.window[1]) }}</p>
+{% else %}<div class="bar" role="progressbar" aria-label="{{ _('Update progress') }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.percent }}"><i style="width:{{ p.percent }}%"></i></div>
+<p class="upd-now" aria-live="polite"><b>{{ p.percent }} %{% if p.number %} · {{ _('Step {} of {}: {}').format(p.number, p.count, p.label|t) }}{% if p.step == 'os' and p.packages %} ({{ _('{} of {} packages').format(p.packages[0], p.packages[1]) }}){% endif %}{% endif %}</b><span>{{ left }}</span></p>{% endif %}
+<ol class="steps">{% for s in p.steps %}<li class="{{ s.state }}">{{ s.label|t }}<span class="sr"> ({{ {'done': _('done'), 'now': _('running'), 'failed': _('failed'), 'todo': _('to come')}[s.state] }})</span></li>{% endfor %}</ol>
+{% if p.line %}<p class="upd-line">{{ p.line }}</p>{% endif %}
+{% set held = p.held %}{% if held %}<p class="warnbox upd-held" role="status"><b>{{ _('Held back') }}</b>: {{ _('dnf cannot resolve their dependencies now; the next update tries again.') }}
+{% for h in held %}{{ ', ' if not loop.first }}{{ h.package }}{% if h.security %} <span class="badge bad">{{ _('security update') }}</span>{% endif %}{% if h.efa %} <span class="badge">{{ _('needed by eFa-next') }}</span>{% endif %}{% endfor %}</p>{% endif %}
+{% if p.state == 'rebooting' %}<p class="warnbox">{{ _('The host restarts now. This page tries again by itself; mail is accepted again after the restart.') }}</p>{% endif %}
+<p class="h upd-off" hidden>{{ _('The web interface does not answer: it restarts during the update. Trying again ...') }}</p>
+<noscript><meta http-equiv="refresh" content="10"></noscript></div>"""
+# Hans 2026-11-15: the page Mail routing by importance. The domains first and in both views (the wizard only adds), what needs a hand
+# (held accounts), then who may send through this server, then the limits; header privacy and TLS with partners folded. Lists are
+# shown, forms open on a click. Same commands and fields as the generic cards; a field keeps its current value (field()).
+FLOW_VIEW = """{%- macro flow_text(cname, argname, value) -%}{% set found = [] %}{% for arg in commands[cname].args if arg.name == argname %}{% for item in arg.choices or [] if item.value == value %}{% set ignored = found.append(item.text|t) %}{% endfor %}{% endfor %}{{ found[0] if found else value }}{%- endmacro -%}
+{%- macro flow_form(cname, label, open=false, fixed={}, skip=(), fid='') -%}{% if cname in commands %}<details class="ffold" id="{{ fid or cname }}"{% if open %} open{% endif %}><summary>{{ label }}</summary>
+<form method="post" action="{{ url_for('run', name=cname) }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% for k, v in fixed.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+{% if page.notes and cname in page.notes %}<p class="h">{{ page.notes[cname]|t }}</p>{% endif %}
+{% for arg in commands[cname].args if arg.web is not sameas false and arg.name not in fixed and arg.name not in skip %}{{ field(cname, arg) }}{% endfor %}
+{% if cname in reauth_commands and reauth_left() < 60 %}<div class="row"><label for="{{ cname }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ cname }}-reauth" name="reauth" autocomplete="current-password"></div>
+<div class="row"><label for="{{ cname }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ cname }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
+<div class="btns"><button class="p">{{ _('Apply') }}</button></div></form></details>{% endif %}{%- endmacro -%}
+{%- macro flow_x(cname, label, fields) -%}<form method="post" action="{{ url_for('run', name=cname) }}" class="fx"><input type="hidden" name="csrf" value="{{ csrf }}">{% for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+<button class="x" data-confirm="{{ label }}?" aria-label="{{ label }}" title="{{ label }}">&times;</button></form>{%- endmacro -%}
+{%- macro flow_top() -%}{% set tr = values.get('transports') or {} %}{% set groups = {} %}
+{%- for domain, dest in tr|dictsort %}{% set ignored = groups.setdefault(dest, []).append(domain) %}{% endfor %}
+{%- set hok, hout = loaded.get('hijack-list', (false, {})) %}{% set held = (hout.get('held') or []) if hok else [] %}
+{%- set rok, rout = loaded.get('relay-networks-list', (false, {})) %}{% set sok, sout = loaded.get('submitter-list', (false, {})) %}
+<style>.flow-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 14px}
+.flow-facts .fact{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--muted);text-decoration:none}
+.flow-facts .fact b{display:block;font-size:17px;color:var(--ink);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.flow-facts a.fact:hover{border-color:var(--lime)}
+.flow-facts .fact.bad{border-color:var(--warn);background:var(--note)}.flow-facts .fact.bad b{color:var(--note-ink)}
+.card h2 .cnt{display:inline-block;min-width:1.6em;margin-left:6px;padding:0 8px;border-radius:999px;background:var(--soft);color:var(--muted);font-size:13px;text-align:center;vertical-align:middle}
+.flow-dom .dsearch{display:flex;gap:8px;align-items:center;margin:4px 0 12px}.flow-dom .dsearch input{max-width:22rem}
+.flow-dom .dgroup{margin:0 0 12px}.flow-dom .dgroup h3{font-size:14px;margin:0 0 6px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}.flow-dom .dgroup h3 .h{font-weight:400;margin:0}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0}.dchips li{display:inline-flex;align-items:center;gap:2px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:1px 4px 1px 11px;font-size:13.5px}
+.dchips li[hidden],.flow-dom [data-group][hidden]{display:none}.dchips li a{color:var(--ink);text-decoration:none}.dchips li a:hover{text-decoration:underline}.dchips li>span{padding-right:7px}
+form.fx{display:inline;margin:0}button.x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:999px;margin:0}
+button.x:hover,button.x:focus-visible{background:var(--bad);color:#fff}
+details.ffold{margin:10px 0 0}details.ffold>summary{display:inline-block;cursor:pointer;list-style:none;padding:5px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--card)}
+details.ffold>summary::-webkit-details-marker{display:none}details.ffold>summary::before{content:"+ "}details.ffold[open]>summary::before{content:"\\2212  "}details.ffold[open]>summary{margin-bottom:10px;background:var(--soft)}
+details.ffold.inline{display:inline-block;margin:0 0 0 8px}details.ffold.inline>summary{padding:2px 10px;font-size:12.5px}details.ffold.inline>summary::before{content:""}
+.flow-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 14px;margin:6px 0 0;font-size:13px;color:var(--muted)}.flow-kv b{display:block;color:var(--ink);font-size:14px}
+.flow-line{margin:4px 0 0}.flow-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:4px 28px}.flow-two h3{font-size:15px;margin:0 0 4px}
+table.flow td,table.flow th{padding:6px 8px}table.flow td.mono{word-break:break-all}table.flow td.r{text-align:right;width:1%;white-space:nowrap}</style>
+{#- The facts at a glance; each one leads to its card in the manual view. -#}
+{%- set fa = 'a' if not wizard else 'div' %}<div class="flow-facts">
+<{{ fa }} class="fact"{% if not wizard %} href="#transport-set"{% endif %}>{{ _('Domains') }}<b>{{ tr|length }}</b></{{ fa }}>
+<{{ fa }} class="fact"{% if not wizard %} href="#transport-set"{% endif %}>{{ _('Mail servers') }}<b>{{ groups|length }}</b></{{ fa }}>
+{% if rok %}<a class="fact{{ ' bad' if rout.pending }}" href="#relay-networks-list">{{ _('Relay networks') }}<b>{{ rout.networks|rejectattr('locked')|list|length }}{% if rout.pending %} &middot; {{ _('not active yet') }}{% endif %}</b></a>{% endif %}
+{% if sok %}<a class="fact" href="#submitter-list">{{ _('Submitters') }}<b>{{ (sout.submitters or [])|length }}</b></a>{% endif %}
+{% if 'smarthost' in values %}<{{ fa }} class="fact"{% if not wizard %} href="#smarthost-set"{% endif %}>{{ _('Outgoing mail') }}<b title="{{ values.smarthost }}">{{ values.smarthost or _('directly') }}</b></{{ fa }}>{% endif %}
+{% if hok %}<a class="fact{{ ' bad' if held }}" href="#hijack-list">{{ _('Held accounts') }}<b>{{ held|length }}</b></a>{% endif %}</div>
+{#- What needs a hand: accounts held over a sending limit, with a Release button each. -#}
+{% if held %}<div class="card att-card" id="hijack-list"><h2>{{ _('Held accounts (possibly taken over)') }}<span class="cnt">{{ held|length }}</span>{{ info('hijack-list', help_text('hijack-list')) }}</h2>
+<p class="h">{{ _('These accounts went over a sending limit. Their mail waits in the queue until you release the account.') }}</p>
+<table class="data flow"><tr><th>{{ _('Account') }}</th><th>{{ _('Held since') }}</th><th>{{ _('Reason') }}</th><th></th></tr>{% for item in held %}<tr><td>{{ item.who }}</td><td class="nw">{{ item.since }}</td><td>{{ item.reason|rt }}</td>
+<td class="r">{% if 'hijack-release' in commands %}{{ post('hijack-release', _('Release'), {'who': item.who}) }}{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+{#- The domains, by their mail server: a chip each (click: change its server), x removes it after a question. Beyond 12 folded, a search above 8. -#}
+<div class="card flow-dom" id="transport-set"><h2>{{ _('Domains and their mail servers') }}<span class="cnt">{{ tr|length }}</span>{{ info('flow-domains', help_text('transport-set')) }}</h2>
+{% if not tr %}<p class="h">{{ _('No domain yet: this server takes mail for no domain.') }}</p>{% else %}
+{% if tr|length > 8 %}<div class="dsearch"><input type="text" id="flow-q" inputmode="search" data-filter="#flow-domains" placeholder="{{ _('Search domain or mail server') }}" aria-label="{{ _('Search domain or mail server') }}" autocomplete="off">
+<span class="h" id="flow-q-count" aria-live="polite"></span></div>{% endif %}
+{% set order = [] %}{% for dest, domains in groups.items() %}{% set ignored = order.append((0 - domains|length, dest)) %}{% endfor %}<div id="flow-domains">{% for _n, dest in order|sort %}{% set domains = groups[dest] %}<section class="dgroup" data-group><h3><span>&rarr; {{ dest }}</span><span class="h">{{ domains|length }} {{ _('domains') if domains|length != 1 else _('domain') }}</span></h3>
+<ul class="dchips">{% for domain in domains %}{% if loop.index == 13 %}</ul><details class="more"><summary>{{ _('Show all {}').format(domains|length) }}</summary><ul class="dchips">{% endif %}
+<li data-item="{{ domain }} {{ dest }}">{% if not wizard and 'transport-set' in commands %}<a class="dname" href="{{ url_for('show_page', slug='flow', domain=domain, destination=dest) }}#transport-add" title="{{ _('Change the mail server') }}">{{ domain }}</a>
+{{ flow_x('transport-set', _('Remove {}').format(domain), {'domain': domain, 'action': 'remove'}) }}{% else %}<span>{{ domain }}</span>{% endif %}</li>{% endfor %}</ul>{% if domains|length > 12 %}</details>{% endif %}</section>{% endfor %}</div>
+<p class="h" id="flow-q-none" hidden>{{ _('No domain matches.') }}</p>{% endif %}
+{% if not wizard %}{{ flow_form('transport-set', _('Add a domain or change its mail server'), open=not tr or 'domain' in request.args, fixed={'action': 'add'}, fid='transport-add') }}
+{% if tr and 'transport-set' in commands %}<p class="h">{{ _('Click a domain to change its mail server; × removes it.') }}</p>{% endif %}{% endif %}</div>
+{%- endmacro -%}
+{%- macro flow_rest() -%}{% set rok, rout = loaded.get('relay-networks-list', (false, {})) %}{% set sok, sout = loaded.get('submitter-list', (false, {})) %}
+{%- set hok, hout = loaded.get('hijack-list', (false, {})) %}{% set pok, pout = loaded.get('header-privacy-status', (false, {})) %}{% set tok, tout = loaded.get('tls-partner-list', (false, {})) %}
+{#- Who may send through this server: networks without login, the way out, the submitters with their limits. -#}
+{% if 'relay-networks-list' in commands or 'relay-networks-add' in commands or 'smarthost-set' in commands %}<details class="section" open><summary>{{ _('Relay networks & smarthost') }}</summary>
+{% if 'relay-networks-list' in commands or 'relay-networks-add' in commands %}<div class="card" id="relay-networks-list"><h2>{{ _('Relay networks') }}{% if rok %}<span class="cnt">{{ rout.networks|rejectattr('locked')|list|length }}</span>{% endif %}{{ info('relay-networks-list', help_text('relay-networks-list')) }}</h2>
+<p class="h">{{ first_sentence(help_text('relay-networks-list')) }}</p>
+{% if rok %}{% set own = rout.networks|rejectattr('locked')|list %}{% if own %}{% set states = own|rejectattr('state', 'equalto', 'active')|list %}<table class="flow"><tr><th>{{ _('Network') }}</th><th>{{ _('Description') }}</th>{% if states %}<th>{{ _('State') }}</th>{% endif %}<th></th></tr>
+{% for row in own %}<tr><td class="mono">{{ row.network }}</td><td>{{ row.description }}</td>{% if states %}<td><span class="pill{{ ' g' if row.state == 'active' else ' w' }}">{{ row.state|t }}</span></td>{% endif %}
+<td class="r">{% if row.state != 'to remove' and 'relay-networks-remove' in commands %}{{ flow_x('relay-networks-remove', _('Remove {}').format(row.network), {'network': row.network}) }}{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p class="h">{{ _('No own network yet.') }}</p>{% endif %}
+<p class="h flow-line">{{ _('Always allowed (system):') }} {% for row in rout.networks|selectattr('locked') %}<span class="mono">{{ row.network }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>
+{% for warning in rout.warnings %}<p class="warnbox">{{ warning|rt }}</p>{% endfor %}{% if rout.unknown %}<p class="err">{{ _('mynetworks holds entries eFa-next cannot read:') }} {{ rout.unknown|join(' ') }}</p>{% endif %}
+{% if rout.pending %}<div class="warnbox"><b>{{ _('Not active yet.') }}</b> {{ _('Added:') }} {{ rout.added|join(', ') or _('none') }}. {{ _('Removed:') }} {{ rout.removed|join(', ') or _('none') }}.</div>
+{% if 'relay-networks-apply' in commands %}<form method="post" action="{{ url_for('run', name='relay-networks-apply') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="row"><label><input type="checkbox" name="confirm" value="yes" required> {{ _('Apply the changes now') }}</label></div><div class="btns"><button class="p">{{ _('Apply') }}</button>
+</div></form>{% endif %}{% if 'relay-networks-discard' in commands %}<div class="btns">{{ post('relay-networks-discard', _('Discard changes'), {}) }}</div>{% endif %}{% endif %}{% elif rout %}<p class="err">{{ rout.error }}</p>{% endif %}
+{{ flow_form('relay-networks-add', _('Add networks')) }}</div>{% endif %}
+{% if 'smarthost-set' in commands %}<div class="card" id="smarthost-set"><h2>{{ _('Outbound smarthost') }}{{ info('smarthost-set', help_text('smarthost-set')) }}</h2>
+<p class="flow-line">{% if values.smarthost %}{{ _('Outgoing mail goes through') }} <b class="mono">{{ values.smarthost }}</b>.{% else %}{{ _('Outgoing mail goes directly to the mail servers of the recipients.') }}{% endif %}</p>
+{{ flow_form('smarthost-set', _('Change the smarthost')) }}</div>{% endif %}</details>{% endif %}
+{% if 'submitter-list' in commands or 'submitter-set' in commands or 'outbound-limits-set' in commands or 'hijack-list' in commands %}<details class="section" open><summary>{{ _('Submitters') }}</summary>
+{% set rows = (sout.submitters or []) if sok else [] %}<div class="card" id="submitter-list"><h2>{{ _('Submitters') }}<span class="cnt">{{ rows|length }}</span>{{ info('submitter-list', help_text('submitter-list')) }}</h2>
+{% if rows %}<table class="data flow"><tr><th>{{ _('Name') }}</th><th>{{ _('Known by') }}</th><th>{{ _('Network, login or certificate') }}</th><th>{{ _('Sender domains') }}</th><th>{{ _('Tenant') }}</th><th></th></tr>
+{% for row in rows %}<tr><td><b>{{ row.name }}</b></td><td>{{ flow_text('submitter-set', 'kind', row.kind) if 'submitter-set' in commands else row.kind }}</td><td class="mono">{{ row.value }}</td>
+<td><div class="chips">{% for d in row.domains %}<span class="chip">{{ d }}</span>{% endfor %}</div></td><td>{{ row.tenant or '' }}</td>
+<td class="r">{% if 'submitter-set' in commands %}<a class="btn s" href="{{ url_for('show_page', slug='flow', name=row.name, kind=row.kind, value=row.value, domains=row.domains|join(','), tenant=row.tenant or '') }}#submitter-set">{{ _('Edit') }}</a>{% endif %}
+{% if 'submitter-remove' in commands %}{{ flow_x('submitter-remove', _('Remove {}').format(row.name), {'name': row.name, 'confirm': 'yes'}) }}{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p class="h">{{ _('None yet: the internal mail systems send through the relay networks.') }}</p>{% endif %}
+{{ flow_form('submitter-set', _('Add or change a submitter'), open='kind' in request.args) }}</div>
+{% set lim = (sout.limits or {}) if sok else {} %}{% if lim or 'outbound-limits-set' in commands or 'hijack-list' in commands %}<div class="card" id="outbound-limits"><h2>{{ _('Sending limits per sender and hour') }}{{ info('outbound-limits-set', help_text('outbound-limits-set')) }}</h2>
+{% if lim %}<div class="flow-kv"><span>{{ _('Recipients per hour') }}<b>{{ lim.recipients_hour or _('no limit') }}</b></span><span>{{ _('Target domains per hour') }}<b>{{ lim.domains_hour or _('no limit') }}</b></span>
+<span>{{ _('All senders of a domain') }}<b>{{ lim.domain_recipients_hour or _('no limit') }}</b></span><span>{{ _('All senders of a tenant') }}<b>{{ lim.tenant_recipients_hour or _('no limit') }}</b></span>
+<span>{{ _('Over the limit') }}<b>{{ flow_text('outbound-limits-set', 'action', lim.action) if 'outbound-limits-set' in commands else lim.action }}</b></span><span>{{ _('Hold the account') }}<b>{{ _('on') if lim.auto_hold else _('off') }}</b></span></div>{% endif %}
+{% if 'hijack-list' in commands and not (hout.held or []) %}<p class="h flow-line" id="hijack-list">{{ _('Held accounts') }}: {{ _('none') }}</p>{% endif %}
+{{ flow_form('outbound-limits-set', _('Change the limits'), fid='outbound-limits-set') }}{% if hok %}{{ flow_form('hijack-release', _('Release an account by name')) }}{% endif %}</div>{% endif %}</details>{% endif %}
+{#- The limits of every mail. -#}
+{% if 'message-size-set' in commands or 'recipient-verification-set' in commands %}<details class="section" open><summary>{{ _('Limits & recipient check') }}</summary><div class="card flow-two">
+{% for cname in ('message-size-set', 'recipient-verification-set') if cname in commands %}<div id="{{ cname }}"><h3>{{ short_title(commands[cname].title)|t }}{{ info(cname, help_text(cname)) }}</h3>
+<form method="post" action="{{ url_for('run', name=cname) }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% for arg in commands[cname].args %}{{ field(cname, arg) }}{% endfor %}<div class="btns"><button class="p">{{ _('Apply') }}</button></div></form></div>{% endfor %}</div></details>{% endif %}
+{#- Rarely needed: folded, in the expert view only. -#}
+{% if expert %}{% if 'header-privacy-status' in commands or 'header-privacy-set' in commands %}<details class="section"><summary>{{ _('Header privacy') }}</summary><div class="card" id="header-privacy-status"><h2>{{ _('Header privacy of outgoing mail') }}{{ info('header-privacy-set', help_text('header-privacy-set')) }}</h2>
+{% if pok %}<div class="flow-kv"><span>{{ _('For all senders') }}<b>{{ _('on') if pout.all else _('off') }}</b></span><span>{{ _('Sender domains') }}<b>{{ pout.domains|join(', ') or _('none') }}</b></span><span>{{ _('Submitters') }}<b>{{ pout.submitters|join(', ') or _('none') }}</b></span></div>
+<p class="h flow-line">{{ _('Removed headers:') }} {{ pout.removed|join(', ') }}</p>{% endif %}
+{{ flow_form('header-privacy-set', _('Change for whom'), fid='header-privacy-set') }}</div></details>{% endif %}
+{% if 'tls-partner-list' in commands or 'tls-partner-set' in commands %}{% set partners = (tout.partners or []) if tok else [] %}<details class="section"><summary>{{ _('TLS with partners') }}</summary><div class="card" id="tls-partner-list"><h2>{{ _('TLS with partner domains') }}<span class="cnt">{{ partners|length }}</span>{{ info('tls-partner-set', help_text('tls-partner-set')) }}</h2>
+{% if partners %}<table class="data flow"><tr><th>{{ _('Partner domain') }}</th><th>{{ _('Mail to the partner') }}</th><th>{{ _('Mail from the partner') }}</th><th></th></tr>{% for row in partners %}<tr><td>{{ row.domain }}</td>
+<td>{{ flow_text('tls-partner-set', 'out', row.out or '') if 'tls-partner-set' in commands else row.out }}</td><td>{{ flow_text('tls-partner-set', 'inbound', 'on' if row['in'] else '') if 'tls-partner-set' in commands else row['in'] }}</td>
+<td class="r">{% if 'tls-partner-set' in commands %}{{ flow_x('tls-partner-set', _('Remove {}').format(row.domain), {'action': 'remove', 'domain': row.domain}) }}{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p class="h">{{ _('No partner domain yet.') }}</p>{% endif %}{{ flow_form('tls-partner-set', _('Add a partner domain'), fixed={'action': 'add'}, fid='tls-partner-set') }}</div></details>{% endif %}
+{% elif ['header-privacy-status', 'header-privacy-set', 'tls-partner-list', 'tls-partner-set']|select('in', commands)|list %}<p class="h expert-note">{{ _('More on this page in the expert view:') }} {{ ['header-privacy-status', 'tls-partner-list']|select('in', commands)|list|length or 1 }} {{ viewform('expert', _('Show')) }}</p>{% endif %}
+{%- endmacro -%}
+"""
+MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
 {%- macro show(value, key='') -%}
   {%- if value is none or value == '' -%}<span class="pill">{{ _('none') }}</span>
   {%- elif value is sameas true -%}<span class="pill g">yes</span>
@@ -1355,13 +1609,13 @@ MAIN = PAGE.replace(BLOCK, """
   {%- set accept = (commands.get('rbl-set', {}).get('args', [])|selectattr('name', 'equalto', 'accept_terms')|map(attribute='label')|first) or '' -%}
   {%- if 'rbl-set' not in commands -%}{#- Read only: the state, no switch to press. -#}<span class="switch{{ ' on' if row.active }}"><span class="knob" aria-hidden="true"></span>{{ _('On') if row.active else _('Off') }}</span>
   {%- elif row.active or row.terms_accepted -%}
-  <form method="post" action="{{ url_for('run', name='rbl-set') }}" class="toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}">
+  <form method="post" action="{{ url_for('run', name='rbl-set') }}" class="toggle" data-stay="rbl-show" data-done="{{ row.list }}: {{ _('off') if row.active else _('on') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}">
   <input type="hidden" name="mode" value="{{ 'off' if row.active else 'on' }}"><input type="hidden" name="score" value=""><input type="hidden" name="key" value="">
   <button class="switch{{ ' on' if row.active }}" role="switch" aria-checked="{{ 'true' if row.active else 'false' }}" aria-label="{{ row.list }}" title="{{ _('Turn off') if row.active else _('Turn on') }}"><span class="knob" aria-hidden="true"></span>{{ _('On') if row.active else _('Off') }}</button></form>
   {%- endif -%}
   {%- if not row.terms_accepted and 'rbl-set' in commands -%}
   <details class="rblterms"><summary{% if not row.active %} class="switch" role="switch" aria-checked="false" aria-label="{{ row.list }}"{% endif %}>{% if row.active %}{{ _('Confirm the terms') }}{% else %}<span class="knob" aria-hidden="true"></span>{{ _('Off') }}{% endif %}</summary>
-  <form method="post" action="{{ url_for('run', name='rbl-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}"><input type="hidden" name="mode" value="on"><input type="hidden" name="score" value="">
+  <form method="post" action="{{ url_for('run', name='rbl-set') }}" data-stay="rbl-show" data-done="{{ row.list }}: {{ _('Terms confirmed, the list is on.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}"><input type="hidden" name="mode" value="on"><input type="hidden" name="score" value="">
   {%- if row.terms_published and row.terms_url.startswith('https://') %}<p><a class="chip" href="{{ row.terms_url }}" target="_blank" rel="noopener noreferrer">{{ _('Terms of use') }}: {{ row.list }} <span aria-hidden="true">&#8599;</span></a></p>{% else %}<p>{{ _('no published terms') }}</p>{% endif %}
   <label class="tick"><input type="checkbox" name="accept_terms" value="yes" required> {{ accept|t if accept else _('I have read and accept the terms of use of this list.') }}</label>
   <input type="hidden" name="key" value="">
@@ -1373,12 +1627,12 @@ MAIN = PAGE.replace(BLOCK, """
   the account ID first. The ID goes to efactl on stdin, never into the page. -#}
   {%- if 'clam-source-set' not in commands -%}<span class="switch{{ ' on' if row.active }}"><span class="knob" aria-hidden="true"></span>{{ _('On') if row.active else _('Off') }}</span>
   {%- elif row.active or row.terms_accepted -%}
-  <form method="post" action="{{ url_for('run', name='clam-source-set') }}" class="toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ row.source }}">
+  <form method="post" action="{{ url_for('run', name='clam-source-set') }}" class="toggle" data-stay="clam-source-status" data-done="{{ row.name }}: {{ _('off') if row.active else _('on') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ row.source }}">
   <input type="hidden" name="mode" value="{{ 'off' if row.active else 'on' }}"><input type="hidden" name="accept_terms" value="">
   <button class="switch{{ ' on' if row.active }}" role="switch" aria-checked="{{ 'true' if row.active else 'false' }}" aria-label="{{ row.name }}" title="{{ _('Turn off') if row.active else _('Turn on') }}"{% if not row.active and row.needs_id and not row.id_set %} disabled{% endif %}><span class="knob" aria-hidden="true"></span>{{ _('On') if row.active else _('Off') }}</button></form>
   {%- else -%}
   <details class="rblterms"><summary class="switch" role="switch" aria-checked="false" aria-label="{{ row.name }}"><span class="knob" aria-hidden="true"></span>{{ _('Off') }}</summary>
-  <form method="post" action="{{ url_for('run', name='clam-source-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ row.source }}"><input type="hidden" name="mode" value="on">
+  <form method="post" action="{{ url_for('run', name='clam-source-set') }}" data-stay="clam-source-status" data-done="{{ row.name }}: {{ _('Terms confirmed, the source is on.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ row.source }}"><input type="hidden" name="mode" value="on">
   {%- if row.terms_url.startswith('https://') %}<p><a class="chip" href="{{ row.terms_url }}" target="_blank" rel="noopener noreferrer">{{ _('Terms of use') }}: {{ row.name }} <span aria-hidden="true">&#8599;</span></a></p>{% else %}<p>{{ _('no published terms') }}</p>{% endif %}
   <p><small>{{ row.terms }}</small></p>
   {%- if row.needs_id %}<label>{{ _('Account ID (SecuriteInfo)') }} <input type="password" name="id" autocomplete="off" spellcheck="false" maxlength="200" required></label>{% endif %}
@@ -1410,8 +1664,8 @@ MAIN = PAGE.replace(BLOCK, """
                'raw': _('Raw values (JSON)'), 'loading': _('Loading'), 'selected': _('selected'), 'deliver': _('Deliver'), 'deliver_title': _('Deliver these mails?'),
                'delete': _('Delete'), 'delete_title': _('Delete these mails for good?'), 'delete_warn': _('Deleted mail cannot be brought back.'),
                'fields': {'ts': _('Time'), 'sender': _('Sender'), 'rcpt': _('Recipient'), 'subject': _('Subject'), 'action': _('Result'), 'score': _('Score'),
-                          'spf': 'SPF', 'dkim': 'DKIM', 'dmarc': 'DMARC', 'ip': _('IP address'), 'qid': _('Queue ID'), 'message_id': 'Message-ID'},
-               'order': ['ts', 'sender', 'rcpt', 'subject', 'action', 'score', 'spf', 'dkim', 'dmarc', 'ip', 'qid', 'message_id']} -%}
+                          'spf': 'SPF', 'dkim': 'DKIM', 'dmarc': 'DMARC', 'ip': _('IP address'), 'origin': _('Origin'), 'qid': _('Queue ID'), 'message_id': 'Message-ID'},
+               'order': ['ts', 'sender', 'rcpt', 'subject', 'action', 'score', 'spf', 'dkim', 'dmarc', 'ip', 'origin', 'qid', 'message_id']} -%}
   <div id="mail-ui" hidden data-texts='{{ ui|tojson }}' data-csrf="{{ csrf }}" data-run="{{ url_for('run', name='') }}" data-check="{{ url_for('senders_check') }}"
   data-log="{{ url_for('show_page', slug='log') }}" data-mail="{{ url_for('mail_page', mail_id=0)[:-1] }}"{% if 'sender-action' in commands %} data-can-act{% endif %}
   {%- if session.get('role', 'super') == 'super' %} data-super{% endif %}></div><script defer src="{{ url_for('mailui_js') }}"></script>
@@ -1465,7 +1719,7 @@ MAIN = PAGE.replace(BLOCK, """
 {%- macro field(name, arg) -%}
   {%- set id = name ~ '-' ~ arg.name -%}{%- set value = current(name, arg) -%}{%- set fh = help_text(name, arg.name) -%}{%- set wl = web_label(arg.label, arg.kind) -%}
   {%- if arg.hint %}<div class="row {{ arg.group }}box"><p class="warnbox" role="alert">{{ arg.hint }}</p></div>{% endif -%}
-  <div class="row{% if arg.group %} {{ arg.group }}box{% endif %}">
+  <div class="row{% if arg.group %} {{ arg.group }}box{% endif %}"{% if arg.when %} data-when="{{ arg.when }}"{% endif %}>
   {%- if arg.ack -%}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
     <div><input type="checkbox" id="{{ id }}" name="{{ arg.name }}" value="yes"></div>
@@ -1480,7 +1734,11 @@ MAIN = PAGE.replace(BLOCK, """
     <input type="hidden" name="{{ arg.name }}" value="off"></div>
   {%- elif arg.secret -%}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
-    <input type="password" id="{{ id }}" name="{{ arg.name }}" autocomplete="new-password">
+    {#- Hans 2026-11-17: whether one is stored, from a yes/no of the read command; the value never comes to the browser. -#}
+    {%- if value in ('on', 'off') %}{% set value = value == 'on' %}<div class="secret"><input type="password" id="{{ id }}" name="{{ arg.name }}" autocomplete="new-password"
+    placeholder="{{ _('empty keeps it') if value else '' }}" aria-describedby="{{ id }}-st"> <span class="badge{{ ' on' if value }}" id="{{ id }}-st">{{ _('stored') if value else _('not set') }}</span>
+    {%- if value and 'secret-remove' in commands %} <button class="s" formaction="{{ url_for('run', name='secret-remove') }}" formnovalidate name="target" value="{{ name }} {{ arg.name }}">{{ _('Remove') }}</button>{% endif %}</div>
+    {%- else %}<input type="password" id="{{ id }}" name="{{ arg.name }}" autocomplete="new-password">{% endif %}
   {%- elif arg.kind == 'confirm' -%}
     <label for="{{ id }}">{{ _('Confirm') }}</label>
     <div><label><input type="checkbox" id="{{ id }}" name="{{ arg.name }}" value="yes"{% if arg.required %} required{% endif %}> {{ wl.label|t }}</label></div>
@@ -1488,6 +1746,11 @@ MAIN = PAGE.replace(BLOCK, """
     {#- M5: the console asks to type yes; here it is a tick box that sends yes. -#}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
     <div><input type="checkbox" id="{{ id }}" name="{{ arg.name }}" value="yes"{% if value == 'yes' %} checked{% endif %}></div>
+{%- elif arg.many and arg.choices -%}
+    {#- Fixed values to pick several of: tick boxes, the ones in effect ticked (Hans: no free text for fixed values). -#}
+    {%- set picked = (value if value is string else value|join(',')).replace(' ', ',').split(',') -%}
+    <span class="lb"><span id="{{ id }}-l">{{ wl.label|t }}</span>{{ info(id, fh) }}</span><span class="chips" role="group" aria-labelledby="{{ id }}-l">
+    {%- for item in arg.choices %}<label><input type="checkbox" name="{{ arg.name }}" value="{{ item.value }}"{% if item.value in picked %} checked{% endif %}> {{ item.text|t }}</label>{% endfor %}</span>
 {%- elif arg.choices -%}
     <span class="lb"><label for="{{ id }}" id="{{ id }}-l">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
     {%- set chosen = value if value != '' else (arg.preselect or '') %}{% set items = [] %}{% for item in arg.choices %}{% set ignored = items.append((item.value, item.text|t)) %}{% endfor %}
@@ -1511,11 +1774,11 @@ MAIN = PAGE.replace(BLOCK, """
     {% if wl['clear'] %}<div>{% endif %}<textarea id="{{ id }}" name="{{ arg.name }}" rows="6"{% if wl.placeholder %} placeholder="{{ wl.placeholder|t }}"{% endif %}{% if arg.required %} required{% endif %}>{{ value }}</textarea>{% if wl['clear'] %}{{ clearbox(id, arg, wl) }}</div>{% endif %}
   {%- else -%}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
-    {% if wl['clear'] %}<div>{% endif %}<input type="text" id="{{ id }}" name="{{ arg.name }}" value="{{ value }}"{% if arg.placeholder or wl.placeholder %} placeholder="{{ arg.placeholder or wl.placeholder|t }}"{% endif %}{% if arg.required %} required{% endif %}>{% if wl['clear'] %}{{ clearbox(id, arg, wl) }}</div>{% endif %}
+    {% if wl['clear'] %}<div>{% endif %}<input type="text" id="{{ id }}" name="{{ arg.name }}"{% if arg.name == 'reauth_code' or (arg.name == 'code' and ('2FA' in arg.label or 'app' in arg.label)) %} class="otp" inputmode="numeric" autocomplete="one-time-code"{% endif %} value="{{ value }}"{% if arg.placeholder or wl.placeholder %} placeholder="{{ arg.placeholder or wl.placeholder|t }}"{% endif %}{% if arg.required %} required{% endif %}>{% if wl['clear'] %}{{ clearbox(id, arg, wl) }}</div>{% endif %}
   {%- endif -%}
   </div>
 {%- endmacro -%}
-<script src="{{ url_for('copy_js') }}"></script><aside>""" + BRAND + """
+<script src="{{ url_for('copy_js') }}"></script>{% if not portal_mode %}<script defer src="{{ url_for('stay_js') }}"></script>{% endif %}<aside>""" + BRAND + """
 {% if not portal_mode %}<form class="search" method="post" action="{{ url_for('search') }}" role="search"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label class="sr" for="search-q">{{ _('Search') }}</label><input type="search" id="search-q" name="q" placeholder="{{ _('Search') }} ( / )" autocomplete="off"
 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-list" data-index="{{ suggest_url(commands) }}"
@@ -1531,8 +1794,8 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 </details>
 </aside><main{% if page.slug in ('log', 'quar', 'held') %} class="wide"{% endif %}>{% if moved %}<span hidden data-moved='{{ moved|tojson }}'></span>{% endif %}<div class="viewbar">{% if not portal_mode %}{{ viewform(none) }}{% endif %}{% set me = account_view() %}<details class="usermenu"><summary><span class="sr">{{ _('Logged in as') }} </span><b>{{ me.login }}</b> <span class="role">{{ me.role }}</span></summary><div class="menu"><div class="langrow"><span>{{ _('Language') }}</span>{{ lang_pill(ui_lang(), _('Language'), url_for('set_lang'), csrf)|safe }}</div><a class="account" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}{{ '#account-show' if portal_mode else '' }}">{{ _('My account') }}</a><a class="feature" target="_blank" rel="noopener noreferrer" href=\"""" + FEATURE_URL + """\">{{ _('Request or improve a feature') }}</a><form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button>{{ _('Log out') }}</button></form></div></details></div>
 {% if not portal_mode %}""" + THREAT_BANNER + """{% endif %}
-{% if session.no_2fa and page.slug in ('dash', 'held') %}<div class="pending" role="status"><span>{% if session.no_2fa_code %}{{ _('The 2FA code you typed was not checked: this login has no active 2FA.') }} {% endif %}{{ _('Your login has no 2FA: a stolen password alone is enough to log in. Set it up under My account.') }}</span>
-<span class="pending-buttons"><a class="btn p" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}#totp-setup">{{ _('Set up 2FA') }}</a></span></div>{% endif %}{% if values.get('firewall_pending_seconds') is not none and 'firewall-confirm' in commands %}<div class="pending" role="alert">
+{% if session.no_2fa and page.slug in ('dash', 'held') and not dev_2fa_confirmed %}<div class="pending" role="status" id="no-2fa"><span>{% if session.no_2fa_code %}{{ _('The 2FA code you typed was not checked: this login has no active 2FA.') }} {% endif %}{{ _('Your login has no 2FA: a stolen password alone is enough to log in. Set it up under My account.') }}</span>
+<span class="pending-buttons"><a class="btn p" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}#totp-setup">{{ _('Set up 2FA') }}</a>{% if environment_mark and 'env-dev' in environment_mark and not portal_mode %}<form method="post" action="{{ url_for('run', name='dev-2fa-hint-confirm') }}" data-stay="no-2fa" data-done="{{ _('Confirmed for this development host.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s">{{ _('Confirm') }}</button></form>{% endif %}</span></div>{% endif %}{% if values.get('firewall_pending_seconds') is not none and 'firewall-confirm' in commands %}<div class="pending" role="alert">
 <span><b>Firewall change not confirmed.</b> Check that you still have access. It is taken back in <span data-countdown="{{ values.firewall_pending_seconds }}">{{ values.firewall_pending_seconds // 60 }} min</span>.</span>
 <span class="pending-buttons">{{ post('firewall-confirm', 'Keep the change', {}, 'p') }}{% if 'firewall-revert' in commands %}{{ post('firewall-revert', 'Discard', {}, 'd') }}{% endif %}</span></div>{% endif %}
 {% if values.get('cluster_managed_by') %}<div class="card"><p>{{ 'Managed by'|t }} <b>{{ values.cluster_managed_by }}</b>: {{ 'this node is a client in master/client mode, settings are changed on the master.'|t }}</p></div>{% endif %}
@@ -1549,6 +1812,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {%- endmacro %}
 {% if result_name in dialog_results and (error or result is not none) %}{{ result_dialog(not error, text=error or '', output=result if not error else none) }}{% endif %}
 {#- Guided wizards: the switch to the manual cards and back, then the wizard of the page. Only here, under the title. -#}
+{% if page.slug == 'flow' %}{{ flow_top() }}{% endif %}
 {% if wizard_name %}<style>#wizard{scroll-margin-top:104px}.wizmode{margin:0 0 12px}.wizsteps{display:flex;flex-wrap:wrap;gap:4px 14px;list-style:none;padding:0;margin:0 0 10px;color:var(--muted);font-size:.9em}
 .wizsteps li.cur{color:var(--ink);font-weight:600}.wizsteps li::before{content:counter(list-item) ". "}.wizard textarea{min-height:7em}
 .wizard pre.wizpre{white-space:pre-wrap;margin:0}.wizard iframe{width:100%;min-height:10em;border:1px solid var(--border);background:#fff}
@@ -1598,7 +1862,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {% for f in w.fields if f.kind == 'tick' %}{% set id = 'wz-' ~ f.name %}<div class="row"><label><input type="checkbox" id="{{ id }}" name="{{ f.name }}" value="yes"{% if f.value == 'yes' %} checked{% endif %} required> {{ f.label|t }}</label>{{ info(id, f.help) }}</div>{% endfor %}
 {% if w.last and w.reauth %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
 {% else %}<div class="row"><label for="wz-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="wz-reauth" name="reauth" autocomplete="current-password"></div>
-<div class="row"><label for="wz-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="wz-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></div>{% endif %}{% endif %}
+<div class="row"><label for="wz-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="wz-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endif %}
 {% if w.step.preview is sameas true %}<div class="row"><span class="lb">{{ _('Text version') }}</span><pre class="wizpre">{{ w.draft.text }}</pre></div>
 {% if w.draft.format == 'html' %}<div class="row"><span class="lb">{{ _('HTML version') }}</span><iframe sandbox="" srcdoc="{{ w.draft.html }}" title="{{ _('HTML version') }}"></iframe></div>{% endif %}
 <p class="h">{{ _('The preview shows no pictures and runs no scripts.') }}</p>{% endif %}
@@ -1611,7 +1875,8 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {% if w.test %}<button name="go" value="test">{{ _('Test the connection') }}</button>{% endif %}{% if not w.first %}<button name="go" value="back" formnovalidate>{{ _('Back') }}</button><button name="go" value="restart" formnovalidate>{{ _('Start again') }}</button>{% endif %}</div></form>{% endif %}</div>{% endif %}
 {% if page.slug == 'sec' and hardening_link %}<p class="h"><a class="btn s" href="{{ url_for('show_page', slug='standards') }}#wizard">{{ _('Hardening wizard') }}</a></p>{% endif %}
 {% if not wizard %}
-{% if result is not none and result_name in short_results %}<div class="card done"><p>{{ short_results[result_name] }}</p></div>
+{% if result is not none and result_name in short_results %}<div class="card done" role="status"><p>{{ short_results[result_name]|t }}</p></div>
+{% elif result is not none and page.slug == 'flow' and result_name in commands and commands[result_name].writes %}<div class="card done" role="status"><p>{{ _('Saved. The lists below show the new state.') }}</p></div>
 {% elif result is not none and result_name == 'maillog-search' %}<div class="card" id="log-result" data-q="{{ result.query or '' }}"><div class="live-head"><h2>{{ _('Mail log') }}</h2>
 <span>{{ result.mails|length }} {{ _('mails') }}</span></div>{% if result.filters %}<div class="chips filters" aria-label="{{ _('Filters') }}">{% for item in result.filters %}<span class="chip">{{ item }}</span>{% endfor %}</div>{% endif %}
 {% if result.mails %}<div class="tablewrap"><table class="log"><thead><tr><th>{{ _('Time') }}</th><th>{{ _('Sender') }}</th><th>{{ _('Recipient') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Result') }}</th>
@@ -1620,8 +1885,8 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 <td class="cut" data-label="{{ _('Sender') }}">{{ chip(mail.sender, 'address' if '@' in (mail.sender or '') else 'domain', mail.qid, mail.rcpt, mail.ip) }}</td>
 <td class="cut" data-label="{{ _('Recipient') }}" title="{{ mail.rcpt or '' }}">{{ mail.rcpt or '' }}</td><td class="cut subj" data-label="{{ _('Subject') }}" title="{{ mail.subject or '' }}">{{ mail.subject or '' }}</td>
 <td class="nw" data-label="{{ _('Result') }}">{{ st(mail.action) }}</td><td class="nw" data-label="{{ _('Checks') }}">{{ st(mail.spf, 'SPF') }}{{ st(mail.dkim, 'DKIM') }}{{ st(mail.dmarc, 'DMARC') }}</td>
-<td class="nw" data-label="{{ _('Score') }}">{{ '%.1f'|format(mail.score) if mail.score is number else '' }}</td><td class="nw" data-label="{{ _('IP address') }}">{{ chip(mail.ip, 'ip', mail.qid, mail.rcpt) }}</td>
-<td class="nw mono opt" data-label="{{ _('Queue ID') }}">{{ mail.qid or '' }}</td></tr>{% endfor %}</tbody></table></div>
+<td class="nw" data-label="{{ _('Score') }}">{{ '%.1f'|format(mail.score) if mail.score is number else '' }}</td><td class="nw" data-label="{{ _('IP address') }}">{{ chip(mail.ip, 'ip', mail.qid, mail.rcpt) }}{% if mail.origin %}<div class="h origin">{{ mail.origin }}</div>{% endif %}</td>
+<td class="nw mono opt" data-label="{{ _('Queue ID') }}">{{ mail.qid or '' }}</td></tr>{% endfor %}</tbody></table></div>{% if result.geo_credit %}<p class="h">{{ result.geo_credit }}</p>{% endif %}
 {% else %}<p class="empty">{{ _('No mail matches. Fewer filters or a shorter text find more.') }}</p>{% endif %}</div>
 {% elif result is not none and result_name == 'sender-action' %}<div class="card done" role="status"><p>{{ result.entry }}: {{ _('added to') if result.action == 'add' else _('taken out again') }} {{ result.target_text|rt }}</p>
 {% if result.action == 'add' %}<div class="btns">{{ post('sender-action', _('Undo'), {'value': result.entry, 'list': result.list, 'action': 'remove', 'recipients': result.recipients, 'qid': result.qid}) }}</div>{% endif %}</div>
@@ -1638,28 +1903,69 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {% else %}{{ show(result) }}{% endif %}</div>{% endif %}
 {#- 6.0.0.6.x UX: what needs a hand first, then the state at a glance, the tiles, the last hour; the load table folded below. -#}
 {% if tiles %}{% if cve_banner %}<div class="card" role="alert">{% for text in cve_banner %}<p class="err">{{ text }}</p>{% endfor %}</div>{% endif %}
-{% if attention %}<div class="card att-card" id="attention"><h2>{{ _('Needs attention') }} <span class="count">{{ attention|length }}</span></h2><ul class="att">{% for text, slug, anchor, query in attention %}<li><span class="dot w" aria-hidden="true"></span><span class="att-text">{{ text }}</span>
-{%- if slug and anchor in commands %}<a class="btn s" href="{{ notice_href(slug, anchor, query, expert, commands[anchor]) }}" title="{{ pages_by_slug[slug].title|t }} &rarr; {{ (commands[anchor].title|t).split(':')[0] }}"><span class="sr">{{ _('Open') }}: </span>{{ (commands[anchor].title|t).split(':')[0] }} &rsaquo;</a>{% endif %}</li>{% endfor %}</ul></div>
-{% elif tiles[0].dot == '' %}<p class="allok" role="status"><span class="dot" aria-hidden="true"></span>{{ _('Nothing needs attention.') }}</p>{% endif %}{% endif %}
-{% if board_html %}<div class="card board" id="status-board" data-url="{{ url_for('status_board') }}">{{ board_html|safe }}</div>{% endif %}
-{% if flow_picture %}<div class="card flowcard">{{ flow_picture|safe }}</div>{% endif %}
-{% if tiles %}<div class="tiles">
+<div id="notices">{% if attention %}<div class="card att-card" id="attention"><h2>{{ _('Needs attention') }} <span class="count">{{ attention|length }}</span></h2><ul class="att">{% for text, slug, anchor, query, raw, ackable in attention %}<li><span class="dot w" aria-hidden="true"></span><span class="att-text">{{ text }}</span>
+{%- if slug and anchor in commands %}<a class="btn s" href="{{ notice_href(slug, anchor, query, expert, commands[anchor]) }}" title="{{ pages_by_slug[card_page(slug, anchor)].title|t }} &rarr; {{ (commands[anchor].title|t).split(':')[0] }}"><span class="sr">{{ _('Open') }}: </span>{{ (commands[anchor].title|t).split(':')[0] }} &rsaquo;</a>{% endif %}
+{%- if ackable and 'notice-ack' in commands %}<span class="att-do">{% for action, label, hint in (('confirm', _('Confirm'), _('Seen: away for 30 days, back earlier if it changes')), ('hide', _('Hide'), _('Away until you show it again'))) %}<form method="post" action="{{ url_for('run', name='notice-ack') }}" data-stay="notices" data-done="{{ _('Notice confirmed.') if action == 'confirm' else _('Notice hidden.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="text" value="{{ raw }}"><input type="hidden" name="slug" value="{{ slug }}"><input type="hidden" name="anchor" value="{{ anchor }}"><button class="s" title="{{ hint }}">{{ label }}</button></form>{% endfor %}</span>{% endif %}</li>{% endfor %}</ul></div>
+{% elif tiles[0].dot == '' %}<p class="allok" role="status"><span class="dot" aria-hidden="true"></span>{{ _('Nothing needs attention.') }}</p>{% endif %}
+{% if notices_done and 'notice-ack' in commands %}<details class="card fold att-done"><summary><h2>{{ _('Confirmed or hidden notices') }} <span class="count">{{ notices_done|length }}</span></h2></summary><ul class="att">
+{% for item in notices_done %}<li><span class="att-text">{{ item.text }}</span><span class="pill">{{ _('confirmed until {}').format(item.until) if item.state == 'confirmed' else _('hidden') }}</span>
+<form method="post" action="{{ url_for('run', name='notice-ack') }}" data-stay="notices" data-done="{{ _('Notice shown again.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="show"><input type="hidden" name="key" value="{{ item.key }}"><button class="s">{{ _('Show again') }}</button></form></li>{% endfor %}</ul></details>{% endif %}</div>{% endif %}
+{% if tiles %}<div class="dashgrid">{% endif %}
+{% if board_html and 'board' not in dash.hidden %}<div class="card board{{ dash.cls.board }}" style="{{ dash.style.board }}" id="status-board" data-url="{{ url_for('status_board') }}">{{ board_html|safe }}</div>{% endif %}
+{% if flow_picture and 'flow' not in dash.hidden %}<div class="card flowcard{{ dash.cls.flow }}" style="{{ dash.style.flow }}">{{ flow_picture|safe }}</div>{% endif %}
+{% if tiles %}{% if 'tiles' not in dash.hidden %}<div class="tiles{{ dash.cls.tiles }}" style="{{ dash.style.tiles }}">
 {% for t in tiles %}{% set inner %}<b>{{ t.label|t }}</b><div class="v">{% if t.dot is not none %}<span class="dot {{ t.dot }}"></span>{% endif %}{{ t.value }}</div>
 {% if t.note %}<div class="note">{{ t.note }}</div>{% endif %}{% endset %}
 {% if t.slug and t.anchor in commands %}<a class="tile" href="{{ url_for('show_page', slug=t.slug) }}#{{ t.anchor }}">{{ inner }}</a>
-{% elif t.detail %}<details class="tile"><summary>{{ inner }}</summary><p>{{ t.detail }}</p></details>{% else %}<div class="tile">{{ inner }}</div>{% endif %}{% endfor %}</div>
-{% if chart %}<div class="card"><h2>{{ _('Last hour per minute') }}</h2><p class="h">{{ chart.summary }}</p>{{ chart.svg|safe }}
+{% elif t.detail %}<details class="tile"><summary>{{ inner }}</summary><p>{{ t.detail }}</p></details>{% else %}<div class="tile">{{ inner }}</div>{% endif %}{% endfor %}</div>{% endif %}
+{% if chart and 'chart' not in dash.hidden %}<div class="card{{ dash.cls.chart }}" style="{{ dash.style.chart }}"><h2>{{ _('Last hour per minute') }}</h2><p class="h">{{ chart.summary }}</p>{{ chart.svg|safe }}
 <p class="legend"><span class="key m"></span>{{ _('Mails') }} <span class="key s"></span>{{ _('Spam') }} <span class="key v"></span>{{ _('Viruses') }}<span class="span">{{ chart.first }} &ndash; {{ chart.last }}</span></p></div>{% endif %}
-<details class="card fold" id="load-fold"{% if load_open %} open{% endif %}><summary><h2>{{ _('Load') }}</h2><span class="h">{{ _('CPU, RAM, disks and network: now, 15 min, 24 h') }}</span></summary>
-<div id="load-card" data-url="{{ url_for('load_card') }}">{{ load_html|safe }}</div>{% if 'load-set' in commands %}<p><a class="btn s" href="{{ url_for('show_page', slug='maint') }}#load-set">{{ _('Limits and alerts') }} &rsaquo;</a></p>{% endif %}</details>{% endif %}
-{% for key in page.show or [] %}{% if key in values %}{% set info = current_info[key] %}<div class="card"><h2>{{ info[0] }}</h2>
+{% if 'load' not in dash.hidden %}<details class="card fold{{ dash.cls.load }}" style="{{ dash.style.load }}" id="load-fold"{% if load_open %} open{% endif %}><summary><h2>{{ _('Load') }}</h2><span class="h">{{ _('CPU, RAM, disks and network: now, 15 min, 24 h') }}</span></summary>
+<div id="load-card" data-url="{{ url_for('load_card') }}">{{ load_html|safe }}</div>{% if 'load-set' in commands %}<p><a class="btn s" href="{{ url_for('show_page', slug='maint') }}#load-set">{{ _('Limits and alerts') }} &rsaquo;</a></p>{% endif %}</details>{% endif %}</div>
+{#- G7-7: the layout of this login: buttons for keyboard and phone, dragging a row as an extra; "Needs attention" stays on top. -#}
+<details class="card fold" id="dash-layout"{% if request.args.get('layout') %} open{% endif %}><summary><h2>{{ _('Customize dashboard') }}</h2><span class="h">{{ _('Order, hide, half width; only for you') }}</span></summary>
+<form method="post" action="{{ url_for('dashboard_layout') }}" id="dash-layout-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="move" value="">
+<ul class="dlay">{% for name in dash.order if name in dash.available %}<li draggable="true" data-block="{{ name }}" data-pos="{{ dash.order.index(name) }}"><span class="dname{{ ' off' if name in dash.hidden }}">{{ dash.labels[name]|t }}{% if name in dash.hidden %} ({{ _('hidden') }}){% endif %}</span>
+<button class="s" name="change" value="{{ name }}:up"{% if loop.first %} disabled{% endif %} aria-label="{{ _('Move up') }}: {{ dash.labels[name]|t }}">&uarr;</button><button class="s" name="change" value="{{ name }}:down"{% if loop.last %} disabled{% endif %} aria-label="{{ _('Move down') }}: {{ dash.labels[name]|t }}">&darr;</button>
+<button class="s" name="change" value="{{ name }}:{{ 'show' if name in dash.hidden else 'hide' }}">{{ _('Show') if name in dash.hidden else _('Hide') }}</button>
+<button class="s" name="change" value="{{ name }}:{{ 'full' if name in dash.half else 'half' }}">{{ _('Full width') if name in dash.half else _('Half width') }}</button></li>{% endfor %}</ul>
+<p class="h">{{ _('Needs attention and security warnings always stay on top. You can also drag a row with the mouse.') }}</p>
+<button name="change" value="reset">{{ _('Back to the standard layout') }}</button></form></details><script src="{{ url_for('dash_js') }}" defer></script>{% endif %}
+{% for key in page.show or [] %}{% if key in values and page.slug != 'flow' %}{% set info = current_info[key] %}<div class="card"><h2>{{ info[0] }}</h2>
 {% if info|length == 1 %}{{ show(values[key]) }}
 {% elif not values[key] %}<span class="pill">{{ _('none') }}</span>
 {% else %}<table>{% for entry in values[key] %}<tr><td>{{ entry }}</td>{% if values[key] is mapping %}<td>{{ show(values[key][entry]) }}</td>{% endif %}
 <td>{% if info[1] in commands %}{{ post(info[1], _('Remove'), dict(info[3], action='remove', **{info[2]: entry}), 'd') }}{% endif %}</td></tr>{% endfor %}</table>{% endif %}</div>{% endif %}{% endfor %}
+{#- Hans 2026-11-15: one Update card. The versions, what is pending, one button; while an update runs its progress bar, step and
+time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is that of update-system. -#}
+{% macro update_card() %}{% set u = loaded['update-progress'][1] %}{% set p = u.progress %}{% set active = p.state in ('waiting', 'running', 'rebooting') %}
+{%- set target = p.to if active else (u.latest if u.efa_update else '') %}{% set ucmd = commands['update-system'] %}
+<div class="card upd" id="update-system"><h2>{{ _('Update') }}{{ info('update-system', help_text('update-system')) }}
+<span class="badge{{ ' on' if active }}">{% if p.state == 'waiting' %}{{ _('waiting') }}{% elif p.state == 'running' %}{{ _('running') }}{% elif p.state == 'rebooting' %}{{ _('restarting') }}
+{%- elif u.security_update %}{{ _('Security update') }}{% elif u.efa_update or u.os_pending %}{{ _('Update available') }}{% elif u.last_check %}{{ _('Up to date') }}{% else %}{{ _('not checked yet') }}{% endif %}</span></h2>
+<div class="upd-ver"><span><small>{{ _('Installed') }}</small>{{ u.installed or '?' }}</span>{% if target %}<span class="arrow" aria-hidden="true">&rarr;</span><span><small>{{ _('Available') }}</small>{{ target }}</span>{% endif %}</div>
+{% if active %}<div id="update-live" data-url="{{ url_for('update_live') }}">{{ update_live_html|safe }}</div>
+<p class="h">{{ _('You can close this page: the result also goes to the admin by mail.') }}{% if p.backup %} {{ _('Backup: {}').format(p.backup) }}{% endif %}</p>
+{% else %}<div class="facts">
+<div class="fact">eFa-next<b>{% if u.efa_update %}{{ _('{} available').format(u.latest) }}{% elif u.last_check %}{{ _('up to date') }}{% else %}{{ _('not checked yet') }}{% endif %}</b></div>
+<div class="fact">{{ _('Operating system') }}<b>{% if u.os_pending %}{{ _('{} updates').format(u.os_pending) }}{% elif u.os_pending == 0 %}{{ _('up to date') }}{% else %}{{ _('not checked yet') }}{% endif %}</b>{% if 'update-pending' in commands %}{{ post('update-pending', _('Show'), {}, 's') }}{% endif %}</div>
+<div class="fact">{{ _('Restart needed') }}<b>{{ _('yes') if u.reboot_required else (_('no') if u.reboot_required == false else _('unknown')) }}</b>{% if u.reboot_required and 'reboot' in commands %}<a class="btn" href="#reboot">{{ _('Restart') }}</a>{% endif %}</div>
+<div class="fact">{{ _('Last check') }}<b>{{ u.last_check[:16] if u.last_check else _('never') }}</b>{% if 'update-check' in commands %}{{ post('update-check', _('Check now'), {}, 's') }}{% endif %}</div>
+<div class="fact">{{ _('Automatic updates') }}<b>{{ {'off': _('Off'), 'notify': _('Check and report only'), 'auto': _('Install by itself')}.get(u.mode, u.mode) }}</b>{% if 'autoupdate-set' in commands %}<a class="btn" href="#autoupdate-set">{{ _('Adjust') }}</a>{% endif %}</div></div>
+{% set held = u.os_held %}{% if held %}<p class="warnbox upd-held" role="status"><b>{{ _('Held back') }}</b>: {{ _('dnf cannot resolve their dependencies now; the next update tries again.') }}
+{% for h in held %}{{ ', ' if not loop.first }}{{ h.package }}{% if h.security %} <span class="badge bad">{{ _('security update') }}</span>{% endif %}{% if h.efa %} <span class="badge">{{ _('needed by eFa-next') }}</span>{% endif %}{% endfor %}</p>{% endif %}
+{% if p.state in ('done', 'failed') %}<div class="last {{ 'ok' if p.state == 'done' else 'bad' }}" role="status"><b>{{ _('Last update') }}: {{ (p.finished or '')[:16] }}{% if p.took %} ({{ _('{} min').format(((p.took + 59) // 60)|int) }}){% endif %}</b> &middot; {{ (p.result or '')|rt }}
+{%- if p.state == 'done' and u.rollback and 'update-rollback' in commands %} <a class="btn" href="#update-rollback">{{ _('Back to the version before') }}</a>{% endif %}</div>{% endif %}
+<p class="h">{{ _('Installs eFa-next and the operating system packages in one go. A backup comes first; if the health check fails, eFa-next goes back by itself. Operating system updates cannot be rolled back automatically.') }}</p>
+<form method="post" action="{{ url_for('run', name='update-system') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% for arg in ucmd.args if arg.web is not sameas false %}{{ field('update-system', arg) }}{% endfor %}
+<div class="btns"><button class="p">{{ _('Update now') }}</button></div></form>{% endif %}
+{% set lok, lout = loaded.get('update-status', (False, {})) %}{% if lok and lout.log %}<details class="help"><summary>{{ _('Full log') }}</summary><pre class="upd-log">{{ lout.log|join('\n') }}</pre></details>{% endif %}
+</div>{% endmacro %}
 {% macro card(name) %}{% set cmd = commands[name] %}
 {#- subject-get only fills the form of subject-set. The history is part of the record list. -#}
-{% if name not in hidden_cards and name not in merged %}<div class="card" id="{{ name }}">
+{% if name == 'update-system' and update_live_html %}{{ update_card() }}
+{%- elif name not in hidden_cards and name not in merged %}<div class="card" id="{{ name }}">
 {%- set status = status_of.get(name) if status_of.get(name) in loaded else None %}
 {#- One title per card (that of its status, else that of the command, without its tail such as ": switch"), its (i) and the first sentence of its help. -#}
 {%- set help = help_text(name) %}{% set title = short_title(commands[status].title if status else cmd.title)|t %}
@@ -1669,6 +1975,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {%- else %}<h2>{{ title }}{{ info(name, help) }}</h2>{% if help %}<p class="h">{{ first_sentence(help) }}</p>{% endif %}{% endif %}
 {% if not help and page.notes and name in page.notes %}{% if page.notes[name]|length <= note_short %}<p class="h">{{ page.notes[name]|t }}</p>
 {% else %}<details class="help"><summary>{{ _('Help') }}</summary><p>{{ page.notes[name]|t }}</p></details>{% endif %}{% endif %}
+{% if name == 'api-set' %}<p class="h">{{ _('Prometheus reads {} with the header Authorization: Bearer and a token of a user who may read the settings of the whole system.').format(request.host_url ~ 'metrics') }}</p>{% endif %}
 {% if name == 'api-status' and page.slug == 'export' %}{% set aok, aout = loaded[name] %}<p class="h">Prometheus reads <code>{{ request.host_url }}metrics</code> with the header
 Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read the settings of the whole system.</p>
 <p>REST API: <span class="badge{{ ' on' if aok and aout.api }}">{{ 'On' if aok and aout.api else 'Off' }}</span> Turn it on and make the token on the page Users.</p>
@@ -1708,10 +2015,13 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
   <div class="v">{{ output[list]|length }}</div><div class="btns"><input type="text" id="quick-{{ list }}" placeholder="{{ _('Search') }}" aria-label="{{ _('Search') }}: {{ titles[list] }}"><button type="button" class="p" data-manage="{{ list }}">{{ _('Manage') }}</button></div></div>{% endfor %}</div>
   {%- set st = {'titles': titles, 'types': {'address': _('address'), 'domain': _('domain'), 'IP': 'IP', 'pattern': _('pattern')}, 'select': _('Select'), 'allow': _('Allow'), 'block': _('Block'),
                 'for_': _('for'), 'to_allow': _('To allow list'), 'to_block': _('To block list'), 'remove': _('Remove'), 'none': _('No entry matches.'),
-                'info': _('{count} entries, page {page} of {pages}'), 'remove_q': _('Remove these senders?'), 'add_q': _('Add these senders?')} %}
+                'info': _('{count} entries, page {page} of {pages}'), 'remove_q': _('Remove these senders?'), 'add_q': _('Add these senders?'),
+                'removed': _('Removed: {list}'), 'added': _('Added: {list}'), 'skipped': _('Already in the list: {list}'),
+                'moved_allow': _('Moved to the allow list: {entry}'), 'moved_block': _('Moved to the block list: {entry}'), 'failed': _('That did not work.')} %}
   <dialog id="sender-box" class="popup" data-url="{{ url_for('senders_data') }}" data-run="{{ url_for('run', name='') }}" data-csrf="{{ csrf }}" data-texts='{{ st|tojson }}' aria-labelledby="sender-title"><div class="live-head"><h2 id="sender-title"></h2><span id="sender-info" aria-live="polite"></span>
   <button type="button" id="sender-export">{{ _('Export CSV') }}</button><label class="btn" for="sender-import">{{ _('Import CSV') }}</label><input type="file" id="sender-import" accept=".csv,text/csv" hidden><button type="button" id="sender-close">{{ _('Close') }}</button></div>
   <div class="live-filters"><input type="text" id="sender-search" placeholder="{{ _('Search') }}" aria-label="{{ _('Search') }}"><button type="button" class="d" id="sender-remove">{{ _('Remove selected') }}</button></div>
+  <p id="sender-note" role="status" aria-live="polite" hidden></p>
   <div class="live-filters" id="sender-add-box"><textarea id="sender-new" rows="2" placeholder="{{ _('Add one or several: sender@example.org example.org 192.0.2.1') }}" aria-label="{{ _('New senders') }}"></textarea><input type="text" id="sender-comment" placeholder="{{ _('Comment, optional') }}" aria-label="{{ _('Comment') }}"><button type="button" class="p" id="sender-add">{{ _('Add') }}</button></div>
   <div class="live-table"><table class="log"><thead><tr><th><span class="sr">{{ _('Select') }}</span></th><th data-sort="entry">{{ _('Entry') }}</th><th data-sort="type">{{ _('Type') }}</th><th data-sort="comment">{{ _('Comment') }}</th><th data-sort="added">{{ _('Added') }}</th><th>{{ _('Scope') }}</th><th><span class="sr">{{ _('Actions') }}</span></th></tr></thead><tbody id="sender-rows"></tbody></table></div>
   <div class="btns"><button type="button" id="sender-prev">{{ _('Previous') }}</button><button type="button" id="sender-next">{{ _('Next') }}</button></div></dialog><script src="{{ url_for('senders_js') }}"></script>{% endif %}
@@ -1764,7 +2074,9 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     <tr><th>{{ _('State') }}</th><th>{{ _('Source') }}</th><th>{{ _('Files') }}</th><th>{{ _('Accepted') }}</th></tr>
     {% for row in output.sources %}<tr><td>{{ clamswitch(row) }}</td><td data-label="{{ _('Source') }}"><b>{{ row.name }}</b>{% if row.terms_url.startswith('https://') %} <a class="chip" href="{{ row.terms_url }}" target="_blank" rel="noopener noreferrer">{{ _('Terms of use') }}</a>{% else %} · {{ _('no published terms') }}{% endif %}<br><small>{{ row.terms }}</small>
     {%- if row.needs_id and row.terms_accepted and 'clam-source-set' in commands and row.cluster != 'client' %}<form method="post" action="{{ url_for('run', name='clam-source-set') }}" class="clamid"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ row.source }}"><input type="hidden" name="mode" value="on"><input type="hidden" name="accept_terms" value="">
-    <label>{{ _('Account ID (SecuriteInfo)') }} <input type="password" name="id" autocomplete="off" spellcheck="false" maxlength="200" placeholder="{{ _('set, empty keeps it') if row.id_set else _('not set') }}"{% if not row.id_set and not row.urls %} required{% endif %}></label> <button>{{ _('Save') if row.active else _('Save and turn on') }}</button></form>{% endif %}
+    <label>{{ _('Account ID (SecuriteInfo)') }} <input type="password" name="id" autocomplete="off" spellcheck="false" maxlength="200" placeholder="{{ _('empty keeps it') if row.id_set else '' }}"{% if not row.id_set and not row.urls %} required{% endif %}></label>
+    <span class="badge{{ ' on' if row.id_set }}">{{ _('stored') if row.id_set else _('not set') }}</span> <button>{{ _('Save') if row.active else _('Save and turn on') }}</button>
+    {%- if row.id_set and not row.active and 'secret-remove' in commands %} <button class="s" formaction="{{ url_for('run', name='secret-remove') }}" formnovalidate name="target" value="clam-source-set id {{ row.source }}">{{ _('Remove') }}</button>{% endif %}</form>{% endif %}
     {#- 6.0.0.6: the tier in effect and the pasted DatabaseCustomURL lines. They hold the key: the page shows only how many. -#}
     {%- if row.cluster == 'client' %}
     {#- 6.0.0.6: a cluster node never asks SecuriteInfo and keeps no key: the master sets tier and URLs and hands on the files. -#}
@@ -1779,14 +2091,16 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     {%- if row.urls %}<label class="tick"><input type="checkbox" name="delete_urls" value="yes"> {{ _('Delete the stored URLs') }}</label>{% endif %}
     {%- if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
     {%- else %}<label>{{ _('Your password, to confirm') }} <input type="password" name="reauth" autocomplete="current-password"></label>
-    <label>{{ _('2FA code, if you set one up') }} <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></label>{% endif %}
+    <label>{{ _('2FA code, if you set one up') }} <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>{% endif %}
     <button>{{ _('Save') }}</button></form>{% endif %}{% endif %}</td>
     <td data-label="{{ _('Files') }}"><small>{% for file in ([row.files] if row.files is string else row.files) %}<span class="file">{{ file }}</span>{% endfor %}</small></td><td data-label="{{ _('Accepted') }}">{% if row.accepted %}<small>{{ row.accepted.at }}<br>{{ row.accepted.by }}</small>{% else %}<span class="pill">{{ _('not yet') }}</span>{% endif %}</td></tr>{% endfor %}</table>
   {% elif name == 'rbl-show' %}{% for warning in output.warnings %}<p class="warnbox">{{ warning }}</p>{% endfor %}
     <table class="rbl stack"><tr><th class="n">{{ _('State') }}</th><th class="n">ID</th><th>{{ _('List') }}</th><th class="n">{{ _('Type') }}</th><th class="n">{{ _('Score') }}</th><th class="n">{{ _('Hits') }}</th><th class="n">{{ _('Errors') }}</th><th>{{ _('Terms') }}</th></tr>
     {% for row in output.lists %}<tr><td class="n">{{ rblswitch(row) }}</td><td class="n" data-label="ID">{{ row.id }}</td><td>{{ row.list }}{% if row.url and row.url.startswith('https://') %} <a class="chip" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">Website</a>{% endif %}{% if row.terms_published and row.terms_url.startswith('https://') %} <a class="chip" href="{{ row.terms_url }}" target="_blank" rel="noopener noreferrer">{{ _('Terms of use') }}</a>{% elif not row.terms_published %} · {{ _('no published terms') }}{% endif %}<br><small>{{ row.accepted }}</small>
-    {%- if row.dqs and 'rbl-set' in commands %}<form method="post" action="{{ url_for('run', name='rbl-set') }}" class="dqs"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}"><input type="hidden" name="mode" value="{{ 'on' if row.active else 'off' }}"><input type="hidden" name="score" value="">
-    <label>{{ _('Spamhaus DQS key') }} <input name="key" autocomplete="off" spellcheck="false" maxlength="64" placeholder="{{ _('set, empty keeps it') if row.key_set else _('not set') }}"></label> <button>{{ _('Save') }}</button></form>{% endif %}</td>
+    {%- if row.dqs and 'rbl-set' in commands %}<form method="post" action="{{ url_for('run', name='rbl-set') }}" class="dqs" data-stay="rbl-show" data-done="{{ row.list }}: {{ _('Saved.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}"><input type="hidden" name="mode" value="{{ 'on' if row.active else 'off' }}"><input type="hidden" name="score" value="">
+    <label>{{ _('Spamhaus DQS key') }} <input name="key" type="password" autocomplete="off" spellcheck="false" maxlength="64" placeholder="{{ _('empty keeps it') if row.key_set else '' }}"></label>
+    <span class="badge{{ ' on' if row.key_set }}">{{ _('stored') if row.key_set else _('not set') ~ ' ' ~ _('(free public mirrors)') }}</span> <button>{{ _('Save') }}</button>
+    {%- if row.key_set and 'secret-remove' in commands %} <button class="s" formaction="{{ url_for('run', name='secret-remove') }}" formnovalidate name="target" value="rbl-set key {{ row.id }}">{{ _('Remove') }}</button>{% endif %}</form>{% endif %}</td>
     <td class="n" data-label="{{ _('Type') }}">{{ row.type }}</td><td class="n" data-label="{{ _('Score') }}">{{ row.score }}</td><td class="n" data-label="{{ _('Hits') }}">{{ row.hits }}</td><td class="n" data-label="{{ _('Errors') }}">{{ row.errors }}</td><td><small>{{ row.terms }}</small></td></tr>{% endfor %}</table>
   {% elif name == 'rotation-status' %}{% if output.rotation_warnings %}<p class="warnbox">{{ output.rotation_warnings|join(' ') }}</p>{% endif %}
   <p class="h">All domains: {{ 'on' if output.rotation_all else 'off' }}. Last check: {{ output.last_run or 'not yet' }}. Next check: {{ output.next_check or 'unknown' }}.</p>{{ show(output.domains) }}
@@ -1839,7 +2153,7 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
   <p class="err" id="passkey-error" hidden>{{ _('The passkey did not work. Log in with password and code.') }}</p><script src="/passkey.js"></script>{% endif %}
   {% if name in reauth_commands and reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
   {% elif name in reauth_commands %}<div class="row"><label for="{{ name }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ name }}-reauth" name="reauth" autocomplete="current-password"></div>
-  <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></div>{% endif %}
+  <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
   <div class="btns"><button class="{{ 'd' if name in danger else 'p' }}"{% if name in danger %} data-confirm="{{ cmd.title|t }}?"{% endif %}>{{ (_('Run') if not cmd.args else _('Apply')) if cmd.writes else _('Show') }}</button>{% if name == 'hardening-report' %} <button class="p" formaction="{{ url_for('hardening_pdf') }}">{{ _('Download PDF') }}</button>{% endif %}</div></form>
 {% endif %}{% endif %}</div>{% endif %}{% endmacro %}
 {% macro mail_check_card() %}<div class="card" id="mail-check"><h2>{{ _('Check a mail') }}</h2>
@@ -1849,17 +2163,110 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
 <div class="btns"><button class="p">{{ _('Check') }}</button></div></form></div>{% endmacro %}
 {#- 6.0.0.6 (Hans): the message search opens in a window of its own (copy.js; without a script a new tab), with all its filters. -#}
 {% macro advanced_search_button() %}<div class="btns" id="message-search"><a class="btn p" href="{{ url_for('advanced_search') }}" target="efa-advanced-search" data-popup>{{ _('Advanced search') }}</a></div>{% endmacro %}
+{#- 6.0.0.6.x (Hans): My account only in the user menu at the top right; an overview first, then three groups, rare actions folded. -#}
+{% macro account_overview() %}{% set me = account_view() %}{% set aok, a = loaded.get('account-show', (false, {})) %}{% set tok, t = loaded.get('totp-status', (false, {})) %}
+{%- set pok, pk = loaded.get('passkey-status', (false, {})) %}{% set sok, ss = loaded.get('session-list', (false, {})) %}
+<div class="card accover" id="account-overview"><h2>{{ _('Overview') }}</h2>
+<dl class="accgrid"><div><dt>{{ _('Login') }}</dt><dd><b>{{ me.login }}</b> <span class="pill">{{ me.role }}</span></dd></div>
+<div><dt>{{ _('Name') }}</dt><dd>{{ (a.name if aok else '') or '–' }}</dd></div>
+<div><dt>{{ _('Email address') }}</dt><dd>{{ (a.email if aok else '') or _('not set') }}{% if aok and a.email_pending %} <span class="pill w">{{ _('waiting for the link') }}: {{ a.email_pending }}</span>{% endif %}</dd></div>
+<div><dt>2FA</dt><dd>{% if tok and t.active %}<span class="badge on">{{ _('On') }}</span> <small>{{ _('Recovery codes left') }}: {{ t.recovery_codes_left }}</small>
+{%- elif tok %}<span class="badge">{{ _('Off') }}</span>{% if 'totp-setup' in commands %} <a class="btn s" href="#totp-setup">{{ _('Set up 2FA') }}</a>{% endif %}{% else %}–{% endif %}</dd></div>
+<div><dt>{{ _('Passkeys') }}</dt><dd>{{ (pk.my_keys or [])|length if pok else '–' }}</dd></div>
+<div><dt>{{ _('Active sessions') }}</dt><dd>{% if sok %}<a class="btn s" href="#session-list">{{ (ss.sessions or [])|length }}</a>{% else %}–{% endif %}</dd></div></dl>
+{% if tok and not t.active and t.required_for_my_role %}<p class="warnbox" role="alert">{{ _('Your role needs 2FA: set it up now.') }}</p>
+{%- elif tok and t.active and t.recovery_codes_left < 3 %}<p class="warnbox" role="alert">{{ _('Few recovery codes left: make new ones.') }}</p>{% endif %}
+{% if aok and a.email_note %}<p class="h">{{ a.email_note|rt }}</p>{% endif %}</div>
+{% endmacro %}
+{% macro account_sessions() %}{% set sok, ss = loaded.get('session-list', (false, {})) %}{% set mine = my_session_id() %}
+<div class="card" id="session-list"><h2>{{ _('Active sessions') }}</h2><p class="h">{{ _('Your logins, also on other devices. Ending one logs that browser out within 15 seconds.') }}</p>
+{% if not sok %}<p class="err">{{ ss.error }}</p>{% elif ss.sessions %}<div class="tablewrap"><table class="data stack"><tr><th>{{ _('Login') }}</th><th>{{ _('Address') }}</th><th>{{ _('Browser') }}</th><th>{{ _('Started') }}</th><th>{{ _('Last seen') }}</th><th></th></tr>
+{% for row in ss.sessions %}<tr><td data-label="{{ _('Login') }}">{{ row.user }}</td><td class="nw" data-label="{{ _('Address') }}">{{ row.client }}</td><td class="cut" data-label="{{ _('Browser') }}" title="{{ row.browser }}">{{ row.browser }}</td>
+<td class="nw" data-label="{{ _('Started') }}">{{ row.started }}</td><td class="nw" data-label="{{ _('Last seen') }}">{{ row.last_seen }}</td>
+<td class="acts">{% if row.id == mine %}<span class="pill">{{ _('This browser') }}</span>{% elif 'session-end' in commands %}{{ post('session-end', _('End session'), {'session': row.id}, 'd') }}{% endif %}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="empty">{{ _('No other session.') }}</p>{% endif %}</div>
+{% endmacro %}
+{% macro account_fold(title, names, id) %}<details class="card fold accfold" id="{{ id }}"><summary><h2>{{ title }}</h2></summary>{% for name in names if name in commands %}{{ card(name) }}{% endfor %}</details>{% endmacro %}
+{#- 6.0.0.6.x (Hans): Impersonation & BEC by task, one card each: the switch with what it protects, the VIPs, the protected domains,
+the scores folded. Before, each of the three forms repeated the whole state. Without the right to change, the lists stay, the forms go. -#}
+{% macro bec_view() %}{% set b = loaded['bec-status'][1] %}{% set sc = b.scores or {} %}{% set can_vip = 'bec-vip-set' in commands %}{% set can_partner = 'bec-partner-set' in commands %}
+<style>.bec-sum{display:flex;flex-wrap:wrap;gap:10px 28px;margin:4px 0 0}.bec-sum span{display:flex;flex-direction:column;font-size:13px;color:var(--gray)}.bec-sum b{font-size:22px;color:var(--ink);line-height:1.2}
+.bec-list{width:100%;border-collapse:collapse}.bec-list th{text-align:left;font-size:12px;color:var(--gray);font-weight:600;padding:4px 8px 4px 0}
+.bec-list td{padding:6px 8px 6px 0;border-top:1px solid var(--line);word-break:break-word}.bec-list td.act{text-align:right;width:1%;white-space:nowrap}
+.bec-add{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin-top:14px}.bec-add label{display:flex;flex-direction:column;gap:4px;font-size:13px;flex:0 1 320px}
+.bec-add .btns{margin:0}.bec-chip{display:inline-flex;align-items:center;gap:4px}.bec-chip form{display:inline;margin:0}
+.bec-chip button{border:0;background:none;padding:0 2px;margin:0;min-height:0;cursor:pointer;color:var(--gray);font-size:15px;line-height:1}.bec-chip button:hover,.bec-chip button:focus-visible{color:var(--bad)}
+.bec-sub{font-size:14px;margin:16px 0 6px}.bec-group{border:1px solid var(--line);border-radius:8px;padding:4px 14px 6px;margin:0 0 14px}.bec-group legend{font-weight:600;padding:0 6px}
+.bec-group .row{grid-template-columns:minmax(0,1fr) 150px}.bec-group input,.bec-group select{width:100%}
+@media(max-width:760px){.bec-group .row{grid-template-columns:1fr}}</style>
+<div class="card" id="bec-set"><h2>{{ _('BEC checks') }}{{ info('bec-set', help_text('bec-set')) }}{% if 'bec-set' in commands %}{{ toggle('bec-set', commands['bec-set'], b.enabled) }}{% else %}<span class="badge{{ ' on' if b.enabled }}">{{ _('On') if b.enabled else _('Off') }}</span>{% endif %}</h2>
+<p class="h">{{ first_sentence(help_text('bec-set')) }}</p>
+{% for text in b.warnings or [] %}<p class="warnbox" role="alert">{{ text|rt }}</p>{% endfor %}
+{% if b.enabled %}<p class="bec-sum"><span><b>{{ b.vips|length }}</b>{{ _('VIPs') }}</span><span><b>{{ b.partners|length }}</b>{{ _('Partner domains') }}</span><span><b>{{ (b.own_domains or [])|length }}</b>{{ _('Own domains') }}</span></p>
+{% else %}<p class="warnbox" role="alert">{{ _('Off: none of these checks runs. On is recommended.') }}</p>{% endif %}
+{% if page.notes and page.notes['bec-set'] %}<details class="help" style="margin-top:10px"><summary>{{ _('Help') }}</summary><p>{{ page.notes['bec-set']|t }}</p></details>{% endif %}</div>
+<div class="card" id="bec-vip-set"><h2>{{ _('VIPs') }}{{ info('bec-vip-set', help_text('bec-vip-set')) }}</h2><p class="h">{{ help_text('bec-vip-set') }}</p>
+{% if b.vips %}<table class="bec-list"><tr><th>{{ _('Name') }}</th><th>{{ _('Real address') }}</th><th><span class="sr">{{ _('Actions') }}</span></th></tr>
+{% for vip in b.vips %}<tr><td>{{ vip.name }}</td><td>{{ vip.address }}</td><td class="act">{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="action" value="remove"><input type="hidden" name="name" value="{{ vip.name }}"><input type="hidden" name="address" value="">
+<button class="d s" data-confirm="{{ _('Remove VIP {}?').format(vip.name) }}">{{ _('Remove') }}</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<p class="empty">{{ _('No VIP yet.') }}</p>{% endif %}
+{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+<label for="bec-vip-name">{{ _('Name as in the display name') }}<input type="text" id="bec-vip-name" name="name" required minlength="3" maxlength="100" placeholder="Jane Doe"></label>
+<label for="bec-vip-address">{{ _('Real address') }}<input type="text" id="bec-vip-address" name="address" inputmode="email" autocomplete="off" required maxlength="254" placeholder="jane.doe@example.org"></label>
+<div class="btns"><button class="p">{{ _('Add VIP') }}</button></div></form>{% endif %}</div>
+<div class="card" id="bec-partner-set"><h2>{{ _('Protected domains') }}{{ info('bec-partner-set', help_text('bec-partner-set')) }}</h2><p class="h">{{ _('A sender domain that looks like one of these, such as examp1e.org, counts as a lookalike.') }}</p>
+<h3 class="bec-sub">{{ _('Partner domains') }}</h3>
+{% if b.partners %}<div class="chips">{% for domain in b.partners %}<span class="chip bec-chip">{{ domain }}{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="action" value="remove"><input type="hidden" name="domain" value="{{ domain }}"><button title="{{ _('Remove') }}" aria-label="{{ _('Remove') }} {{ domain }}" data-confirm="{{ _('Remove partner domain {}?').format(domain) }}">&times;</button></form>{% endif %}</span>{% endfor %}</div>
+{% else %}<p class="h">{{ _('No partner domain yet: banks, suppliers and customers whose lookalikes you want to catch.') }}</p>{% endif %}
+{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+<label for="bec-partner-domain">{{ _('Domain of a partner') }}<input type="text" id="bec-partner-domain" name="domain" required maxlength="253" placeholder="bank.example"></label>
+<div class="btns"><button class="p">{{ _('Add partner domain') }}</button></div></form>{% endif %}
+<h3 class="bec-sub">{{ _('Own domains') }} <span class="pill">{{ (b.own_domains or [])|length }}</span></h3>
+<p class="h">{{ _('Protected automatically: the domains of the routes, the DKIM keys and the tenants.') }}</p>{{ show(b.own_domains or []) }}</div>
+<details class="card fold becadv" id="bec-scores"><summary><h2>{{ _('Scores and time windows') }}</h2><span class="h">{{ _('Each check that hits adds its score to the spam score of the mail. 0 switches a check off.') }}</span></summary>
+{% if 'bec-set' in commands %}{% set cmd = commands['bec-set'] %}{% set young = cmd.args|selectattr('name', 'equalto', 'young_days')|first %}
+<form method="post" action="{{ url_for('run', name='bec-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="{{ 'on' if b.enabled else 'off' }}">
+{% macro num(arg, label, value, low=-20, high=50, pattern='-?[0-9]{1,2}([.][0-9]{1,2})?', mode='decimal') %}<div class="row"><span class="lb"><label for="bec-{{ arg }}">{{ label }}</label>{{ info('bec-' ~ arg, help_text('bec-set', arg)) }}</span>
+<input type="text" id="bec-{{ arg }}" name="{{ arg }}" value="{{ value }}" inputmode="{{ mode }}" pattern="{{ pattern }}" title="{{ low }} &ndash; {{ high }}" required></div>{% endmacro %}
+<fieldset class="bec-group"><legend>{{ _('Fake sender') }}</legend>
+{{ num('score_vip', _('VIP name with another address'), sc.vip) }}
+{{ num('score_lookalike', _('Domain looks like a protected domain'), sc.lookalike) }}
+{{ num('score_young_domain', _('Domain registered only recently (RDAP)'), sc.young_domain) }}
+<div class="row"><span class="lb"><label for="bec-young_days">{{ _('A domain counts as young for') }}</label>{{ info('bec-young_days', help_text('bec-set', 'young_days')) }}</span>
+<select id="bec-young_days" name="young_days">{% for item in (young.choices if young else []) if item.value %}<option value="{{ item.value }}"{% if item.value == b.young_days|string %} selected{% endif %}>{{ item.text|t }}</option>{% endfor %}</select></div></fieldset>
+<fieldset class="bec-group"><legend>{{ _('Unknown sender') }}</legend>
+{{ num('score_first_contact', _('First mail from this sender to this recipient'), sc.first_contact) }}
+{{ num('relation_days', _('A mail relation counts as known for (days)'), b.relation_days, 30, 3650, '[0-9]{2,4}', 'numeric') }}</fieldset>
+<fieldset class="bec-group"><legend>{{ _('Content and behaviour') }}</legend>
+{{ num('score_language', _('Typical words of a BEC mail, such as urgent payment'), sc.language) }}
+{{ num('score_style', _('Known sender writes with other tools than before'), sc.style) }}
+{{ num('score_pattern', _('Known sender writes at a new hour, much more or to new recipients'), sc.pattern) }}
+<p class="h">{{ _('Behaviour counts from {} mails of a sender on, the tools from {} mails on.').format(b.pattern_min, b.style_min) }}</p></fieldset>
+<div class="btns"><button class="p">{{ _('Apply') }}</button></div></form>
+{% else %}<table class="kv">{% for key, value in sc.items() %}<tr><th>{{ key|replace('_', ' ') }}</th><td>{{ value }}</td></tr>{% endfor %}</table>{% endif %}</details>
+{% endmacro %}
 {% set ns = namespace(hidden=0) %}
-{% for section in page.sections %}{% set all = section[1]|select('in', names)|reject('in', hidden_cards)|reject('in', merged)|list %}
+{% set bec_own = ['bec-status', 'bec-set', 'bec-vip-set', 'bec-partner-set'] if page.slug == 'bec' and loaded.get('bec-status', (false,))[0] else [] %}{% if bec_own %}{{ bec_view() }}{% endif %}
+{% set t_on = page.slug == 'account' and loaded.get('totp-status', (false, {}))[1].get('active') %}
+{% set acc_own = ['whoami', 'totp-status', 'account-show', 'session-end', 'passkey-register', 'passkey-remove', 'totp-confirm' if t_on else 'none', 'totp-recovery-new' if t_on else 'none']
+                 + ([] if t_on else ['totp-recovery-new', 'totp-disable']) if page.slug == 'account' else [] %}{% if page.slug == 'account' %}{{ account_overview() }}{% endif %}
+{% if page.slug == 'flow' %}{{ flow_rest() }}{% else %}
+{% for section in page.sections %}{% set all = section[1]|select('in', names)|reject('in', hidden_cards)|reject('in', merged)|reject('in', bec_own)|reject('in', acc_own)|list %}
 {% set shown = [] %}{% set warned = [] %}{% for name in all %}{% if expert or card_level(name, commands[name], section, page.slug) == 'standard' %}{% set ignored = shown.append(name) %}
 {%- else %}{% set ns.hidden = ns.hidden + 1 %}{% if warnings_of(loaded.get(name)) %}{% set ignored = warned.append(name) %}{% endif %}{% endif %}{% endfor %}
-{% if shown or warned %}{% if section[0] %}<details class="section"{% if section|length < 3 or not expert %} open{% endif %}><summary>{{ section[0]|t }}</summary>{% endif %}
+{% if shown or warned %}{% if section[0] %}<details class="section"{% if section|length < 3 or (not expert and section[2] != 'folded') %} open{% endif %}><summary>{{ section[0]|t }}</summary>{% endif %}
 {#- Values are for the expert view, but what asks for an action shows in the standard view too, as a short message. -#}
 {% for name in warned %}<div class="card warncard" id="{{ name }}">{% for text in warnings_of(loaded.get(name)) %}<p class="warnbox" role="alert">{{ text }}</p>{% endfor %}</div>{% endfor %}
-{% for name in shown %}{% if page.slug == 'log' and name == 'maillog-search' %}<div class="duo">{{ card(name) }}{% if 'mail-check' in commands %}{{ mail_check_card() }}{% endif %}</div>
+{% for name in shown %}{% if page.slug == 'account' and name in ('password-change', 'passkey-status', 'totp-disable', 'account-email-set', 'session-list') or (t_on and name == 'totp-setup') %}
+{%- if name == 'session-list' %}{{ account_sessions() }}{% elif name == 'passkey-status' %}{{ account_fold(_('Passkeys'), ['passkey-status', 'passkey-register', 'passkey-remove'], 'passkeys-fold') }}
+{%- elif name == 'totp-setup' %}{{ account_fold(_('2FA: new app or new recovery codes'), ['totp-setup', 'totp-confirm', 'totp-recovery-new'], 'totp-fold') }}
+{%- else %}{{ account_fold(short_title(commands[name].title)|t, [name], name ~ '-fold') }}{% endif %}
+{%- elif page.slug == 'log' and name == 'maillog-search' %}<div class="duo">{{ card(name) }}{% if 'mail-check' in commands %}{{ mail_check_card() }}{% endif %}</div>
 {%- elif page.slug == 'log' and name == 'message-search' %}{{ advanced_search_button() }}{% else %}{{ card(name) }}{% endif %}{% endfor %}{% if section[0] %}</details>{% endif %}{% endif %}{% endfor %}
 {% set others = names|reject('in', page.commands)|reject('in', hidden_cards)|list %}{% if others %}{% if expert %}<details class="section"><summary>Other</summary>
-{% for name in others %}{{ card(name) }}{% endfor %}</details>{% else %}{% set ns.hidden = ns.hidden + others|length %}{% endif %}{% endif %}
+{% for name in others %}{{ card(name) }}{% endfor %}</details>{% else %}{% set ns.hidden = ns.hidden + others|length %}{% endif %}{% endif %}{% endif %}
 {% if page.slug == 'log' and 'mail-check' in commands and 'maillog-search' not in names %}{{ mail_check_card() }}{% endif %}
 {% if page.slug == 'disclaimer' and 'disclaimer-import' in commands %}<div class="card" id="disclaimer-import"><h2>{{ _('Disclaimer: import a ZIP') }}</h2>
 <p class="h">{{ _('manifest.json, body.html and/or body.txt, media/ and attachments/. Checked whole before anything changes.') }}</p>
@@ -1914,7 +2321,7 @@ def acting_as():
 STRICT_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/audit-strict.json'
 strict_cache = {'mtime': None, 'on': False}
 # Polled by the pages themselves, or files without a meaning of their own.
-STRICT_SKIP = {'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon'}
+STRICT_SKIP = {'dash_js', 'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'update_live', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon', 'stay_js'}
 
 
 def reader_language():
@@ -1956,6 +2363,12 @@ def runtime_text(text):
 # Also for the texts made in Python: scripts/i18n_extract.py collects every quoted text in a call of _ in this file.
 _ = translate
 app.jinja_env.filters['t'] = translate
+
+
+def N_(text):
+    """A text in English now, translated where it is shown (runtime_text): the dashboard notices, whose key must not depend on the
+    language of the reader. scripts/i18n_extract.py collects these too."""
+    return text
 app.jinja_env.filters['rt'] = lambda text: runtime_text(text)
 
 
@@ -2157,12 +2570,16 @@ READ_CACHE_SECONDS = {'schema': 300, 'bayes-status': 600, 'ssh-root-status': 300
                       'history-list': 30, 'firewall-guard-status': 30, 'service-harden-status': 60, 'floor-status': 60,
                       'setup-variant-status': 60, 'cve-watch-status': 60, 'four-eyes-list': 10, 'web-allowlist-show': 30,
                       # The Spam page of 6.0.0.5: systemctl, the database and file reads, 50 to 100 ms each, 116 to 147 ms the page.
-                      'ole-status': 30, 'retro-status': 60, 'qr-status': 30, 'unlock-status': 30, 'scan-status': 30, 'own-block-status': 30,
+                      'ole-status': 30, 'pyzor-status': 30, 'retro-status': 60, 'qr-status': 30, 'unlock-status': 30, 'scan-status': 30, 'own-block-status': 30,
                       'sandbox-status': 30,
                       # The users page: up to 150 ms. totp-status and passkey-status are not kept: a change on the console must show at once.
                       'incident-list': 30,
                       # The held mail page: 8 reads, up to 172 ms (budget 100 ms). A form of this interface clears the cache at once.
-                      'uq-status': 30, 'graymail-status': 30, 'user-spam-status': 30, 'recall-list': 30}
+                      'uq-status': 30, 'graymail-status': 30, 'user-spam-status': 30, 'recall-list': 30,
+                      # Network, DNS & certificate (6.0.0.6.4, with the resolver for other networks on it): nmcli, unbound-control, the
+                      # TLSA and MTA-STS reads, 80 to 140 ms each; read in parallel the page took 93 to 118 ms (budget 100 ms).
+                      'network-show': 30, 'interfaces-list': 30, 'dns-zone-list': 30, 'dns-forward-status': 30, 'dns-share-list': 30,
+                      'tlsa-show': 60, 'mta-sts-show': 60}
 read_cache = {}
 read_cache_lock = threading.Lock()
 
@@ -2300,6 +2717,8 @@ def load_sample(before, now, disks):
     return {'time': now['time'], 'cpu': round(100 * (total - idle) / total, 1) if total > 0 else 0,
             'ram': round(100 * (1 - memory['MemAvailable'] / memory['MemTotal']), 1),
             'swap': round(100 * (1 - memory['SwapFree'] / memory['SwapTotal']), 1) if memory.get('SwapTotal') else 0,
+            # G7-3: whether the host has swap at all, so the dashboard shows "No swap" instead of 0 %.
+            'swap_on': bool(memory.get('SwapTotal')),
             'disk': max(disks.values()) if disks else 0, 'disks': disks,
             'io': round(min(100, (now['busy'] - before['busy']) / (seconds * 10)), 1), 'rx': round(rx, 2), 'tx': round(tx, 2),
             'nic': round(100 * max(rx, tx) / now['speed'], 1) if now['speed'] > 0 else 0}
@@ -2447,12 +2866,13 @@ def session_start(user=None, role='super', sid=None):
 ROUTE_RIGHTS = {
     'login': 'open', 'logout': 'efactl', 'post_only': 'open', 'oidc_login': 'open', 'oidc_callback': 'open', 'quarantine_link': 'open',
     'passkey_js': 'open', 'passkey_options': 'open', 'passkey_register_options': 'efactl',
-    'link_check': 'open', 'api': 'open', 'api_schema': 'open', 'metrics': 'open', 'copy_js': 'open', 'favicon': 'open', 'live_js': 'open', 'senders_js': 'open', 'mailui_js': 'open', 'advanced_js': 'open', 'senders_check': 'efactl',
+    'link_check': 'open', 'api': 'open', 'api_schema': 'open', 'metrics': 'open', 'copy_js': 'open', 'stay_js': 'open', 'favicon': 'open', 'live_js': 'open', 'senders_js': 'open', 'mailui_js': 'open', 'advanced_js': 'open', 'senders_check': 'efactl',
     'index': 'efactl', 'show_page': 'efactl', 'search': 'efactl', 'search_suggest': 'efactl', 'set_view': 'efactl', 'set_lang': 'efactl', 'mail_check': 'efactl', 'disclaimer_import': 'efactl', 'disclaimer_export': 'efactl', 'legal': 'open', 'legal_file': 'open', 'legal_accept': 'efactl', 'hardening_pdf': 'efactl', 'run': 'efactl', 'mail_page': 'efactl', 'mail_headers': 'efactl', 'mail_evidence': 'efactl',
-    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'threat_banner': 'efactl', 'status_board': 'efactl',
+    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'threat_banner': 'efactl', 'status_board': 'efactl',
     'backup_download': 'super', 'backup_upload': 'super', 'rspamd_auth': 'super', 'rspamd_open': 'super', 'export_dkim': 'super',
     'senders_data': 'super', 'resetup_view': 'super', 'static': 'open',
-    'wizard_step': 'efactl', 'wizard_test': 'efactl', 'wizard_mode': 'efactl', 'wizard_js': 'open', 'dialog_js': 'open'}
+    'wizard_step': 'efactl', 'wizard_test': 'efactl', 'wizard_mode': 'efactl', 'wizard_js': 'open', 'dialog_js': 'open',
+    'dash_js': 'open', 'dashboard_layout': 'efactl'}
 SUPER_ONLY = {name for name, right in ROUTE_RIGHTS.items() if right == 'super'}
 # 5q: changes that need the password of the admin again, at most every 5 minutes.
 REAUTH_COMMANDS = {'user-set', 'user-2fa-reset', 'user-state', 'group-set', 'group-map-set', 'tenant-group-map-set', 'token-create', 'firewall-set', 'firewall-guard-set',
@@ -2463,6 +2883,8 @@ REAUTH_SECONDS = 300
 REAUTH_FAILED = 'Password or 2FA code wrong, nothing changed.'
 # What ends a control or a record: four eyes, the audit rules and the days of the logs, a whole tenant, a file taken back.
 REAUTH_COMMANDS |= {'four-eyes-set', 'audit-rules-set', 'retention-set', 'tenant-delete', 'history-undo'}
+# G7-9: settings into or out of this host only with the password and 2FA again.
+REAUTH_COMMANDS |= {'settings-export', 'settings-import', 'pyzor-set'}
 def account_view():
     """6.0.0.6: who works, for the menu at the top right: the login name and its role. The main admin has no user entry."""
     user = session.get('user')
@@ -2475,9 +2897,17 @@ def account_view():
 app.jinja_env.globals['account_view'] = account_view
 
 
+def my_session_id():
+    """The short id of this browser's session, as session-list shows it (12 hex digits of its SHA-256)."""
+    return session_sha(session['sid'])[:12] if session.get('sid') else ''
+
+
+app.jinja_env.globals['my_session_id'] = my_session_id
+
+
 # The release upgrade, the security standards and the extra ClamAV sources: super admins only (efactl decides, SUPER_COMMANDS
 # there); other logins and tokens get 403, not 404.
-SUPER_COMMANDS = {'release-upgrade', 'release-upgrade-status', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-source-set', 'clam-securiteinfo-set', 'threat-set'}
+SUPER_COMMANDS = {'release-upgrade', 'release-upgrade-status', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-source-set', 'clam-securiteinfo-set', 'threat-set', 'environment-set'}
 
 
 def reauth_left():
@@ -2639,6 +3069,48 @@ def legal_confirmed():
 
 
 legal_cache = {}
+
+
+def environment_now():
+    """prod, test or dev: the setting, development while the dev flag counts. prod when unreadable."""
+    try:
+        if efa_setup.dev_flag_problem() is None:
+            return 'dev'
+        with open(ENVIRONMENT_FILE) as f:
+            env = json.load(f).get('env')
+    except (OSError, ValueError, AttributeError):
+        return 'prod'
+    return env if env in ENVIRONMENT_STYLE else 'prod'
+
+
+def environment_mark_html(host, env):
+    """The host name and its environment in its colour; nothing for production."""
+    if env not in ENVIRONMENT_STYLE:
+        return ''
+    label = _('Development') if env == 'dev' else _('Test')
+    return (f'<p class="envmark env-{env}" role="note" style="margin:0;padding:6px 22px;font-weight:700;overflow-wrap:anywhere;'
+            f'{ENVIRONMENT_STYLE[env]}">{html_escape(host)} <span style="border:1px solid currentColor;border-radius:4px;'
+            f'padding:0 4px;font-size:.8em">{html_escape(label)}</span></p>')
+
+
+DEV_2FA_FILE = '/etc/eFa/dev-2fa-hint.json'
+
+
+def dev_2fa_confirmed(env):
+    """The user of this session confirmed the 2FA hint, and the host is development: elsewhere a confirmation counts for nothing."""
+    if env != 'dev' or not has_request_context():
+        return False
+    try:
+        with open(DEV_2FA_FILE) as f:
+            return (session.get('user') or '@admin') in json.load(f)
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+@app.context_processor
+def environment_mark():
+    env = environment_now()
+    return {'environment_mark': environment_mark_html(socket.getfqdn(), env), 'dev_2fa_confirmed': dev_2fa_confirmed(env)}
 
 
 @app.after_request
@@ -2941,6 +3413,9 @@ def when(stamp):
 
 
 def page_of(name):
+    if name == 'secret-remove' and has_request_context():
+        # Back to the page of the setting whose secret was removed ("otlp-set token").
+        name = (request.form.get('target') or '').split(' ')[0] or name
     return next((slug for slug, page in PAGES.items() if name in page['commands']), FALLBACK_PAGE)
 
 
@@ -2978,6 +3453,7 @@ def threat_texts():
             'service_down': (_('Service down'), '{names}'),
             'disk_full': (_('Disk almost full'), _('{value}% used')),
             'memory_low': (_('Memory almost used up'), _('{value}% used')),
+            'swap_high': (_('Swap in heavy use'), _('{value}% used')),
             'load_high': (_('Very high system load'), _('Load at {value}% of the CPUs'))}
 
 
@@ -3011,7 +3487,7 @@ def threat_items(alerts, commands, role):
         items.append({'kind': alert['kind'], 'level': alert['level'], 'group': alert['group'], 'name': name, 'line': line.format(**values),
                       'since': time.strftime('%H:%M', time.localtime(alert['since'])) if alert.get('since') else '',
                       'easing': alert.get('easing', False), 'top': alert.get('top', []) if role == 'super' else [],
-                      'href': url_for('show_page', slug=alert['slug']) + '#' + alert['anchor'] if alert['slug'] in PAGES and alert['anchor'] in commands else None})
+                      'href': url_for('show_page', slug=card_page(alert['slug'], alert['anchor'])) + '#' + alert['anchor'] if alert['slug'] in PAGES and alert['anchor'] in commands else None})
     return items
 
 
@@ -3064,10 +3540,12 @@ def board_view(status, threat, samples):
     lamps.append({'label': _('Attacks'), 'state': lamp_of(('smtp_flood', 'syn_flood', 'password_attack', 'reject_wave', 'ban_wave')), 'title': ''})
     lamps.append({'label': _('Spam and viruses'), 'state': lamp_of(('spam_wave', 'virus_wave')), 'title': ''})
     lamps.append({'label': _('Mail queue'), 'state': lamp_of(('queue_flood',)), 'title': ''})
-    lamps.append({'label': _('Resources'), 'state': lamp_of(('disk_full', 'memory_low', 'load_high')), 'title': ''})
+    lamps.append({'label': _('Resources'), 'state': lamp_of(('disk_full', 'memory_low', 'swap_high', 'load_high')), 'title': ''})
     last = samples[-1] if samples else {}
     percent, _minutes = load_settings()
     gauges = [gauge_svg(_('CPU'), last.get('cpu'), 100, percent, 95, '%'), gauge_svg(_('RAM'), last.get('ram'), 100, percent, 95, '%'),
+              gauge_svg(_('Swap') if last.get('swap_on', True) else _('No swap'), last.get('swap') if last.get('swap_on', True) else None, 100, 50, 80,
+                        '%' if last.get('swap_on', True) else ''),
               gauge_svg(_('Disk used'), last.get('disk'), 100, 90, 95, '%')]
     values = (threat or {}).get('gauges', {})
     mails, normal = values.get('mails_10'), values.get('mails_normal') or 0
@@ -3080,7 +3558,61 @@ def board_view(status, threat, samples):
     return {'lamps': lamps, 'gauges': gauges, 'checked': time.strftime('%H:%M', time.localtime(threat['checked'])) if threat else None}
 
 
+class Notice(tuple):
+    """A notice of the dashboard: (text in the language of the reader, page, card, query), equal to that plain tuple. raw: the text
+    as efactl or N_ made it, in English; its keys (notice_keys) are those of efactl notice-ack."""
+    def __new__(cls, values, raw):
+        notice = super().__new__(cls, values)
+        notice.raw = raw
+        return notice
+
+
+def notice_keys(text, slug, anchor):
+    """(exact, kind) as efactl notice_keys: the key of this very text, and of the notice with any number in it."""
+    exact = hashlib.sha256(f'{slug}|{anchor}|{text}'.encode()).hexdigest()[:16]
+    kind = hashlib.sha256(f'{slug}|{anchor}|{re.sub(r"[0-9]+", "#", text)}'.encode()).hexdigest()[:16]
+    return exact, kind
+
+
+# The notices that go only once their cause is gone (as efactl NOTICE_FIXED_ONLY): no buttons for these.
+NOTICE_FIXED_ONLY = {('dash', 'status'), ('sec', 'security-status')}
+
+
+def notice_split(attention, acks):
+    """Hans 2026-11-15: the notices still to show, each with whether it may be confirmed or hidden, and the confirmed or hidden
+    ones of this host (efactl status: notice_acks), for the list to show them again."""
+    keys = {item[3] for item in acks or [] if isinstance(item, list) and len(item) > 4}
+    shown = []
+    for notice in attention or []:
+        raw = getattr(notice, 'raw', notice[0])
+        if (notice[1], notice[2]) not in NOTICE_FIXED_ONLY and set(notice_keys(raw, notice[1], notice[2])) & keys:
+            continue
+        shown.append((*notice[:4], raw, (notice[1], notice[2]) not in NOTICE_FIXED_ONLY))
+    done = [{'text': runtime_text(item[0]), 'key': item[3], 'state': item[4], 'until': item[5] if len(item) > 5 else ''}
+            for item in acks or [] if isinstance(item, list) and len(item) > 4]
+    return shown, done
+
+
+def maintenance_notice(settings):
+    """The first boot after the setup turns the service monitor on at its end: until then it is no maintenance mode."""
+    if not settings:
+        return None
+    if settings.get('first_boot'):
+        return (N_('First boot running (signatures, service monitor): not ready yet'), 'maint', 'maintenance-set')
+    return (N_('Maintenance mode is on'), 'maint', 'maintenance-set') if settings['maintenance_mode'] else None
+
+
 def dashboard(loaded):
+    """The dashboard never fails for a read of another form (an older or a half answer of efactl): then without tiles, with
+    a note, and the reason in the log (2026-11-17: an empty answer gave a 500)."""
+    try:
+        return dashboard_parts(loaded)
+    except (KeyError, TypeError, IndexError, ValueError, AttributeError) as err:
+        app.logger.warning('dashboard: a read had an unexpected form: %r', err)
+        return [], [(N_('Some values of the dashboard could not be read; the details are in the log of efa-web.'), 'dash', 'status')], None, None
+
+
+def dashboard_parts(loaded):
     """Tiles and warnings of the dashboard, only from what the read commands returned."""
     status, settings, held, backups, dkim = (loaded[name][1] if loaded.get(name, (False,))[0] else None for name in
                                              ('status', 'settings', 'quarantine-list', 'backup-list', 'dkim-check'))
@@ -3150,11 +3682,12 @@ def dashboard(loaded):
     if problems:
         attention.append((_('Security self check: {} problems').format(problems), 'sec', 'security-status'))
     if backups and not names:
-        attention.append((_('No backup yet'), 'bak', 'backup-now'))
+        attention.append((N_('No backup yet'), 'bak', 'backup-now'))
     if settings and not settings['auto_backup']:
-        attention.append((_('Automatic backup is off'), 'bak', 'backup-set'))
-    if settings and settings['maintenance_mode']:
-        attention.append((_('Maintenance mode is on'), 'maint', 'maintenance-set'))
+        attention.append((N_('Automatic backup is off'), 'bak', 'backup-set'))
+    notice = maintenance_notice(settings)
+    if notice:
+        attention.append(notice)
     attention += [(warning, 'dkim', 'dkim-check') for warning in (dkim or {}).get('warnings', [])]
     attention += [(warning, 'sec', 'ssh-root-status') for warning in loaded.get('ssh-root-status', (False, {}))[1].get('warnings', [])]
     attention += [(warning, 'dkim', 'rotation-status') for warning in (status or {}).get('dkim_rotation', [])]
@@ -3170,8 +3703,8 @@ def dashboard(loaded):
     if short:
         # Seen once per CI run (2026-11-13): a notice without page and card took the whole dashboard down; it opens the status card.
         app.logger.warning('dashboard notices without page and card: %r', short[:3])
-    attention = [(runtime_text(item[0]), item[1] if len(item) > 1 else 'dash', item[2] if len(item) > 2 else 'status', item[3] if len(item) > 3 else {})
-                 for item in attention if item]
+    attention = [Notice((runtime_text(item[0]), item[1] if len(item) > 1 else 'dash', item[2] if len(item) > 2 else 'status', item[3] if len(item) > 3 else {}),
+                        item[0]) for item in attention if item]
     flow = loaded.get('flow-status', (False, None))
     picture = flow_svg(flow[1], (stats or {}).get('last_hour')) if flow[0] else None
     return tiles, attention, minute_chart(stats['last_hour']) if stats else None, picture
@@ -3351,7 +3884,10 @@ PICK_DOMAIN_COMMANDS = {'domain-settings-show', 'domain-spam-set', 'domain-quara
 
 
 # Actions whose result needs one line, not a card of values.
-SHORT_RESULTS = {'firewall-confirm': 'Firewall change kept.', 'firewall-revert': 'Firewall change taken back.'}
+# N_: English here, translated where shown (|t); scripts/i18n_extract.py collects them, so a run keeps their translations.
+SHORT_RESULTS = {'firewall-confirm': N_('Firewall change kept.'), 'firewall-revert': N_('Firewall change taken back.'),
+                 # The BEC page shows the new lists and values itself: one line instead of the list again.
+                 'bec-set': N_('BEC settings saved.'), 'bec-vip-set': N_('VIPs saved.'), 'bec-partner-set': N_('Partner domains saved.')}
 
 
 BADGE_KEYS = ('enabled', 'siem', 'api', 'oidc', 'ldap', 'mode', 'running', 'active', 'guard')
@@ -3385,18 +3921,30 @@ def without_badge(output):
 # keine einstellungsoption bieten haben idr nichts in der standard ansicht zu suchen").
 WARNING_CARDS = {'dkim-check'}
 # The lists of every day: their rows carry the actions.
-DAILY_LISTS = {'uq-list', 'queue-list', 'quarantine-list', 'dkim-export', 'sender-list'}
+DAILY_LISTS = {'uq-list', 'queue-list', 'quarantine-list', 'dkim-export', 'sender-list', 'session-list'}
+
+
+def card_page(slug, anchor):
+    """The page of a card that efactl names with its page: the page that has the card now, also after it moved (6.0.0.6.x menu)."""
+    if slug in PAGES and anchor in PAGES[slug]['commands']:
+        return slug
+    return next((other for other, page in PAGES.items() if anchor in page['commands']), slug)
+
+
+app.jinja_env.globals['card_page'] = card_page
 
 
 def notice_href(slug, anchor, query, expert, cmd):
     """UI-LINK: the address of a card from a dashboard notice. A card only the expert view shows opens that view."""
+    slug = card_page(slug, anchor)
     section = next((section for section in PAGES[slug].get('sections', []) if anchor in section[1]), ('', [anchor]))
     hidden = not expert and card_level(anchor, cmd, section, slug) != 'standard'
     return url_for('show_page', slug=slug, **query, **({'view': 'expert'} if hidden else {})) + '#' + anchor
 
 
 def card_level(name, cmd, section, slug):
-    if name in WARNING_CARDS or name in DAILY_LISTS or (slug == 'dash' and len(section) < 3):
+    # 6.0.0.6.x: My account is the own login only; everything there in the standard view, the rare actions folded.
+    if name in WARNING_CARDS or name in DAILY_LISTS or (slug == 'dash' and len(section) < 3) or slug == 'account':
         return 'standard'
     # The release upgrade in the standard view too (Hans: the button for every super admin, with the warning). Only super
     # admins have it in their schema at all (efactl SUPER_COMMANDS); every other login gets 403.
@@ -3461,9 +4009,9 @@ def page_view(slug, result=None, result_title=None, error=None, result_name=None
     wizard_on = bool(wizard_name) and slug not in manual_pages()
     # The same reads in both views: the view only hides cards, the visible ones (and the tiles) need the same values.
     shown = [] if wizard_on else names
-    for name in (wizard_reads(wizard_name, commands) if wizard_on else shown + page.get('load', []) + (['flow-status'] if FLOW_PICTURE and slug == 'dash' else [])):
+    for name in (wizard_reads(wizard_name, commands) + page.get('always', []) if wizard_on else shown + page.get('load', []) + (['flow-status'] if FLOW_PICTURE and slug == 'dash' else [])):
         if name not in wanted and name in commands and not commands[name]['writes'] and (not commands[name]['args'] or name in page.get('autoload', ())) \
-                and not on_button_only(name):
+                and (not on_button_only(name) or name in page.get('load', ())):
             wanted.append(name)
     # What the forms show now: their sources, read even when they have no card of their own.
     wanted += [source for source in dict.fromkeys(FORM_SOURCE[name][0] for name in shown if name in FORM_SOURCE)
@@ -3508,30 +4056,59 @@ def page_view(slug, result=None, result_title=None, error=None, result_name=None
         return found if found in [item['value'] for item in arg.get('choices', [])] else None
 
     tiles, attention, chart, flow_picture = dashboard(loaded) if slug == 'dash' else (None, None, None, None)
+    attention, notices_done = notice_split(attention, (loaded.get('status', (False, {}))[1] or {}).get('notice_acks')
+                                           if loaded.get('status', (False,))[0] else []) if slug == 'dash' else (None, [])
     # 9o: the red banner of the CVE watch, in the standard view too.
     cve_banner = [runtime_text(text) for text in (loaded.get('status', (False, {}))[1] or {}).get('cve_banner', [])] if slug == 'dash' else []
-    running = loaded.get('update-status', (False, {}))[1].get('state') in ('running', 'rebooting')
+    # The Update card needs the answer of update-progress; without it (an older efactl, an error) the cards of before.
+    upd_ok, upd = loaded.get('update-progress', (False, None))
+    update_live_html = update_live_view(upd) if upd_ok and isinstance(upd, dict) and isinstance(upd.get('progress'), dict) else ''
     percent, minutes = load_settings()
     rows, advice = load_view(load_samples, percent, minutes)
     load_html = render_template_string(LOAD_CARD, rows=rows, advice=advice, last=load_samples[-1] if load_samples else None, extra=load_extra() if rows else None)
     load_open = bool(advice)
     board_html = render_template_string(STATUS_BOARD, board=board_view(loaded['status'][1] if loaded.get('status', (False,))[0] else None, threat_current(), load_samples)) \
         if slug == 'dash' and not PORTAL and 'threat-status' in commands else None
+    dash = dash_layout_view({name for name, there in (('board', board_html), ('flow', flow_picture), ('tiles', tiles), ('chart', chart), ('load', tiles)) if there}) \
+        if slug == 'dash' and tiles else {'hidden': set(), 'cls': {}, 'style': {}}
     # The portal serves only the page of the role user (show_page), so it lists no other.
     allowed = [(group, [p for p in pages if set(p['commands']) & set(commands) and (not PORTAL or p['slug'] == USER_PAGE)]) for group, pages in NAV]
     merged = {STATUS_OF[name] for name in names if name in STATUS_OF and STATUS_OF[name] in names}
     pick = form_picks(shown, commands)
     wizard = wizard_view(wizard_name, loaded, commands) if wizard_on else None
-    html = render_template_string(MAIN, wizard=wizard, wizard_name=wizard_name, load_html=load_html, load_open=load_open, board_html=board_html, nav=[(group, pages) for group, pages in allowed if pages], page=page, names=names, commands=commands, loaded=loaded, values=values,
-                                  hidden_cards=HIDDEN_CARDS, current=current, choices=CHOICES, option_text=OPTION_TEXT, ruf_warning=RUF_WARNING, current_info=CURRENT, danger=DANGER, tiles=tiles,
-                                  attention=attention, cve_banner=cve_banner, chart=chart, flow_picture=flow_picture, pages_by_slug=PAGES, csrf=csrf_token(), result=result, result_name=result_name, dialog_results=DIALOG_RESULTS, merged=merged, status_of=STATUS_OF,
+    html = render_template_string(MAIN, wizard=wizard, wizard_name=wizard_name, dash=dash, load_html=load_html, load_open=load_open, board_html=board_html, nav=[(group, side) for group, side in ((group, [p for p in pages if p.get('menu') != 'user']) for group, pages in allowed) if side], page=page, names=names, commands=commands, loaded=loaded, values=values,
+                                  hidden_cards=HIDDEN_CARDS, current=current, choices=CHOICES, option_text=OPTION_TEXT, ruf_warning=RUF_WARNING, current_info=CURRENT, danger=DANGER, tiles=tiles, update_live_html=update_live_html,
+                                  attention=attention, notices_done=notices_done, cve_banner=cve_banner, chart=chart, flow_picture=flow_picture, pages_by_slug=PAGES, csrf=csrf_token(), result=result, result_name=result_name, dialog_results=DIALOG_RESULTS, merged=merged, status_of=STATUS_OF,
                                   badge=status_badge, without_badge=without_badge, switch_arg=switch_arg, card_level=card_level, notice_href=notice_href, warnings_of=warnings_of, expert=PORTAL or reader_view() == 'expert', note_short=NOTE_SHORT, short_results=SHORT_RESULTS, pick=pick, pick_domain_commands=PICK_DOMAIN_COMMANDS,
                                   result_title=result_title, error=error, shown_now=shown_now, reauth_commands=REAUTH_COMMANDS,
                                   hardening_link=slug == 'sec' and wizard_for('standards', commands) == 'hardening',
                                   moved={card: url_for('show_page', slug=to, **({'view': 'expert'} if request.args.get('view') == 'expert' else {})) + '#' + card
                                          for (old, card), to in MOVED_CARDS.items() if old == slug})
-    # Shows the progress of a running update without a script.
-    return Response(html, headers={'Refresh': '10'}) if running else html
+    # The progress of a running update: the Update card renews itself (copy.js), without a script its <noscript> refresh.
+    return html
+
+
+def left_text(seconds):
+    """The time left of an update, rounded up to whole minutes."""
+    if seconds is None:
+        return ''
+    minutes = int((seconds + 59) // 60)
+    if seconds < 60:
+        return translate('less than a minute left')
+    return translate('about a minute left') if minutes == 1 else translate('about {} minutes left').format(minutes)
+
+
+def update_live_view(output):
+    return render_template_string(UPDATE_LIVE, u=output, left=left_text(output.get('progress', {}).get('seconds_left')))
+
+
+@app.route('/update-live')
+def update_live():
+    """The moving part of the Update card, for the page to renew it while an update runs and the page is seen."""
+    ok, output = efactl('update-progress')
+    if not ok:
+        abort(502)
+    return update_live_view(output)
 
 
 @app.route('/')
@@ -4010,7 +4587,9 @@ def maillog_live():
 # them. Live filtering adds the new mails that match, only while it is on and the window is seen. The filters are posted, so
 # no address or subject lands in a log of nginx. efactl message-search scopes the rows to the domains of the login.
 SEARCH_FIELDS = ('sender', 'rcpt', 'subject', 'ip', 'qid', 'action', 'date_from', 'date_to', 'message_id', 'header_from', 'reply_to', 'return_path',
-                 'x_mailer', 'limit')
+                 'x_mailer', 'match', 'limit')
+# G7-1: the filters a saved search keeps (efactl SAVED_SEARCH_KEYS): all but the number of results.
+SAVED_FIELDS = tuple(name for name in SEARCH_FIELDS if name != 'limit')
 ADVANCED_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></script><main class="wide">
 <h1>{{ _('Advanced search') }}</h1><p class="sub">{{ _('Message search: all filters at once, the mails found below them.') }}</p>
 {% if error %}<div class="card"><p class="err" role="alert">{{ error }}</p></div>{% endif %}
@@ -4019,7 +4598,12 @@ ADVANCED_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></
 {%- if arg.choices %}<select id="{{ id }}" name="{{ arg.name }}">{% for item in arg.choices %}<option value="{{ item.value }}"{% if item.value == values.get(arg.name, '') %} selected{% endif %}>{{ (item.text or item.value)|t }}</option>{% endfor %}</select>
 {%- else %}<input type="text" id="{{ id }}" name="{{ arg.name }}" value="{{ values.get(arg.name, '') }}"{% if arg.default %} placeholder="{{ arg.default }}"{% endif %}>{% endif %}</div>{% endfor %}</div>
 <div class="btns"><button class="p">{{ _('Search') }}</button><button formaction="{{ url_for('run', name='message-search') }}" name="format" value="csv">{{ _('CSV file') }}</button>
-<button formaction="{{ url_for('run', name='message-search') }}" name="format" value="json">{{ _('JSON file') }}</button></div></form></div>
+<button formaction="{{ url_for('run', name='message-search') }}" name="format" value="json">{{ _('JSON file') }}</button></div>
+{% if saved is not none %}<div class="grid2" id="adv-saved">{% if saved %}<div class="row"><label for="adv-saved-name">{{ _('Saved searches') }}</label>
+<select id="adv-saved-name" name="saved">{% for item in saved %}<option value="{{ item.name }}"{% if item.name == picked %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select>
+<div class="btns"><button name="do" value="load">{{ _('Load search') }}</button><button name="do" value="delete">{{ _('Delete') }}</button></div></div>{% endif %}
+<div class="row"><label for="adv-save-as">{{ _('Save these filters as') }}</label><input type="text" id="adv-save-as" name="save_as" maxlength="60" value="">
+<div class="btns"><button name="do" value="save">{{ _('Save') }}</button></div></div></div>{% endif %}</form></div>
 <div class="card" id="adv-result" data-url="{{ url_for('advanced_search_live') }}" data-after="{{ after }}" data-mail="{{ url_for('mail_page', mail_id=0)[:-1] }}"
  data-texts='{{ {'on': _('Live filtering: on'), 'off': _('Live filtering: off'), 'details': _('Details'), 'failed': _('Live filtering not available, log in again if needed.')}|tojson }}'>
 <div class="live-head"><h2>{{ _('Mails found') }}</h2><span id="adv-count" aria-live="polite">{{ mails|length }} {{ _('mails') }}</span>
@@ -4092,10 +4676,26 @@ def advanced_search():
         abort(403)
     fields = [arg for arg in commands['message-search']['args'] if arg['name'] in SEARCH_FIELDS]
     values = {name: request.form.get(name, '') for name in SEARCH_FIELDS} if request.method == 'POST' else {}
+    # G7-1: saved searches of this login: load one into the form, save the form under a name, delete one.
+    do, picked, error = request.form.get('do', ''), request.form.get('saved', ''), None
+    if do == 'save' and 'search-save' in commands:
+        ok, output = call_command({**commands['search-save'], 'name': 'search-save'}, {**{name: values.get(name, '') for name in SAVED_FIELDS}, 'name': request.form.get('save_as', '')})
+        error, picked = (None, request.form.get('save_as', '').strip()) if ok else (output.get('error'), picked)
+    elif do == 'delete' and 'search-delete' in commands:
+        ok, output = efactl('search-delete', f'--name={picked}')
+        error = None if ok else output.get('error')
+    saved = None
+    if 'search-saved' in commands:
+        ok, output = efactl('search-saved')
+        saved = output.get('searches', []) if ok else []
+    if do == 'load':
+        found = [item for item in saved or [] if item.get('name') == picked]
+        if found:
+            values = {**{name: '' for name in SEARCH_FIELDS}, 'limit': values.get('limit', ''), **found[0]['filters']}
     ok, output = call_command({**commands['message-search'], 'name': 'message-search'}, {**values, 'format': ''})
     mails = output.get('mails', []) if ok else []
-    return render_template_string(ADVANCED_PAGE, fields=fields, values=values, mails=mails, error=None if ok else output.get('error'), csrf=csrf_token(),
-                                  after=newest_id(mails, 0))
+    return render_template_string(ADVANCED_PAGE, fields=fields, values=values, mails=mails, error=error or (None if ok else output.get('error')), csrf=csrf_token(),
+                                  after=newest_id(mails, 0), saved=saved, picked=picked)
 
 
 def newest_id(mails, default):
@@ -4257,12 +4857,16 @@ def call_command(command, values):
     args, secret_lines = [command['name']], []
     for arg in command['args']:
         if arg.get('web') is False:
+            if arg.get('reader_language') and has_request_context():
+                args.append(f"--{arg['name']}={reader_language()}")  # R7-8: a page efactl builds, in the language of the reader
             continue
         value = values.get(arg['name'], '')
         if values.get(arg['name'] + '__clear') == 'on' and efa_help.web_label(arg.get('label', ''), arg.get('kind'))['clear']:
             value = '-'  # M5: the tick box Clear of the form, the - of the console
         if arg['name'] == 'groups' and command['name'] == 'user-set' and hasattr(values, 'getlist') and len(values.getlist('groups')) > 1:
             value = ','.join(values.getlist('groups'))
+        if arg.get('many') and hasattr(values, 'getlist'):
+            value = ','.join(values.getlist(arg['name']))
         if arg.get('secret'):
             # A secret is one line on stdin: one of several lines (the URLs of SecuriteInfo) goes in base64.
             secret_lines.append(base64.b64encode(value.encode()).decode() if arg.get('multiline') and value else value)
@@ -4318,6 +4922,9 @@ def run(name):
         login_failures[client] = (count + 1, time.time())
         # Fail2Ban reads this line.
         app.logger.warning('efa-web login failed from %s', client)
+    if request.form.get('json') == '1' and name in STAY_RUN:
+        # stay.js: only whether it worked; the page part it swaps in shows the new state.
+        return Response(json.dumps({'ok': ok, 'error': None if ok else runtime_text(output.get('error'))}), mimetype='application/json')
     if request.form.get('json') == '1' and name in JSON_RUN:
         # 6.0.0.6: the mail views stay on the page; the answer feeds the toast with its undo.
         if ok and name == 'sender-action':
@@ -4332,6 +4939,9 @@ def run(name):
         session['lang'] = output.get('language', 'auto')
     if ok and name == 'report-show' and 'html' in output:
         return Response(output['html'], mimetype='text/html')
+    if ok and name == 'mail-history' and 'html' in output:
+        # G7-8: the buttons of the page (a day, the next month) post with the token of this session.
+        return Response(output['html'].replace('__EFA_CSRF__', csrf_token()), mimetype='text/html')
     if ok and name in JSON_NAMES and 'json' in output:
         return Response(output['json'], mimetype='application/json', headers={'Content-Disposition': f'attachment; filename="{JSON_NAMES[name]}"'})
     if ok and name in TEXT_NAMES and 'text' in output:
@@ -4360,8 +4970,12 @@ def run(name):
     return result_store(page_of(name), result=output, result_title=commands[name]['title'], result_name=name)
 
 
-# Answered as JSON when the page asks for it (json=1): the actions of the mail log, the live log and the quarantine.
-JSON_RUN = {'sender-action', 'quarantine-release', 'quarantine-delete'}
+# Answered as JSON when the page asks for it (json=1): the actions of the mail log, the live log, the quarantine and the sender list
+# dialog (the dialog draws its rows itself, so it gets the result; stay.js below is for page parts the server draws).
+JSON_RUN = {'sender-action', 'quarantine-release', 'quarantine-delete', 'sender-add', 'sender-remove', 'sender-move'}
+# Posted by stay.js (data-stay): the page stays where it is, only the changed part is swapped (Hans 2026-11-15).
+STAY_RUN = {'notice-ack', 'rbl-set', 'clam-source-set', 'dev-2fa-hint-confirm'}
+assert not JSON_RUN & STAY_RUN, 'one way to stay per command'
 # Commands whose output can be a PDF to download.
 PDF_COMMANDS = {'incident-report', 'privacy-evidence', 'report-show'}
 # Commands whose output is a file to save (5n): always as a download, never shown in the browser.
@@ -4375,7 +4989,7 @@ TOTP_PAGE = ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 # 6.0.0.5: Re-Setup, the questions of the setup for a running system (efactl resetup): first the comparison of old and new, then
 # apply with the password and the 2FA code; from guided to manual both are asked anew. The texts are those of the setup wizard.
 RESETUP_CSS = ('body{font:15px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;background:#fff;color:#1d1d1b}'
-               'input:not([type]),input[type=password]{display:block;width:100%;max-width:24rem;padding:.3rem}button{margin:.5rem .5rem 0 0;padding:.4rem 1rem}'
+               'input:not([type]),input[type=password]{display:block;width:100%;max-width:24rem;padding:.3rem}input.otp{max-width:calc(9ch + 1rem)}button{margin:.5rem .5rem 0 0;padding:.4rem 1rem}'
                '.err{color:#b00}th{text-align:left;padding-right:1rem}a{display:inline-block;padding:.4rem 1rem;border:1px solid #c0cf48;'
                'border-radius:999px;color:inherit;text-decoration:none}@media (prefers-color-scheme: dark){body{background:#1e1f1d;color:#e6e7e3}'
                '.err{color:#ff8f7a}}')
@@ -4436,7 +5050,7 @@ def resetup_view():
         body += (f'<h2>{html_escape(_("Old and new"))}</h2><table>{resetup_rows(result.get("compare", []))}{resetup_rows(result.get("raised", []))}</table>'
                  + ''.join(f'<p>{html_escape(text)}</p>' for text in result.get('notes', []))
                  + f'<label>{html_escape(_("Your password, to confirm"))} <input type="password" name="reauth" autocomplete="current-password"></label>'
-                 f'<label>{html_escape(_("2FA code, if you set one up"))} <input name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20"></label>'
+                 f'<label>{html_escape(_("2FA code, if you set one up"))} <input name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>'
                  f'<button name="apply" value="yes">{html_escape(_("Apply"))}</button>')
     return resetup_page(body + f'<button>{html_escape(_("Compare"))}</button></form>', error)
 
@@ -4495,6 +5109,51 @@ WIZARD_KEEP = 200
 DIALOG_RESULTS = frozenset({'release-upgrade', 'update-install', 'update-rollback', 'update-now', 'update-system', 'standards-set',
                             'standards-rollback', 'os-harden-set', 'service-harden', 'restore'})
 # Opens the dialog of a result: native <dialog> (Esc closes it, focus stays inside), the button has the focus. From 'self' (CSP).
+# Hans 2026-11-15: a switch or a confirmation in a list keeps the page where it is. A form with data-stay="<id>" posts in the
+# background (json=1, STAY_RUN), then that part of the page is loaded anew and swapped in place, with its data-done text. Without
+# JavaScript, or when the answer is not the expected one, the form posts as before.
+STAY_JS = """(function () {
+  document.addEventListener('submit', function (event) {
+    var form = event.target, target = form.getAttribute && form.getAttribute('data-stay');
+    if (!target || !window.fetch || !window.DOMParser || form.getAttribute('data-busy')) return;
+    // A button with its own formaction (Remove of a stored secret) posts to another command: the browser does it, as it is.
+    if (event.submitter && event.submitter.getAttribute('formaction')) return;
+    event.preventDefault();
+    form.setAttribute('data-busy', '1');
+    var body = new URLSearchParams(new FormData(form));
+    body.set('json', '1');
+    var here = new URL(location.href);
+    here.searchParams.delete('r');
+    // getAttribute and the prototype: a field named action or submit (notice-ack has <input name="action">) hides form.action
+    // and form.submit; fetch then posted to /p/[object HTMLInputElement] (405) and the fallback reloaded the page (2026-11-17).
+    function again() { form.removeAttribute('data-stay'); form.removeAttribute('data-busy'); HTMLFormElement.prototype.submit.call(form); }
+    fetch(form.getAttribute('action'), {method: 'POST', credentials: 'same-origin', body: body}).then(function (reply) {
+      if (!reply.ok || reply.redirected) throw new Error('fallback');
+      return reply.json();
+    }).then(function (data) {
+      // It ran: from here on never post again, at worst load the page anew.
+      return fetch(here.toString(), {credentials: 'same-origin'}).then(function (page) {
+        if (!page.ok || page.redirected) throw new Error('reload');
+        return page.text();
+      }).then(function (html) {
+        var fresh = new DOMParser().parseFromString(html, 'text/html').getElementById(target), old = document.getElementById(target);
+        if (!fresh || !old) throw new Error('reload');
+        fresh = document.importNode(fresh, true);
+        var note = document.createElement('p');
+        note.className = data.ok ? 'h stay-done' : 'err stay-done';
+        note.setAttribute('role', data.ok ? 'status' : 'alert');
+        note.textContent = data.ok ? (form.getAttribute('data-done') || '') : (data.error || '');
+        old.replaceWith(fresh);
+        if (note.textContent) {
+          var card = fresh.classList.contains('card') ? fresh : fresh.querySelector('.card') || fresh;
+          card.insertBefore(note, card.firstChild);
+          if (data.ok) setTimeout(function () { note.remove(); }, 6000);
+        }
+      }).catch(function () { location.assign(here.toString()); });
+    }, again);
+  });
+})();
+"""
 DIALOG_JS = """(function () {
   var box = document.querySelector('dialog[data-open]');
   if (!box) { return; }
@@ -4514,6 +5173,44 @@ WIZARD_JS = """(function () {
   })();
 })();
 """
+
+
+# G7-7: the blocks of the dashboard a login may arrange (efactl DASH_BLOCKS), with their names on the page.
+DASH_LABELS = {'board': 'Status at a glance', 'flow': 'Mail flow', 'tiles': 'Overview tiles', 'chart': 'Last hour per minute', 'load': 'Load'}
+DASH_CHANGE_RE = re.compile(r'reset|[a-z]{1,10}:(?:up|down|hide|show|half|full|to=\d{1,2})')
+DASH_JS = """(function () {
+  // G7-7: drag a row of "Customize dashboard" onto another; the buttons do the same without a mouse.
+  var form = document.getElementById('dash-layout-form');
+  if (!form) return;
+  var dragged = null;
+  form.querySelectorAll('li[draggable]').forEach(function (row) {
+    row.addEventListener('dragstart', function (event) { dragged = row; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', row.getAttribute('data-block')); });
+    row.addEventListener('dragover', function (event) { if (dragged && dragged !== row) { event.preventDefault(); row.classList.add('over'); } });
+    row.addEventListener('dragleave', function () { row.classList.remove('over'); });
+    row.addEventListener('drop', function (event) {
+      event.preventDefault();
+      row.classList.remove('over');
+      if (!dragged || dragged === row) return;
+      form.elements.move.value = dragged.getAttribute('data-block') + ':to=' + row.getAttribute('data-pos');
+      form.submit();
+    });
+  });
+})();
+"""
+
+
+def dash_layout_view(available):
+    """The dashboard layout of this login from My settings, kept in the session; order as CSS order, half width as a class."""
+    if 'dash' not in session:
+        ok, prefs = efactl('my-settings')
+        found = prefs.get('dashboard') if ok and isinstance(prefs.get('dashboard'), dict) else {}
+        session['dash'] = {key: [name for name in found.get(key, []) if name in DASH_LABELS] for key in ('order', 'hidden', 'half')
+                           if isinstance(found.get(key), list)}
+    kept = session['dash']
+    order = list(dict.fromkeys(kept.get('order', []))) + [name for name in DASH_LABELS if name not in kept.get('order', [])]
+    half = set(kept.get('half', []))
+    return {'order': order, 'hidden': set(kept.get('hidden', [])), 'half': half, 'available': available, 'labels': DASH_LABELS,
+            'style': {name: f'order:{where}' for where, name in enumerate(order)}, 'cls': {name: ' half' if name in half else '' for name in order}}
 
 
 def manual_pages():
@@ -4737,9 +5434,34 @@ def wizard_js():
     return Response(WIZARD_JS, mimetype='text/javascript')
 
 
+@app.route('/stay.js')
+def stay_js():
+    return Response(STAY_JS, mimetype='text/javascript')
+
+
 @app.route('/dialog.js')
 def dialog_js():
     return Response(DIALOG_JS, mimetype='text/javascript')
+
+
+@app.route('/dash.js')
+def dash_js():
+    return Response(DASH_JS, mimetype='text/javascript')
+
+
+@app.route('/dashboard-layout', methods=['POST'])
+def dashboard_layout():
+    """G7-7: one change of the dashboard layout of this login, kept in My settings."""
+    change = request.form.get('move') or request.form.get('change', '')
+    if not DASH_CHANGE_RE.fullmatch(change):
+        abort(400)
+    ok, output = efactl('my-settings-set', f'--dashboard={change}')
+    if ok:
+        session.pop('dash', None)
+    else:
+        reason = output.get('error', '') if isinstance(output, dict) else ''
+        app.logger.info('dashboard layout not changed: %s', reason[:200])
+    return redirect(url_for('show_page', slug='dash', layout=1) + '#dash-layout', code=303)
 
 
 @app.route('/wizard-mode', methods=['POST'])
@@ -4962,6 +5684,61 @@ def contrast(fg, bg):
 
 
 def self_test():
+    # 2026-11-17: during the first boot after the setup the dashboard said maintenance mode; it is the first boot.
+    assert maintenance_notice({'maintenance_mode': True, 'first_boot': True})[0].startswith('First boot running')
+    assert maintenance_notice({'maintenance_mode': True})[0] == 'Maintenance mode is on' and maintenance_notice({'maintenance_mode': False}) is None
+    assert maintenance_notice(None) is None
+    # 2026-11-17: in the red attack banner the link chip of a service (white field) had white text: invisible. It keeps --ink on
+    # --field (a text pair the contrast test below checks, light and dark), every other link there stays white.
+    css = PAGE[:PAGE.index('</style>')]
+    assert '.threat.alert a.chip,.threat.alert a.btn{color:var(--ink)}' in css
+    assert css.index('.threat.alert a{color:#fff}') < css.index('.threat.alert a.chip,.threat.alert a.btn{color:var(--ink)}')
+    with app.test_request_context('/'):
+        shown = '<a class="chip" href="/p/dash#status">Services</a>' if PORTAL else render_template_string(THREAT_BANNER, threat_view=lambda commands, role: {'level': 'alert', 'head': 'Problem on this server',
+                                       'entries': [{'level': 'alert', 'name': 'Services', 'href': '/p/dash#status', 'line': 'clamd@scan', 'since': '05:57', 'easing': True}]},
+                                       commands={}, session={}, page={'slug': 'dash'})
+    assert '<a class="chip" href="/p/dash#status">Services</a>' in shown, 'the chip has its text'
+    with app.test_request_context('/'):
+        # Renewed every minute through /threat-banner without the page: then its button "Dashboard" shows, white on white before.
+        # The portal has no attack banner (no route /threat-banner): its self-test skips the rendering.
+        again = '>Dashboard</a>' if PORTAL else render_template_string(THREAT_BANNER, threat_view=lambda commands, role: {'level': 'alert', 'head': 'x', 'entries': []},
+                                                                       commands={}, session={})
+    assert '>Dashboard</a>' in again
+    # stay.js never reads form.action or calls form.submit(): a field named action or submit hides them (the Confirm forms).
+    assert "fetch(form.getAttribute('action')" in STAY_JS and 'fetch(form.action' not in STAY_JS
+    assert 'HTMLFormElement.prototype.submit.call(form)' in STAY_JS and 'form.submit()' not in STAY_JS
+    # The sticky bar of long forms: room below the page for the footer, focused fields above bar and footer; conditional rows.
+    assert 'padding:28px 36px calc(28px + var(--footer-h,52px))' in PAGE and 'scroll-padding-bottom:calc(var(--footer-h,52px) + 64px)' in PAGE
+    assert "row.getAttribute('data-when')" in COPY_JS and 'field.disabled = !on' in COPY_JS
+    # 2026-11-17 (screenshot): .row sets display:grid, which beat the [hidden] of the browser: a row for another choice stayed
+    # visible (disabled). [hidden] wins now; the stored/not set chip of a secret field stands next to it.
+    assert '.row[hidden]{display:none}' in PAGE and '.secret{display:flex' in PAGE
+    # 2026-11-17: an answer of another form (here: empty) never turns the dashboard into a 500; a note instead.
+    tiles, attention, chart, picture = dashboard({name: (True, {'unexpected': 1}) for name in ('status', 'settings', 'dash-stats', 'quarantine-list', 'backup-list')})
+    assert tiles == [] and attention and 'could not be read' in attention[0][0] and chart is None and picture is None
+    # The logo links the website, never the repository, without referrer (the host name of this server stays here).
+    assert f'href="{WEBSITE_URL}" target="_blank" rel="noopener noreferrer"' in BRAND and 'github.com' not in BRAND
+    # The environment mark: nothing for production, the host name escaped in amber (test) or red (dev), with its word.
+    assert environment_mark_html('mx.example.org', 'prod') == '' and environment_mark_html('mx.example.org', 'bogus') == ''
+    with app.test_request_context('/'):
+        dev, test = environment_mark_html('mx<1>.example.org', 'dev'), environment_mark_html('mx.example.org', 'test')
+    assert 'mx&lt;1&gt;.example.org' in dev and 'color:var(--bad)' in dev and 'Development' in dev
+    assert 'color:var(--note-ink)' in test and 'background:var(--note)' in test and '>Test</span>' in test
+    # The confirmed 2FA hint counts only on a development host (Hans 2026-11-17).
+    global DEV_2FA_FILE
+    import shutil
+    import tempfile
+    saved_hint, folder = DEV_2FA_FILE, tempfile.mkdtemp()
+    DEV_2FA_FILE = folder + '/hint.json'
+    try:
+        with open(DEV_2FA_FILE, 'w') as f:
+            json.dump({'@admin': 'now'}, f)
+        with app.test_request_context('/'):
+            assert dev_2fa_confirmed('dev') and not dev_2fa_confirmed('prod') and not dev_2fa_confirmed('test')
+    finally:
+        DEV_2FA_FILE = saved_hint
+        shutil.rmtree(folder, ignore_errors=True)
+    assert '{{ environment_mark|safe }}' in BRAND and 'environment_mark' in [f.__name__ for f in app.template_context_processors[None]]
     # A switch that is on (Live filtering, sources): its text at least 4.5:1 (WCAG AA) in the light and the dark scheme.
     assert contrast('#ffffff', '#2f6f3a') >= 4.5 and contrast('#1b1d1a', '#5fb36c') >= 4.5
     assert '.switch.on{background:#2f6f3a;color:#fff}.switch.on span{color:inherit}' in PAGE
@@ -5043,6 +5820,7 @@ def self_test():
             'maillog-search': {'title': 'Mail log: search', 'writes': False, 'args': []},
             'sender-list': {'title': 'Sender lists', 'args': [], 'writes': False},
             'relay-networks-list': {'title': 'Relay networks', 'args': [], 'writes': False},
+            'relay-networks-remove': {'title': 'Remove a network', 'writes': True, 'args': [{'name': 'network', 'label': 'Network', 'required': True}]},
             'maillog-live': {'title': 'Mail log: live', 'writes': False, 'args': []},
             'dkim-remove': {'title': 'DKIM: remove a key', 'writes': True, 'args': []},
             'arc-show': {'title': 'ARC sealing', 'args': [], 'writes': False},
@@ -5167,7 +5945,7 @@ def self_test():
     # A cookie of the setup wizard on the same address does not touch the login (own cookie names).
     try:
         client.set_cookie('__Host-efa-init', 'left-from-the-wizard', domain='localhost')
-    except TypeError:
+    except (TypeError, ValueError):  # Werkzeug before 2.3 (EL9: 2.0.3) takes the server name first and refuses domain=localhost
         client.set_cookie('localhost', '__Host-efa-init', 'left-from-the-wizard')
     token = re.search(r'name="csrf" value="([^"]+)"', client.get('/login', **https).get_data(as_text=True)).group(1)
     tried = client.post('/login', data={'csrf': token, 'password': 'wrong'}, **https).get_data(as_text=True)
@@ -5235,8 +6013,27 @@ def self_test():
     assert shown.index('id="threat-banner"') < shown.index('<h1>'), 'right under the top bar, before the title of the page'
     assert not [call for call in calls[before:] if call[0] in ('threat-run', 'threat-status')], 'a page reads only the kept answer'
     dash = client.get('/p/dash', **https).get_data(as_text=True)
-    assert 'id="status-board"' in dash and 'class="lamps"' in dash and dash.count('<figure class="gauge') == 7, 'lamps and seven gauges'
+    assert 'id="status-board"' in dash and 'class="lamps"' in dash and dash.count('<figure class="gauge') == 8, 'lamps and eight gauges (G7-3: swap)'
     assert 'class="lamp b"' in dash and 'aria-label="SMTP connections per minute: 900"' in dash
+    # G7-7: the dashboard layout of this login: the blocks in a grid with CSS order, buttons to move them, a reset; dragging posts
+    # the same change. Only the known changes reach efactl, with the form token.
+    assert 'class="dashgrid"' in dash and 'id="dash-layout"' in dash and 'value="board:up" disabled' in dash and 'value="reset"' in dash
+    assert 'class="card board" style="order:0" id="status-board"' in dash and '/dash.js' in dash
+    answer = client.post('/dashboard-layout', data={'csrf': 'token', 'change': 'load:up', 'move': ''}, **https)
+    assert answer.status_code == 303 and answer.headers['Location'].endswith('#dash-layout') and ('my-settings-set', '--dashboard=load:up') in calls
+    client.post('/dashboard-layout', data={'csrf': 'token', 'change': 'tiles:hide', 'move': 'load:to=0'}, **https)
+    assert ('my-settings-set', '--dashboard=load:to=0') in calls and ('my-settings-set', '--dashboard=tiles:hide') not in calls, 'a drop wins'
+    for bad in ('load:left', 'load:up;x', 'reset ', '--as=root'):
+        assert client.post('/dashboard-layout', data={'csrf': 'token', 'change': bad}, **https).status_code == 400, bad
+    assert client.post('/dashboard-layout', data={'change': 'reset'}, **https).status_code == 403, 'the form token is needed'
+    outputs['my-settings'] = {'dashboard': {'order': ['load', 'board', 'x'], 'hidden': ['tiles'], 'half': ['board']}}
+    laid = client.get('/p/dash', **https).get_data(as_text=True)
+    assert 'class="card board half" style="order:1"' in laid and 'style="order:0" id="load-fold"' in laid
+    assert '<div class="tiles' not in laid and 'Overview tiles (hidden)' in laid and 'value="tiles:show"' in laid and 'value="board:full"' in laid
+    outputs.pop('my-settings')
+    with client.session_transaction(**https) as sess:
+        sess.pop('dash', None)
+    assert client.get('/dash.js', **https).mimetype == 'text/javascript'
     assert 'class="threat alert"' in client.get('/threat-banner', **https).get_data(as_text=True)
     assert 'class="lamps"' in client.get('/status-board', **https).get_data(as_text=True)
     # Without a login neither the banner nor the board gives anything away; the check itself is no command of a form or the API.
@@ -5346,7 +6143,7 @@ def self_test():
     import html as html_links
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'sbin', 'efactl'), encoding='utf-8') as f:
         targets = sorted(set(re_test.findall(r"_notice_at\('([a-z]+)', '([a-z0-9-]+)'", f.read())))
-    assert len(targets) >= 20 and ('domset', 'application-set') in targets and all(anchor in PAGES[slug]['commands'] for slug, anchor in targets), targets
+    assert len(targets) >= 20 and ('domset', 'application-set') in targets and all(anchor in PAGES[card_page(slug, anchor)]['commands'] for slug, anchor in targets), targets
     saved_notices = (dict(outputs['schema']), dict(outputs['status']))
     with client.session_transaction(**https) as sess:
         view_links = sess.get('view')
@@ -5361,6 +6158,7 @@ def self_test():
             sess['view'] = 'standard'
         dash_notices = client.get('/', **https).get_data(as_text=True)
         for slug, anchor in targets:
+            slug = card_page(slug, anchor)  # efactl names the page of before for a card that moved (6.0.0.6.x menu)
             # 6.0.0.6.x UX: a button with the card, its title names the page and the card.
             found = re_test.search(re_test.escape(f'notice {anchor}</span>') + r'<a class="btn s" href="([^"]+)" title="([^"]+)"><span class="sr">[^<]*</span>([^<]+) &rsaquo;</a>', dash_notices)
             assert found, (anchor, 'no link')
@@ -5378,6 +6176,38 @@ def self_test():
             if anchor == 'application-set':
                 assert 'domain=b.example' in href and 'value="b.example"' in shown, href
     assert seen_views == {True, False}, 'cards of both views were linked'
+    # Hans 2026-11-15: each notice can be confirmed or hidden, in place (stay.js); a confirmed one is away until its text changes,
+    # a hidden one also when only a number changes; the list below shows them again. Stopped services have no buttons.
+    outputs['schema'], outputs['status'] = dict(saved_notices[0]), dict(saved_notices[1])
+    outputs['schema']['notice-ack'] = {'title': 'Dashboard: confirm or hide a notice', 'writes': True,
+                                     'args': [{'name': name, 'label': name} for name in ('action', 'text', 'slug', 'anchor', 'key')]}
+    lacking = ['a.example lacks DMARC', 'domset', 'domain-check-status']
+    outputs['status'] = {**saved_notices[1], 'down': ['rspamd'], 'system_notices': [lacking, ['3 senders on the allow list', 'flow', 'transport-set']], 'notice_acks': []}
+    dash_ack = client.get('/', **https).get_data(as_text=True)
+    assert dash_ack.count('name="text" value="a.example lacks DMARC"') == 2 and dash_ack.count('name="text" value="3 senders on the allow list"') == 2 \
+        and '<div id="notices">' in dash_ack
+    assert 'rspamd is down</span><a' in dash_ack and 'rspamd is down</span><span class="att-do">' not in dash_ack, 'a stopped service has no buttons'
+    assert 'stay.js' in dash_ack and client.get('/stay.js', **https).mimetype == 'text/javascript'
+    assert notice_keys('x', 'a', 'b') == notice_keys('x', 'a', 'b') and notice_keys('3 x', 'a', 'b')[1] == notice_keys('4 x', 'a', 'b')[1]
+    exact = notice_keys(*lacking)[0]
+    allow_kind = notice_keys('7 senders on the allow list', 'flow', 'transport-set')[1]
+    outputs['status']['notice_acks'] = [[lacking[0], 'domset', 'domain-check-status', exact, 'confirmed', '2026-12-15'],
+                                        ['7 senders on the allow list', 'flow', 'transport-set', allow_kind, 'hidden', '']]
+    dash_ack = client.get('/', **https).get_data(as_text=True)
+    shown_part = dash_ack.split('att-done')[0]
+    assert 'a.example lacks DMARC' not in shown_part and 'senders on the allow list' not in shown_part, 'confirmed and hidden ones are away'
+    assert 'Confirmed or hidden notices' in dash_ack and dash_ack.count('name="action" value="show"') == 2 and 'confirmed until 2026-12-15' in dash_ack
+    outputs['status']['system_notices'] = [['b.example lacks DMARC', 'domset', 'domain-check-status']]
+    assert 'b.example lacks DMARC</span>' in client.get('/', **https).get_data(as_text=True), 'another text comes back'
+    before_ack = len(calls)
+    answer = client.post('/run/notice-ack', data={'csrf': 'token', 'json': '1', 'action': 'confirm', 'text': lacking[0], 'slug': 'domset', 'anchor': 'domain-check-status'}, **https)
+    assert answer.get_json() == {'ok': True, 'error': None}, answer.get_data(as_text=True)
+    assert ('notice-ack', '--action=confirm', f'--text={lacking[0]}', '--slug=domset', '--anchor=domain-check-status', '--key=') in calls[before_ack:], calls[before_ack:]
+    failing.append("rbl-set")
+    refused = client.post('/run/rbl-set', data={'csrf': 'token', 'json': '1', 'id': '1', 'mode': 'on'}, **https).get_json()
+    failing.remove("rbl-set")
+    assert refused == {'ok': False, 'error': 'rbl-set failed'}, refused
+    outputs['schema'], outputs['status'] = saved_notices
     outputs['schema'], outputs['status'] = saved_notices
     with client.session_transaction(**https) as sess:
         sess.pop('view', None) if view_links is None else sess.update(view=view_links)
@@ -5594,11 +6424,32 @@ def self_test():
         assert 'user' not in sess
     outputs['oidc-status'] = {'oidc': False}
     assert 'single sign-on' not in app.test_client().get('/login', **https).get_data(as_text=True)
+    # Hans 2026-11-17: a secret field shows whether one is stored (a yes/no of the read command) and a Remove; never the value.
+    outputs['schema']['ldap-set'] = {'title': 'LDAP', 'writes': True, 'args': [{'name': 'mode', 'label': 'on or off'},
+                                     {'name': 'bind_password', 'label': 'Password of the service account', 'secret': True}]}
+    outputs['schema']['secret-remove'] = {'title': 'Remove a stored secret', 'writes': True, 'args': [{'name': 'target', 'label': 'target'}]}
+    outputs['schema']['ldap-status'] = {'title': 'LDAP', 'writes': False, 'args': []}
+    outputs['ldap-status'] = {'ldap': False, 'bind_password_stored': True}
+    shown = client.get('/p/' + page_of('ldap-set'), **https).get_data(as_text=True)
+    shown = shown[shown.index('id="ldap-set-bind_password"'):][:900]
+    assert '>stored</span>' in shown and 'formaction="/run/secret-remove"' in shown and 'value="ldap-set bind_password"' in shown, shown
+    outputs['ldap-status'] = {'ldap': False, 'bind_password_stored': False}
+    shown = client.get('/p/' + page_of('ldap-set'), **https).get_data(as_text=True)
+    shown = shown[shown.index('id="ldap-set-bind_password"'):][:900]
+    assert '>not set</span>' in shown and 'secret-remove' not in shown
+    with app.test_request_context('/run/secret-remove', method='POST', data={'target': 'ldap-set bind_password'}):
+        assert page_of('secret-remove') == page_of('ldap-set'), 'back to the page of the setting'
+    outputs['schema'].pop('ldap-set')
+    outputs.pop('ldap-status')
     outputs['schema']['report-show'] = {'title': 'Report', 'args': [{'name': 'period', 'label': 'day or week'}, {'name': 'format', 'label': 'html'}], 'writes': False}
     outputs['report-show'] = {'html': '<h1>Report</h1>'}
     printable = client.post('/run/report-show', data={'csrf': 'token', 'period': 'week', 'format': 'html'}, **https)
     assert printable.mimetype == 'text/html' and printable.get_data(as_text=True) == '<h1>Report</h1>'
     assert ('report-show', '--period=week', '--format=html') in calls
+    outputs['schema']['mail-history'] = {'title': 'Mail history', 'args': [{'name': 'month', 'label': 'Month'}, {'name': 'format', 'label': 'html'}], 'writes': False}
+    outputs['mail-history'] = {'html': '<form><input type="hidden" name="csrf" value="__EFA_CSRF__"></form>'}
+    history = client.post('/run/mail-history', data={'csrf': 'token', 'month': '2026-11', 'format': 'html'}, **https)
+    assert history.mimetype == 'text/html' and '__EFA_CSRF__' not in history.get_data(as_text=True) and 'value="token"' in history.get_data(as_text=True)
     # A link from a digest asks first. Only the button does it.
     link_client = app.test_client()
     outputs['uq-link-view'] = {'purpose': 'release', 'question': 'Release this mail', 'rcpt': 'a@x.example', 'sender': '<b>s</b>@y.example', 'subject': 'Hi'}
@@ -5649,6 +6500,8 @@ def self_test():
     held = client.get('/p/held', **https).get_data(as_text=True)
     assert 'a@x.example' in held and '&lt;b&gt;s@y.example' in held and 'virus' in held and 'asked' in held and 'uq-release' in held
     lists = client.get('/p/rbl', **https).get_data(as_text=True)
+    # Hans 2026-11-15: the switches and the terms of the lists post in place, the page does not jump to the top.
+    assert 'data-stay="rbl-show"' in lists and 'data-done=' in lists and 'id="rbl-show"' in lists
     # Links out of eFa-next, the rspamd interface among them, open in a window of their own; links inside eFa-next do not.
     outputs['settings'], kept_settings = {**(outputs.get('settings') or {}), 'rspamd_sso': 'read-only', 'rspamd_sso_until': '09:30'}, outputs.get('settings')
     pills_seen = set()
@@ -5690,6 +6543,8 @@ def self_test():
     assert '<details class="rblterms"><summary class="switch" role="switch" aria-checked="false" aria-label="Spamhaus ZEN">' in lists
     # The DQS key: one field, in its row (the card of rbl-set names it too, in its help).
     assert 'name="accept_terms" value="yes" required' in lists and lists.count('class="dqs"') == 1 and 'https://www.spamhaus.org/x' in lists
+    # The DQS key: not set, so the chip says the free public mirrors are asked; no Remove without a key.
+    assert 'not set (free public mirrors)' in lists and 'value="rbl-set key' not in lists
     assert '>Turn on</button>' not in lists.split('<details')[0], 'no action as a label: the state'
     # UI-CLAM: the switch shows the value in effect; terms first, with the link and the tick box; the ID field, never its value.
     outputs['schema']['clam-source-status'] = {'title': 'More ClamAV signatures', 'args': [], 'writes': False}
@@ -5704,18 +6559,20 @@ def self_test():
          'accepted': None, 'terms_accepted': False, 'terms_url': '', 'needs_id': False, 'id_set': False},
         {'source': 'securiteinfo', 'name': 'SecuriteInfo (France)', 'terms': 'needs an ID', 'active': False, 'files': 'securiteinfo.hdb',
          'accepted': {'by': 'admin', 'at': '2026-11-11 10:01'}, 'terms_accepted': True, 'terms_url': 'https://www.securiteinfo.com/legal/x', 'needs_id': True, 'id_set': True}]}
-    clam = client.get('/p/spam', **https).get_data(as_text=True)
+    clam = client.get('/p/files', **https).get_data(as_text=True)
     clam = clam[clam.index('id="clam-source-status"'):]
     clam = clam[:clam.index('</table>')]
     assert 'role="switch" aria-checked="true" aria-label="URLhaus (abuse.ch, Switzerland)"' in clam and clam.count('name="csrf"') >= 4
     assert '<details class="rblterms"><summary class="switch" role="switch" aria-checked="false" aria-label="InterServer (USA)">' in clam
     assert 'no published terms' in clam and 'name="accept_terms" value="yes" required' in clam and 'href="https://abuse.ch/terms-of-use/"' in clam
-    assert 'aria-label="SecuriteInfo (France)"' in clam and 'type="password" name="id"' in clam and 'set, empty keeps it' in clam
+    assert 'aria-label="SecuriteInfo (France)"' in clam and 'type="password" name="id"' in clam and 'empty keeps it' in clam
+    # A stored account ID: a chip, and Remove while the source is off (it posts to secret-remove); never the ID itself.
+    assert '>stored</span>' in clam and 'formaction="/run/secret-remove"' in clam and 'value="clam-source-set id securiteinfo"' in clam
     assert 'Save and turn on' in clam and 'class="clam stack"' in clam and 'action="/run/clam-source-set"' in clam
-    assert 'id="clam-source-set"' not in client.get('/p/spam', **https).get_data(as_text=True), 'no second form: the rows have it'
+    assert 'id="clam-source-set"' not in client.get('/p/files', **https).get_data(as_text=True), 'no second form: the rows have it'
     outputs['clam-source-status']['sources'][0]['files'] = ['interserver256.hdb', 'interservertopline.db']
     kept_clam_set = outputs['schema'].pop('clam-source-set')
-    readonly = client.get('/p/spam', **https).get_data(as_text=True)
+    readonly = client.get('/p/files', **https).get_data(as_text=True)
     readonly = readonly[readonly.index('id="clam-source-status"'):]
     readonly = readonly[:readonly.index('</table>')]
     assert 'action="/run/clam-source-set"' not in readonly and 'role="switch"' not in readonly and 'name="id"' not in readonly
@@ -5730,7 +6587,7 @@ def self_test():
     outputs['clam-source-status']['sources'][2].update(tier='basic', tiers=[['basic', 'Basic', 30, 300]], urls=3, last_contact='2026-11-11 10:30')
     with client.session_transaction(**https) as sess:
         sess.pop('reauth', None)
-    clam = client.get('/p/spam', **https).get_data(as_text=True)
+    clam = client.get('/p/files', **https).get_data(as_text=True)
     assert 'id="clam-securiteinfo-set"' not in clam, 'no card of its own: the row has the form'
     clam = clam[clam.index('id="clam-source-status"'):]
     clam = clam[:clam.index('</table>')]
@@ -5744,7 +6601,7 @@ def self_test():
     assert not [call for call in calls[calls_si:] if call[0] == 'clam-securiteinfo-set'], 'no change without the password'
     with client.session_transaction(**https) as sess:
         sess['reauth'] = time.time()
-    assert 'reauth-ok' in client.get('/p/spam', **https).get_data(as_text=True).split('action="/run/clam-securiteinfo-set"')[1].split('</form>')[0]
+    assert 'reauth-ok' in client.get('/p/files', **https).get_data(as_text=True).split('action="/run/clam-securiteinfo-set"')[1].split('</form>')[0]
     pasted = 'DatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/securiteinfo.hdb\r\nDatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/javascript.ndb'
     client.post('/run/clam-securiteinfo-set', data={'csrf': 'token', 'tier': 'basic', 'urls': pasted, 'delete_urls': ''}, **https)
     sent = [call for call in calls[calls_si:] if call[0] == 'clam-securiteinfo-set']
@@ -5752,17 +6609,17 @@ def self_test():
     assert base64.b64decode(stdin_seen[-1].strip()).decode() == pasted
     stdin_seen.clear()
     outputs['clam-source-status']['sources'][2].update(urls=0, last_contact='')
-    clam = client.get('/p/spam', **https).get_data(as_text=True)
+    clam = client.get('/p/files', **https).get_data(as_text=True)
     assert 'no URLs stored' in clam and 'name="delete_urls"' not in clam and 'last asked' not in clam
     # On a cluster node: no tier, no URL field, no ID field; "waiting for the master" until the first checked transfer.
     outputs['clam-source-status']['sources'][2].update(cluster='client', waiting=True, received='', active=False)
-    node = client.get('/p/spam', **https).get_data(as_text=True)
+    node = client.get('/p/files', **https).get_data(as_text=True)
     node = node[node.index('id="clam-source-status"'):]
     node = node[:node.index('</table>')]
     assert 'waiting for the master' in node and 'Account tier and URLs are set on the master.' in node, node
     assert 'name="urls"' not in node and 'name="tier"' not in node and 'type="password" name="id"' not in node
     outputs['clam-source-status']['sources'][2].update(waiting=False, received='2026-11-12 03:00', active=True)
-    node = client.get('/p/spam', **https).get_data(as_text=True)
+    node = client.get('/p/files', **https).get_data(as_text=True)
     assert 'Signatures from the master, last received 2026-11-12 03:00' in node and 'waiting for the master' not in node
     # The Sanesecurity card of a node: the state as a text, no raw values.
     kept_sane = outputs.get('sanesecurity-status')
@@ -5770,7 +6627,7 @@ def self_test():
     outputs['schema']['sanesecurity-status'] = {'title': 'Sanesecurity signatures', 'args': [], 'writes': False}
     outputs['schema']['sanesecurity-set'] = {'title': 'Sanesecurity signatures: switch', 'writes': True, 'args': [{'name': 'mode', 'label': 'Sanesecurity signatures: on or off', 'required': True}]}
     outputs['sanesecurity-status'] = {'active': False, 'warnings': ['ClamAV signatures: waiting for the master; this cluster node does not download them itself.']}
-    node = client.get('/p/spam', **https).get_data(as_text=True)
+    node = client.get('/p/files', **https).get_data(as_text=True)
     node = node[node.index('id="sanesecurity-set"'):]
     node = node[:node.index('class="card"')] if 'class="card"' in node else node
     assert 'ClamAV signatures: waiting for the master; this cluster node does not download them itself.' in node and 'from master' not in node, node[:3000]
@@ -5799,13 +6656,13 @@ def self_test():
                                                  'args': [{'name': 'mode', 'label': 'Attachment checks of eFa-next: on or off', 'required': True},
                                                           {'name': 'action', 'label': 'Dangerous endings', 'required': False}]}})
     outputs['attachment-status'] = {'enabled': False, 'action': 'reject', 'endings': [f'e{number}' for number in range(20)]}
-    card = client.get('/p/spam', **https).get_data(as_text=True).split('id="attachment-set"')[1].split('<div class="card"')[0]
+    card = client.get('/p/files', **https).get_data(as_text=True).split('id="attachment-set"')[1].split('<div class="card"')[0]
     assert card.count('<form method="post" action="/run/attachment-set" class="toggle">') == 1, card
     assert '<input type="hidden" name="mode" value="on">' in card and '<input type="hidden" name="action" value="reject">' in card
     assert '>enabled<' not in card, 'no second line for what the switch shows'
     assert card.count('<span class="chip">') == 20 and 'Show all' in card and '(20)' in card
     outputs['attachment-status']['enabled'] = True
-    card = client.get('/p/spam', **https).get_data(as_text=True).split('id="attachment-set"')[1].split('<div class="card"')[0]
+    card = client.get('/p/files', **https).get_data(as_text=True).split('id="attachment-set"')[1].split('<div class="card"')[0]
     assert '<input type="hidden" name="mode" value="off">' in card and 'aria-pressed="true"' in card
     assert switch_arg('x', {'args': [{'name': 'mode', 'label': 'on or off'}, {'name': 'confirm', 'kind': 'confirm', 'label': 'Type yes'}]}) is None
     # Q5b: the hardening report as a PDF download, its name from efactl.
@@ -5868,6 +6725,26 @@ def self_test():
     refused = client.post('/run/sender-action', data={'csrf': 'token', 'json': '1', 'value': 'x@example.net', 'list': 'block'}, **https).get_json()
     assert refused == {'ok': False, 'result': None, 'error': 'sender-action failed'}, refused
     failing.remove('sender-action')
+    # 6.0.0.6.4: the sender list dialog stays open (Hans 2026-11-15): remove, add and move answer as JSON, no result page.
+    outputs['schema'].update({'sender-remove': {'title': 'Remove senders', 'writes': True, 'args': [{'name': 'entries', 'label': 'Entries'}, {'name': 'confirm', 'label': 'Confirm', 'kind': 'confirm'}]},
+                              'sender-add': {'title': 'Add senders', 'writes': True, 'args': [{'name': key, 'label': key} for key in ('list', 'entries', 'comment')]},
+                              'sender-move': {'title': 'Move a sender', 'writes': True, 'args': [{'name': key, 'label': key} for key in ('entry', 'to')]}})
+    outputs['sender-remove'] = {'removed': ['dmarc@example.org', 'b.example']}
+    removed = client.post('/run/sender-remove', data={'csrf': 'token', 'json': '1', 'entries': 'dmarc@example.org b.example', 'confirm': 'yes'}, **https)
+    assert removed.mimetype == 'application/json' and removed.get_json() == {'ok': True, 'result': {'removed': ['dmarc@example.org', 'b.example']}, 'error': None}, removed.data
+    assert ('sender-remove', '--entries=dmarc@example.org b.example', '--confirm=yes') in calls, calls[-3:]
+    outputs['sender-add'] = {'added': ['n@example.org'], 'skipped': []}
+    assert client.post('/run/sender-add', data={'csrf': 'token', 'json': '1', 'list': 'allow', 'entries': 'n@example.org', 'comment': ''}, **https).get_json()['result']['added'] == ['n@example.org']
+    outputs['sender-move'] = {'moved': 'n@example.org', 'to': 'block'}
+    assert client.post('/run/sender-move', data={'csrf': 'token', 'json': '1', 'entry': 'n@example.org', 'to': 'block'}, **https).get_json()['result']['to'] == 'block'
+    failing.append('sender-remove')
+    refused = client.post('/run/sender-remove', data={'csrf': 'token', 'json': '1', 'entries': 'x@example.net', 'confirm': 'yes'}, **https).get_json()
+    assert refused == {'ok': False, 'result': None, 'error': 'sender-remove failed'}, refused
+    failing.remove('sender-remove')
+    plain = client.post('/run/sender-remove', data={'csrf': 'token', 'entries': 'dmarc@example.org', 'confirm': 'yes'}, **https)
+    assert plain.status_code in (302, 303), 'without json=1 the old way with the result page still works'
+    script = client.get('/senders.js', **https).get_data(as_text=True)
+    assert "fields.json = '1'" in script and 'new URLSearchParams()' in script and 'form.submit()' not in script and 'sender-note' in script and 'load()' in script
     undo = client.post('/run/sender-action', data={'csrf': 'token', 'value': 'x@example.net', 'list': 'block'}, follow_redirects=True, **https).get_data(as_text=True)
     assert 'x@example.net: added to the global block list' in undo and 'name="action" value="remove"' in undo
     outputs['maillog-search'] = {'mails': [{'id': 3, 'ts': '2026-11-11 10:00:00', 'qid': 'ABC123', 'sender': 'a@example.net', 'rcpt': 'b@example.org', 'ip': '192.0.2.5',
@@ -5876,6 +6753,10 @@ def self_test():
     found = client.post('/run/maillog-search', data={'csrf': 'token'}, follow_redirects=True, **https).get_data(as_text=True)
     assert 'id="log-result" data-q="domain:example.net"' in found and 'data-kind="ip"' in found and 'class="st b"' in found and '12.5' in found, found[-3000:]
     assert '<main class="wide">' in found and 'data-sender="a@example.net" data-kind="address" data-qid="ABC123" data-rcpt="b@example.org" data-ip="192.0.2.5"' in found
+    outputs['maillog-search']['mails'][0]['origin'] = 'US AS15169 Google LLC'
+    outputs['maillog-search']['geo_credit'] = 'IP geolocation by DB-IP (db-ip.com), CC BY 4.0'
+    found = client.post('/run/maillog-search', data={'csrf': 'token'}, follow_redirects=True, **https).get_data(as_text=True)
+    assert '<div class="h origin">US AS15169 Google LLC</div>' in found and 'IP geolocation by DB-IP' in found, 'G7-6: the origin below the IP'
     outputs['maillog-search'] = {'mails': [], 'query': 'x', 'filters': []}
     assert 'No mail matches' in client.post('/run/maillog-search', data={'csrf': 'token'}, follow_redirects=True, **https).get_data(as_text=True)
     # 6.0.0.6 (Hans): Mail log: the quick search with Check a mail beside it, the button Advanced search below; the privacy
@@ -5921,6 +6802,27 @@ def self_test():
     assert '--sender=x@example.net' in sent and '--action=reject' in sent and '--format=' in sent and not any(arg.startswith('--after_id') for arg in sent), sent
     assert 'value="x@example.net"' in shown and '<option value="reject" selected>' in shown, 'the form shows the filters searched'
     assert client.post('/p/log/search', data={'sender': 'x'}, **https).status_code == 403, 'no CSRF token'
+    # G7-1: Match (AND/OR) is a field of the window; saved searches load into the form, save the form, delete one.
+    assert 'name="match"' in window and 'id="adv-saved"' not in window, 'without search-saved in the schema: no saved searches'
+    outputs['schema'].update({'search-saved': {'title': 'Saved searches', 'writes': False, 'args': []},
+                              'search-save': {'title': 'Saved searches: save', 'writes': True, 'args': [{'name': 'name', 'label': 'Name'}] + [{'name': n, 'label': n} for n in SAVED_FIELDS]},
+                              'search-delete': {'title': 'Saved searches: delete', 'writes': True, 'args': [{'name': 'name', 'label': 'Name'}]}})
+    outputs['search-saved'] = {'searches': [{'name': 'From x', 'filters': {'sender': '*@x.example', 'match': 'any', 'ip': '192.0.2.9'}}]}
+    window = client.get('/p/log/search', **https).get_data(as_text=True)
+    assert 'id="adv-saved"' in window and '<option value="From x">From x</option>' in window and 'name="save_as"' in window
+    assert efa_a11y.page_problems(window) == [], efa_a11y.page_problems(window)
+    before = len(calls)
+    loaded = client.post('/p/log/search', data={'csrf': 'token', 'do': 'load', 'saved': 'From x', 'sender': 'other'}, **https).get_data(as_text=True)
+    sent = [call for call in calls[before:] if call[0] == 'message-search'][0]
+    assert '--sender=*@x.example' in sent and '--match=any' in sent and '--ip=192.0.2.9' in sent and '--rcpt=' in sent, sent
+    assert 'value="*@x.example"' in loaded and '<option value="From x" selected>' in loaded
+    before = len(calls)
+    client.post('/p/log/search', data={'csrf': 'token', 'do': 'save', 'save_as': 'Mine', 'sender': 'a@b.example', 'limit': '50'}, **https)
+    sent = [call for call in calls[before:] if call[0] == 'search-save'][0]
+    assert '--name=Mine' in sent and '--sender=a@b.example' in sent and not any(arg.startswith('--limit') for arg in sent), sent
+    before = len(calls)
+    client.post('/p/log/search', data={'csrf': 'token', 'do': 'delete', 'saved': 'From x'}, **https)
+    assert ('search-delete', '--name=From x') in calls[before:], calls[before:]
     # Live filtering: only the rows after the cursor, with the same filters; efactl scopes them to the domains of the login.
     outputs['message-search'] = {'mails': [{'id': 44, 'ts': '2026-11-13 09:01:00', 'sender': 'x@example.net', 'rcpt': 'y@example.org'}]}
     before = len(calls)
@@ -5999,8 +6901,64 @@ def self_test():
     active_sessions.pop('copied')
     assert copy.get('/rspamd-auth', **https).status_code == 401 and copy.get('/', **https).status_code == 302
     outputs['schema']['update-status'] = {'title': 'Last system update', 'args': [], 'writes': False}
-    outputs['update-status'] = {'state': 'running', 'log': []}
-    assert client.get('/p/maint', **https).headers['Refresh'] == '10'
+    outputs['update-status'] = {'state': 'running', 'log': ['2026-11-15 10:21:03 started, dry run False, reboot False']}
+    # Hans 2026-11-15, the Update card: versions, pending, one button on top; while it runs the bar, the step and the time left,
+    # renewed by copy.js (no refresh of the whole page); afterwards the result. A page without the card reads stay as before.
+    import efa_update_progress
+    outputs['schema'].update({'update-progress': {'title': 'Update: versions and progress', 'args': [], 'writes': False},
+                              'update-system': {'title': 'Update system', 'writes': True, 'args': [
+                                  {'name': 'reboot', 'label': 'Reboot automatically after the update: on or off', 'required': False},
+                                  {'name': 'confirm', 'label': 'Type yes to confirm', 'required': True, 'kind': 'confirm'}]},
+                              'update-check': {'title': 'Check for an eFa-next update now', 'args': [], 'writes': True},
+                              'update-install': {'title': 'Install the eFa-next update now', 'writes': True, 'args': []},
+                              'autoupdate-status': {'title': 'eFa-next updates', 'args': [], 'writes': False},
+                              'autoupdate-set': {'title': 'Automatic eFa-next updates', 'writes': True, 'args': [{'name': 'time', 'label': 'Maintenance time', 'required': True}]}})
+    outputs['autoupdate-status'] = {'installed': '6.0.0.6.3', 'latest': 'v6.0.0.6.4', 'mode': 'notify', 'days': 'sun', 'time': '03:00'}
+    idle = {'progress': efa_update_progress.view({}, {}, 0), 'installed': '6.0.0.6.3', 'latest': 'v6.0.0.6.4', 'efa_update': True, 'security_update': True,
+            'last_check': '2026-11-15 09:00:00', 'mode': 'notify', 'days': 'sun', 'time': '03:00', 'os_pending': 23, 'os_checked': '2026-11-15 09:00',
+            'reboot_required': True, 'window': [20, 50], 'rollback': False}
+    outputs['update-progress'] = idle
+    with client.session_transaction(**https) as sess:
+        view_before = sess.get('view')
+        sess['view'] = 'standard'
+    page = client.get('/p/maint', **https)
+    maint = page.get_data(as_text=True)
+    card = maint[maint.index('<div class="card upd" id="update-system">'):]
+    card = card[:card.index('</div>{# end upd #}') if '{# end upd #}' in card else card.index('<details class="section"')]
+    assert 'Refresh' not in page.headers and 'id="update-live"' not in card and 'http-equiv="refresh"' not in maint
+    assert '6.0.0.6.3' in card and 'v6.0.0.6.4' in card and 'Security update' in card and '23 updates' in card and 'action="/run/update-system"' in card
+    assert 'action="/run/update-check"' in card and ('href="#autoupdate-set"' in card) == ('autoupdate-set' in outputs['schema'])
+    assert ('href="#reboot"' in card) == ('reboot' in outputs['schema']), 'a restart only for who may'
+    assert maint.index('id="update-system"') < maint.index('<summary>Automatic updates</summary>'), 'the Update card first'
+    assert '<details class="section"><summary>Automatic updates</summary>' in maint, 'folded in the standard view'
+    assert 'id="update-check"' not in maint and 'id="update-install"' not in maint, 'the single steps only in the expert view'
+    record = {'state': 'running', 'kind': 'system', 'steps': ['backup', 'check', 'efa', 'os', 'health'], 'step': 'os', 'step_started': 100,
+              'packages': [27, 46], 'line': 'Upgrading : openssl-libs-1:3.2.2-6.el9_5.1.x86_64 27/46', 'from': '6.0.0.6.3', 'to': 'v6.0.0.6.4', 'backup': 'backup-1.tar.gz'}
+    outputs['update-progress'] = {**idle, 'progress': efa_update_progress.view(record, {}, 200)}
+    page = client.get('/p/maint', **https)
+    maint = page.get_data(as_text=True)
+    assert 'Refresh' not in page.headers and 'id="update-live" data-url="/update-live"' in maint and 'role="progressbar"' in maint
+    assert 'Step 4 of 5: Operating system' in maint and '27 of 46 packages' in maint and 'minutes left' in maint and '<noscript><meta http-equiv="refresh" content="10"></noscript>' in maint
+    assert 'class="done">Backup' in maint and 'class="now">Operating system' in maint and 'action="/run/update-system"' not in maint, 'no second start while it runs'
+    assert efa_a11y.page_problems(maint) == [], efa_a11y.page_problems(maint)
+    live = client.get('/update-live', **https).get_data(as_text=True)
+    assert live.startswith('<div class="upd-live" data-state="running">') and 'aria-valuenow="' in live and '<html' not in live
+    assert "getElementById('update-live')" in COPY_JS and 'document.hidden' in COPY_JS and "location.reload()" in COPY_JS
+    outputs['update-progress'] = {**idle, 'progress': efa_update_progress.view({**record, 'state': 'waiting', 'at': 1000, 'at_text': '2026-11-15 10:20'}, {}, 700)}
+    assert 'Starts at 10:20' in client.get('/update-live', **https).get_data(as_text=True)
+    outputs['update-progress'] = {**idle, 'efa_update': False, 'latest': '6.0.0.6.4', 'installed': '6.0.0.6.4', 'rollback': True,
+                                  'progress': efa_update_progress.view({**record, 'state': 'done', 'step': None, 'started': 0, 'finished': 720,
+                                                                        'finished_text': '2026-11-15 10:33:01', 'result': 'Updated, health check ok.'}, {}, 800)}
+    maint = client.get('/p/maint', **https).get_data(as_text=True)
+    assert 'Last update: 2026-11-15 10:33 (12 min)</b>' in maint and 'class="last ok"' in maint and 'action="/run/update-system"' in maint
+    expert_maint = None
+    with client.session_transaction(**https) as sess:
+        sess['view'] = 'expert'
+    expert_maint = client.get('/p/maint', **https).get_data(as_text=True)
+    assert 'id="update-check"' in expert_maint and 'id="update-install"' in expert_maint and expert_maint.count('id="update-system"') == 1, 'expert: the single steps too'
+    with client.session_transaction(**https) as sess:
+        sess.pop('view', None) if view_before is None else sess.update(view=view_before)
+    outputs.pop('update-progress')
     outputs['update-status'] = {'state': 'done', 'log': []}
     assert 'Refresh' not in client.get('/p/maint', **https).headers
     # NAME-UI: the version keys say eFa-next, not "EFA INSTALLED" (the header row of a table is upper-cased otherwise).
@@ -6018,6 +6976,12 @@ def self_test():
     one = load_sample(before, after, {'/': 40.0})
     assert (one['cpu'], one['ram'], one['swap'], one['disk'], one['io'], one['rx']) == (50.0, 75.0, 50.0, 40.0, 50.0, 100.0)
     assert one['nic'] == 10.0 and load_sample(after, after, {})['cpu'] == 0
+    # G7-3: the swap gauge of the dashboard, amber from 50 %, red from 80 %, grey without swap.
+    assert one['swap_on'] and 'aria-label="Swap: 50%"' in ''.join(board_view(None, None, [one])['gauges'])
+    assert 'class="gauge w"><svg viewBox="0 0 120 70" role="img" aria-label="Swap: 50%"' in ''.join(board_view(None, None, [one])['gauges'])
+    assert 'aria-label="Swap: 85%"' in ''.join(gauge for gauge in board_view(None, None, [dict(one, swap=85.0)])['gauges'] if 'gauge b' in gauge)
+    no_swap = load_sample(before, dict(after, memory={'MemAvailable': 25, 'MemTotal': 100, 'SwapFree': 0, 'SwapTotal': 0}), {})
+    assert not no_swap['swap_on'] and no_swap['swap'] == 0 and 'aria-label="No swap: –"' in ''.join(board_view(None, None, [no_swap])['gauges'])
     assert 'Collecting' in client.get('/load-card', **https).get_data(as_text=True)
     load_samples.extend([one] * 45)
     card = client.get('/load-card', **https).get_data(as_text=True)
@@ -6081,6 +7045,13 @@ def self_test():
     assert '&lt;script&gt;x&lt;/script&gt;' in detail and '<script>x' not in detail and '&lt;b&gt;hi' in detail and '/mail/7/headers.txt' in detail
     outputs['whoami'] = {'permissions': {}}
     assert '/mail/7/headers.txt' not in client.get('/mail/7', **https).get_data(as_text=True)
+    assert '<th>Origin</th>' not in detail and 'DB-IP' not in detail, 'without GeoIP no column and no credit'
+    # G7-6: with GeoIP on, the origin of the sending server and of each hop, and the credit of DB-IP under the table.
+    outputs['mail-show'] = {**outputs['mail-show'], 'geo_credit': 'IP geolocation by DB-IP (db-ip.com), CC BY 4.0',
+                            'mail': {**outputs['mail-show']['mail'], 'origin': 'AT AS8447 <A1>'},
+                            'received': [{'hop': 'from a [81.200.1.2] by b', 'time': 't', 'seconds': 3, 'origin': 'AT AS8447'}, {'hop': 'from b by c', 'time': 't', 'seconds': 1}]}
+    geo_detail = client.get('/mail/7', **https).get_data(as_text=True)
+    assert '<th>Origin</th>' in geo_detail and '<td>AT AS8447</td>' in geo_detail and 'AT AS8447 &lt;A1&gt;' in geo_detail and 'IP geolocation by DB-IP' in geo_detail
     outputs['mail-show'] = {'raw': 'Subject: x\r\n', 'filename': '2026-11-05_ABC.headers.txt'}
     raw = client.get('/mail/7/headers.txt', **https)
     assert raw.get_data() == b'Subject: x\r\n' and 'ABC.headers.txt' in raw.headers['Content-Disposition']

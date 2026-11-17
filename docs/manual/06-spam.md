@@ -4,7 +4,7 @@ The menu group *Protection*. rspamd gives every mail a score; the limits decide 
 
 ## Spam scores and greylisting
 
-*Protection › Spam & virus › Spam*:
+*Protection › Spam filter › Spam*:
 
 | Setting | Meaning | Console |
 |---|---|---|
@@ -14,7 +14,7 @@ The menu group *Protection*. rspamd gives every mail a score; the limits decide 
 | Subject marking | the text put in front of the subject of spam, empty turns it off | `subject-set` |
 | Bayes | the state of the Bayes classifier (read only) | `bayes-status` |
 
-![Spam & virus](../images/manual/spam.png)
+![Spam filter](../images/manual/spam.png)
 
 **Greylisting** holds mail of an unknown sender back once; a real mail server tries again, most spam software does not.
 How long a new sender waits (1 to 15 minutes, default 5) and how long a sender that came back stays known (1, 3 or 7 days)
@@ -22,11 +22,25 @@ are dropdowns with the values in use. A new install and a migration from eFa 5 s
 update keeps what was set (`efactl greylisting-set --mode on --minutes 5 --days 7`). With greylisting off and its score below
 the spam marking, mail in between gets no action at all: the dashboard names that gap.
 
+**Greylisting exceptions** (6.0.0.6.4, card *Greylisting exceptions*): networks and domains of sending servers that never wait, for example a partner or an own system (`efactl greylisting-exception-set --action add --value 192.0.2.0/24`). A network is at most /16 (IPv4) or /32 (IPv6). A domain matches the name of the sending server as its reverse DNS shows it, or the registered domain of that name, never the sender address, which anyone can forge. rspamd keeps its own list of big providers as well. `efactl greylisting-status` lists the exceptions. In a cluster the master hands them to every node.
+
 The same page has the other content checks of rspamd, each a card of its own: QR codes, encrypted archives, Office macros,
 tracking protection, lookalike watch, check after delivery, outbreak filter, own and community fuzzy store, newsletters and own
 spam limits, neural network, symbol scores, an own model. Each is described by its (i) and in [protection.md](../protection.md).
 Viruses, attachments and links: chapter 7. Planned for 6.0.0.7: the own fuzzy store works per node, not yet shared in a
 cluster; BIMI checks the logo, not yet the VMC/CMC certificates.
+
+**Pyzor** (6.0.0.6.4, card *Pyzor*, off by default): Pyzor compares a checksum of the text of each incoming mail with the spam
+reports of other operators. The local service efa-pyzor makes the checksum here; only the checksum and the address of this
+server go to the Pyzor server (public.pyzor.org of the Pyzor project unless you set your own), never the mail or its addresses.
+The card names the server in use: checksums (no mail content) go to the Pyzor server set there; the default public.pyzor.org
+is outside the EU.
+Turning it on asks for a typed yes once per server; with EU relation and a server outside the own networks also the typed
+transfer confirmation, and in the web interface the second factor again. Every change is in the strict audit log. A hit
+(5 reports or more, none whitelisted) gives `EFA_PYZOR` with 2.0 points, adjustable from 0 to 20; mail of logged-in users and
+mail over 2 MB is not asked. Each mail waits at most 3 seconds for the answer; after 3 failures of the
+server in a row Pyzor pauses for 5 minutes, which the card and the dashboard show, and mail goes on without it. The package `pyzor` (EPEL) is installed when you turn it on; off stops the service and leaves the
+package. `efactl pyzor-set --mode on --accept yes [--server host:port] [--weight 2.0]`.
 
 Limits per tenant, domain, recipient or sender are set under *Domain settings* (chapter 8) or as *Rules* (below).
 
@@ -39,7 +53,7 @@ their terms. *Your own blocklist* adds one more; *postscreen* on port 25 drops c
 
 ![Blocklists](../images/manual/rbl.png)
 
-*Protection › IP blocklists* holds own lists of addresses and networks that the firewall drops, each entry for good or for
+*Protection › Blocklists › Firewall blocklists* holds own lists of addresses and networks that the firewall drops, each entry for good or for
 some hours (`efactl blocklist-entry`).
 
 ![IP blocklists](../images/manual/ipblock.png)

@@ -2,7 +2,7 @@
 
 ## Wie lange Daten bleiben
 
-*Mail & Quarantäne › Datenschutz & Compliance › Speicherung & Datenschutz* zeigt für jede Datenart, wie lange sie bleibt und wo das eingestellt
+*Sicherheit & Datenschutz › Datenschutz & Compliance › Speicherung & Datenschutz* zeigt für jede Datenart, wie lange sie bleibt und wo das eingestellt
 wird.
 
 ![Datenschutz & Compliance](../images/manual/privacy.de.png)

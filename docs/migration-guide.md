@@ -6,6 +6,11 @@ Deutsch: [migration-guide.de.md](migration-guide.de.md).
 
 **There is no automatic way back.** The only way back is a VM snapshot (or a full image) taken right before the migration.
 
+**From 6.0.0.6.3 the attachment settings taken over from eFa 5 really apply.** Mail with a hidden file name (over 150
+characters, a CLSID `{...}`, ten or more spaces in a row) is then rejected, as are dangerous endings and programs found by
+their content. To mark such mail as spam instead: *Protection > Viruses, attachments & links > Attachments*, set *Dangerous endings* and
+*Hiding file names* to *Mark as spam* (or `efactl attachment-set --mode on --action mark --names mark`).
+
 ## 1. Requirements
 
 - **eFa 5.0.x** on **AlmaLinux 9, Rocky Linux 9 or RHEL 9** (x86-64). Older versions (eFa 4 and before) are not supported.

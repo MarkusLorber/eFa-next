@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import threading
+import time
 import unittest
 
 TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +50,8 @@ class Hammer:
         while not self.stop.is_set():
             n += 1
             self.write(os.path.join(self.folder, name), {'n': n, 'pad': 'x' * (n % 4096)})
+            # A gap between the shared locks of the two writers: else the exclusive lock of tar never gets one on a slow host.
+            time.sleep(0.002)
 
     def __enter__(self):
         for thread in self.threads:

@@ -44,15 +44,22 @@ class CheckOs(unittest.TestCase):
             return done.returncode, done.stdout.strip()
 
     def test_matrix(self):
-        for os_id, version in (('almalinux', '9.8'), ('rocky', '9.6'), ('rhel', '9.6'), ('centos', '9'), ('almalinux', '10.2')):
+        for os_id, version in (('almalinux', '9.8'), ('rocky', '9.6'), ('rhel', '9.6'), ('centos', '9'), ('almalinux', '10.2'), ('rocky', '10.0'), ('rhel', '10.1')):
             code, out = self.run_check(os_id, version)
             self.assertEqual(code, 0, (os_id, version, out))
         for os_id, version, reason in (('almalinux', '8.10', 'unsupported version'), ('almalinux', '11.0', 'unsupported version'),
-                                       ('rhel', '10.1', 'RHEL 10: not tested yet'), ('rocky', '10.0', 'rocky 10: not supported'),
                                        ('centos', '10', 'centos 10: not supported'), ('debian', '12', 'unsupported OS')):
             code, out = self.run_check(os_id, version)
             self.assertNotEqual(code, 0, (os_id, version))
             self.assertIn(reason, out, (os_id, version))
+
+    def test_crb_per_distribution(self):
+        # G7-4: RHEL names its CRB codeready-builder-for-rhel-<major>-<arch>-rpms (subscription-manager); AlmaLinux and Rocky crb.
+        with open(BUILD, encoding='utf-8') as f:
+            text = f.read()
+        self.assertIn('subscription-manager repos --enable "codeready-builder-for-rhel-$EL_MAJOR-$(arch)-rpms"', text)
+        self.assertIn('dnf config-manager --set-enabled crb', text)
+        self.assertIn('epel-release-latest-$EL_MAJOR.noarch.rpm', text)
 
     def test_repositories_per_release(self):
         _code, el9 = self.run_check('almalinux', '9.8')

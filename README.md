@@ -21,11 +21,12 @@ that use ([DISCLAIMER.md](DISCLAIMER.md)); the rights under the AGPL are not aff
 
 ## Requirements
 
-- Version 9 or 10 (EL9/EL10) of AlmaLinux, Rocky Linux, CentOS Stream or RHEL, freshly installed (minimal is enough). Tested on
-  AlmaLinux 9 and 10; on EL10 the installer takes AlmaLinux 10, RHEL 10 and Rocky Linux 10 are refused for now. From 6.0.0.6 an
-  EL9 host switches to EL10 with the release upgrade.
-- Release upgrade from AlmaLinux 9 to 10 (System, Maintenance & update): built into 6.0.0.6, it can start once the signed EL10
-  repository of eFa-next exists; until then its preflight stops at that check. See [docs/release-upgrade.md](docs/release-upgrade.md).
+- A freshly installed host (minimal is enough) with EL9: AlmaLinux 9, Rocky Linux 9, CentOS Stream 9 or RHEL 9; or with EL10:
+  AlmaLinux 10, Rocky Linux 10 or RHEL 10 (Rocky Linux and RHEL 10 not yet tested on a real host, and without OVAL security
+  advisories, which these two do not publish yet; CentOS Stream 10 and others are refused, the installer checks this). Tested on
+  AlmaLinux 9 and 10.
+- Release upgrade from AlmaLinux 9 to 10 (System, Maintenance & update): in eFa-next since 6.0.0.6, with the signed EL10
+  repository of eFa-next; AlmaLinux only. See [docs/release-upgrade.md](docs/release-upgrade.md).
 - A fixed IP address and a host name in DNS with a matching PTR record; access to the package repositories over HTTPS.
 - From 2 CPUs and 4 GB RAM for up to 50,000 mails a day; sizes for more in [docs/install.md](docs/install.md).
 

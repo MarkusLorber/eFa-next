@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next GeoIP files (DB-IP Lite, only when GeoIP is on)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Off, the job only removes the files and asks nobody; on, it fetches at most two files a month.
+SuccessExitStatus=SIGTERM
+ExecStart=/usr/sbin/efactl geoip-run

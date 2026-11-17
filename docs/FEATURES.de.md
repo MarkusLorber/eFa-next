@@ -167,7 +167,7 @@ eFa-next oder zum Betriebssystem gehören. Er stoppt oder entfernt sie nie.
 - Suche nur in der Weboberfläche, nicht im Textmenü efa-tui (geplant für 6.0.0.7).
 - Notfallzugriff ohne ZIP/MBOX-Export je Postfach (geplant für 6.0.0.7).
 - DKIM- und ARC-Schlüssel bleiben Software-Schlüssel; das Hardware-Modul hält nur Backup-Signatur und S/MIME-Schlüssel (geplant für 6.0.0.7).
-- Das Release-Upgrade von AlmaLinux 9 auf 10 ist gebaut, startet aber erst, wenn die signierte EL10-Paketquelle von eFa-next existiert; AlmaLinux 10 selbst ist noch nicht getestet. [Release-Upgrade](release-upgrade.md)
+- Auf EL10 Neuinstallationen auf AlmaLinux 10, Rocky Linux 10 und RHEL 10; Rocky Linux und RHEL 10 sind noch nicht auf einem echten Host getestet und haben noch keine OVAL-Sicherheitsmeldungen (die CVE-Wache zeigt das an). Das Release-Upgrade von AlmaLinux 9 auf 10 läuft seit 6.0.0.6 mit der signierten EL10-Paketquelle (nur AlmaLinux). [Release-Upgrade](release-upgrade.md)
 - Die Sendegrenzen übernommener Konten zählen je Knoten, nicht über den Cluster.
 - Single Sign-on (OIDC) ist noch nicht gegen einen echten Anbieter getestet; das ARC-Siegel nach dem Entschärfen noch nicht gegen einen fremden ARC-Prüfer.
 - Zusätzliche Uplinks je Absenderdomain ohne Ausfallumschaltung.

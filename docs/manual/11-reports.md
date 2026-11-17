@@ -14,6 +14,11 @@ mails in and out, spam, viruses, rejects, the top senders and recipients, each r
 - **Reports by mail:** the daily report and the weekly report (on Mondays) to the admin; tenant admins with an address get the
   report of their tenant. With *Also as PDF attachment* the mail carries the report as PDF too.
 - **Daily mail:** a short mail about yesterday.
+- **Mail history:** a calendar of one month with the mails, spam, viruses and rejects of each day, and a course over the last
+  30, 90 or 365 days as a small picture drawn by the server (no script library). A click on a day opens the advanced mail search
+  for that day. Tenant admins see only their domains. The numbers of past days are counted once a day by the hourly job into the
+  small table `maillog_daily` (day, own domain, counts; no addresses), today comes live from the mail log; they follow the
+  retention of the mail log, also the own days of a tenant. A mail between two domains of one tenant counts for both.
 
 ```bash
 sudo efactl report-show --period week --format pdf   # the PDF base64-encoded in the answer; the web page downloads it
@@ -21,6 +26,29 @@ sudo efactl report-set --daily on --weekly on --pdf on
 ```
 
 The PDF is made by eFa-next itself (A4, page numbers), without an extra library.
+
+## GeoIP: country and network
+
+*Monitoring & reports › Mail report › GeoIP* (expert view) shows the country and the network (ASN) of the servers that send
+mail, from local files of **DB-IP Lite** (licence CC BY 4.0). It is **off by default**. Switched on (with the terms confirmed
+once, super admin only), this server downloads the country file and the network file of the month from download.db-ip.com,
+checks the size, the format and a test lookup, and only then replaces the old file. A daily timer looks once a day and fetches at
+most two files a month. Every lookup happens on this server: no address of a mail is sent anywhere. Off removes the files.
+
+- **Mail log and mail details:** the country and network under the IP address, in the overview of a mail and for each hop of
+  *Path over the servers*. Private addresses have no country.
+- **Countries of the delivering servers:** mails, spam and rejects per country over the last 7, 30, 90 or 365 days, for the
+  domains you may see.
+- The credit *IP geolocation by DB-IP (db-ip.com), CC BY 4.0* stands under every table with countries.
+- **Without internet:** the files come with the signed offline bundle (System › Offline operation), or by hand with
+  `geoip-import`. In a cluster each host with GeoIP on fetches its own files.
+
+```bash
+sudo efactl geoip-set --mode on --accept_terms yes
+sudo efactl geoip-lookup --ip 81.200.1.1
+sudo efactl geoip-report --days 30
+sudo efactl geoip-import --kind country --file /var/tmp/dbip-country-lite-2026-11.mmdb.gz
+```
 
 ## Monitoring
 
@@ -31,13 +59,13 @@ The PDF is made by eFa-next itself (A4, page numbers), without an extra library.
 - **OTLP:** events, mail log and metrics to an OpenTelemetry collector over HTTPS, with a bearer token or an API key, a disk
   buffer and retries.
 - **Prometheus:** reads `https://<host>/metrics` with an API token. Switch on the REST API and make the token under
-  *Users › API tokens*.
+  *Users › API tokens*. On a host with swap, `efa_swap_used_percent` gives its share in use.
 
 ![Monitoring](../images/manual/export.png)
 
 ## Wazuh
 
-*Monitoring & reports › Wazuh* installs, connects, updates and removes the Wazuh agent. An agent that someone else installed
+*Monitoring & reports › Monitoring › Wazuh agent* installs, connects, updates and removes the Wazuh agent. An agent that someone else installed
 is only read; `efactl wazuh-config --adopt yes --confirm yes` takes it over without changing its files. Details:
 [WAZUH.md](../WAZUH.md).
 

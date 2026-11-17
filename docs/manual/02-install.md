@@ -3,7 +3,13 @@
 ## Requirements
 
 - **Operating system:** a fresh, minimal AlmaLinux 9, Rocky Linux 9, CentOS Stream 9 or RHEL 9 (tested on AlmaLinux 9).
-  AlmaLinux 10 is accepted but not tested yet; RHEL 10 and Rocky Linux 10 are refused until they are tested.
+  Version 10 of AlmaLinux, Rocky Linux and RHEL is accepted too; Rocky Linux 10 and RHEL 10 are not yet tested on a real host
+  (RHEL needs a registered system). CentOS Stream 10 is refused. The release upgrade 9 → 10 is for AlmaLinux only so far.
+- **VirtualBox and the EL10 kernel 6.12.0-211.74.x:** under VirtualBox 7.2 this kernel freezes early at boot, the last line on
+  the console is `evm: HMAC attrs: 0x1`, and the host never gets a network. Kernel 6.12.0-211.7.3 boots. Choose the older
+  kernel in the GRUB menu, then keep it as the default until a fixed kernel comes:
+  `grubby --set-default /boot/vmlinuz-6.12.0-211.7.3.el10_2.x86_64`. Other hypervisors and real servers are not affected
+  as far as known.
 - **Network:** a fixed IP address, a host name in DNS with a matching PTR record, HTTPS access to the package repositories.
 - **Size** (load test on 4 CPUs and 7.5 GB RAM: about 2,700 mails per minute through all filters):
 
@@ -86,7 +92,7 @@ The wizard starts in English (the link at the top switches to German) and goes t
 
 The host then sets itself up and reboots. When it gets a new address, the page shows it and opens it once it answers.
 
-**Re-Setup** asks the same questions later for the running system: *Users & access › Security › Setup variant*, the address
+**Re-Setup** asks the same questions later for the running system: *Security & privacy › Security › Setup variant*, the address
 `/resetup`, or `sudo efactl resetup`. It shows old and new values, makes a backup and only ever raises settings. Manual to
 guided is free; guided to manual needs password and 2FA code, and 2FA stays on.
 

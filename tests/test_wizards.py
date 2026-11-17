@@ -500,7 +500,7 @@ class HardeningWizardTests(unittest.TestCase):
         self.assertNotIn('id="wizard"', found)
 
     def test_link_on_the_security_page(self):
-        self.schema['firewall-show'] = SCHEMA['firewall-show']
+        self.schema['security-status'] = SCHEMA['security-status']
         reply = self.client.get('/p/sec', **self.https)
         self.assertIn('/p/standards#wizard', reply.get_data(as_text=True))
 

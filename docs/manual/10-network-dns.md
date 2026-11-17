@@ -1,17 +1,17 @@
 # 10. Network, DNS and certificate
 
-The pages *System › Network & certificate* and *System › DNS resolver for other networks*.
+The pages *System › Network, DNS & certificate* and *System › DNS resolver for other networks*.
 
 ## Network
 
-*Network & certificate › Main interface*: host name, IPv4 (manual or automatic) and IPv6 (auto, manual, ignore or disabled; the page
+*Network, DNS & certificate › Main interface*: host name, IPv4 (manual or automatic) and IPv6 (auto, manual, ignore or disabled; the page
 shows the IPv6 in effect). A change of the address applies after a reboot.
 
 *More interfaces* adds interfaces with a role (for example a separate admin or backup network) and their routes. Like the
 firewall, an interface change waits for *Confirm* and is taken back without it. Details: [interfaces.md](../interfaces.md),
 [network.md](../network.md).
 
-![Network & certificate](../images/manual/net.png)
+![Network, DNS & certificate](../images/manual/net.png)
 
 ## DNS: the own resolver
 

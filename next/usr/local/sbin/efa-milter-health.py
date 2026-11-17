@@ -36,6 +36,12 @@ MAIN_CF = '/etc/postfix/main.cf'
 TEMPFAIL_FILE = os.environ.get('EFA_MILTER_TEMPFAIL', '/etc/eFa/milter-health.json')
 state = {}
 checked_at = 0
+# This service starts before postfix: in the first minutes after its start (the boot) a DOWN is the start order, not a fault.
+# Only what is still down after BOOT_GRACE is logged, once (2026-11-17: every boot logged all services DOWN at CRIT).
+BOOT_GRACE = 120
+STARTED = time.monotonic()
+logged = {}
+seen_skipped = set()
 ports_cache = (None, [])
 tempfail_cache = {'mtime': None, 'ports': frozenset()}
 
@@ -136,11 +142,31 @@ def check_once():
     active = services_active(list(SERVICES) + extras)
     new.update({f'service:{s}': active[s] for s in SERVICES})
     new.update({f'extra:{s}': active[s] for s in extras})
-    new.update({f'unit:{u}': False for u in broken_units()})
-    for name, ok in new.items():
-        if state.get(name, True) != ok:
-            syslog.syslog(syslog.LOG_INFO if ok else syslog.LOG_CRIT, f'{name} {"recovered" if ok else "DOWN"}')
+    # efa-web "skipped" for a left wizard folder: only when the previous check saw it too. At the end of the first boot the
+    # wizard stops (its folder goes) and efa-web starts right after: one check in between was an attack alert (2026-11-17).
+    new.update({f'unit:{u}': False for u in confirmed(broken_units())})
+    for name, line in transitions(new, time.monotonic() - STARTED):
+        syslog.syslog(syslog.LOG_INFO if new[name] else syslog.LOG_CRIT, line)
     state, checked_at = new, time.time()
+
+
+def confirmed(units):
+    """The broken units, a skipped one only when the check before saw it too (seen_skipped keeps the last check)."""
+    skipped = {unit for unit in units if '(skipped' in unit}
+    shown = [unit for unit in units if unit not in skipped or unit in seen_skipped]
+    seen_skipped.clear()
+    seen_skipped.update(skipped)
+    return shown
+
+
+def transitions(new, running_for):
+    """[(name, log line)] of the changes against what was logged last; no DOWN within BOOT_GRACE of the start."""
+    lines = []
+    for name, ok in new.items():
+        if ok != logged.get(name, True) and (ok or running_for >= BOOT_GRACE):
+            logged[name] = ok
+            lines.append((name, f'{name} {"recovered" if ok else "DOWN"}'))
+    return lines
 
 
 def monitor():
@@ -254,6 +280,20 @@ def self_test():
             f.write('broken')
         tempfail_cache['mtime'] = None
         assert tempfail_ports() == frozenset(), 'a broken file never turns mail away'
+    # The boot: nothing DOWN in the grace time, what stays down after it once, a recovery once; one only up in the grace: silent.
+    logged.clear()
+    assert transitions({'service:postfix': False, 'milter:11332': False}, 5) == []
+    assert transitions({'service:postfix': True, 'milter:11332': False}, 60) == []
+    assert transitions({'service:postfix': True, 'milter:11332': False}, BOOT_GRACE) == [('milter:11332', 'milter:11332 DOWN')]
+    assert transitions({'service:postfix': True, 'milter:11332': False}, BOOT_GRACE + 10) == [], 'once'
+    assert transitions({'service:postfix': True, 'milter:11332': True}, BOOT_GRACE + 20) == [('milter:11332', 'milter:11332 recovered')]
+    assert transitions({'service:postfix': False, 'milter:11332': True}, 9999) == [('service:postfix', 'service:postfix DOWN')]
+    logged.clear()
+    # The end of the first boot: efa-web skipped in one check only is not shown; in two checks in a row it is.
+    web = 'efa-web.service (skipped: /run/efa-init left without the wizard)'
+    assert confirmed([web, 'efa-cdr.service']) == ['efa-cdr.service'] and confirmed([]) == [] and confirmed([web]) == []
+    assert confirmed([web]) == [web], 'still there at the next check'
+    seen_skipped.clear()
     print('self-test ok')
 
 

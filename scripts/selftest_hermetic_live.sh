@@ -12,7 +12,11 @@ for i in $(seq 120); do
     sleep 1
 done
 sleep 2
-guard=$(systemctl show -p ExecMainStartTimestampMonotonic --value efa-floor-guard.service)
+# The units of the host that write a checked file on their own timer (2026-11-17: the hourly efa-autoupdate wrote autoupdate.json
+# in the window): their last start before the self-test.
+HOST_WRITERS='/var/lib/eFa/floor-guard.json:efa-floor-guard.service /etc/eFa/autoupdate.json:efa-autoupdate.service'
+before=''
+for pair in $HOST_WRITERS; do before="$before ${pair#*:}=$(systemctl show -p ExecMainStartTimestampMonotonic --value "${pair#*:}")"; done
 marker=$(mktemp)
 trap 'rm -f "$marker"' EXIT
 cdr=$(systemctl show -p InvocationID --value efa-cdr)
@@ -24,11 +28,16 @@ changed=$( { find /etc /var/spool/efa-quarantine -xdev -newer "$marker" ! -type 
             for f in standards-check.json rspamd-modules.json daily-notices.json floor-guard.json mailreport/tls-port25.json freshclam-off-in-cluster; do
                 [ ! -e "/var/lib/eFa/$f" ] || [ ! "/var/lib/eFa/$f" -nt "$marker" ] || echo "/var/lib/eFa/$f"
             done; } | head -20)
-# floor-guard.json counts as written by the host only when efa-floor-guard.service ran in the window of the self-test.
-if echo "$changed" | grep -qx /var/lib/eFa/floor-guard.json && [ "$(systemctl show -p ExecMainStartTimestampMonotonic --value efa-floor-guard.service)" != "$guard" ]; then
-    echo "/var/lib/eFa/floor-guard.json: host unit (efa-floor-guard.service ran in the window), not self-test"
-    changed=$(echo "$changed" | grep -vx /var/lib/eFa/floor-guard.json || :)
-fi
+# Such a file counts as written by the host only when its unit started in the window of the self-test.
+for pair in $HOST_WRITERS; do
+    file=${pair%%:*} unit=${pair#*:}
+    now="$unit=$(systemctl show -p ExecMainStartTimestampMonotonic --value "$unit")"
+    case "$before " in *" $now "*) ran=no ;; *) ran=yes ;; esac
+    if [ $ran = yes ] && echo "$changed" | grep -qx "$file"; then
+        echo "$file: host unit ($unit ran in the window), not self-test"
+        changed=$(echo "$changed" | grep -vx "$file" || :)
+    fi
+done
 [ -z "$changed" ] || { echo "the self-test changed files of the host:"; echo "$changed"; exit 1; }
 [ "$(systemctl show -p InvocationID --value efa-cdr)" = "$cdr" ] || { echo "the self-test restarted efa-cdr"; exit 1; }
 [ "$(systemctl is-enabled clamav-freshclam 2>/dev/null || :)" = "$fresh" ] || { echo "the self-test switched freshclam"; exit 1; }

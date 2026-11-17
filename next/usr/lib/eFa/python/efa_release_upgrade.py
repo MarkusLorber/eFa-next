@@ -68,6 +68,9 @@ def distribution_problem(source_id, registered=None):
         if registered is not True:
             return 'RHEL 9 → 10 needs a registered system (subscription-manager status)'
         return None
+    if source_id == 'rocky':
+        # G7-4: Rocky Linux 10 installs fresh; the way 9 -> 10 (ELevate of Rocky) waits for a real run.
+        return 'Rocky Linux 9 → 10: noch nicht getestet; eine Neuinstallation von Rocky Linux 10 geht'
     return f'{source_id or "unknown distribution"}: nicht unterstützt'
 
 
@@ -1069,7 +1072,7 @@ def self_test():
     # S23: the distribution stays; only AlmaLinux goes ahead today.
     assert os_id('NAME="Rocky Linux"\nID="rocky"\nVERSION_ID="9.6"\n') == 'rocky' and os_id('ID=rhel\n') == 'rhel' and os_id('') == ''
     assert distribution_problem('almalinux') is None and 'nicht getestet' in distribution_problem('rhel', True)
-    assert 'nicht unterstützt' in distribution_problem('rocky') and 'nicht unterstützt' in distribution_problem('centos')
+    assert 'noch nicht getestet' in distribution_problem('rocky') and 'nicht unterstützt' in distribution_problem('centos')
     assert upgrade_packages('almalinux') == (ELEVATE_RELEASE, ELEVATE_PACKAGES) and 'leapp-data-almalinux' not in upgrade_packages('rhel')[1]
     for other in ('rhel', 'rocky', 'centos'):
         assert not preflight({**facts, 'os_release': f'ID="{other}"\nVERSION_ID="9.6"\n'})['ready'], other

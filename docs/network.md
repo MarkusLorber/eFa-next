@@ -1,6 +1,6 @@
 # More network interfaces
 
-The interface of the default route is set during the installation and on the page *Network & certificate*; eFa-next never
+The interface of the default route is set during the installation and on the page *Network, DNS & certificate*; eFa-next never
 changes it from here. Every other ethernet interface gets a role (*Network → More interfaces*, `efactl interface-set`):
 
 | Role | Firewall zone | What it is for |

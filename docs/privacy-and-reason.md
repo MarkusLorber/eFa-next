@@ -37,7 +37,7 @@ short. A new install pseudonymises after 14 days; after an upgrade it is off unt
 
 ## Tracking protection (M1)
 
-`efactl tracking-set --mode on [--domain d | --tenant t]` (Spam & virus, Tracking protection) takes tracking out of incoming
+`efactl tracking-set --mode on [--domain d | --tenant t]` (Viruses, attachments & links, Tracking protection) takes tracking out of incoming
 mail. The content milter does it after the DKIM and ARC checks, before the link check, so wrapped links carry no tracking
 either:
 

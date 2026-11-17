@@ -95,6 +95,9 @@ class PackagingTests(unittest.TestCase):
         with open(os.path.join(TOP, "rpm", "eFa.spec"), encoding="utf-8") as fh:
             spec = fh.read()
         self.assertIn("Requires:       eFa-next-base = 1:%{version}-%{release}", spec)
+        # 2026-11-17: content disarm on after the first boot at any time: qpdf comes with the package, not in the package window.
+        self.assertRegex(spec, r"(?m)^Requires:\s+qpdf$")
+        self.assertNotRegex(spec, r"(?m)^Suggests:\s+qpdf")
         # The packages replace eFa and eFa-base of 6.0.0.4; without the epoch 1:6.0.0.4 of eFa-base is not older.
         self.assertIn("Obsoletes:      eFa < 6.0.0.4.1", spec)
         with open(os.path.join(TOP, "rpm", "eFa-base.spec"), encoding="utf-8") as fh:

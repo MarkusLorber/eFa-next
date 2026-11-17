@@ -6,7 +6,9 @@ text that was confirmed, the frameworks with what each one raises, and the plan 
 Pure logic: efa-init.py, efactl and efa-web.py use it. English is the source, the German texts are in the catalog (de.po)."""
 import hashlib
 import html
+import os
 import re
+import stat
 import time
 
 import efa_harden
@@ -65,6 +67,8 @@ STANDARDS_TEXT = ('Choose the standards this server should meet. The setup sets 
                   'operating system and the switches of eFa-next. Port 25 stays opportunistic. None chosen: the defaults of eFa-next stay.')
 SSH_LATER = ('SSH profile BSI: not set by the setup. Set it later in the hardening wizard (Security standards) and log in again over SSH '
              'within 10 minutes to confirm it.')
+WEB_CERT_LATER = ("Own ECDSA certificate of the web interface: only from Let's Encrypt, with the e-mail and the accepted terms of the "
+                  "step Let's Encrypt; without them, or if Let's Encrypt fails, the self-signed certificate stays (later: Security standards).")
 
 # Raises: admin_2fa (2FA required for every admin role), audit_days (keep the audit log at least so long), tls (the TLS profiles
 # that count; any other becomes bsi), security_daily (security self check every day). A framework without a setting of its own
@@ -112,7 +116,7 @@ def all_texts():
     """The texts to translate, for scripts/i18n_extract.py."""
     found = [NOTICE_TITLE, *NOTICE, NOTICE_CONFIRM, VARIANT_TITLE, EULINK_TITLE, EULINK_TEXT, EULINK_YES, NOEU_TITLE, *NOEU, NOEU_CONFIRM,
              NOEU_TYPE, FRAMEWORKS_TITLE, FRAMEWORKS_TEXT, FRAMEWORKS_OTHER, TOTP_TITLE, TOTP_TEXT, NONBINDING, *GROUPS, 'Yes', 'No',
-             STANDARDS_TEXT, SSH_LATER]
+             STANDARDS_TEXT, SSH_LATER, WEB_CERT_LATER, 'Web certificate', *efa_harden.SETUP_SKIP_HINTS.values()]
     for title, text in VARIANT_TEXT.values():
         found += [title, text]
     found += [item[3] for item in FRAMEWORKS.values() if item[3]]
@@ -268,7 +272,11 @@ def standards_html(tr, chosen=(), titles=None):
     for group, ids in efa_harden.GROUPS:
         chips = ''.join(f'<label title="{html.escape(tr(efa_harden.SUMMARY[sid]))}"><input type="checkbox" name="standards" value="{sid}"'
                         f'{" checked" if sid in chosen else ""}> {html.escape(titles.get(sid, sid))}</label>' for sid in ids)
-        groups += f'<fieldset><legend>{html.escape(tr(group))}</legend>{chips}</fieldset>'
+        # Short, at the group of the standards it concerns, made from SETUP_SKIP: what the setup leaves for later.
+        later = {key: [titles.get(sid, sid).split(' (')[0] for sid in ids if key in efa_harden.setup_skipped(sid)] for key in sorted(efa_harden.SETUP_SKIP)}
+        hints = ''.join(f'<p class="help setup-later">{html.escape(", ".join(names))}: {html.escape(tr(efa_harden.SETUP_SKIP_HINTS[key]))}</p>'
+                        for key, names in later.items() if names)
+        groups += f'<fieldset><legend>{html.escape(tr(group))}</legend>{chips}{hints}</fieldset>'
     mapped = ''.join(f'<li>{html.escape(FRAMEWORKS[key][0])}: {html.escape(", ".join(titles.get(sid, sid) for sid in ids))}</li>'
                      for key, ids in efa_harden.FRAMEWORK_STANDARDS.items())
     return (f'<h2>{html.escape(tr("Security standards"))}</h2><p>{html.escape(tr(STANDARDS_TEXT))}</p><div class="chips">{groups}</div>'
@@ -287,7 +295,31 @@ def standards_summary(tr, chosen, titles=None):
             for sid in efa_harden.clean(chosen)]
     if 'ssh-profile' in efa_harden.plan_for(chosen)['os']:
         rows.append(('SSH', tr(SSH_LATER)))
+    if 'web-ecdsa' in efa_harden.plan_for(chosen)['efa']:
+        rows.append((tr('Web certificate'), tr(WEB_CERT_LATER)))
     return rows
+
+
+# Development hosts only: an admin creates this file by hand (root:root, not writable for others); then the setup wizard opens without
+# the code and the web interface shows the host name in red. No eFa-next code ever creates it.
+DEV_FLAG = '/etc/eFa/dev-no-setup-code'
+
+
+def dev_flag_problem(path=None):
+    """None when the flag counts, else why not ('' when there is none). lstat: a symlink never counts."""
+    try:
+        info = os.lstat(path or DEV_FLAG)
+    except FileNotFoundError:
+        return ''
+    except OSError as err:
+        return f'not readable: {err.strerror}'
+    if not stat.S_ISREG(info.st_mode):
+        return 'not a regular file'
+    if info.st_uid != 0 or info.st_gid != 0:
+        return 'not owned by root:root'
+    if info.st_mode & 0o022:
+        return 'writable for group or others'
+    return None
 
 
 def self_test():
@@ -320,6 +352,11 @@ def self_test():
     assert page.count('required') == 7 and 'value="manual" required checked' in page and 'value="no" required checked' in page
     assert '<code>auf eigenes Risiko</code>' in page and 'value="nis2" checked' in page and 'value="dora">' in page and '&lt;x&gt;' in page
     assert page.count('<fieldset>') == len(GROUPS) and '<script' not in page
+    # The short lines of what the setup leaves for later: at the standards that ask for it, only there, one per item.
+    shown = standards_html(lambda text: text)
+    assert shown.count('class="help setup-later"') == len(efa_harden.SETUP_SKIP), shown
+    assert 'BSI TR-02102-4, CIS AlmaLinux OS 9/10: ' + html.escape(efa_harden.SETUP_SKIP_HINTS['ssh-profile']) in shown
+    assert 'Mozilla modern: ' + html.escape(efa_harden.SETUP_SKIP_HINTS['web-ecdsa']) in shown
     print('self-test ok')
 
 

@@ -152,7 +152,7 @@ def harden_args(values):
 
 
 # What the wizard does not change, for the open findings of the last check of the chosen standards: (start of the setting, where).
-UNTOUCHED = [('certificate', 'Network & certificate page: a certificate with ECC or RSA 3072.'), ('DKIM keys', 'DKIM wizard: new keys with RSA 3072 or 4096.'),
+UNTOUCHED = [('certificate', 'Network, DNS & certificate page: a certificate with ECC or RSA 3072.'), ('DKIM keys', 'DKIM wizard: new keys with RSA 3072 or 4096.'),
              ('DANE incoming', 'DNS records and a mailbox: docs/dmarc-dane-mta-sts.md.'), ('TLS-RPT', 'DNS records and a mailbox: docs/dmarc-dane-mta-sts.md.'),
              ('MTA-STS', 'DNS records and a mailbox: docs/dmarc-dane-mta-sts.md.'), ('HSTS', 'Set in the web server of eFa-next; see the check.'),
              ('sshd permitrootlogin', 'Security page: root login through SSH.')]

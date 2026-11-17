@@ -1,6 +1,6 @@
 # Own blocks: file hashes and YARA
 
-Under Spam & virus, Own blocks (M5). Empty after an install and an upgrade.
+Under Viruses, attachments & links, Own blocks (M5). Empty after an install and an upgrade.
 
 Every entry, a file hash or a YARA rule, has its scope: **only this tenant** (the default for a new entry) or **for all
 tenants**. Tenant admins (permission `security.rules`) make entries for their own tenant only. Only a super admin, or a login

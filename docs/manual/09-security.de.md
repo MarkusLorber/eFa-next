@@ -1,6 +1,6 @@
 # 9. Sicherheit und Sicherheitsstandards
 
-Die Seiten *Benutzer & Zugriff › Sicherheitsstandards* und *Benutzer & Zugriff › Sicherheit*.
+Die Seiten *Sicherheit & Datenschutz › Sicherheitsstandards*, *Sicherheit & Datenschutz › Sicherheit* und *Sicherheit & Datenschutz › Firewall*.
 
 ## Sicherheitsstandards
 

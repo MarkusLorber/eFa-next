@@ -83,10 +83,16 @@ def bec_checks():
         raise StepError("efactl bec-set --mode on failed; switch it on in the web interface (Impersonation & BEC)")
 
 
+# Results of checks that ran while the setup installed packages and restarted services: a new host starts without them.
+STALE_STATE = ("/var/lib/eFa/os-check.json", "/var/lib/eFa/threat-state.json")
+
+
 def cleanup_setup():
     pl = c.platform()
     c.remove(P("sudoers_file"))
     c.remove(P("setup_dir"))
+    for path in STALE_STATE:
+        c.remove(path)
     wizard = pl.service("wizard")
     if pl.service_exists(wizard):
         pl.service_disable(wizard, stop=True)

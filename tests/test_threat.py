@@ -92,6 +92,28 @@ class Threat(unittest.TestCase):
         self.assertEqual(self.judge(ring, factor=0.5)['smtp_flood']['level'], 'alert')
         self.assertNotIn('smtp_flood', self.judge(ring, factor=2.0))
 
+    def test_a_service_down_counts_at_the_second_check(self):
+        """A restart (one check) is no alarm; a service still down a minute later is."""
+        state = {}
+        self.assertEqual(self.efactl.threat_down_confirmed(state, ['service:rspamd']), [])
+        self.assertEqual(self.efactl.threat_down_confirmed(state, []), [], 'back up: nothing')
+        self.assertEqual(self.efactl.threat_down_confirmed(state, ['service:rspamd']), [])
+        self.assertEqual(self.efactl.threat_down_confirmed(state, ['service:rspamd', 'service:nginx']), ['service:rspamd'])
+        self.assertEqual(state['down_before'], ['service:rspamd', 'service:nginx'])
+
+    def test_a_restart_loop_alarms_although_up_at_each_check(self):
+        """rspamd up at every check but restarted by systemd again and again: 3 restarts within 10 minutes is an alarm."""
+        state, flap = {}, self.efactl.threat_flapping
+        self.assertEqual(flap(state, {'rspamd': 0, 'nginx': 4}, 1000), [], 'old restarts of before the window do not count')
+        self.assertEqual(flap(state, {'rspamd': 2, 'nginx': 4}, 1060), [])
+        self.assertEqual(flap(state, {'rspamd': 3, 'nginx': 4}, 1120), ['service:rspamd (restarting)'])
+        self.assertEqual(flap(state, {'rspamd': 3, 'nginx': 4}, 1120 + self.efactl.THREAT_FLAP_WINDOW + 1), [], 'quiet for the window: over')
+        state = {}
+        flap(state, {'rspamd': 5}, 1000)
+        self.assertEqual(flap(state, {'rspamd': 0}, 1060), [], 'started by hand: the counter starts over')
+        self.assertEqual(flap(state, {'rspamd': 2}, 1120), [])
+        self.assertEqual(flap(state, {'rspamd': 3}, 1180), ['service:rspamd (restarting)'])
+
     def test_alert_holds_and_eases(self):
         state = {}
         alert = {'smtp_flood': {'level': 'alert', 'value': 900, 'normal': 20}}
@@ -103,6 +125,86 @@ class Threat(unittest.TestCase):
         self.assertTrue(state['active']['smtp_flood']['easing'])
         self.efactl.threat_track(state, {}, 1060 + self.efactl.THREAT_HOLD + 1)
         self.assertNotIn('smtp_flood', state['active'])
+
+    def test_no_checks_while_the_setup_runs(self):
+        """The restarts of the setup wizard are neither an attack alert nor a finding after a package update."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        with mock.patch.object(self.efactl, '_setup_running', lambda: True), \
+                mock.patch.object(self.efactl, 'THREAT_STATE', folder + '/state.json'), \
+                mock.patch.object(self.efactl, 'OS_CHECK_FILE', folder + '/os-check.json'):
+            self.assertIn('skipped', self.efactl.threat_run(None))
+            self.assertIn('skipped', self.efactl.os_check_run(None))
+            self.assertFalse(os.path.exists(folder + '/state.json') or os.path.exists(folder + '/os-check.json'), 'nothing kept')
+
+    def test_setup_counts_until_the_first_boot_is_done(self):
+        """2026-11-17, the real sequence: the package scripts restart efa-init (enabled, not active for a moment), then the setup
+        disables it and reboots, then the first boot runs. The checks wait through all of it, and only then run."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        marker = folder + '/firstboot-pending'
+        for enabled, active, pending, running in ((True, False, False, True), (True, True, False, True), (False, False, True, True),
+                                                  (False, False, False, False)):
+            platform = types.SimpleNamespace(service_is_enabled=lambda name, on=enabled: name == 'efa-init' and on,
+                                             service_is_active=lambda name, on=active: name == 'efa-init' and on)
+            if pending:
+                open(marker, 'w').close()
+            elif os.path.exists(marker):
+                os.unlink(marker)
+            with mock.patch.object(self.efactl, '_platform', lambda p=platform: p), mock.patch.object(self.efactl, 'FIRSTBOOT_PENDING', marker):
+                self.assertEqual(self.efactl._setup_running(), running, (enabled, active, pending))
+
+    def test_no_service_alert_while_the_host_boots(self):
+        """efa-web checks before clamd, unbound and nginx are up after a boot: no alert then, an alert once the host is up."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        down = {'down': ['service:clamd@scan', 'service:nginx']}
+        patches = [mock.patch.object(self.efactl, '_setup_running', lambda: False), mock.patch.object(self.efactl, 'status', lambda _a: down),
+                   mock.patch.object(self.efactl, 'THREAT_STATE', folder + '/state.json'),
+                   mock.patch.object(self.efactl, 'THREAT_FILE', folder + '/threat.json'),
+                   mock.patch.object(self.efactl, '_journal_since', lambda *a: []), mock.patch.object(self.efactl, 'threat_mail', lambda *a: (None, None)),
+                   mock.patch.object(self.efactl, 'threat_queue_size', lambda: 0), mock.patch.object(self.efactl, 'threat_resources', lambda: {}),
+                   mock.patch.object(self.efactl, '_platform', lambda: types.SimpleNamespace(tcp_counters=lambda: {}))]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        with mock.patch.object(self.efactl, '_uptime', lambda: 40):
+            self.assertEqual(self.efactl.threat_run(None)['level'], 'ok', 'starting services after a boot are no outage')
+        with mock.patch.object(self.efactl, '_uptime', lambda: self.efactl.THREAT_BOOT_GRACE + 1):
+            first = self.efactl.threat_run(None)
+            found = self.efactl.threat_run(None)
+        self.assertEqual(first['level'], 'ok', 'one check down is a restart, no alarm yet')
+        self.assertEqual([alert['kind'] for alert in found['alerts']], ['service_down'], 'still down at the next check: it alerts')
+
+    def test_first_boot_drops_the_results_of_the_setup(self):
+        """Results of checks from before the setup ended (a package check while the wizard waited) do not reach the new host."""
+        sys.path.insert(0, os.path.join(TOP, 'src', 'eFa', 'root', 'usr', 'lib', 'eFa', 'python'))
+        import efa_firstboot
+        self.assertIn('/var/lib/eFa/os-check.json', efa_firstboot.STALE_STATE)
+        self.assertIn(self.efactl.THREAT_STATE, efa_firstboot.STALE_STATE)
+        self.assertEqual(self.efactl.OS_CHECK_FILE, '/var/lib/eFa/os-check.json')
+
+    def test_main_admin_2fa_reset_on_the_console(self):
+        """user-2fa-reset @admin: on the console (no identity) it works, from the web interface never."""
+        queries, audited = [], []
+        with mock.patch.object(self.efactl, 'identity_now', None), mock.patch.object(self.efactl, '_cli_user', lambda: ''), \
+                mock.patch.object(self.efactl, '_admin_query', lambda *a: queries.append(a) or []), \
+                mock.patch.object(self.efactl, '_audit', audited.append), mock.patch.object(self.efactl, 'strict_record', lambda *a: None):
+            self.assertEqual(self.efactl.user_2fa_reset(types.SimpleNamespace(username='@admin')), {'reset': '@admin'})
+        self.assertEqual(queries, [('DELETE FROM user_totp WHERE username = %s', ('@admin',))])
+        self.assertTrue(audited and audited[0].startswith('2FA of @admin reset by'), audited)
+        with mock.patch.object(self.efactl, 'identity_now', {'username': 'anna', 'role': 'super'}), \
+                mock.patch.object(self.efactl, '_cli_user', lambda: ''):
+            with self.assertRaises(self.efactl.EfaError):
+                self.efactl.user_2fa_reset(types.SimpleNamespace(username='@admin'))
+            with self.assertRaises(self.efactl.EfaError):
+                self.efactl.user_2fa_reset(types.SimpleNamespace(username='anna'))
+        # The main admin logged in on the web: no --as, but always --client. Never its own 2FA through the web.
+        with mock.patch.object(self.efactl, 'identity_now', None), mock.patch.object(self.efactl, 'acting_client', '192.0.2.10'),                 mock.patch.object(self.efactl, '_cli_user', lambda: ''), mock.patch.object(self.efactl, '_admin_query', lambda *a: queries.append(a) or []):
+            queries.clear()
+            with self.assertRaises(self.efactl.EfaError):
+                self.efactl.user_2fa_reset(types.SimpleNamespace(username='@admin'))
+            self.assertEqual(queries, [], 'nothing deleted')
 
     def test_status_hides_addresses_from_tenant_admins(self):
         folder = tempfile.mkdtemp()

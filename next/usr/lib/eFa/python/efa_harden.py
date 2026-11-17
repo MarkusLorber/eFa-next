@@ -95,7 +95,28 @@ HINTS = {
 # Frameworks of the setup that lead to standards, only where the mapping is documented (docs/plan-hardening-wizard.md).
 FRAMEWORK_STANDARDS = {'bsi-grundschutz': ['bsi-02102-2'], 'bsi-tr02102': ['bsi-02102-1', 'bsi-02102-2', 'bsi-02102-4']}
 # The setup never sets these: the SSH profile needs a new SSH login within 10 minutes, nobody does that in the web installer.
-SETUP_SKIP = {'ssh-profile'}
+# The own ECDSA web certificate needs Let's Encrypt (a public name, port 80, an account with e-mail and accepted terms): the
+# setup has none of these, and its failure took the whole variant step back (2026-11-16, moz-modern on a .local host).
+SETUP_SKIP = {'ssh-profile', 'web-ecdsa'}
+# One short line per item of SETUP_SKIP, shown at the standards that ask for it on the page of the setup (Hans 2026-11-17).
+SETUP_SKIP_HINTS = {'ssh-profile': 'SSH profile: set later in the hardening wizard (confirm by SSH login).',
+                    'web-ecdsa': "Web certificate (ECDSA, Let's Encrypt): set up later."}
+
+
+def setup_skipped(sid):
+    """The items of SETUP_SKIP a standard asks for: the setup leaves them out."""
+    plan = plan_for([sid])
+    return [key for key in plan['os'] + plan['efa'] if key in SETUP_SKIP]
+# Names Let's Encrypt can never check (efactl acme_name_problem, the Let's Encrypt step of the setup wizard).
+NONPUBLIC_SUFFIXES = ('local', 'lan', 'internal', 'intranet', 'corp', 'home', 'localdomain', 'localhost', 'test', 'example',
+                      'invalid', 'arpa', 'private')
+
+
+def public_name(name):
+    """A full DNS name whose last label is not one of NONPUBLIC_SUFFIXES (no DNS lookup here)."""
+    name = (name or '').strip().lower().rstrip('.')
+    return bool(re.match(r'^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$', name)) \
+        and name.rsplit('.', 1)[1] not in NONPUBLIC_SUFFIXES
 TEXTS = ['Security standards', 'Choosing none removes no hardening; a standard only ever makes a setting stricter.', 'Leads to these standards:',
          'TLS profile', 'DANE for outgoing mail']
 STANDARDS_JSON = (os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'share', 'eFa', 'standards.json'),
@@ -143,7 +164,7 @@ def plan_for(selected, setup=False):
     """Every item the chosen standards ask for, the union of all: {'os': [...], 'efa': [...]}. setup leaves out SETUP_SKIP."""
     chosen = set(clean(selected))
     os_items = [key for key, item in OS_ITEMS.items() if item['asks'] & chosen and not (setup and key in SETUP_SKIP)]
-    return {'os': os_items, 'efa': [key for key, item in EFA_ITEMS.items() if item['asks'] & chosen]}
+    return {'os': os_items, 'efa': [key for key, item in EFA_ITEMS.items() if item['asks'] & chosen and not (setup and key in SETUP_SKIP)]}
 
 
 def from_frameworks(frameworks):
@@ -168,7 +189,14 @@ def self_test():
     assert 'crypto-future' not in plan_for(known())['os'], 'FUTURE only on purpose'
     assert 'ssh-profile' in plan_for(['bsi-02102-4'])['os'] and 'ssh-profile' not in plan_for(['bsi-02102-4'], setup=True)['os']
     assert plan_for(['bsi-03108']) == {'os': [], 'efa': ['tls-min', 'dane', 'submission-pam']}
+    assert 'web-ecdsa' in plan_for(['moz-modern'])['efa'] and 'web-ecdsa' not in plan_for(['moz-modern'], setup=True)['efa']
+    every = plan_for(known(), setup=True)
+    assert 'web-ecdsa' not in every['efa'] and 'ssh-profile' not in every['os'], "the setup never needs Let's Encrypt or a new SSH login"
     assert plan_for([]) == {'os': [], 'efa': []}, 'no standard: nothing changes'
+    assert set(SETUP_SKIP_HINTS) == SETUP_SKIP, 'every item the setup leaves out has its short line'
+    assert setup_skipped('bsi-02102-4') == ['ssh-profile'] and setup_skipped('moz-modern') == ['web-ecdsa'] and setup_skipped('rfc9325') == []
+    assert public_name('mx.example.org') and not public_name('efa-dev-test.efa-test.local') and not public_name('mx')
+    assert not public_name('mx.corp') and not public_name('a b.example.org') and not public_name('mx.example.org;id')
     assert items('auditd,sshd-cis', OS_ITEMS) == ['auditd', 'sshd-cis'] and items('auditd;rm', OS_ITEMS) is None and items('', OS_ITEMS) == []
     assert not any(key.lower() == 'permitrootlogin' for key, _value in SSHD_CIS)
     assert from_frameworks(['nis2', 'bsi-tr02102']) == ['bsi-02102-1', 'bsi-02102-2', 'bsi-02102-4'] and from_frameworks(['nis2']) == []

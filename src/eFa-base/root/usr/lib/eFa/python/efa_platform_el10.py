@@ -27,3 +27,11 @@ class EL10(EL9):
     VERSIONS = {"python": "3.12", "nginx": "1.26", "mariadb": "10.11", "postfix": "3.8"}
     SHA1_SIGNATURES = False
     MAP_TYPE = "lmdb"
+    # G7-4: the security advisories of the 10 releases (CVE watch). On 2026-11-15 only AlmaLinux publishes an OVAL file for 10:
+    # dl.rockylinux.org/pub/oval has 8 and 9 only, Red Hat's oval/v2 ends at RHEL9 (RHEL 10 is CSAF/VEX only). None means no
+    # feed: the CVE watch says so on the dashboard and in the security check, it is never silently blind (R7-1).
+    OVAL_SOURCES = {
+        "almalinux": "https://security.almalinux.org/oval/org.almalinux.alsa-10.xml.bz2",
+        "rocky": None,
+        "rhel": None,
+    }

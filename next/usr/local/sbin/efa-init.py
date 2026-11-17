@@ -31,6 +31,7 @@ from waitress import serve
 for folder in ('/usr/lib/eFa/python', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'lib', 'eFa', 'python')):
     if os.path.isdir(folder) and folder not in sys.path:
         sys.path.insert(0, folder)
+import efa_harden  # noqa: E402
 import efa_i18n  # noqa: E402
 import efa_pdf  # noqa: E402
 import efa_qr  # noqa: E402
@@ -224,7 +225,7 @@ STEPS = [
     {'slug': 'ntpservers', 'title': 'Time servers', 'help': 'The NTP servers this server sets its clock from, separated by commas; '
                                                             'the 2FA codes need the right time. Next sets the clock now.',
      'label': 'NTP servers', 'error': 'One to four host names or IP addresses, separated by commas.', 'normalize': ntp_servers_clean,
-     'check': bool, 'now': 'ntpservers'},
+     'check': bool, 'now': 'ntpservers', 'prefill': lambda now: ntp_prefill(now, answers.get('timezone', ''))},
     {'slug': 'mailserver', 'title': 'Mail server', 'help': 'The mail server of your domain that gets the filtered mail: its IP address or name.',
      'label': 'IP address or name', 'error': 'An IP address or a host name such as mail.example.com.', 'check': SERVER_RE.match},
     {'slug': 'mailserverdns', 'if': 'mailserverunresolved', 'title': 'DNS server for the mail server',
@@ -232,7 +233,76 @@ STEPS = [
              'that knows the name, or go back and enter the IP address of the mail server.',
      'label': 'Internal DNS server', 'error': 'An IP address of a DNS server that knows the name of the mail server.',
      'check': lambda v: '.' in answers['mailserver'] and (is_ip(4)(v) or is_ip(6)(v)) and resolves(answers['mailserver'], v)},
+    # Hans 2026-11-16: a chosen standard that wants the own web certificate (Mozilla modern) asks for the Let's Encrypt data, only
+    # for a public name and never on a development host with the dev flag. The setup asks once; a failure keeps the self-signed one.
+    {'slug': 'letsencrypt', 'when': lambda: le_offered(), 'title': "Let's Encrypt",
+     'help': "A chosen standard wants an own certificate for the web interface from Let's Encrypt. Let's Encrypt must reach this "
+             "server on port 80 under its name. No: the self-signed certificate stays; later under Security standards.",
+     'label': "Request a Let's Encrypt certificate for the web interface?", 'yesno': True, 'preflight': lambda: le_preflight(),
+     'error': "The name of this server does not resolve to a public address, so Let's Encrypt cannot reach it. Fix the DNS record "
+              "first, or choose No (the self-signed certificate stays)."},
+    {'slug': 'leemail', 'if': 'letsencrypt', 'when': lambda: le_offered(), 'title': "Let's Encrypt account",
+     'help': "Let's Encrypt sends notices about the certificate of this server to this address.",
+     'label': 'Email address', 'error': 'A mail address such as admin@example.com.', 'check': EMAIL_RE.match},
+    {'slug': 'leagree', 'if': 'letsencrypt', 'when': lambda: le_offered(), 'title': "Let's Encrypt terms",
+     'help': "The certificate is requested only if you accept the Let's Encrypt Subscriber Agreement: "
+             "https://letsencrypt.org/repository/",
+     'label': "I accept the Let's Encrypt Subscriber Agreement", 'yesno': True, 'require_yes': True,
+     'error': "Choose Yes to accept, or go back and choose No for Let's Encrypt."},
 ]
+LE_DEV_FLAG = '/etc/eFa/dev-no-setup-code'
+
+
+def le_offered():
+    """The Let's Encrypt steps: a chosen standard wants the own web certificate, the name is public, no dev flag on this host."""
+    fqdn = f"{answers.get('hostname', '')}.{answers.get('domainname', '')}"
+    return ('web-ecdsa' in efa_harden.plan_for(answers.get('standards') or [])['efa'] and not os.path.lexists(LE_DEV_FLAG)
+            and efa_harden.public_name(fqdn))
+
+
+def le_preflight(resolve=socket.getaddrinfo):
+    """True when the full name resolves to at least one public address (Let's Encrypt asks there on port 80)."""
+    try:
+        found = {item[4][0] for item in resolve(f"{answers['hostname']}.{answers['domainname']}", 80, proto=socket.IPPROTO_TCP)}
+    except (OSError, UnicodeError, KeyError):
+        return False
+    return any(ipaddress.ip_address(addr.split('%')[0]).is_global for addr in found)
+
+
+# Hans 2026-11-17: the time servers of the country of the server, from its time zone, offline (tzdata zone.tab, one country per
+# zone): Europe/Vienna gives at.pool.ntp.org. One name: chrony takes a name of the NTP pool as a pool line, which uses up to four
+# of its servers. No country: the continent, then the whole pool.
+ZONE_TAB = '/usr/share/zoneinfo/zone.tab'
+NTP_CONTINENTS = {'Europe': 'europe', 'Asia': 'asia', 'Africa': 'africa', 'Australia': 'oceania', 'Pacific': 'oceania'}
+# The pools of the distributions in their chrony.conf: what came with the OS, not what an admin chose.
+NTP_VENDOR_RE = re.compile(r'^\d*\.?(almalinux|rocky|rhel|centos|fedora|cloudlinux|oracle)\.pool\.ntp\.org$', re.I)
+
+
+def zone_country(zone, path=None):
+    """The ISO country code of a time zone in lower case, '' when tzdata names none."""
+    try:
+        with open(path or ZONE_TAB, encoding='utf-8') as f:
+            for line in f:
+                fields = line.split('\t')
+                if len(fields) >= 3 and not line.startswith('#') and fields[2].strip() == zone and re.match(r'^[A-Z]{2}$', fields[0]):
+                    return fields[0].lower()
+    except OSError:
+        pass
+    return ''
+
+
+def ntp_pool(zone, path=None):
+    country = zone_country(zone, path)
+    area = country or NTP_CONTINENTS.get(zone.split('/', 1)[0], '')
+    return f'{area}.pool.ntp.org' if area else 'pool.ntp.org'
+
+
+def ntp_prefill(now, zone, path=None):
+    """The value in effect wins (an admin set it, Re-Setup, a migration); the pool of the distribution is no choice."""
+    names = [name.strip() for name in now.split(',') if name.strip()]
+    if names and not all(NTP_VENDOR_RE.match(name) for name in names):
+        return now
+    return ntp_pool(zone, path)
 
 
 def system_now():
@@ -301,7 +371,8 @@ GROUPS = [('Server', ('hostname', 'domainname', 'email')),
           ('DNS', ('configrecursion', 'dns1', 'dns2')),
           ('Admins', ('webpassword', 'cliusername', 'clipassword', 'rootssh')),
           ('System', ('configvirtual', 'configutc', 'timezone', 'ntpservers')),
-          ('Mail server', ('mailserver', 'mailserverdns'))]
+          ('Mail server', ('mailserver', 'mailserverdns')),
+          ("Let's Encrypt", ('letsencrypt', 'leemail', 'leagree'))]
 GROUP_OF = {slug: group for group, slugs in GROUPS for slug in slugs}
 # Examples in the empty fields, and a pattern the browser checks while typing (the server checks again with the step's check).
 EXAMPLES = {'hostname': 'mx1', 'domainname': 'example.com', 'email': 'admin@example.com', 'ipv4address': '192.0.2.10',
@@ -373,7 +444,7 @@ PAGE = """<!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8"><ti
 {{ langpill|safe }}</header>
 <div class="card">{% if number %}<p class="step">{{ step_text }}</p><div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="{{ total }}" aria-valuenow="{{ number }}" aria-label="{{ step_text }}"><i style="width:{{ (100 * number / total)|round }}%"></i></div>
 <ol class="groups">{% for name, state in groups %}<li class="{{ state }}"{% if state == 'cur' %} aria-current="step"{% endif %}>{{ name }}</li>{% endfor %}</ol>{% endif %}
-{% if note %}<p class="ok" role="status">{{ note }}</p>{% endif %}{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{{ body|safe }}</div></main></body></html>"""
+{% if dev %}<p class="err" role="note">{{ dev }}</p>{% endif %}{% if note %}<p class="ok" role="status">{{ note }}</p>{% endif %}{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{{ body|safe }}{{ start_over|safe }}</div></main></body></html>"""
 
 
 def page(body, error=None, refresh=False, where=None, refresh_to=None):
@@ -400,7 +471,9 @@ def page(body, error=None, refresh=False, where=None, refresh_to=None):
                                   langpill=efa_style.lang_pill(session.get('lang', 'en'), tr('Language')),
                                   chips=efa_setup.CHIPS_CSS, number=number, total=total, groups=groups,
                                   title=re.sub('<[^>]+>', '', title.group(1)) if title else 'eFa-next',
-                                  step_text=tr('Step {number} of {total}').format(number=number, total=total), note=session.pop('note', None), suffix=tr('eFa-next setup'))
+                                  step_text=tr('Step {number} of {total}').format(number=number, total=total), note=session.pop('note', None), suffix=tr('eFa-next setup'),
+                                  dev=tr('Dev mode: setup code switched off - not for production') if setup['dev'] else None,
+                                  start_over=start_over_form())
 
 
 def actions(where, label='Next', link=None):
@@ -449,6 +522,9 @@ def protect():
     changed = wanted in efa_i18n.LANGUAGES and wanted != session.get('lang', 'en')
     if changed:
         session['lang'] = wanted
+    if setup['dev'] and session.get('setup') not in setup['unlocked']:
+        session['setup'] = secrets.token_urlsafe(32)
+        setup['unlocked'].add(session['setup'])
     if request.endpoint not in ('unlock', 'wizard_js') and session.get('setup') not in setup['unlocked']:
         return redirect(url_for('unlock'))
     if changed:
@@ -461,7 +537,10 @@ def protect():
 # Until the system is set up, anyone who reaches port 443 would reach this wizard: it opens only with the code on the console.
 SETUP_CODE_FILE = '/run/efa-init/setup-code'
 SETUP_TRIES = 10
-setup = {'code': None, 'failed': 0, 'unlocked': set()}
+setup = {'code': None, 'failed': 0, 'unlocked': set(), 'dev': False}
+# Development hosts only (efa_setup.DEV_FLAG): the wizard opens without the code and shows a red note on every page; efactl status and
+# security-check warn. No eFa-next code ever creates it.
+DEV_FLAG, dev_flag_problem = efa_setup.DEV_FLAG, efa_setup.dev_flag_problem
 
 
 def setup_code_write(path=SETUP_CODE_FILE):
@@ -474,6 +553,8 @@ def setup_code_write(path=SETUP_CODE_FILE):
 @app.route('/unlock', methods=['GET', 'POST'])
 def unlock():
     error = None
+    if setup['dev']:
+        return redirect(url_for('language'))
     if request.method == 'POST':
         given = request.form.get('code', '').strip().upper().replace(' ', '')
         if setup['failed'] >= SETUP_TRIES:
@@ -493,6 +574,13 @@ autocomplete="off"></label><button>{te('Next')}</button></form>""", error=error)
 
 
 WIZARD_JS = """'use strict';
+document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+  form.addEventListener('submit', function (event) {
+    var sure = form.querySelector('input[name=sure]');
+    if (sure.value === 'yes') { return; }
+    if (window.confirm(form.dataset.confirm)) { sure.value = 'yes'; } else { event.preventDefault(); }
+  });
+});
 document.querySelectorAll('[data-error]').forEach(function (field) {
   var shown = document.getElementById(field.getAttribute('aria-describedby'));
   var again = document.querySelector('input[name=repeat]');
@@ -565,6 +653,8 @@ def active_steps():
             continue
         if 'unless' in step and answers.get(step['unless']) == 'yes':
             continue
+        if 'when' in step and not step['when']():
+            continue
         result.append(step)
     return result
 
@@ -579,7 +669,11 @@ def validate(step, form):
     """(value, None), or (None, the message for a wrong entry), in English: the page translates it."""
     if step.get('yesno'):
         value = form.get('value', '')
-        return (value, None) if value in ('yes', 'no') else (None, step['error'])
+        if value not in ('yes', 'no') or (step.get('require_yes') and value != 'yes'):
+            return None, step['error']
+        if value == 'yes' and step.get('preflight') and not step['preflight']():
+            return None, step['error']
+        return value, None
     value = form.get('value', '').strip()
     if any(char in value for char in '\r\n\0'):
         # The answers go to efa-apply as KEY:value lines.
@@ -872,6 +966,8 @@ def step_form(current, error=None, typed=None):
     token = csrf_token()
     slug = current['slug']
     now = system_now().get(current.get('now', ''), '') if current.get('now') else ''
+    if current.get('prefill'):
+        now = current['prefill'](now)
     value = typed if typed is not None else answers.get(slug, now or current.get('default', ''))
     saved = '' if current.get('password') else str(escape(value))
     label = te(current['label'])
@@ -921,7 +1017,7 @@ def verify():
         # 5y: the digest of the legal texts that were confirmed with the box.
         answers['legal'] = legal_digest()
         if commit['state'] != 'running':
-            commit.update(state='running', log='', target=new_address(), fqdn='.'.join((answers['hostname'], answers['domainname'])),
+            commit.update(state='running', log='', step=None, started=time.monotonic(), target=new_address(), fqdn='.'.join((answers['hostname'], answers['domainname'])),
                           ssh_later=any(title == 'SSH' for title, _shown in efa_setup.standards_summary(tr, answers.get('standards', []))))
             log.info('setup started')
             threading.Thread(target=run_commit, daemon=True).start()
@@ -993,18 +1089,17 @@ def commit_answers():
              'MAILSERVER': a['mailserver']}
     if a.get('mailserverunresolved') == 'yes':
         lines['MAILSERVERDNS'] = a['mailserverdns']
+    if le_offered() and a.get('letsencrypt') == 'yes' and a.get('leagree') == 'yes' and a.get('leemail'):
+        lines.update(LEEMAIL=a['leemail'], LEAGREE='yes')
     if a.get('legal'):
         lines['LEGALACCEPTED'] = a['legal']
     if a.get('variant'):
         lines.update(SETUPVARIANT=a['variant'], EULINK=a['eulink'], NOTICEACCEPTED=a['notice'], SETUPLANG=a.get('uilang', a.get('lang', 'en')))
-        if a.get('noeu'):
-            lines['EULINKCONFIRM'] = a['noeu']
-        if a.get('frameworks'):
-            lines['FRAMEWORKS'] = ','.join(a['frameworks'])
-        if a.get('note'):
-            lines['FRAMEWORKNOTE'] = a['note']
-        if a.get('standards'):
-            lines['STANDARDS'] = ','.join(a['standards'])
+        # Always sent, empty too: efa-apply puts new answers over the staged ones of an earlier run, so a key left out kept the
+        # frameworks of a failed guided run in a manual one (2026-11-16). Frameworks and their note only with guided.
+        guided = a['variant'] == 'guided'
+        lines.update(EULINKCONFIRM=a.get('noeu', ''), FRAMEWORKS=','.join(a.get('frameworks') or []) if guided else '',
+                     FRAMEWORKNOTE=a.get('note', '') if guided else '', STANDARDS=','.join(a.get('standards') or []))
         if a.get('totp_step'):
             lines.update(TOTPSECRET=efa_totp.secret_text(a['totp_secret']), TOTPSTEP=a['totp_step'], TOTPRECOVERY=','.join(a['totp_recovery']))
             if a.get('ctotp_saved'):
@@ -1013,10 +1108,52 @@ def commit_answers():
     return ''.join(f'{key}:{value}\n' for key, value in lines.items())
 
 
+# The steps of efa-apply --all in its order (efa_apply.STEP_ORDER, tests/test_setup_progress.py keeps both the same).
+# The progress page shows the step that runs: efa-apply --verbose writes "INFO: step <name>: start" before each one.
+SETUP_STEPS = ('mariadb', 'hostname', 'dns', 'network', 'sshkeys', 'timezone', 'transport', 'sasl', 'dbpasswords',
+               'autoupdates', 'passwords', 'cert', 'webadmin', 'variant', 'vmtools', 'finish')
+STEP_START_RE = re.compile(r'^INFO: step ([a-z0-9]+): start$')
+
+
+def setup_step_text(name):
+    """What the step does, in a few words for the admin; before the first step the settings are read."""
+    return {'mariadb': tr('Starting the database'),
+            'hostname': tr('Setting the server name'),
+            'dns': tr('Setting up name resolution (DNS)'),
+            'network': tr('Configuring the network'),
+            'sshkeys': tr('Creating new SSH keys for this server'),
+            'timezone': tr('Setting the time zone'),
+            'transport': tr('Setting up mail delivery to your mail server'),
+            'sasl': tr('Setting up the submission port'),
+            'dbpasswords': tr('Setting new database passwords'),
+            'autoupdates': tr('Setting up automatic updates'),
+            'passwords': tr('Setting the passwords and the SSH login'),
+            'cert': tr('Creating the certificate of the web interface'),
+            'webadmin': tr('Creating the web admin and the mail log'),
+            'variant': tr('Applying the security settings and 2FA'),
+            'vmtools': tr('Checking the guest tools of the virtual machine'),
+            'finish': tr('Enabling the services and preparing the restart')}.get(name, tr('Reading the settings'))
+
+
 def run_commit():
     try:
-        done = subprocess.run(EFA_APPLY, input=commit_answers(), capture_output=True, text=True, timeout=3600)
-        commit.update(state='done' if done.returncode == 0 else 'failed', log=(done.stdout + done.stderr)[-4000:])
+        with subprocess.Popen(EFA_APPLY, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
+            # The same limit as before: a setup that hangs for an hour ends as failed.
+            timer = threading.Timer(3600, proc.kill)
+            timer.start()
+            output = []
+            try:
+                proc.stdin.write(commit_answers())
+                proc.stdin.close()
+                for line in proc.stdout:
+                    output.append(line)
+                    found = STEP_START_RE.match(line.strip())
+                    if found and found.group(1) in SETUP_STEPS:
+                        commit['step'] = found.group(1)
+                returncode = proc.wait()
+            finally:
+                timer.cancel()
+        commit.update(state='done' if returncode == 0 else 'failed', log=''.join(output)[-4000:])
         log.info('setup %s', commit['state'])
         if commit['state'] == 'done':
             answers_drop()
@@ -1030,6 +1167,21 @@ def run_commit():
             answers.pop(key, None)
         if commit['state'] != 'done':
             answers_save()
+
+
+def setup_progress_html():
+    """Hans 2026-11-16: a bar that moves with the real steps of efa-apply, and below it what the setup does now."""
+    step = commit.get('step')
+    number = SETUP_STEPS.index(step) + 1 if step in SETUP_STEPS else 0
+    total = len(SETUP_STEPS)
+    # The running step counts half: the bar moves when a step starts and again when the next one does.
+    percent = round(100 * (max(number, 1) - 0.5) / total) if number else 2
+    minutes = int((time.monotonic() - commit.get('started', time.monotonic())) // 60)
+    count = te('Step {number} of {total}', number=number, total=total) if number else te('Preparing')
+    since = f' <span class="help">({te("running for {minutes} min", minutes=minutes)})</span>' if minutes else ''
+    return (f'<div class="prog setup-prog" role="progressbar" aria-label="{te("Setup progress")}" aria-valuemin="0" aria-valuemax="100" '
+            f'aria-valuenow="{percent}"><i style="width:{percent}%"></i></div>'
+            f'<p id="setup-now" role="status"><b>{count}:</b> {escape(setup_step_text(step))}{since}</p>')
 
 
 def new_address():
@@ -1069,6 +1221,36 @@ def follow_page(moving):
                 refresh=300, refresh_to=target)
 
 
+# Hans 2026-11-16: from every page of the wizard and after a failed setup, back to the very start with nothing of this run kept.
+# Only the answers: what the setup already set on the system (network, accounts, certificate) stays, the next run sets it again.
+START_OVER_CONFIRM = 'Discard all entries of this run?'
+START_OVER_KEPT = 'Steps the setup already applied (network, passwords, certificate) stay as they are; the next run sets them again.'
+
+
+def start_over_form(confirm_page=False):
+    """The button "Start over": a POST with the CSRF token; the script asks first, without script a page asks."""
+    if session.get('setup') not in setup['unlocked'] or commit['state'] not in ('idle', 'failed'):
+        return ''
+    sure = '<input type="hidden" name="sure" value="yes">' if confirm_page else '<input type="hidden" name="sure" value="">'
+    return (f'<form method="post" action="{url_for("start_over")}" class="startover" data-confirm="{te(START_OVER_CONFIRM)}">'
+            f'<input type="hidden" name="csrf" value="{csrf_token()}">{sure}<button class="btn s sm">{te("Start over")}</button></form>')
+
+
+@app.route('/start-over', methods=['POST'])
+def start_over():
+    if commit['state'] not in ('idle', 'failed'):
+        return redirect(url_for('progress'))
+    if request.form.get('sure') != 'yes':
+        return page(f'<h2>{te("Start over")}</h2><p>{te(START_OVER_CONFIRM)}</p><p>{te(START_OVER_KEPT)}</p>'
+                    f'<div class="actions"><a class="btn s" href="{url_for("language")}">{te("Back")}</a>'
+                    f'{start_over_form(confirm_page=True)}</div>')
+    answers.clear()
+    answers_drop()
+    commit.update(state='idle', log='')
+    log.info('start over: the answers of this run are gone')
+    return redirect(url_for('language'))
+
+
 @app.route('/progress')
 def progress():
     state = commit['state']
@@ -1076,16 +1258,22 @@ def progress():
         return redirect(url_for('language'))
     if state == 'failed':
         log = render_template_string('{{ t }}', t=commit['log'])
-        return page(f'<pre>{log}</pre><div class="actions"><a class="btn s" href="{url_for("language")}">{te("Back")}</a></div>',
+        failed_in = commit.get('step')
+        where = f'<p><b>{te("Failed in:")}</b> {escape(setup_step_text(failed_in))}</p>' if failed_in in SETUP_STEPS else ''
+        return page(f'{where}<pre>{log}</pre><p>{te(START_OVER_KEPT)}</p><div class="actions"><a class="btn s" href="{url_for("language")}">{te("Back")}</a></div>',
                     error='Configuration failed.')
     moving = bool(commit.get('target')) and commit['target'] != f'https://{request.host}/'
     if state == 'done' or moving:
         return follow_page(moving)
-    return page(f'<h2>{te("Setting up")}</h2><p>{te("Configuring the system, this takes several minutes...")}</p>', refresh=5)
+    return page(f'<h2>{te("Setting up")}</h2><p>{te("Configuring the system, this takes several minutes...")}</p>{setup_progress_html()}', refresh=3)
 
 
 
 def self_test():
+    # 2026-11-16: run as root on a host whose wizard waits, the self-test wrote its answers into the state of that wizard.
+    global STATE_FILE
+    STATE_FILE = tempfile.mkdtemp(prefix='efa-init-test-') + '/answers.json'
+    global EFA_APPLY, commit_answers  # the progress test below runs a stand-in for efa-apply
     assert HOST_RE.match('mx1') and not HOST_RE.match('a b') and not HOST_RE.match('a;id')
     assert DOMAIN_RE.match('example.org') and not DOMAIN_RE.match('example.org;id')
     assert is_ip(4)('192.0.2.1') and not is_ip(4)('2001:db8::1') and is_ip(6)('2001:db8::1')
@@ -1144,6 +1332,36 @@ def self_test():
     setup['failed'] = SETUP_TRIES
     assert 'Too many' in client.post('/unlock', data={'csrf': 'token', 'code': setup['code']}).get_data(as_text=True)
     setup['failed'] = 0
+    # Dev flag: only a regular file of root:root, not group or world writable; a symlink never; then no code and a red note.
+    with tempfile.TemporaryDirectory() as folder:
+        flag = folder + '/flag'
+        assert dev_flag_problem(flag) == ''
+        open(flag, 'w').close()
+        os.chmod(flag, 0o600)
+        root = os.getuid() == 0 and os.getgid() == 0
+        assert dev_flag_problem(flag) == (None if root else 'not owned by root:root')
+        os.symlink(flag, folder + '/link')
+        assert dev_flag_problem(folder + '/link') == 'not a regular file', 'a symlink never counts'
+        assert dev_flag_problem(folder) == 'not a regular file'
+        if root:
+            for mode in (0o620, 0o602, 0o666):
+                os.chmod(flag, mode)
+                assert dev_flag_problem(flag) == 'writable for group or others'
+            os.chown(flag, 0, 1)
+            os.chmod(flag, 0o600)
+            assert dev_flag_problem(flag) == 'not owned by root:root'
+    other = app.test_client()
+    assert other.get('/step/hostname').headers['Location'].endswith('/unlock'), 'without the flag the code stays'
+    assert 'Dev mode' not in other.get('/unlock').get_data(as_text=True)
+    before = set(setup['unlocked'])
+    setup['dev'] = True
+    try:
+        assert other.get('/unlock').headers['Location'] == '/', 'dev: the code page goes on to the start'
+        assert not other.get('/step/hostname').headers.get('Location', '').endswith('/unlock'), 'dev: the steps open'
+        assert 'Dev mode: setup code switched off' in other.get('/first/notice').get_data(as_text=True)
+    finally:
+        setup['dev'] = False
+        setup['unlocked'].intersection_update(before)
     assert validate(BY_SLUG['webpassword'], {'value': 'long-enough-pass\nMAILSERVER:x', 'repeat': 'long-enough-pass\nMAILSERVER:x'})[0] is None
     # 6.0.0.5: the first steps. Without the box no note on presets, without the typed phrase no setup without EU link.
     assert client.get('/verify').headers['Location'].endswith('/first/notice')
@@ -1162,14 +1380,18 @@ def self_test():
     assert answers['frameworks'] == [] and answers['standards'] == ['rfc9325']
     lines = commit_answers().splitlines()
     assert 'SETUPVARIANT:manual' in lines and 'EULINK:no' in lines and [line for line in lines if line.startswith('EULINKCONFIRM:')]
-    assert not [line for line in lines if line.startswith(('TOTP', 'FRAMEWORKS'))] and 'STANDARDS:rfc9325' in lines
+    assert not [line for line in lines if line.startswith('TOTP')] and 'FRAMEWORKS:' in lines and 'STANDARDS:rfc9325' in lines
+    # A failed guided run left its frameworks staged in efa-apply: the manual run must send them empty, never leave them out.
+    answers['frameworks'] = ['nis2']
+    assert 'FRAMEWORKS:' in commit_answers().splitlines() and 'FRAMEWORKNOTE:' in commit_answers().splitlines(), 'manual: frameworks empty'
+    answers['frameworks'] = []
     # Guided: the frameworks, then the 2FA of the main admin is a must before the setup runs.
     client.post('/first/variant', data={'csrf': 'token', 'variant': 'guided'})
     assert client.get('/verify').headers['Location'].endswith('/first/frameworks')
     client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['pci-dss', 'nis2', 'bogus'], 'note': 'own rules'})
     assert answers['frameworks'] == ['nis2', 'pci-dss'] and client.get('/verify').headers['Location'].endswith('/twofactor')
     assert answers['standards'] == [] and 'name="standards" value="cis-el"' in client.get('/first/frameworks').get_data(as_text=True)
-    assert not [line for line in commit_answers().splitlines() if line.startswith('STANDARDS')], 'none chosen: no STANDARDS for efa-apply'
+    assert 'STANDARDS:' in commit_answers().splitlines(), 'none chosen: STANDARDS empty, so no standards of an earlier run stay'
     # HARD-W: the standards of the hardening wizard; BSI TR-02102 as a framework leads to its parts.
     client.post('/first/frameworks', data={'csrf': 'token', 'frameworks': ['pci-dss', 'nis2', 'bsi-tr02102'], 'note': 'own rules',
                                            'standards': ['rfc9325', 'cis-el', 'evil']})
@@ -1238,6 +1460,22 @@ def self_test():
 
     # The time servers: a list of names or addresses; Next sets the clock (efa-apply --time-sync), once more goes on without.
     assert ntp_servers_clean('0.pool.ntp.org,192.0.2.123  2001:db8::1') == '0.pool.ntp.org, 192.0.2.123, 2001:db8::1'
+    # The country pool from the time zone (tzdata zone.tab), the continent, the whole pool; what an admin set stays.
+    with tempfile.TemporaryDirectory() as folder:
+        tab = folder + '/zone.tab'
+        with open(tab, 'w', encoding='utf-8') as f:
+            f.write('# comment\nAT\t+4813+01620\tEurope/Vienna\nDE\t+5230+01322\tEurope/Berlin\tmost of Germany\n'
+                    'CZ\t+5005+01426\tEurope/Prague\n')
+        assert ntp_pool('Europe/Vienna', tab) == 'at.pool.ntp.org'
+        assert ntp_pool('Europe/Berlin', tab) == 'de.pool.ntp.org' and ntp_pool('Europe/Prague', tab) == 'cz.pool.ntp.org'
+        assert ntp_pool('UTC', tab) == 'pool.ntp.org'
+        assert ntp_pool('Europe/Atlantis', tab) == 'europe.pool.ntp.org', 'unknown zone: the continent'
+        assert ntp_pool('America/Nowhere', tab) == 'pool.ntp.org', 'no clear continent: the whole pool'
+        assert ntp_prefill('2.almalinux.pool.ntp.org', 'Europe/Vienna', tab) == 'at.pool.ntp.org', 'the OS pool is no choice'
+        assert ntp_prefill('', 'Europe/Vienna', tab) == 'at.pool.ntp.org'
+        assert ntp_prefill('ntp.corp.example, 192.0.2.123', 'Europe/Vienna', tab) == 'ntp.corp.example, 192.0.2.123', 'set by an admin: stays'
+        assert ntp_servers_clean(ntp_pool('Europe/Vienna', tab)), 'the field takes the four names'
+    assert zone_country('Europe/Vienna', '/nonexistent') == '' and ntp_pool('Europe/Vienna', '/nonexistent') == 'europe.pool.ntp.org'
     for wrong in ('', 'a;id', 'host', 'a.example b.example c.example d.example e.example', '-x.example'):
         assert ntp_servers_clean(wrong) == '', wrong
     global time_sync
@@ -1374,7 +1612,122 @@ def self_test():
     time_sync = real_sync
     assert clock_skew('1000', now=1420) == 420 and clock_skew('1000', now=1030) is None and clock_skew('', now=1) is None
     assert clock_skew('x') is None and clock_skew('0', now=1e10) is None, 'no time or nonsense: no hint'
+    # Hans 2026-11-16: the progress page follows the real steps of efa-apply; the bar moves, the line says what runs now.
+    real_apply, real_answers = EFA_APPLY, commit_answers
+    commit_answers = lambda: 'HOSTNAME:mx1\n'  # noqa: E731  the answers themselves are tested above
+    fake = ("import sys; sys.stdin.read(); w = sys.stderr.write\n"
+            "for n in ('mariadb', 'hostname'): w('INFO: step %s: start\\n' % n); print('OK ' + n)\n"
+            "w('INFO: step dns: start\\n'); w('ERROR: step dns failed: no resolver\\n'); print('FAILED dns: no resolver'); sys.exit(1)\n")
+    EFA_APPLY = [sys.executable, '-I', '-c', fake]
+    commit.update(state='running', log='', step=None, started=time.monotonic())
+    run_commit()
+    EFA_APPLY, commit_answers = real_apply, real_answers
+    assert commit['state'] == 'failed' and commit['step'] == 'dns' and 'FAILED dns' in commit['log'], commit
+    with app.test_request_context('/progress?lang=de'):
+        session['lang'] = 'de'
+        failed = progress()
+        assert 'Fehlgeschlagen bei:' in failed and 'Die Namensauflösung (DNS) wird eingerichtet' in failed
+        commit.update(state='running', step=None, started=time.monotonic() - 125, target='')
+        shown = progress()
+        assert 'Das System wird konfiguriert' in shown and 'Vorbereitung' in shown and 'aria-valuenow="2"' in shown
+        commit['step'] = 'network'
+        shown = progress()
+        assert 'Schritt 4 von 16' in shown and 'Das Netzwerk wird eingerichtet' in shown and 'läuft seit 2 min' in shown
+        assert 'aria-valuenow="22"' in shown and 'content="3"' in shown, 'the page renews itself every 3 s'
+        session['lang'] = 'en'
+        commit['step'] = 'finish'
+        shown = progress()
+        assert 'Step 16 of 16' in shown and 'Enabling the services and preparing the restart' in shown and 'aria-valuenow="97"' in shown
+        assert len({setup_step_text(name) for name in SETUP_STEPS + (None,)}) == 17, 'every step has its own text'
+    commit.update(state='idle', log='', step=None, target='', fqdn='')
+    answers.clear()
+    le_test()
+    start_over_test()
     print('self-test ok')
+
+
+def le_test():
+    """The Let's Encrypt steps: only with a standard that wants them and a public name, never with the dev flag; data checked."""
+    global LE_DEV_FLAG
+    saved, flag = dict(answers), LE_DEV_FLAG
+    LE_DEV_FLAG = '/nonexistent/dev-no-setup-code'  # the test, not the flag of the host it runs on (a development host has it)
+    try:
+        answers.clear()
+        answers.update(hostname='mx1', domainname='example.org', standards=['rfc9325'], mailserver='10.0.0.5')
+        assert not le_offered(), 'no standard that wants it: no question'
+        answers['standards'] = ['rfc9325', 'moz-modern']
+        assert le_offered() and 'letsencrypt' in [s['slug'] for s in active_steps()] and 'leemail' not in [s['slug'] for s in active_steps()]
+        public = lambda name, port, proto=0: [(0, 0, 0, '', ('93.184.215.14', port))]
+        private = lambda name, port, proto=0: [(0, 0, 0, '', ('10.0.0.25', port))]
+        assert le_preflight(public) and not le_preflight(private)
+        step = dict(BY_SLUG['letsencrypt'], preflight=lambda: le_preflight(private))
+        assert validate(step, {'value': 'yes'}) == (None, step['error']), 'a public name without a public address: blocked'
+        assert validate(step, {'value': 'no'}) == ('no', None), 'No always goes on'
+        assert validate(dict(step, preflight=lambda: le_preflight(public)), {'value': 'yes'}) == ('yes', None)
+        answers['letsencrypt'] = 'yes'
+        assert [s['slug'] for s in active_steps()][-2:] == ['leemail', 'leagree']
+        assert validate(BY_SLUG['leagree'], {'value': 'no'})[0] is None and validate(BY_SLUG['leagree'], {'value': 'yes'}) == ('yes', None)
+        assert validate(BY_SLUG['leemail'], {'value': 'not an address'})[0] is None
+        answers.update(leemail='admin@example.org', leagree='yes', email='a@example.org', interface='eth0', configipv4='no', ipv6dns='no',
+                       configipv6='no', configrecursion='yes', webpassword='web-password-1', cliusername='efaadmin',
+                       clipassword='cli-password-1', configvirtual='no', configutc='yes', timezone='UTC')
+        lines = commit_answers().splitlines()
+        assert 'LEEMAIL:admin@example.org' in lines and 'LEAGREE:yes' in lines
+        answers['leagree'] = 'no'
+        assert not [line for line in commit_answers().splitlines() if line.startswith('LE')], 'not accepted: no request'
+        answers.update(leagree='yes', domainname='efa-test.local')
+        assert not le_offered() and not [line for line in commit_answers().splitlines() if line.startswith('LE')], 'non-public: never'
+        assert any(title == 'Web certificate' for title, _shown in efa_setup.standards_summary(lambda t: t, answers['standards'])), \
+            'the check page says the self-signed certificate stays without Let\'s Encrypt'
+        answers['domainname'] = 'example.org'
+        with tempfile.TemporaryDirectory() as folder:
+            LE_DEV_FLAG = folder + '/dev-no-setup-code'
+            open(LE_DEV_FLAG, 'w').close()
+            assert not le_offered(), 'dev flag: never Let\'s Encrypt'
+    finally:
+        LE_DEV_FLAG = flag
+        answers.clear()
+        answers.update(saved)
+
+
+def start_over_test():
+    """Start over: CSRF, unlocked only, a confirm step, then no answer of the run is left and the wizard is at its start."""
+    global STATE_FILE
+    saved, state, state_file = dict(answers), dict(commit), STATE_FILE
+    client = app.test_client()
+    folder = tempfile.mkdtemp()
+    STATE_FILE = folder + '/answers.json'  # never the state of a wizard that runs on this host
+    try:
+        with client.session_transaction() as sess:
+            sess['csrf'], sess['setup'] = 'token', 'start-over-test'
+        assert client.post('/start-over', data={'sure': 'yes'}).status_code == 403, 'no CSRF token: refused'
+        assert client.post('/start-over', data={'csrf': 'token', 'sure': 'yes'}).headers['Location'].endswith('/unlock'), 'locked: no'
+        setup['unlocked'].add('start-over-test')
+        answers.clear()
+        answers.update(hostname='mx1', domainname='example.org', standards=['moz-modern'], webpassword='web-password-1')
+        commit.update(state='failed', log='certbot failed')
+        shown = client.get('/progress').get_data(as_text=True)
+        assert 'action="/start-over"' in shown and 'data-confirm=' in shown and 'stay as they are' in shown, 'on the error page'
+        assert 'action="/start-over"' in client.get('/first/notice').get_data(as_text=True), 'on the pages of the steps'
+        asked = client.post('/start-over', data={'csrf': 'token', 'sure': ''})
+        assert asked.status_code == 200 and 'name="sure" value="yes"' in asked.get_data(as_text=True) and answers['hostname'] == 'mx1', \
+            'without the confirmation only the question, nothing gone'
+        gone = client.post('/start-over', data={'csrf': 'token', 'sure': 'yes'})
+        assert gone.headers['Location'] == '/' and answers == {} and commit['state'] == 'idle', 'all answers gone, at the start'
+        with open(STATE_FILE) as f:
+            assert json.load(f) == {}, 'the saved answers are gone too (every POST saves the state: empty now)'
+        assert 'value="moz-modern" checked' not in client.get('/first/frameworks').get_data(as_text=True), 'nothing ticked from before'
+        commit.update(state='running')
+        assert client.post('/start-over', data={'csrf': 'token', 'sure': 'yes'}).headers['Location'].endswith('/progress'), 'not while it runs'
+        assert 'action="/start-over"' not in client.get('/progress').get_data(as_text=True)
+    finally:
+        STATE_FILE = state_file
+        shutil.rmtree(folder, ignore_errors=True)
+        setup['unlocked'].discard('start-over-test')
+        answers.clear()
+        answers.update(saved)
+        commit.clear()
+        commit.update(state)
 
 
 if __name__ == '__main__':
@@ -1385,6 +1738,12 @@ if __name__ == '__main__':
         app.secret_key = secret.read()
     logging.basicConfig(level=logging.INFO, format='%(name)s: %(message)s')
     setup_code_write()
+    problem = dev_flag_problem()
+    setup['dev'] = problem is None
+    if setup['dev']:
+        log.warning('%s: setup code switched off (dev mode, not for production)', DEV_FLAG)
+    elif problem:
+        log.warning('%s ignored, the setup code stays on: %s', DEV_FLAG, problem)
     answers_load()
     log.info('wizard ready, %d answers kept from before', len(answers))
     serve(app, host='127.0.0.1', port=8080, threads=4, max_request_body_size=MAX_FORM)

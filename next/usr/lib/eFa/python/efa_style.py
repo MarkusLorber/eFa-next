@@ -58,6 +58,8 @@ pre{background:var(--area);padding:10px;border-radius:8px;overflow:auto}code{bac
 .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.bar svg{max-width:15rem}.bar .seg{margin:0}
 .bar .seg a{background:transparent;color:#f2f2f2}.bar .seg a.cur{background:var(--lime);color:#2a2e22}
 .prog{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:2px 0 8px}.prog i{display:block;height:100%;background:var(--lime)}
+.setup-prog{height:10px;border-radius:5px;margin:14px 0 6px}.setup-prog i{border-radius:5px;background-image:linear-gradient(45deg,#ffffff40 25%,transparent 25%,transparent 50%,#ffffff40 50%,#ffffff40 75%,transparent 75%);background-size:20px 20px;animation:setup-run 1s linear infinite}@keyframes setup-run{to{background-position:20px 0}}
+@media (prefers-reduced-motion:reduce){.setup-prog i{animation:none}}
 ol.groups{display:flex;flex-wrap:wrap;gap:2px 14px;list-style:none;padding:0;margin:0 0 16px;font-size:13px;color:var(--gray)}
 ol.groups .done::before{content:"\\2713  ";color:var(--ok)}ol.groups .cur{color:var(--ink);font-weight:600}
 .step{color:var(--gray);font-size:13px;margin:0}.help{color:var(--gray);margin:0 0 6px}.hint{display:block;color:var(--gray);font-weight:400;font-size:13px}

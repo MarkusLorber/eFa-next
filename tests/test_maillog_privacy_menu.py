@@ -35,9 +35,9 @@ class Menu(unittest.TestCase):
     def test_privacy_page_holds_the_three_sections(self):
         page = efa_nav.PAGES['privacy']
         self.assertEqual(page['title'], 'Privacy & Compliance')
-        self.assertEqual(tuple(section[0] for section in page['sections']), PRIVACY_SECTIONS)
+        self.assertEqual(tuple(section[0] for section in page['sections'][:3]), PRIVACY_SECTIONS)
         # In the standard view: on their own page the sections are no longer folded into the expert view.
-        self.assertTrue(all(len(section) == 2 for section in page['sections']))
+        self.assertTrue(all(len(section) == 2 for section in page['sections'][:3]))
         for name in ('gdpr-export', 'gdpr-delete', 'headers-export', 'retention-status', 'retention-set', 'maillog-purge'):
             self.assertIn(name, page['commands'])
 
@@ -47,12 +47,13 @@ class Menu(unittest.TestCase):
         self.assertFalse(set(log['commands']) & set(efa_nav.PAGES['privacy']['commands']))
         self.assertEqual(log['commands'][:2], ['maillog-search', 'message-search'])
 
-    def test_privacy_next_to_mail_log_and_old_bookmarks(self):
-        group = dict(efa_nav.NAV)['Mail & quarantine']
-        slugs = [page['slug'] for page in group]
-        self.assertEqual(slugs.index('privacy'), slugs.index('log') + 1)
-        self.assertEqual({card for (old, card), new in efa_nav.MOVED_CARDS.items() if old == 'log' and new == 'privacy'},
-                         set(efa_nav.PAGES['privacy']['commands']))
+    def test_privacy_in_its_group_and_old_bookmarks(self):
+        # 6.0.0.6.x (Hans): the menu by use; Privacy & Compliance is with Security, the Mail log is a daily page.
+        groups = {group: [page['slug'] for page in pages] for group, pages in efa_nav.NAV}
+        self.assertIn('privacy', groups['Security & privacy'])
+        self.assertIn('log', groups['Daily'])
+        moved = {card for (old, card), new in efa_nav.MOVED_CARDS.items() if old == 'log' and new == 'privacy'}
+        self.assertEqual(moved, {name for section in efa_nav.PAGES['privacy']['sections'][:3] for name in section[1]})
         # The moved commands are on this one page only.
         seen = [name for _group, pages in efa_nav.NAV for page in pages for name in page['commands'] if name in efa_nav.PAGES['privacy']['commands']]
         self.assertEqual(len(seen), len(set(seen)))

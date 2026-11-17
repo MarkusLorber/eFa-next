@@ -37,7 +37,7 @@ SETTING_KEYS = (
     "IPV6MASK", "IPV6GATEWAY", "IPV6DNS", "DNSIP1", "DNSIP2", "RECURSION",
     "TZONE", "ISUTC", "CLIUSERNAME", "VMTOOLS", "MAILSERVERDNS", "LEGALACCEPTED",
     "SETUPVARIANT", "EULINK", "EULINKCONFIRM", "FRAMEWORKS", "FRAMEWORKNOTE", "NOTICEACCEPTED", "SETUPLANG", "ROOTSSH",
-    "STANDARDS")
+    "STANDARDS", "LEEMAIL", "LEAGREE")
 # The 2FA of the main admin from the guided setup: secret, last step, hashes of the recovery codes. Never kept in a file here.
 SECRET_KEYS = ("ROOTPASSWORD", "CLIPASSWORD", "WEBADMINPASSWORD", "TOTPSECRET", "TOTPSTEP", "TOTPRECOVERY",
                "CONSOLETOTPSECRET", "CONSOLETOTPSTEP", "CONSOLETOTPRECOVERY")
@@ -68,8 +68,10 @@ def _check_value(key, value):
     elif key == "DOMAINNAME":
         ok = c.valid_domain(value)
         value = value.lower()
-    elif key == "ADMINEMAIL":
+    elif key in ("ADMINEMAIL", "LEEMAIL"):
         ok = c.valid_email(value)
+    elif key == "LEAGREE":
+        ok = value == "yes"
     elif key == "ORGNAME":
         ok = len(value) <= 128
     elif key == "LEGALACCEPTED":
@@ -488,6 +490,12 @@ class Steps:
             c.run(args)
             # The language of the wizard stays the language of the main admin in the web interface (My settings).
             c.run([efactl, "my-settings-set", "--language", self.cfg.get("SETUPLANG", "en")], check=False)
+            if self.cfg.get("LEEMAIL") and self.cfg.get("LEAGREE") == "yes":
+                # Asked in the wizard (Hans 2026-11-16): one request through efactl (dry run, no retry, a pause after a
+                # failure). Never a stop of the setup: on a failure the web interface keeps the self-signed certificate.
+                done = c.run([efactl, "web-cert-set", "--mode", "ecdsa", "--email", self.cfg["LEEMAIL"], "--accept_tos", "yes"], check=False)
+                if done.returncode != 0:
+                    c.warn("Let's Encrypt not set, the self-signed certificate stays: " + ((done.stderr or done.stdout or "")[-300:]).strip())
         c.run([efactl, "floor-check", "--mode", "apply"])
 
     # -- hypervisor guest tools (wizard question)
@@ -523,7 +531,7 @@ class Steps:
         wizard = pl.service("wizard")
         _, units = pl.efa_units()
         for unit in units:
-            if unit.split(".")[0] != wizard and unit not in pl.EFA_ONESHOTS:
+            if unit.split(".")[0] != wizard and unit not in pl.EFA_ONESHOTS and unit not in pl.EFA_OPT_IN:
                 pl.service_enable(unit)
         if pl.service_exists(wizard):
             # Disabled now, stopped by the reboot job, so that the wizard

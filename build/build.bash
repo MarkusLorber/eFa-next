@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Markus Lorber and eFa-next contributors
 # Author: Markus Lorber, Lukasz Galusinski
 #
-# eFa-next installer for a fresh EL9 host (AlmaLinux, Rocky Linux, RHEL 9) or AlmaLinux 10.
+# eFa-next installer for a fresh EL9 or EL10 host (AlmaLinux, Rocky Linux, RHEL 9 and 10).
 #
 #   build.bash [ACTION] [RPM_DIR | BRANCH]
 #
@@ -34,8 +34,8 @@ RPM_DIR="${2:-}"
 # EFA_OS_RELEASE: another os-release file, for tests/test_build_bash.py only.
 OS_RELEASE="${EFA_OS_RELEASE:-/etc/os-release}"
 EL_MAJOR="$( (. "$OS_RELEASE" 2>/dev/null; echo "${VERSION_ID:-9}") | cut -d. -f1)"
-# As RHEL_ENABLED of efa_release_upgrade: RHEL 10 stays closed until a real run on it passed.
-RHEL10_ENABLED=no
+# G7-4 (Hans 2026-11-15): fresh installs on Rocky Linux 10 and RHEL 10 too, not yet run on a real host; the release upgrade
+# 9 -> 10 stays AlmaLinux only (efa_release_upgrade.RHEL_ENABLED) until a real run on Rocky and on RHEL passed.
 # 9k: the own signed repository first, the GitHub releases as a mirror; both only with SHA256SUMS signed by this key.
 REPO_URL="https://repo.efa-next.eu/el$EL_MAJOR/latest"
 # The GitHub releases carry the EL9 packages only.
@@ -142,10 +142,9 @@ check_os() {
     esac
     case "${VERSION_ID%%.*}" in
         9) ;;
-        # The distribution stays what it is (S23): AlmaLinux 10; RHEL 10 only once tested; Rocky and others not yet.
+        # The distribution stays what it is (S23): AlmaLinux, Rocky Linux and RHEL 10; CentOS Stream and others not.
         10) case "$ID" in
-                almalinux) ;;
-                rhel) [ "$RHEL10_ENABLED" = yes ] || { echo "RHEL 10: not tested yet"; return 1; } ;;
+                almalinux|rocky|rhel) ;;
                 *) echo "$ID 10: not supported"; return 1 ;;
             esac ;;
         *) echo "unsupported version: ${VERSION_ID:-}"; return 1 ;;

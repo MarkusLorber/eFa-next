@@ -81,6 +81,16 @@ class ApplyTests(RootTestCase):
                        "ipv4.gateway", "192.0.2.1", "ipv6.method", "auto", "ipv6.addresses",
                        "", "ipv6.gateway", ""], self.runner.calls)
 
+    def test_opt_in_services_stay_off(self):
+        """A service that only its own switch turns on (Pyzor, off by default) is not enabled by the setup; the others are."""
+        for name in ("efa-pyzor.service", "efa-qr.service"):
+            self.write("usr/lib/systemd/system/" + name, "[Service]\nExecStart=/bin/true\n[Install]\nWantedBy=multi-user.target\n")
+        code, out = self.apply(["--all"])
+        self.assertEqual(code, 0, out + self.all_logs())
+        enabled = [call for call in self.runner.calls if call[:2] == ["systemctl", "enable"] or call[:3] == ["systemctl", "enable", "--quiet"]]
+        self.assertTrue(any("efa-qr.service" in call for call in enabled), enabled)
+        self.assertFalse(any("efa-pyzor.service" in call for call in enabled), enabled)
+
     def test_root_ssh_only_by_choice(self):
         code, out = self.apply(["--passwords"], answer_text({"ROOTSSH": "key-only"}))
         self.assertEqual(code, 0, out + self.all_logs())
@@ -125,6 +135,15 @@ class ApplyTests(RootTestCase):
         self.assertNotIn("GEZDGNBV", "\n".join(" ".join(cmd) for cmd in self.runner.calls))
         self.assertEqual(self.runner.calls[-1], ["efactl", "floor-check", "--mode", "apply"])
         self.assertEqual(self.apply(["--variant"], answer_text() + "NOTICEACCEPTED:nothex/1\n")[0], 2)
+        # Let's Encrypt only with the e-mail and the accepted terms of the wizard, as one call of web-cert-set.
+        manual = "SETUPVARIANT:manual\nEULINK:yes\nNOTICEACCEPTED:0123456789abcdef/1762600000\nSTANDARDS:moz-modern\n"
+        code, out = self.apply(["--variant"], answer_text() + manual)
+        self.assertEqual(code, 0, out)
+        self.assertFalse([call for call in self.runner.calls if call[1:2] == ["web-cert-set"]])
+        code, out = self.apply(["--variant"], answer_text() + manual + "LEEMAIL:admin@example.org\nLEAGREE:yes\n")
+        self.assertEqual(code, 0, out)
+        self.assertIn(["efactl", "web-cert-set", "--mode", "ecdsa", "--email", "admin@example.org", "--accept_tos", "yes"], self.runner.calls)
+        self.assertEqual(self.apply(["--variant"], answer_text() + manual + "LEEMAIL:admin@example.org\nLEAGREE:no\n")[0], 2)
 
     def test_hosts_keeps_localhost(self):
         """Without localhost in /etc/hosts the name went to DNS and Postfix (inet_interfaces=localhost) got a foreign address."""
@@ -152,6 +171,20 @@ class ApplyTests(RootTestCase):
         self.assertEqual(self.apply(["--hostname"])[0], 0)
         self.assertNotIn("192.0.2.1   mx1.example.org   mx1 localhost", self.read("etc/hosts"))
         self.assertEqual(self.read("etc/hosts.efa-bak"), before)
+
+    def test_manual_run_drops_staged_frameworks(self):
+        """2026-11-16: a failed guided run staged FRAMEWORKS; the manual run after it sends them empty and they must not reach efactl."""
+        guided = ("SETUPVARIANT:guided\nEULINK:yes\nNOTICEACCEPTED:0123456789abcdef/1762600000\nFRAMEWORKS:nis2,pci-dss\nFRAMEWORKNOTE:own\n"
+                  "STANDARDS:rfc9325\n")
+        totp = "TOTPSECRET:GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ\nTOTPSTEP:59000000\nTOTPRECOVERY:" + ",".join(["a" * 64] * 10) + "\n"
+        self.assertEqual(self.apply(["--variant"], answer_text() + guided + totp)[0], 0)
+        manual = "SETUPVARIANT:manual\nEULINK:yes\nNOTICEACCEPTED:0123456789abcdef/1762600000\nFRAMEWORKS:\nFRAMEWORKNOTE:\nSTANDARDS:\nEULINKCONFIRM:\n"
+        self.runner.calls.clear()
+        code, out = self.apply(["--variant"], answer_text() + manual)
+        self.assertEqual(code, 0, out)
+        applied = [call for call in self.runner.calls if call[1:2] == ["setup-variant-apply"]]
+        self.assertEqual(len(applied), 1, self.runner.calls)
+        self.assertFalse({"--frameworks", "--note", "--standards", "--noeu"} & set(applied[0]), applied[0])
 
     def test_single_steps_use_staged_answers(self):
         self.assertEqual(self.apply(["--hostname"])[0], 0)
@@ -216,6 +249,16 @@ class ApplyTests(RootTestCase):
         code, out = self.apply(["--time-sync", ""])
         self.assertEqual((code, out.split()[:2]), (1, ["TIMESYNC", "no"]), "not synchronized: the wizard says why")
         self.assertIn("server ntp.example.org iburst", self.read("etc/chrony.conf"), "empty: the sources stay")
+
+    def test_time_sync_pool_name_is_a_pool_line(self):
+        """Hans 2026-11-17: at.pool.ntp.org as one pool line (chrony takes up to four of its servers), a host name as a server line."""
+        self.write("etc/chrony.conf", "pool 2.almalinux.pool.ntp.org iburst\ndriftfile /var/lib/chrony/drift\n")
+        code, out = self.apply(["--time-sync", "at.pool.ntp.org,ntp.example.org"])
+        self.assertEqual(code, 0, out + self.all_logs())
+        conf = self.read("etc/chrony.conf")
+        self.assertIn("pool at.pool.ntp.org iburst\nserver ntp.example.org iburst\n", conf)
+        self.assertNotIn("server at.pool.ntp.org", conf)
+        self.assertNotIn("2.almalinux", conf)
 
     def test_answers_file_must_be_private(self):
         path = self.path("answers")

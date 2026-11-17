@@ -20,6 +20,7 @@ import efa_help  # noqa: E402
 import efa_i18n  # noqa: E402
 import efa_nav  # noqa: E402
 import efa_setup  # noqa: E402
+import efa_update_progress  # noqa: E402
 import efa_wizard  # noqa: E402
 
 LOCALE = os.path.join(ROOT, 'next', 'usr', 'share', 'eFa', 'locale')
@@ -98,7 +99,11 @@ def texts():
         source = f.read()
     for call in re.finditer(r"\b_text\(((?:" + quoted + r"\s*)+)", source):
         found.append(''.join(ast.literal_eval(part) for part in re.findall(quoted, call.group(1))))
-    found += strings(r"\b_\(" + quoted + r"\)", WEB)
+    # _(), t(), translate() and N_() (the dashboard notices, translated where shown) with a literal, in the web interface and every other Python file of next/ (efa_*.py, the services).
+    others = sorted(os.path.join(folder, name) for folder, _dirs, names in os.walk(os.path.join(ROOT, 'next'))
+                    for name in names if name.endswith('.py') and name != os.path.basename(WEB))
+    for path in [WEB] + others:
+        found += strings(r"\b(?:_|t|translate|N_)\(" + quoted + r"\)", path)
     found += strings(r"\btile\(" + quoted, WEB)
     # 6.0.0.5: the texts of the setup variant (setup wizard and Re-Setup) and those of the setup wizard itself.
     found += efa_setup.all_texts()
@@ -106,6 +111,7 @@ def texts():
     found += command_texts()
     # The guided wizards: their steps, fields and choices, and their help texts.
     found += efa_wizard.all_texts() + [text for wizard in efa_help.WIZARD.values() for text in wizard.values()]
+    found += efa_update_progress.all_texts()
     seen, ordered = set(), []
     for item in found:
         # A bare address or path is no text; a sentence that begins with a path is ("/etc/shadow readable by root only").
@@ -146,6 +152,13 @@ def main():
             # A new text must be in the catalog, even untranslated: run this script after changing texts.
             if any(quote(item) not in listed for item in wanted):
                 print(f'i18n: {language}.po misses new texts, run scripts/i18n_extract.py')
+                return 1
+            # A run of this script drops what it does not find: a translation that is still in use would be lost with it.
+            keep = set(wanted)
+            lost = sorted(item for item, value in old.items() if item and value and item not in keep)
+            if lost:
+                print(f'i18n: a run of scripts/i18n_extract.py would drop {len(lost)} translated texts of {language}.po:')
+                print('\n'.join('  ' + item[:120] for item in lost[:30]))
                 return 1
         else:
             done, _total = write(language, wanted)

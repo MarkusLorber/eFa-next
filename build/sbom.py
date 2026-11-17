@@ -179,7 +179,7 @@ def sbom(rpm_files, stamp):
     own = [component(line.split('\t'), 'application', 'efa-next') for line in rpm(['-qp', '--qf', QF] + rpm_files)]
     names = [name for name in closure(rpm_files) if name not in {item['name'] for item in own}]
     deps = [component(line.split('\t')) for line in rpm(['-q', '--qf', QF] + names)] if names else []
-    # Weak dependencies (Suggests, Recommends) that are installed here, such as qpdf for the PDF encryption.
+    # Weak dependencies (Suggests, Recommends) that are installed here, such as pyzor.
     weak = needed(rpm(['-qp', '--suggests'] + rpm_files) + rpm(['-qp', '--recommends'] + rpm_files))
     weak_names = sorted({line.strip() for line in rpm(['-q', '--whatprovides', '--qf', '%{NAME}\\n'] + weak) if line and ' ' not in line} - set(names)) if weak else []
     deps += [component(line.split('\t'), scope='optional') for line in rpm(['-q', '--qf', QF] + weak_names)] if weak_names else []

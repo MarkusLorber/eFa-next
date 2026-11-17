@@ -18,13 +18,13 @@ audit entry and the cluster.
 
 | rspamd web interface | eFa-next |
 |---|---|
-| Actions and limits | Spam & virus: spam scores; per domain, tenant, group or sender: Rules |
-| Score of a symbol | Spam & virus, expert view: Symbol scores (-50 to 50, with a way back to the score of rspamd) |
+| Actions and limits | Spam filter: spam scores; per domain, tenant, group or sender: Rules |
+| Score of a symbol | Spam filter, expert view: Symbol scores (-50 to 50, with a way back to the score of rspamd) |
 | History of a mail | Mail log: each mail with its symbols, their scores and what they mean |
 | Scan a message | Mail log: Check a mail |
 | Learn spam / ham | Report as spam or wanted, with approval; own model; Bayes status |
-| Maps and lists | Sender lists, own DNS blocklist, IP blocklists, Rules |
-| Neural network | Spam & virus, expert view |
+| Maps and lists | Sender lists, own DNS blocklist, Blocklists, Firewall blocklists, Rules |
+| Neural network | Spam filter, expert view |
 | Several nodes | Cluster: mail log, quarantine, queue and status of all nodes |
 
 Not in eFa-next, as it is not needed to run the filter: fuzzy hashes by hand, testing selectors, worker details and the

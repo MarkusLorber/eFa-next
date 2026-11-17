@@ -47,17 +47,18 @@ Einstellungen liegen in `/etc/eFa`, Logs in `/var/log/eFa`, Daten in `/var/lib/e
 
 ## Die Weboberfläche
 
-Das Menü links hat sieben Gruppen:
+Das Menü links hat acht Gruppen, oben die Seiten für jeden Tag. *Mein Konto* steht im Benutzermenü oben rechts.
 
 | Gruppe | Seiten |
 |---|---|
-| Übersicht | Dashboard |
-| Mail & Quarantäne | Mail-Routing, Zurückgehaltene Mail, Quarantäne, Mail-Warteschlange, Mail-Log, Datenschutz & Compliance |
-| Schutz | Spam & Viren, Blocklisten, IP-Sperrlisten, Absenderlisten, Regeln, Identitätsbetrug & BEC |
-| Domains & Mandanten | DKIM, ARC & DMARC, Schutz vor Datenabfluss, Massenversand, Archiv-Weitergabe, Verschlüsselte PDF-Mail, Disclaimer, Domain-Einstellungen, Mandanten |
-| Benutzer & Zugriff | Mein Konto, Benutzer, Gruppen, Sicherheitsstandards, Sicherheit |
-| Überwachung & Berichte | Mail-Bericht, Überwachung, Wazuh |
-| System | DNS-Resolver für weitere Netze, Netzwerk & Zertifikat, Sicherung & Wiederherstellung, Cluster & offline, Wartung & Update |
+| Täglich | Dashboard, Mail-Log, Quarantäne, Zurückgehaltene Mail, Mail-Warteschlange |
+| Schutz | Spamfilter, Viren, Anhänge & Links, Identitätsbetrug & BEC, Absenderlisten, Blocklisten, Regeln |
+| Domains & Routing | Mail-Routing, DKIM, ARC & DMARC, Domain-Einstellungen, Mandanten |
+| Ausgehende Mail & Archiv | Schutz vor Datenabfluss, Verschlüsselte PDF-Mail, Disclaimer & Signaturen, Massenversand, Archiv-Weitergabe |
+| Benutzer & Zugriff | Benutzer, Gruppen |
+| Sicherheit & Datenschutz | Sicherheit, Firewall, Sicherheitsstandards, Datenschutz & Compliance |
+| Überwachung & Berichte | Mail-Bericht, Überwachung |
+| System | Wartung & Update, Sicherung & Wiederherstellung, Netzwerk, DNS & Zertifikat, Cluster & offline |
 
 Jede Anmeldung sieht nur die Seiten und Karten, die ihre Gruppen erlauben (Kapitel 8). Jede Karte erklärt unter ihrem Titel in
 einem Satz, was sie tut; ein (i) öffnet die ganze Hilfe, ebenso bei jedem Feld. Die Oberfläche gibt es auf Englisch und Deutsch

@@ -1,6 +1,6 @@
 # 4. Dashboard and attack alert
 
-*Overview › Dashboard* is the first page after the login.
+*Daily › Dashboard* is the first page after the login.
 
 ![Dashboard](../images/manual/dash.png)
 
@@ -13,7 +13,7 @@ when there is no current value:
   server, Fail2Ban, firewall, milters.
 - **From the attack check:** attacks, spam and viruses, mail queue, resources.
 
-The gauges show CPU, RAM and disk in use, mails and the spam share of the last 10 minutes, SMTP connections per minute and
+The gauges show CPU, RAM, swap (amber from 50 %, red from 80 %, grey "No swap" on a host without swap) and disk in use, mails and the spam share of the last 10 minutes, SMTP connections per minute and
 failed logins of the last 10 minutes. The coloured band of each gauge shows where amber and red begin. Board and banner
 renew themselves every 30 seconds while the page is visible.
 
@@ -29,7 +29,7 @@ something unusual, with since when and a link to the page that helps. Super admi
 it; tenant admins see the alert without addresses; the user portal shows none. An alert stays five minutes after the value
 fell back, marked as easing.
 
-*Users & access › Security › Attack alert* shows the last result and sets the sensitivity: *high* halves the limits, *low*
+*Security & privacy › Security › Attack alert* shows the last result and sets the sensitivity: *high* halves the limits, *low*
 doubles them (`efactl threat-set`, super admins). The limits per kind: [dashboard.md](../dashboard.md#attack-alert-on-every-page).
 
 The check needs no service of its own: the web interface runs `efactl threat-run` once a minute and reads only local
@@ -74,6 +74,18 @@ The text menu on the console (efa-tui) has no search yet; planned for 6.0.0.7.
 
 The footer of every page links to the source code, this documentation, the disclaimer, the authors and the third-party notices.
 **Request or improve a feature** is in the menu at the top right (chapter 3): it opens the feature form of the project on GitHub.
+
+## Your own layout
+
+*Customize dashboard* at the bottom of the page arranges the dashboard for your login only: move a block up or down, hide it,
+or set it to half width so that two half blocks share a row (on a phone each takes the full width again). The blocks are the
+status at a glance, the mail flow, the overview tiles, the last hour and the load. *Needs attention* and the security warnings
+always stay on top and cannot be hidden. The buttons work with the keyboard and on a phone; with a mouse you can also drag a row.
+*Back to the standard layout* undoes everything. The layout is kept in your settings in the database.
+
+```bash
+efactl my-settings-set --dashboard load:up      # also down, hide, show, half, full, to=<position>, or reset
+```
 
 ## On a phone
 

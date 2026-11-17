@@ -100,9 +100,16 @@ def efactl_defaults():
         "smtpd_milters": MILTERS,
         "milter_header_checks": "regexp:" + postfix_file("milter_header_checks"),
         "efa_submission_restrictions": "permit_sasl_authenticated, reject",
+        # The cipher grades and list of the default TLS profile (BSI TR-02102-2, efactl tls-profile-set): the stock "medium" is
+        # under the security minimum, and floor-check put it back on every new install with a notice (2026-11-17).
+        **dict.fromkeys(("smtpd_tls_ciphers", "smtpd_tls_mandatory_ciphers", "smtp_tls_ciphers", "smtp_tls_mandatory_ciphers"), "high"),
+        "tls_high_cipherlist": TLS_BSI_CIPHERS,
+        "tls_preempt_cipherlist": "yes",
     }
 
 
+# The cipher list of the profile bsi of efactl (TLS_PROFILES): the default of a new install.
+TLS_BSI_CIPHERS = "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
 # The form every Postfix knows: ">=TLSv1.2" needs 3.6, EL9 ships 3.5, which rejects it and then has no TLS.
 TLS_MIN = "!SSLv2, !SSLv3, !TLSv1, !TLSv1.1"
 # Kernel settings of a new install (CIS AlmaLinux 9); efactl kernel-hardening-set for an upgraded one.
@@ -177,6 +184,15 @@ def postmap(pc, name):
 def step_postfix():
     if not os.path.exists(rp(postfix_file("main.cf"))):
         raise StepError("Postfix is not installed: main.cf is missing")
+    # EL10: postfix makes its spool through tmpfiles.d, whose rpm trigger runs only at the end of the transaction, after the
+    # setup of eFa-next in %posttrans; without it every postfix check of a new install failed ("chdir(/var/spool/postfix)").
+    if os.path.exists(rp("/usr/lib/tmpfiles.d/postfix.conf")):
+        c.run(["systemd-tmpfiles", "--create", "postfix.conf"])
+        # The data folder is not in tmpfiles.d: the first postfix call made it, from the rpm scriptlet with var_lib_t, and master
+        # then could not take its lock (master.lock). Made here as the rpm owns it, then both get the labels of the policy.
+        c.ensure_dir("/var/lib/postfix", 0o700, "postfix", "root")
+        for path in ("/var/spool/postfix", "/var/lib/postfix"):
+            c.platform().file_labels(path)
     # First: postconf -n stops with an error if the stock "localhost" does not
     # resolve to a local address, and postconf -e does not check it.
     if c.run(["postconf", "-n"], check=False).returncode != 0:

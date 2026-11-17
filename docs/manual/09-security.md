@@ -1,6 +1,6 @@
 # 9. Security and security standards
 
-The pages *Users & access › Security standards* and *Users & access › Security*.
+The pages *Security & privacy › Security standards*, *Security & privacy › Security* and *Security & privacy › Firewall*.
 
 ## Security standards
 

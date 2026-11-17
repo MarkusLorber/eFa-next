@@ -27,6 +27,12 @@ def rpm_verify_content_changed(line):
     return flags == "missing" or any(flag in flags[:9] for flag in "S5L")
 
 
+def ntp_line(server):
+    """chrony: a name of the NTP pool as a pool line (it uses up to four of its servers), any other name or address as a server."""
+    kind = "pool" if server.lower().rstrip(".").endswith("pool.ntp.org") else "server"
+    return "%s %s iburst" % (kind, server)
+
+
 class EL9(Platform):
     name = "el9"
     root_group = "root"
@@ -109,7 +115,9 @@ class EL9(Platform):
                     "efa-post-boot.service", "efa-sanesecurity.service",
                     "efa-events.service", "efa-cve-watch.service", "efa-outbound-hold.service",
                     "efa-time-sync.service", "efa-release-upgrade.service", "efa-release-upgrade-finish.service",
-                    "efa-os-check.service")
+                    "efa-os-check.service", "efa-geoip.service")
+    # Pyzor (G7-5) is off by default and needs its settings as a credential: enabled by the setup it failed again and again.
+    EFA_OPT_IN = ("efa-pyzor.service",)
     ACCOUNTS = {
         "clamav_user": "clamscan", "av_group": "virusgroup",
         "postfix_group": "postfix", "web_group": "efa-web",
@@ -173,6 +181,20 @@ class EL9(Platform):
         if stop and self.manager_running():
             cmd.append("--now")
         c.run(cmd + [name])
+
+    def service_restarts(self, names):
+        units = {self.UNIT_ALIASES.get(name, name): name for name in names}
+        if not units or not self.manager_running():
+            return {}
+        res = c.run(["systemctl", "show", "-p", "Id,NRestarts,LoadState", "--", *[unit if "." in unit else unit + ".service" for unit in units]],
+                    check=False)
+        found = {}
+        for block in res.stdout.split("\n\n"):
+            props = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
+            unit = props.get("Id", "").rsplit(".service", 1)[0]
+            if unit in units and props.get("LoadState") == "loaded" and props.get("NRestarts", "").isdigit():
+                found[units[unit]] = int(props["NRestarts"])
+        return found
 
     def service_is_active(self, name):
         name = self.UNIT_ALIASES.get(name, name)
@@ -382,6 +404,14 @@ class EL9(Platform):
                 found.setdefault(parts[0], []).append(tuple(parts[1:]))
         return found
 
+    def package_required_by(self, package):
+        provides = [line.split()[0] for line in c.run(["rpm", "-q", "--provides", package], check=False).stdout.splitlines()
+                    if line.strip() and not line.startswith("package ")]
+        if not provides:
+            return []
+        res = c.run(["rpm", "-q", "--qf", "%{NAME}\n", "--whatrequires", *provides], check=False)
+        return sorted({line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith("no package")})
+
     def version_older(self, installed, fixed):
         import rpm
         return rpm.labelCompare(tuple(installed), tuple(fixed)) < 0
@@ -507,9 +537,12 @@ class EL9(Platform):
         found.update(self.parse_proc_net(c.read_text("/proc/net/snmp", ""), self.TCP_KEYS))
         return found
 
+    def meminfo_text(self):
+        return c.read_text("/proc/meminfo", "")
+
     def memory_used_percent(self):
         memory = {}
-        for line in c.read_text("/proc/meminfo", "").splitlines():
+        for line in self.meminfo_text().splitlines():
             name, _sep, rest = line.partition(":")
             if name in ("MemTotal", "MemAvailable") and rest.split():
                 memory[name] = int(rest.split()[0])
@@ -801,7 +834,7 @@ class EL9(Platform):
         path = self.PATHS["chrony_conf"]
         old = c.read_text(path, "")
         keep = [line for line in old.splitlines() if line != self.NTP_MARK and line.split()[:1] not in (["server"], ["pool"])]
-        new = "\n".join([self.NTP_MARK] + ["server %s iburst" % server for server in servers] + keep) + "\n"
+        new = "\n".join([self.NTP_MARK] + [ntp_line(server) for server in servers] + keep) + "\n"
         if new == old:
             return False
         c.write_file(path, new, 0o644)

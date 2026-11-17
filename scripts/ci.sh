@@ -8,6 +8,9 @@
 #   scripts/ci.sh --install  also installs the built packages on this host (the upgrade path) and checks it, then the fresh install
 #   scripts/ci.sh --fresh    the build and the fresh install only: set up anew from the packages, checked, then put back as it was
 #   scripts/ci.sh --fresh-restore   puts back the state an interrupted fresh test left in /var/lib/efa-ci-fresh-saved
+#   scripts/ci.sh --hotfix   the fast lane of a security fix (about 10 minutes): lint, unit tests, self-tests, RPM build, the
+#                            install as an upgrade on this host and its checks; no fuzzing, browser, live suite or fresh install.
+#                            The full run follows before the next regular release (docs/dev/fast-cve-lane.md).
 # The Forgejo workflow (.forgejo/workflows/ci.yml) runs the same once a runner exists. Push only when the last line says OK.
 set -u
 # efactl --self-test restarts services: it runs only where EFA_CI=yes says this is the CI host (6.0.0.6).
@@ -15,7 +18,11 @@ export EFA_CI=yes
 cd "$(dirname "$0")/.." || exit 1
 INSTALL=no
 FRESH=no
+HOTFIX=no
 [ "${1:-}" = "--install" ] && INSTALL=yes && FRESH=yes
+[ "${1:-}" = "--hotfix" ] && INSTALL=yes && HOTFIX=yes
+# full: the steps the fast lane leaves out.
+full() { [ "$HOTFIX" = no ]; }
 [ "${1:-}" = "--fresh" ] && FRESH=yes
 # Packages of an older or failed run are never used for a test install: the old run folders go, and only a green run leaves
 # its packages, in GREEN with the hash of the source tree they were built from (scripts/ci.sh --tree-hash prints it for a tree).
@@ -94,9 +101,12 @@ lint_shell() {
 
 self_tests() {
     for p in build/sbom.py scripts/detection_benchmark.py scripts/load_test.py next/usr/sbin/efactl next/usr/local/sbin/efa-web.py next/usr/local/sbin/efa-maillog.py next/usr/local/sbin/efa-milter-health.py \
-             next/usr/local/sbin/efa-init.py next/usr/sbin/efa-console-2fa next/usr/local/sbin/efa-tui next/usr/local/sbin/efa-cdr.py next/usr/local/sbin/efa-reports.py next/usr/local/sbin/efa-phish.py next/usr/local/sbin/efa-outbound.py next/usr/local/sbin/efa-cluster.py next/usr/local/sbin/efa-dkim-api.py next/usr/local/sbin/efactl-runner.py next/usr/local/sbin/efa-sasl.py next/usr/local/sbin/efa-qr.py next/usr/local/sbin/efa-roles.py next/usr/local/sbin/efa-unlock.py next/usr/local/sbin/efa-trap.py next/usr/local/sbin/efa-sandbox.py next/usr/local/sbin/efa-emergency.py next/usr/lib/eFa/python/efa_cluster.py next/usr/lib/eFa/python/efa_blocklist.py next/usr/lib/eFa/python/efa_mime.py next/usr/lib/eFa/python/efa_pdf.py next/usr/lib/eFa/python/efa_evidence.py next/usr/lib/eFa/python/efa5_convert.py next/usr/lib/eFa/python/efa_i18n.py next/usr/lib/eFa/python/efa_links.py next/usr/lib/eFa/python/efa_sign.py next/usr/lib/eFa/python/efa_zip.py next/usr/lib/eFa/python/efa_qcrypt.py next/usr/lib/eFa/python/efa_qr.py next/usr/lib/eFa/python/efa_totp.py next/usr/lib/eFa/python/efa_setup.py next/usr/lib/eFa/python/efa_webauthn.py next/usr/lib/eFa/python/efa_feeds.py next/usr/lib/eFa/python/efa_bimi.py next/usr/lib/eFa/python/efa_domaincheck.py next/usr/lib/eFa/python/efa_lookalike.py next/usr/lib/eFa/python/efa_a11y.py next/usr/lib/eFa/python/efa_crypto.py next/usr/lib/eFa/python/efa_host.py next/usr/lib/eFa/python/efa_release_upgrade.py next/usr/lib/eFa/python/efa_arc.py next/usr/lib/eFa/python/efa_shacrypt.py next/usr/lib/eFa/python/efa_redis.py \
+             next/usr/local/sbin/efa-init.py next/usr/sbin/efa-console-2fa next/usr/local/sbin/efa-tui next/usr/local/sbin/efa-cdr.py next/usr/local/sbin/efa-reports.py next/usr/local/sbin/efa-phish.py next/usr/local/sbin/efa-outbound.py next/usr/local/sbin/efa-cluster.py next/usr/local/sbin/efa-dkim-api.py next/usr/local/sbin/efactl-runner.py next/usr/local/sbin/efa-sasl.py next/usr/local/sbin/efa-qr.py next/usr/local/sbin/efa-roles.py next/usr/local/sbin/efa-unlock.py next/usr/local/sbin/efa-trap.py next/usr/local/sbin/efa-sandbox.py next/usr/local/sbin/efa-emergency.py next/usr/lib/eFa/python/efa_cluster.py next/usr/lib/eFa/python/efa_blocklist.py next/usr/lib/eFa/python/efa_mime.py next/usr/lib/eFa/python/efa_pdf.py next/usr/lib/eFa/python/efa_evidence.py next/usr/lib/eFa/python/efa5_convert.py next/usr/lib/eFa/python/efa_i18n.py next/usr/lib/eFa/python/efa_links.py next/usr/lib/eFa/python/efa_sign.py next/usr/lib/eFa/python/efa_zip.py next/usr/lib/eFa/python/efa_qcrypt.py next/usr/lib/eFa/python/efa_qr.py next/usr/lib/eFa/python/efa_totp.py next/usr/lib/eFa/python/efa_setup.py next/usr/lib/eFa/python/efa_webauthn.py next/usr/lib/eFa/python/efa_feeds.py next/usr/lib/eFa/python/efa_bimi.py next/usr/lib/eFa/python/efa_domaincheck.py next/usr/lib/eFa/python/efa_lookalike.py next/usr/lib/eFa/python/efa_a11y.py next/usr/lib/eFa/python/efa_crypto.py next/usr/lib/eFa/python/efa_host.py next/usr/lib/eFa/python/efa_release_upgrade.py next/usr/lib/eFa/python/efa_update_progress.py next/usr/lib/eFa/python/efa_arc.py next/usr/lib/eFa/python/efa_shacrypt.py next/usr/lib/eFa/python/efa_redis.py next/usr/local/sbin/efa-pyzor.py \
              migration/efa-migrate migration/efa5-export scripts/os_lint.py scripts/license_check.py; do
-        python3 -B "$p" --self-test 2>&1 | tail -1 | grep -q 'self-test ok' || { echo "self-test failed: $p"; python3 -B "$p" --self-test 2>&1 | tail -5; return 1; }
+        # The output of this run, not of a second one: a failure that does not come back would show nothing.
+        out=$(python3 -B "$p" --self-test 2>&1)
+        echo "$out" | tail -1 | grep -q 'self-test ok' ||
+            { echo "self-test failed: $p"; echo "$out" | grep -v -e DeprecationWarning -e 'not_valid_' | tail -40; return 1; }
         SELF_TESTS=$((SELF_TESTS + 1))
     done
     # The user portal (5q): the same program without the admin routes, and its helper.
@@ -118,11 +128,14 @@ reproducible() {
 host_check() {
     hc_failed=0
     for hc_unit in $(sed -n 's/^SERVICES="\(.*\)"$/\1/p' /etc/sysconfig/eFa-Monitor); do
+        # EL10: Valkey instead of Redis; eFa-Monitor names redis and its platform layer maps it (UNIT_ALIASES).
+        [ "$hc_unit" = redis ] && systemctl cat valkey.service >/dev/null 2>&1 && hc_unit=valkey
         if systemctl is-active -q "$hc_unit"; then echo "service $hc_unit: ok"; else echo "service $hc_unit: FAILED (not active)"; hc_failed=1; fi
     done
     # 5v (h): the sandbox drop-ins only on the tested distribution units, and none brings NoNewPrivileges (SELinux domains).
-    hc_left=$(ls /etc/systemd/system/*.service.d/efa-hardening.conf 2>/dev/null | grep -vE '/(rspamd|clamd@scan|clamav-freshclam|redis|unbound|nginx)\.service\.d/')
-    hc_nnp=$(grep -l 'NoNewPrivileges' /etc/systemd/system/*.service.d/efa-hardening.conf 2>/dev/null)
+    hc_left=$(ls /etc/systemd/system/*.service.d/efa-hardening.conf 2>/dev/null | grep -vE '/(rspamd|clamd@scan|clamav-freshclam|redis|valkey|unbound|nginx)\.service\.d/')
+    # NoNewPrivileges=no (written for Valkey on EL10) switches it off explicitly: only one that turns it on counts.
+    hc_nnp=$(grep -lE '^NoNewPrivileges=(yes|true|on|1)' /etc/systemd/system/*.service.d/efa-hardening.conf 2>/dev/null)
     if [ -z "$hc_left$hc_nnp" ]; then echo "sandbox drop-ins: ok ($(ls /etc/systemd/system/*.service.d/efa-hardening.conf 2>/dev/null | wc -l) tested units)"
     else echo "sandbox drop-ins: FAILED (untested: $hc_left; NoNewPrivileges: $hc_nnp)"; hc_failed=1; fi
     # D-1: with the sandbox on default (new install, migration) the tested mail services run in it, none fell back without it.
@@ -554,7 +567,8 @@ fresh_run() {
     mysql -e "DROP DATABASE IF EXISTS efa" || return 1
     for who in $(mysql -N -e "SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.user WHERE user LIKE 'efa%'"); do mysql -e "DROP USER $who"; done
     # Postfix and rspamd with the configuration of their packages, as on a new host.
-    timeout 600 dnf -y -q reinstall postfix rspamd || return 1
+    # postfix-lmdb with it on EL10: its map registration (dynamicmaps.cf.d/lmdb) lives in /etc/postfix, moved away above.
+    timeout 600 dnf -y -q reinstall postfix $(rpm -q --quiet postfix-lmdb && echo postfix-lmdb) rspamd || return 1
     # The scriptlets of the stock postfix (newaliases) run with its inet_protocols=all: on a host without IPv6 SELinux denies
     # sendmail_t the IPv6 module. That is before eFa-next: host_check counts from here and lists the earlier ones as not counted.
     HOST_CHECK_SINCE="$(date +%x) $(date +%T)"
@@ -573,7 +587,7 @@ fresh_run() {
     addr=$(ip -4 -o addr show dev "$dev" | awk '{print $4; exit}')
     timeout 1200 python3 -I scripts/fresh_wizard.py --creds "$FRESH_SAVED/wizard-creds" --host "$(cut -d. -f1 "$FRESH_SAVED/hostname")" --domain "$(cut -s -d. -f2- "$FRESH_SAVED/hostname" | grep . || echo example.com)" \
         --interface "$dev" --ipv4 "${addr%/*}" --prefix "${addr#*/}" --gateway "$(ip -4 route show default | awk '{print $3; exit}')" \
-        --timezone "$(timedatectl show -p Timezone --value)" || return 1
+        --timezone "$(timedatectl show -p Timezone --value)" --standards "$FRESH_STANDARDS" || return 1
     echo "== first boot"
     # The reboot request of the wizard hits the masked service: its watcher fails, which a real reboot would not show.
     sc stop efa-setup-reboot.path
@@ -588,6 +602,11 @@ fresh_run() {
     echo "== checks"
     for _ in $(seq 24); do efactl status | grep -q '"status": "ok"' && break; sleep 5; done
     efactl status | grep -q '"status": "ok"' || { efactl status; return 1; }
+    # 2026-11-16: a new host must not greet the admin with false alarms: no red banner ("After a package update", services
+    # down), no attack alert from the restarts of the setup, and the check after packages ok or not run.
+    efactl status | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(1 if d.get("cve_banner") else 0)'         || { echo "red banner on the dashboard of a new install:"; efactl status | python3 -c 'import json,sys; print(json.load(sys.stdin).get("cve_banner"))'; return 1; }
+    efactl threat-status | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("level", "ok") == "ok" else 1)'         || { echo "attack alert on a new install:"; efactl threat-status; return 1; }
+    efactl os-check-status | python3 -c 'import json,sys; sys.exit(1 if json.load(sys.stdin).get("ok") is False else 0)'         || { echo "check after packages failed on a new install:"; efactl os-check-status; return 1; }
     systemctl is-active -q nginx || { echo "nginx does not run after the first boot"; journalctl -u nginx -n 10 --no-pager; return 1; }
     case "$(stat -c %C /run/nginx.pid 2>/dev/null)" in *:httpd_var_run_t:*) ;; *) echo "/run/nginx.pid: $(ls -Z /run/nginx.pid 2>&1)"; return 1;; esac
     # The new host itself, before fresh_restore puts the saved one back (after it, the check would see the old configuration).
@@ -619,15 +638,26 @@ fresh_run() {
 
 # HARD-W: the wizard chose BSI TR-02102-2 and RFC 9325: the strictest of both is in effect (the BSI profile: no CHACHA20, no
 # TLS below 1.2) on 443 and 587, the standards check says so, the SSH profile stayed as it was.
+# EFA_CI_FRESH_STANDARDS=bsi-02102-2,rfc9325,moz-modern: also Mozilla modern on the non-public CI name (2026-11-16: it stopped the
+# setup at Let's Encrypt); the web then takes TLS 1.3 only, the certificate stays self-signed.
+FRESH_STANDARDS=${EFA_CI_FRESH_STANDARDS:-bsi-02102-2,rfc9325}
 fresh_standards() {
-    efactl standards-status | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(d["selected"] != ["bsi-02102-2", "rfc9325"] or d["port25_tls"] != "off")' \
+    efactl standards-status | FRESH_STANDARDS="$FRESH_STANDARDS" python3 -c 'import json,os,sys; d=json.load(sys.stdin); sys.exit(sorted(d["selected"]) != sorted(os.environ["FRESH_STANDARDS"].split(",")) or d["port25_tls"] != "off")' \
         || { echo "the standards of the setup are not chosen"; efactl standards-status; return 1; }
     efactl tls-profile-status | grep -q '"profile": "bsi"' || { echo "TLS profile is not bsi"; efactl tls-profile-status; return 1; }
     [ "$(efactl ssh-profile-status | python3 -c 'import json,sys; print(json.load(sys.stdin)["profile"])')" = "$(cat "$FRESH_SAVED/ssh-profile")" ] \
         || { echo "the setup changed the SSH profile"; return 1; }
     strong='ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384'
     weak='ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305'
+    case ",$FRESH_STANDARDS," in *,moz-modern,*)
+        echo | timeout 20 openssl s_client -connect 127.0.0.1:443 -tls1_2 2>&1 | grep -q '^ *Cipher *: *ECDHE-' && { echo "TLS 1.2 on 443 with Mozilla modern"; return 1; }
+        [ -z "$(ls -A /etc/letsencrypt/live 2>/dev/null)" ] || { echo "Let's Encrypt asked for a name that is not public"; return 1; }
+        wheres='-starttls smtp -connect 127.0.0.1:587' ;;
+    *) wheres='-connect 127.0.0.1:443 -starttls smtp -connect 127.0.0.1:587' ;;
+    esac
     for where in '-connect 127.0.0.1:443' '-starttls smtp -connect 127.0.0.1:587'; do
+        echo | timeout 20 openssl s_client $where -tls1_3 2>&1 | grep -q 'TLSv1.3' || { echo "no TLS 1.3: $where"; return 1; }
+        case "$wheres" in *"$where"*) ;; *) continue ;; esac
         echo | timeout 20 openssl s_client $where -tls1_2 -cipher "$strong" 2>&1 | grep -q '^ *Cipher *: *ECDHE-' || { echo "TLS 1.2 with AES-GCM refused: $where"; return 1; }
         echo | timeout 20 openssl s_client $where -tls1_2 -cipher "$weak" 2>&1 | grep -q '^ *Cipher *: *ECDHE-' && { echo "CHACHA20 offered with BSI: $where"; return 1; }
         echo | timeout 20 openssl s_client $where -tls1_3 2>&1 | grep -q 'TLSv1.3' || { echo "no TLS 1.3: $where"; return 1; }
@@ -743,6 +773,9 @@ step lint-shell lint_shell
 step exec-bits exec_bits
 step lint-os-calls python3 -I scripts/os_lint.py
 step consistency python3 -I scripts/consistency_check.py
+# A minimum version of a package of others only by its arch-bound name (docs/dev/min-versions.md).
+step requires-isa python3 -I scripts/requires_isa_check.py
+step cve-check-self python3 -I scripts/cve_check.py --self-test
 # PKG-1: the operating system updated alone, eFa-next as built: the packages of others move, the checks after the install must
 # still hold. Left out: firewalld (its scripts reload the firewall, as in efactl update-system) and the kernel (no reboot here).
 os_update_test() {
@@ -759,8 +792,9 @@ os_update_test() {
     grep -q '"ok": true' "$OUT/os-check.json" || { cat "$OUT/os-check.json"; return 1; }
 }
 
-# S28: the release upgrade for real on this EL9 host, read only: preflight through its unit, then status. Expected: blocked (no
-# eFa-next repository for EL10 yet), and no traceback anywhere.
+# S28: the release upgrade for real on this EL9 host, read only: preflight through its unit, then status. Expected: a verdict
+# (ready, or blocked with its reasons) that checked the eFa-next repository for EL10, and no traceback anywhere. Only the
+# preflight runs: nothing is upgraded. (Before 6.0.0.6 there was no EL10 repository yet, so it was always blocked.)
 release_upgrade_real() {
     efactl release-upgrade --action=preflight || return 1
     # A oneshot unit is "activating" while it runs: wait for the state of the step instead.
@@ -769,7 +803,7 @@ release_upgrade_real() {
         echo "$out" | grep -qE '"state": "(queued|preflight)"' || break
         sleep 2
     done
-    echo "$out" | grep -q '"state": "blocked"' || { echo "$out"; return 1; }
+    echo "$out" | grep -qE '"state": "(blocked|ready)"' || { echo "$out"; return 1; }
     echo "$out" | grep -q 'repository for EL10' || { echo "$out"; return 1; }
     if journalctl -u efa-release-upgrade.service --since '-15 min' --no-pager | grep -q Traceback; then
         journalctl -u efa-release-upgrade.service --since '-15 min' --no-pager | tail -40; return 1
@@ -811,59 +845,67 @@ retro_imap() {
 step product-name python3 -I scripts/name_check.py
 step license python3 -I scripts/license_check.py
 step unit-tests python3 -B -m unittest discover -s tests
-step arc-independent arc_independent
-step passkey-browser passkey_browser
-step retro-imap retro_imap
+full && step arc-independent arc_independent
+full && step passkey-browser passkey_browser
+full && step retro-imap retro_imap
 step self-tests self_tests
 # CVE-2026-109786: the sshd filter fix of efactl against the fail2ban of this host (skipped where fail2ban-regex is missing).
 step fail2ban-sshd python3 -I scripts/fail2ban_sshd_check.py
 step i18n python3 -B scripts/i18n_extract.py --check
-step fuzz python3 -B scripts/fuzz.py --seconds 60
+full && step fuzz python3 -B scripts/fuzz.py --seconds 60
 step rpm-build python3 -I build/build-rpms.py --next-dir next --out "$OUT/rpms"
-[ -z "$FAILED" ] && step reproducible reproducible
+# The publish script of every release, offline with the packages just built: no network, no gpg, no upload.
+[ -z "$FAILED" ] && step publish-dryrun sh scripts/publish/publish-release.sh offline "$OUT/rpms"
+full && [ -z "$FAILED" ] && step reproducible reproducible
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step install-upgrade install_test
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step upgrade-keeps upgrade_keep_check
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step submission-heal-twice submission_heal_twice
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step efa5-587-auth efa5_587_check
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step submission-heal-twice submission_heal_twice
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step efa5-587-auth efa5_587_check
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step web-restart web_restart_check
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step nginx-pid nginx_pid_check
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step admin-allow-loopback admin_allow_loopback_check
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step nginx-pid nginx_pid_check
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step admin-allow-loopback admin_allow_loopback_check
 [ "$INSTALL" = yes ] && step upgrade-unplant upgrade_unplant
 [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step host-check host_check
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step os-update os_update_test
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step release-upgrade-real release_upgrade_real
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step os-update os_update_test
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step release-upgrade-real release_upgrade_real
 # MIG-LE: a certbot lineage of eFa 5 from a local test CA taken over for nginx and Postfix, key unchanged; put back afterwards.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step le-takeover-live python3 -I scripts/le_takeover_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step le-takeover-live python3 -I scripts/le_takeover_live.py
 # MIG-DNS: a forward-zone "." of eFa 5 (to 8.8.8.8) and an internal zone: dns-forward-fix removes the first, keeps the second.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step dns-forward-live python3 -I scripts/dns_forward_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step dns-forward-live python3 -I scripts/dns_forward_live.py
 # DNS-SHARE: the own address as an allowed /32 gets an answer and two firewall rules; after the removal it is refused, the rules gone.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step dns-share-live python3 -I scripts/dns_share_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step dns-share-live python3 -I scripts/dns_share_live.py
 # MIG-ALLOW: an allowed sender gets past RBL, HELO and DNS, never through as a relay; its virus is cut out, another's rejected.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step sender-allow-live python3 -I scripts/sender_allow_live.py
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step maintenance-cidr-live python3 -I scripts/maintenance_cidr_live.py
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step cluster-recidive-live sh scripts/cluster_recidive_live.sh
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step selftest-hermetic-live sh scripts/selftest_hermetic_live.sh
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step totp-failclosed-live sh scripts/totp_failclosed_live.sh
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step sender-allow-live python3 -I scripts/sender_allow_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step maintenance-cidr-live python3 -I scripts/maintenance_cidr_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step cluster-recidive-live sh scripts/cluster_recidive_live.sh
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step selftest-hermetic-live sh scripts/selftest_hermetic_live.sh
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step totp-failclosed-live sh scripts/totp_failclosed_live.sh
 # T-2: the mail paths of the live test in every run: clean, GTUBE, EICAR, quarantine list and release, outbound into the queue.
 # Nothing leaves the host (defer_transports for the time of the step, main.cf as before afterwards).
 live_mail_step() {
     EFA_CI_LOCK_HELD=1 EFA_LIVE_STEPS=mail EFA_LIVE_DOMAIN="${EFA_LIVE_DOMAIN:-$(awk '!/^#/ && NF {print $1; exit}' /etc/postfix/transport)}" sh scripts/live_test.sh
 }
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step live-mail live_mail_step
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step live-mail live_mail_step
 # T-1 (mails of its own test domain efa-live.test, see live_test.sh): the functions in the mail flow, each switched on for its check and put back: a real mail through Postfix, rspamd and the
 # milters, the result read from the queue. Same defer_transports as live-mail: nothing leaves the host.
 live_features_step() {
     EFA_CI_LOCK_HELD=1 EFA_LIVE_STEPS=features EFA_LIVE_DOMAIN="${EFA_LIVE_DOMAIN:-$(awk '!/^#/ && NF {print $1; exit}' /etc/postfix/transport)}" sh scripts/live_test.sh
 }
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step live-features live_features_step
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step live-features live_features_step
 # 6.0.0.6: the account ID of SecuriteInfo and the key of a threat feed stay out of journal entries, snapshot, backup and logs.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step secrets-clean python3 -I scripts/secrets_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step secrets-clean python3 -I scripts/secrets_live.py
+# G7 (6.0.0.6.4): GeoIP with the real DB-IP files, Pyzor with a made-up mail, the daily mail numbers, the new units; each
+# switched on for its check and put back. Only in CI: GeoIP and Pyzor talk to the internet while they run.
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step geoip-live python3 -I scripts/g7_live.py geoip
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step pyzor-live python3 -I scripts/g7_live.py pyzor
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step maillog-daily-live python3 -I scripts/g7_live.py maillog-daily
+[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step g7-units python3 -I scripts/g7_live.py units
 # SEC-STD: preview changes nothing; Mozilla modern makes the web TLS 1.3 only, 587 keeps 1.2; the check reads sshd -T; the rollback.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step standards-live python3 -I scripts/standards_live.py
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step standards-live python3 -I scripts/standards_live.py
 # SBOM-2: what the installed eFa-next needs at runtime holds no Perl, except through the packages in build/sbom.py PERL_VIA.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step perl-free python3 -I build/sbom.py --perl-check
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step perl-free python3 -I build/sbom.py --perl-check
 # Q11: a small load run through rspamd (check only), after the install so the new rules are in.
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step load python3 -I scripts/load_test.py --mode rspamd --mails 200 --parallel 8
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && step load python3 -I scripts/load_test.py --mode rspamd --mails 200 --parallel 8
 # The live UI test (Playwright) of exactly the tree this run installed, in the same hold of the lock: no other run can install
 # in between. On with EFA_CI_LIVE_UI=yes (a venv with playwright, see live_test.sh; the Chromium of EPEL chromium-headless unless
 # EFA_LIVE_BROWSER names another); efa-web.py of the host is
@@ -873,7 +915,7 @@ live_ui_step() {
     EFA_LIVE_BROWSER="${EFA_LIVE_BROWSER:-/usr/lib64/chromium-browser/headless_shell}" EFA_CI_LOCK_HELD=1 EFA_LIVE_STEPS=ui EFA_LIVE_DOMAIN="${EFA_LIVE_DOMAIN:-$(awk '!/^#/ && NF {print $1; exit}' /etc/postfix/transport)}"         sh scripts/live_test.sh || return 1
     cmp -s /usr/local/sbin/efa-web.py next/usr/local/sbin/efa-web.py || { echo "efa-web.py changed during the live test"; return 1; }
 }
-[ "$INSTALL" = yes ] && [ -z "$FAILED" ] && [ "${EFA_CI_LIVE_UI:-}" = yes ] && step live-ui live_ui_step
+full && [ "$INSTALL" = yes ] && [ -z "$FAILED" ] && [ "${EFA_CI_LIVE_UI:-}" = yes ] && step live-ui live_ui_step
 # The fresh install last: it puts this host back as it was before it.
 # Its wizard makes new SSH host keys and the restore puts the saved ones back: a login in between sees another key.
 if [ "$FRESH" = yes ] && [ -z "$FAILED" ]; then
@@ -884,7 +926,7 @@ fi
 
 UNITS=$(grep -o 'Ran [0-9]* tests' "$OUT/unit-tests.log" 2>/dev/null)
 if [ -z "$FAILED" ]; then
-    echo "ci: OK ($UNITS; self-tests $SELF_TESTS; rpm built; install: $INSTALL; fresh: $FRESH) $(date '+%F %T')"
+    echo "ci: OK ($UNITS; self-tests $SELF_TESTS; rpm built; install: $INSTALL; fresh: $FRESH; hotfix: $HOTFIX) $(date '+%F %T')"
     rm -rf "$GREEN"
     mv "$OUT/rpms" "$GREEN" && tree_hash >"$GREEN/TREE" && date '+%F %T' >"$GREEN/WHEN"
     # EFA_CI_KEEP=<folder>: a copy of these packages, still under the lock, that the next green run does not replace.

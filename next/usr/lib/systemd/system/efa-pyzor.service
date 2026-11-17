@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+[Unit]
+Description=eFa-next Pyzor: the checksum of incoming mail to a Pyzor server for rspamd (only while Pyzor is on)
+After=network-online.target
+Before=rspamd.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+# The home of the program pyzor: its list of servers, written by efa-pyzor.py.
+RuntimeDirectory=efa-pyzor
+# The settings (the Pyzor server), readable for this service only.
+LoadCredential=pyzor.json:/etc/eFa/pyzor.json
+ExecStart=/usr/bin/python3 /usr/local/sbin/efa-pyzor.py
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=128M
+CPUQuota=25%
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

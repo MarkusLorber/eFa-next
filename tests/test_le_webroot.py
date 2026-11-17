@@ -36,8 +36,12 @@ class LetsencryptSetTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.mkdtemp(prefix='efa-le-')
         self.saved = {name: getattr(efactl, name) for name in ('ETC', 'NGINX_CONF', 'ACME_FILE', 'subprocess', '_write', '_json_write', '_postconf_set',
-                                                                '_platform', '_audit', '_dmarc_who', '_json_read', '_lineage_spki', '_tlsa_published', 'tlsa_records')}
+                                                                '_platform', '_audit', '_dmarc_who', '_json_read', '_lineage_spki', '_tlsa_published', 'tlsa_records',
+                                                                'ACME_COOLDOWN', 'ACME_DEV_FLAG', 'acme_name_problem')}
         efactl.ETC, efactl.NGINX_CONF, efactl.ACME_FILE = self.folder, self.folder + '/efa.conf', self.folder + '/acme.json'
+        # Never the real Let's Encrypt pause or DNS: the names of the test count as public.
+        efactl.ACME_COOLDOWN, efactl.ACME_DEV_FLAG = self.folder + '/cooldown.json', self.folder + '/dev-no-setup-code'
+        efactl.acme_name_problem = lambda name, resolve=None: ''
         self.runs, self.postconf, self.reloads, self.failing = [], {}, [], False
 
         def run(cmd, **_kwargs):
@@ -133,11 +137,18 @@ class LetsencryptSetTests(unittest.TestCase):
         self.assertEqual(self.postconf['smtpd_tls_cert_file'], f'{self.folder}/letsencrypt/live/mx.example.org-next/fullchain.pem')
         self.assertEqual(self.reloads, ['postfix'])
 
+    def test_dry_run_first_then_one_request(self):
+        self.nginx('old.example.org')
+        self.apply()
+        certbot = [cmd for cmd in self.runs if cmd[0] == 'certbot']
+        self.assertEqual([cmd[-1] for cmd in certbot], ['--dry-run', '--keep-until-expiring'], 'staging first, then once for real')
+
     def test_failed_request_changes_nothing(self):
         before = self.nginx('old.example.org')
         self.failing = True
         with self.assertRaises(efactl.EfaError):
             self.apply()
+        self.assertEqual(len([cmd for cmd in self.runs if cmd[0] == 'certbot']), 1, 'no real request after a failed dry run, no retry')
         with open(efactl.NGINX_CONF) as f:
             self.assertEqual(f.read(), before)
         self.assertEqual(self.postconf, {})

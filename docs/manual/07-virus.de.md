@@ -1,6 +1,6 @@
 # 7. Viren, Anhänge und Links
 
-Alles unter *Schutz › Spam & Viren*, jeweils als eigene Karte.
+Alles unter *Schutz › Viren, Anhänge & Links*, jeweils als eigene Karte.
 
 ## Virenprüfung (ClamAV)
 

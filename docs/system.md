@@ -1,10 +1,10 @@
 # System
 
-## Network & certificate
+## Network, DNS & certificate
 
 Host name, IPv4 and IPv6 (apply after a reboot), internal DNS zones, and a Let's Encrypt certificate.
 
-![Network & certificate](images/net.png)
+![Network, DNS & certificate](images/net.png)
 
 ## Backup & restore
 

@@ -114,6 +114,9 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | Befehl | Titel |
 |---|---|
 | `message-search` | Mailsuche |
+| `search-saved` | Gespeicherte Suchen |
+| `search-save` | Gespeicherte Suchen: Filter speichern *(ändert)* |
+| `search-delete` | Gespeicherte Suchen: eine löschen *(ändert)* |
 | `maillog-search` | Mail-Log: suchen |
 | `maillog-live` | Mail-Log: live |
 | `sender-action-check` | Absender einer Mail: was Erlauben oder Sperren tun würde |
@@ -134,12 +137,14 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 
 ## Schutz
 
-### Spam & Viren
+### Spamfilter, Viren und Anhänge
 
 | Befehl | Titel |
 |---|---|
 | `spam-scores-set` | Spam-Scores *(ändert)* |
 | `greylisting-set` | Greylisting *(ändert)* |
+| `greylisting-status` | Greylisting: Ausnahmen |
+| `greylisting-exception-set` | Greylisting: eine Ausnahme, die nie wartet *(ändert)* |
 | `subject-get` | Betreffmarkierung: zeigen |
 | `subject-set` | Betreffmarkierung: setzen *(ändert)* |
 | `bayes-status` | Bayes-Klassifikator |
@@ -157,6 +162,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `unlock-set` | Verschlüsselte Archive: mit dem Passwort aus der Mail öffnen und prüfen *(ändert)* |
 | `ole-status` | Office-Makros (oletools) |
 | `ole-set` | Office-Makros: von olevba gelesen und bewertet *(ändert)* |
+| `pyzor-status` | Pyzor |
+| `pyzor-set` | Pyzor: Prüfsummen eingehender Mail von einem Pyzor-Server vergleichen lassen *(ändert)* |
 | `tracking-status` | Tracking-Schutz |
 | `tracking-set` | Tracking-Schutz: Zählpixel und Link-Parameter aus eingehender Mail entfernen *(ändert)* |
 | `tracking-list-set` | Tracking-Schutz: Ausnahmen und eigene Tracking-Hosts *(ändert)* |
@@ -527,6 +534,12 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | Befehl | Titel |
 |---|---|
 | `report-show` | Bericht: zeigen oder drucken |
+| `mail-history` | Mail-Verlauf: Kalender und Verlauf |
+| `geoip-status` | GeoIP: Land und Netz |
+| `geoip-set` | GeoIP: schalten *(ändert)* |
+| `geoip-import` | GeoIP: Datei einspielen *(ändert)* |
+| `geoip-lookup` | GeoIP: Adresse nachsehen |
+| `geoip-report` | Länder der einliefernden Server |
 | `report-status` | Berichte per Mail |
 | `report-set` | Berichte per Mail: schalten *(ändert)* |
 | `mailreport-today` | Heute |
@@ -567,7 +580,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `dns-share-del` | DNS für weitere Netze: entfernen *(ändert)* |
 | `dns-share-secondary-set` | Zweiter DNS-Resolver dieses Hosts (der andere MX) *(ändert)* |
 
-### Netzwerk & Zertifikat
+### Netzwerk, DNS & Zertifikat
 
 | Befehl | Titel |
 |---|---|
@@ -606,6 +619,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `backup-password-set` | Passwort für automatische Sicherungen *(ändert)* |
 | `backup-key-show` | Sicherungen: Fingerabdruck des Signierschlüssels |
 | `restore` | Eine Sicherung wiederherstellen *(ändert)* |
+| `settings-export` | Einstellungen: Bereiche für einen anderen Host exportieren *(ändert)* |
+| `settings-import` | Einstellungen: Bereiche von einem anderen Host übernehmen *(ändert)* |
 | `backup-download` | Sicherung: wo sie liegt |
 | `backup-read` | Sicherung: Rohdownload |
 | `backup-import` | Sicherung: eine hochgeladene Datei ablegen *(ändert)* |
@@ -647,6 +662,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 |---|---|
 | `update-pending` | Ausstehende Updates |
 | `update-status` | Letztes Systemupdate |
+| `update-progress` | Update: Versionen und Fortschritt (die Karte Update) |
 | `update-system` | System aktualisieren *(ändert)* |
 | `autoupdate-status` | eFa-Updates |
 | `autoupdate-set` | Automatische eFa-Updates *(ändert)* |

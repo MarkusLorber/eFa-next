@@ -11,7 +11,7 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.3
+Version:        6.0.0.6.4
 Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
@@ -40,8 +40,11 @@ Requires:       openldap-clients
 Requires:       dejavu-sans-fonts
 Obsoletes:      clamav-unofficial-sigs
 Requires:       python3
-# Only for content disarm, installed when it is switched on.
-Suggests:       qpdf
+# Content disarm and the PDF encryption. A dependency since 2026-11-17: installed later by efactl, it waited for the package
+# window (minute 20 to 50), so a new host whose first boot fell outside it kept content disarm off.
+Requires:       qpdf
+# G7-5: only for Pyzor (EPEL), installed when it is switched on.
+Suggests:       pyzor
 Requires:       sudo
 Requires:       systemd
 
@@ -148,6 +151,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Sun Nov 15 2026 Markus Lorber - 6.0.0.6.4-1
+- 6.0.0.6.4: one Update card with versions, progress bar, step and time left; see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.3-1
 - 6.0.0.6.3: mail log search window, page Privacy & Compliance, language pill, dashboard and footer; see CHANGELOG.md.
 

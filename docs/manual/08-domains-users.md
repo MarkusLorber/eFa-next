@@ -4,7 +4,7 @@ The menu groups *Domains & tenants* and *Users & access*.
 
 ## DKIM, ARC & DMARC
 
-*Domains & tenants › DKIM, ARC & DMARC*:
+*Domains & routing › DKIM, ARC & DMARC*:
 
 - **DKIM keys:** *RSA key: generate* (2048, 3072 or 4096 bits) or *Ed25519 key: generate* per domain, then publish the DNS
   record from *DKIM: export DNS records*. RSA and Ed25519 can be used side by side.
@@ -36,7 +36,7 @@ sudo efactl dkim-export
 
 ## Domain settings
 
-*Domains & tenants › Domain settings* holds values of a tenant or a domain that win over the global ones: spam limits, days of
+*Domains & routing › Domain settings* holds values of a tenant or a domain that win over the global ones: spam limits, days of
 held mail, digest hour and text, TLS to the domain, language, stored headers, EU relation, job applications, the domain check,
 role addresses, spam traps. The domain wins over its tenant. *Show with their source* tells for each value whether it comes
 from the domain, the tenant or global; *Inherit* takes an own value away.
@@ -45,7 +45,7 @@ from the domain, the tenant or global; *Inherit* takes an own value away.
 
 ## Tenants
 
-A tenant is one customer with its domains, users, look and limits (*Domains & tenants › Tenants*):
+A tenant is one customer with its domains, users, look and limits (*Domains & routing › Tenants*):
 
 - **Tenants & domains:** a super admin adds domains at once; a tenant admin adds one, publishes the TXT record
   `_efa-verify.<domain>` it shows, then lets it be checked.

@@ -52,6 +52,18 @@ platform or through MITRE. The advisory names the CVE, the affected and the fixe
 | 6.0.0.x, older releases | no: update to the latest release |
 | eFa 5 and older (the original eFa project) | no: not part of eFa-next, see `docs/migration.md` |
 
+By operating system:
+
+| Platform | Support |
+|----------|---------|
+| EL10: AlmaLinux 10 | full support |
+| EL9: AlmaLinux 9, Rocky Linux 9, RHEL 9 | support and security updates until 2027-05-31 |
+
+From 2027-06-01 an EL9 host gets no more updates of eFa-next. Only the move to version 10 stays: the release upgrade
+(`docs/release-upgrade.md`) or a migration. The dates of the operating system itself are its own (AlmaLinux 9: security updates
+until 2032-05-31); they are not a promise of eFa-next. The dashboard of an EL9 host warns from 2026-12-01 (yellow) and is red
+from 2027-06-01.
+
 ## Scope
 
 In scope: the code in this repository and the packages built from it, their default configuration, and the way they configure

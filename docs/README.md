@@ -8,7 +8,7 @@ eFa-next is a mail filter appliance: it takes mail for your domains, checks it w
 
 - **[Manual](manual/README.md)** ([Handbuch, Deutsch](manual/README.de.md)): the whole of eFa-next, chapter by chapter, with screenshots.
 - [All features](FEATURES.md) ([Deutsch](FEATURES.de.md)): what eFa-next contains, grouped, with a link to each page.
-- [Install](install.md): a fresh EL9 host.
+- [Install](install.md): a fresh EL9 or EL10 host (AlmaLinux, Rocky Linux, RHEL).
 - [Migrate from eFa 5](migration.md): an existing eFa 5.0 host.
 - [Upgrade](upgrade.md): what stays, and the first login after an upgrade or a migration.
 - [First steps](first-steps.md): what to set after the install.
@@ -19,7 +19,7 @@ eFa-next is a mail filter appliance: it takes mail for your domains, checks it w
 |---|---|
 | Overview | [Dashboard](dashboard.md) |
 | Mail & quarantine | [Mail routing, held mail, quarantine, mail log](mail-and-quarantine.md) |
-| Protection | [Spam & virus, blocklists, sender lists, rules](protection.md) |
+| Protection | [Spam filter, blocklists, sender lists, rules](protection.md) |
 | Domains & tenants | [DKIM, ARC & DMARC, domain settings, tenants](domains-and-tenants.md) |
 | Users & access | [Users, groups and permissions, security](users-and-access.md) |
 | Monitoring & reports | [Mail report, monitoring, Wazuh](monitoring-and-reports.md) |

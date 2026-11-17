@@ -4,7 +4,7 @@ Die Menügruppen *Domains & Mandanten* und *Benutzer & Zugriff*.
 
 ## DKIM, ARC & DMARC
 
-*Domains & Mandanten › DKIM, ARC & DMARC*:
+*Domains & Routing › DKIM, ARC & DMARC*:
 
 - **DKIM-Schlüssel:** *RSA-Schlüssel erzeugen* (2048, 3072 oder 4096 Bit) oder *Ed25519-Schlüssel erzeugen* je Domain, dann den
   DNS-Eintrag aus *DKIM: DNS-Einträge exportieren* veröffentlichen. RSA und Ed25519 gehen nebeneinander.
@@ -37,7 +37,7 @@ sudo efactl dkim-export
 
 ## Domain-Einstellungen
 
-*Domains & Mandanten › Domain-Einstellungen* enthält Werte eines Mandanten oder einer Domain, die vor den globalen gelten:
+*Domains & Routing › Domain-Einstellungen* enthält Werte eines Mandanten oder einer Domain, die vor den globalen gelten:
 Spamgrenzen, Tage zurückgehaltener Mail, Stunde und Text der Übersichtsmail, TLS zur Domain, Sprache, gespeicherte Header,
 EU-Bezug, Bewerbungen, die Domain-Prüfung, Rollenadressen, Spamfallen. Die Domain geht vor ihrem Mandanten. *Mit Herkunft zeigen*
 sagt für jeden Wert, ob er von der Domain, dem Mandanten oder global kommt; *Erben* nimmt einen eigenen Wert wieder weg.
@@ -46,7 +46,7 @@ sagt für jeden Wert, ob er von der Domain, dem Mandanten oder global kommt; *Er
 
 ## Mandanten
 
-Ein Mandant ist ein Kunde mit seinen Domains, Benutzern, seinem Aussehen und seinen Limits (*Domains & Mandanten › Mandanten*):
+Ein Mandant ist ein Kunde mit seinen Domains, Benutzern, seinem Aussehen und seinen Limits (*Domains & Routing › Mandanten*):
 
 - **Mandanten & Domains:** Ein Super-Admin fügt Domains sofort hinzu; ein Mandanten-Admin fügt eine hinzu, veröffentlicht den
   angezeigten TXT-Eintrag `_efa-verify.<Domain>` und lässt ihn prüfen.

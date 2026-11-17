@@ -1,21 +1,23 @@
 # Protection
 
-## Spam & virus
+## Spam filter, viruses and attachments
 
 When mail is greylisted, marked or rejected; subject marking for failed SPF, DKIM or DMARC; the Bayes classifier (read only); the extra Sanesecurity virus signatures.
 
-![Spam & virus](images/spam.png)
+![Spam filter](images/spam.png)
 
 ### Greylisting
 
-Greylisting (Spam & virus) holds mail of an unknown sender back once. 9j: how long a new sender waits (1 to 15 minutes, default
+Greylisting (Spam filter) holds mail of an unknown sender back once. 9j: how long a new sender waits (1 to 15 minutes, default
 5 as rspamd) and how long a sender that came back stays known (1, 3 or 7 days, default 1), as dropdowns showing the values in
 use. A new install and a migration from eFa 5 switch it on with 5 minutes and 7 days (from 6.0.0.6); an update keeps what was set.
 With greylisting off and its score below the spam marking, mail in between gets no action at all: the dashboard names that gap.
 
+**Greylisting exceptions** (6.0.0.6.4, card *Greylisting exceptions*): networks and domains of sending servers that never wait, for example a partner or an own system (`efactl greylisting-exception-set --action add --value 192.0.2.0/24`). A network is at most /16 (IPv4) or /32 (IPv6). A domain matches the name of the sending server as its reverse DNS shows it, or the registered domain of that name, never the sender address, which anyone can forge. rspamd keeps its own list of big providers as well. `efactl greylisting-status` lists the exceptions. In a cluster the master hands them to every node.
+
 ### Scan limits
 
-`efactl scan-limits-set` (Spam & virus, Scan limits) bounds the virus scan of one mail: the seconds clamd may take (5 to 20),
+`efactl scan-limits-set` (Viruses, attachments & links, Scan limits) bounds the virus scan of one mail: the seconds clamd may take (5 to 20),
 the largest mail it scans (10 to 64 MB; clamd reads at most four times that from archives) and the seconds of all checks of rspamd
 (8 to 60). When the scan fails (clamd not running, too slow, a limit hit) the mail either passes unscanned (fail open, as before)
 or fails closed: it is deferred with `451` and the sender tries again; a mail too large to scan is rejected. The mode is set for
@@ -82,7 +84,7 @@ far more mails in a day than usual (more than 10 and five times the average), or
 
 ## Lookalike watch (M4)
 
-`efactl lookalike-set --mode on` (Spam & virus, Lookalike watch) looks for new certificates of domains that imitate an own or
+`efactl lookalike-set --mode on` (Viruses, attachments & links, Lookalike watch) looks for new certificates of domains that imitate an own or
 partner domain. It uses Certificate Transparency.
 
 1. Once a day the CT search of crt.sh is asked for each name of the own and partner domains (the first label, from 4 letters
@@ -102,7 +104,7 @@ relation it needs the typed confirmation `I accept the transfer outside the EU` 
 
 ## More ClamAV signatures (5v a)
 
-`efactl clam-source-set --source urlhaus --mode on --accept_terms yes` (Spam & virus, Virus signatures) adds a source of ClamAV
+`efactl clam-source-set --source urlhaus --mode on --accept_terms yes` (Viruses, attachments & links, Virus signatures) adds a source of ClamAV
 signatures to the job of the Sanesecurity signatures (every 2 hours). The sources:
 - URLhaus (abuse.ch, Switzerland): links of known malware;
 - InterServer (USA): hashes of malware and web shells;
@@ -138,13 +140,22 @@ Example of the lines (with a placeholder key):
     DatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/securiteinfo.hdb
     DatabaseCustomURL https://www.securiteinfo.com/get/signatures/EXAMPLEKEY/javascript.ndb
 
-Office macros (5v b): `efactl ole-set --mode on` (Spam & virus, Office macros) has olevba of oletools (EPEL, BSD licence) read
+Office macros (5v b): `efactl ole-set --mode on` (Viruses, attachments & links, Office macros) has olevba of oletools (EPEL, BSD licence) read
 the VBA macros of Office files, in the sandboxed service efa-unlock. Up to three files a mail are read, each up to 10 MB.
 - `EFA_OLE_AUTOEXEC` (4): a macro that starts on opening.
 - `EFA_OLE_SUSPICIOUS` (3): suspicious calls such as Shell, CreateObject or downloads.
 - `EFA_OLE_AUTOEXEC_SUSPICIOUS` (10): both.
 
 This comes next to the own macro check of the content disarm, which only knows whether a file has macros. Off by default.
+
+Pyzor (G7-5, 6.0.0.6.4): `efactl pyzor-set --mode on --accept yes` (Spam filter, Pyzor) asks a Pyzor server how often the
+checksum of an incoming mail was reported as spam. The service efa-pyzor (127.0.0.1:8912, DynamicUser, full sandbox, only while
+on) runs the program `pyzor check` of EPEL (GPL-2.0) for each mail, at most 4 at a time, and keeps answers 10 minutes in memory;
+only the checksum leaves the host. pyzor runs as a program of its own, never imported, so its licence stays apart from the AGPL
+code of eFa-next. Each check starts a Python process (about 0.1 to 0.2 s of CPU). rspamd asks the service through the own module
+efa-pyzor.lua, not through `external_services`, so the answer is JSON and covered by the self-test.
+- `EFA_PYZOR` (2.0, 0 to 20): 5 reports or more and not whitelisted.
+- `EFA_PYZOR_ERROR` (0): the server did not answer; the mail goes on.
 
 Spamhaus error codes (5v i): when Spamhaus refuses the queries, the blocklist page says why. `127.255.255.254` means a public or
 open resolver; `127.255.255.255` means too many queries. It also says what helps: the own Unbound without forwarders, or a
@@ -183,7 +194,7 @@ signed link token, so the page knows it without any other lookup; links written 
 
 ## BIMI (5w)
 
-`efactl bimi-set --mode on` (Spam & virus, Content disarm). For a sender domain that passed DMARC with p=quarantine or
+`efactl bimi-set --mode on` (Viruses, attachments & links, Content disarm). For a sender domain that passed DMARC with p=quarantine or
 p=reject, eFa-next reads its BIMI record (`default._bimi.<domain>`, or the selector of a BIMI-Selector header) through the own
 resolver, fetches the logo over HTTPS (at most 32 KB, 5 seconds) and checks it as SVG Tiny PS with a strict parser without DTD
 or entities: no scripts, no animation, no links or images outside. Then the mail gets `BIMI-Location`, `BIMI-Indicator` and
@@ -193,7 +204,7 @@ Results are kept for an hour per domain. Certificates (VMC/CMC, `a=`) are not ch
 
 ## QR codes (5x, 9)
 
-`efactl qr-set --mode on` (Spam & virus, QR codes) reads QR codes in pictures and in the first three pages of PDF files (each
+`efactl qr-set --mode on` (Viruses, attachments & links, QR codes) reads QR codes in pictures and in the first three pages of PDF files (each
 part up to 10 MB, up to five parts a mail, 10 seconds each) with zbar in the own sandboxed service efa-qr, which keeps nothing.
 A link of a QR code counts as `EFA_QR_URL` (2), in a mail almost without text as `EFA_QR_URL_TEXTLESS` (5), and when a threat
 feed names it as `EFA_QR_FEED` (10). The link check at the click cannot catch these links, a phone opens them directly. zbar
@@ -201,7 +212,7 @@ feed names it as `EFA_QR_FEED` (10). The link check at the click cannot catch th
 
 ## Encrypted archives (10)
 
-`efactl unlock-set --mode on` (Spam & virus, Encrypted archives) opens encrypted ZIP archives for the virus scan. It works in
+`efactl unlock-set --mode on` (Viruses, attachments & links, Encrypted archives) opens encrypted ZIP archives for the virus scan. It works in
 the own sandboxed service efa-unlock, which writes and keeps nothing.
 
 1. rspamd hands the archive (up to 10 MB, up to three a mail) with the subject and text of the mail to efa-unlock.
@@ -218,7 +229,7 @@ Off by default.
 
 ## Outbreak filter (11)
 
-`efactl outbreak-set --mode on` (Spam & virus, Outbreak filter) defers a new wave of the same mail with a temporary error.
+`efactl outbreak-set --mode on` (Spam filter, Outbreak filter) defers a new wave of the same mail with a temporary error.
 
 - **What is a wave:** the same attachment, or the same text when the mail has none, goes to many recipients (default 30) within
   a few minutes (default 10) of its first mail.
@@ -233,7 +244,7 @@ Off by default.
 
 ## Own fuzzy store (N4)
 
-`efactl fuzzy-set --mode on` (Spam & virus, Own fuzzy store) runs the fuzzy worker of rspamd on `127.0.0.1:11335`, with its
+`efactl fuzzy-set --mode on` (Spam filter, Own fuzzy store) runs the fuzzy worker of rspamd on `127.0.0.1:11335`, with its
 hashes in the local Redis for 90 days.
 
 - **What it learns:** a report an admin approves as spam (Spam reports: phishing reports and the reports of users) goes to
@@ -248,7 +259,7 @@ Off by default.
 
 ## Community fuzzy store (P7)
 
-`efactl community-set --mode on --server fuzzy.example.eu:11335 --key <public key>` (Spam & virus, Community fuzzy store) also
+`efactl community-set --mode on --server fuzzy.example.eu:11335 --key <public key>` (Spam filter, Community fuzzy store) also
 asks a fuzzy store that the operators run themselves, for example one store for several eFa-next installations in the EU. A hit
 counts as `EFA_FUZZY_COMMUNITY` (5).
 
@@ -275,7 +286,7 @@ A role or report address cannot be a trap.
 
 ## Extra virus scanners (7)
 
-`efactl scanner-set` (Spam & virus, Extra virus scanners) adds more scanners through the `external_services` module of rspamd.
+`efactl scanner-set` (Viruses, attachments & links, Extra virus scanners) adds more scanners through the `external_services` module of rspamd.
 You bring the scanner and its licence.
 
 - **Kinds:** ICAP (with the service name, such as `srv_clamav`) and the engines rspamd speaks to: kaspersky_se, avast, fprot,
@@ -292,7 +303,7 @@ None is set by default.
 
 ## Check after delivery (5v j) and taking mail back (N6)
 
-`efactl retro-set --mode on` (Spam & virus, Check after delivery) checks delivered mail again when the threat feeds learn
+`efactl retro-set --mode on` (Viruses, attachments & links, Check after delivery) checks delivered mail again when the threat feeds learn
 something new.
 
 1. While it is on, efa-maillog keeps hashes of the links, of their hosts and of the attachments of each delivered mail, for 72
@@ -318,7 +329,7 @@ Both are off by default.
 
 ## Sandbox (14)
 
-`efactl sandbox-set --mode on --url https://cape.example.org --token ...` (Spam & virus, Sandbox) sends suspicious attachments
+`efactl sandbox-set --mode on --url https://cape.example.org --token ...` (Viruses, attachments & links, Sandbox) sends suspicious attachments
 to your own CAPEv2 sandbox. No sandbox runs on the eFa-next host.
 
 Suspicious attachments are up to three per mail, up to 20 MB each, of these kinds: programs and scripts (exe, dll, js, vbs,
@@ -343,7 +354,7 @@ Off by default.
 
 ## Outlook add-in for reports (13)
 
-`efactl outlook-addin --address phishing@example.com` (Spam & virus, Phishing reports and banner) gives the manifest of an
+`efactl outlook-addin --address phishing@example.com` (Viruses, attachments & links, Phishing reports and banner) gives the manifest of an
 Outlook add-in for one of the report addresses. Install it in Exchange or Microsoft 365 for the users (central deployment).
 
 - **What it does:** in a mail that is open, its task pane has the button "Report / Melden". The button opens a new message to

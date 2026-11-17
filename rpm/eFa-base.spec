@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.3
+Version:        6.0.0.6.4
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -34,6 +34,9 @@ Requires:       rsyslog
 Requires:       mariadb-server
 %if 0%{?rhel} >= 10
 Requires:       valkey
+# The Postfix tables of EL10 are lmdb (no Berkeley DB): only a weak dependency of postfix, so without it (install_weak_deps
+# off, or after a dnf remove with autoremove) every postmap of the setup failed.
+Requires:       postfix-lmdb
 %else
 Requires:       redis
 %endif
@@ -108,6 +111,12 @@ if [ -e /var/lib/rpm-state/eFa-base/first-install ]; then
     mode=first-install
 fi
 rm -f /var/lib/rpm-state/eFa-base/first-install
+# The user of rspamd before anything configures it: rspamd 4.3.0 (el9) no longer creates it, so its own chown failed and the
+# service did not start on a new host. Its folders then go to it as its package would have done.
+systemd-sysusers /usr/lib/sysusers.d/efa-rspamd.conf >/dev/null 2>&1 || :
+for dir in /var/lib/rspamd /var/log/rspamd; do
+    [ -d "$dir" ] && [ "$(stat -c %U "$dir")" != _rspamd ] && chown -R _rspamd:_rspamd "$dir"
+done
 # Bytecode of eFa-next programs next to /usr/sbin and /usr/local/sbin belongs to no package (a program loaded as a module):
 # only files of eFa-next go, the folder only when it is empty then.
 for cache in /usr/sbin/__pycache__ /usr/local/sbin/__pycache__; do
@@ -149,6 +158,7 @@ fi
 /usr/lib/systemd/system/efa-reboot-check.timer
 %config(noreplace) /etc/sysconfig/eFa-Monitor
 %config(noreplace) /etc/logrotate.d/eFa
+/usr/lib/sysusers.d/efa-rspamd.conf
 %ghost %attr(0644,root,root) /etc/cron.d/eFa-Monitor.cron
 %dir /usr/share/selinux/packages/eFa
 /usr/share/selinux/packages/eFa/efa.pp
@@ -157,6 +167,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Sun Nov 15 2026 Markus Lorber - 6.0.0.6.4-1
+- 6.0.0.6.4: one Update card with versions, progress bar, step and time left; see CHANGELOG.md.
+
 * Sat Nov 14 2026 Markus Lorber - 6.0.0.6.3-1
 - 6.0.0.6.3: mail log search window, page Privacy & Compliance, language pill, dashboard and footer; see CHANGELOG.md.
 

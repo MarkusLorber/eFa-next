@@ -47,17 +47,18 @@ Settings live in `/etc/eFa`, logs in `/var/log/eFa`, data in `/var/lib/eFa`.
 
 ## The web interface
 
-The menu on the left has seven groups:
+The menu on the left has eight groups, the pages used every day on top. *My account* is in the user menu at the top right.
 
 | Group | Pages |
 |---|---|
-| Overview | Dashboard |
-| Mail & quarantine | Mail routing, Held mail, Quarantine, Mail queue, Mail log, Privacy & Compliance |
-| Protection | Spam & virus, Blocklists, IP blocklists, Sender lists, Rules, Impersonation & BEC |
-| Domains & tenants | DKIM, ARC & DMARC, Data loss prevention, Bulk mail, Archive handover, Encrypted PDF mail, Disclaimers, Domain settings, Tenants |
-| Users & access | My account, Users, Groups, Security standards, Security |
-| Monitoring & reports | Mail report, Monitoring, Wazuh |
-| System | DNS resolver for other networks, Network & certificate, Backup & restore, Cluster & offline, Maintenance & update |
+| Daily | Dashboard, Mail log, Quarantine, Held mail, Mail queue |
+| Protection | Spam filter, Viruses, attachments & links, Impersonation & BEC, Sender lists, Blocklists, Rules |
+| Domains & routing | Mail routing, DKIM, ARC & DMARC, Domain settings, Tenants |
+| Outgoing mail & archive | Data loss prevention, Encrypted PDF mail, Disclaimers & signatures, Bulk mail, Archive handover |
+| Users & access | Users, Groups |
+| Security & privacy | Security, Firewall, Security standards, Privacy & Compliance |
+| Monitoring & reports | Mail report, Monitoring |
+| System | Maintenance & update, Backup & restore, Network, DNS & certificate, Cluster & offline |
 
 Each login sees only the pages and cards its groups allow (chapter 8). Every card has a one-line explanation under its title
 and an (i) with the full help, as has every field. The interface is in English and German (switch on the login page, and per

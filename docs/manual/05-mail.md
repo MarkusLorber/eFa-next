@@ -4,7 +4,7 @@ The menu group *Mail & quarantine*.
 
 ## Mail routing
 
-*Mail & quarantine › Mail routing* says which domains eFa-next takes mail for and where it delivers it.
+*Domains & routing › Mail routing* says which domains eFa-next takes mail for and where it delivers it.
 
 ![Mail routing](../images/manual/flow.png)
 
@@ -22,7 +22,7 @@ Guides for a mail platform: [Microsoft 365](../guide-microsoft-365.md), [Google 
 
 ## Held mail
 
-*Mail & quarantine › Held mail* is mail eFa-next keeps for its recipients instead of rejecting it. It is off until switched on
+*Daily › Held mail* is mail eFa-next keeps for its recipients instead of rejecting it. It is off until switched on
 under *Settings* at the end of the page (`efactl uq-set`): from which score mail is kept, for how many days, whether each
 recipient gets a daily digest with links, and whether users may release alone.
 
@@ -40,7 +40,7 @@ Held mail can be stored encrypted per tenant (`efactl uq-encrypt-set --mode on`)
 
 ## Quarantine
 
-*Mail & quarantine › Quarantine* holds the spam and viruses kept back in the mail queue. *Deliver* and *Headers* show on the
+*Daily › Quarantine* holds the spam and viruses kept back in the mail queue. *Deliver* and *Headers* show on the
 row under the mouse; all actions are in the "…" menu of the row. Tick several rows to deliver or delete them at once or to
 block their senders; every bulk action asks first.
 
@@ -54,7 +54,7 @@ attachments are saved one by one; a ZIP or MBOX export of a whole mailbox is pla
 
 ## Mail queue
 
-*Mail & quarantine › Mail queue* lists the mail Postfix has not delivered yet: hold, release, requeue or delete one mail or all
+*Daily › Mail queue* lists the mail Postfix has not delivered yet: hold, release, requeue or delete one mail or all
 (`efactl queue-action`), or *try all now* (`queue-flush`). *Spooling* sets how long mail waits for a server that is down
 (for example `5d`), *Alarm* from how many waiting mails or hours the admin is told (`queue-alarm-set`).
 
@@ -62,7 +62,7 @@ attachments are saved one by one; a ZIP or MBOX export of a whole mailbox is pla
 
 ## Mail log
 
-*Mail & quarantine › Mail log* shows *Mail log: search* with *Check a mail* beside it, and below them the button
+*Daily › Mail log* shows *Mail log: search* with *Check a mail* beside it, and below them the button
 *Advanced search*. The quick search takes one search term; its field also takes filters:
 
 | Filter | Finds |
@@ -89,6 +89,12 @@ sender, recipient, words in the subject, IP address, queue ID, result, from and 
 From, Reply-To, Return-Path and X-Mailer, and how many results. The mails found are listed right below the filters, the
 newest first. *CSV file* and *JSON file* download the result (right *export*). The filters are posted, never part of the
 address, so no address or subject lands in a web server log.
+
+*Mails that match* (6.0.0.6.4) joins the filters: *All filters (AND)*, as before, or *At least one filter (OR)*, for example a
+sender or an IP address. The date range and the domains of a tenant admin always hold as well, whatever is picked.
+*Saved searches* keep the filters (never results) under a name, for the own login only, at most 20: *Save these filters as*
+saves the form, *Load search* fills it again and searches, *Delete* removes one. On the console: `efactl search-save --name <name>
+--sender '*@example.net' --match any`, `efactl search-saved`, `efactl search-delete --name <name>`.
 
 The switch *Live filtering* adds new mail that matches the filters at the top of the list, every 5 seconds. It asks only
 while it is on and the window is in view, and only for the mail after the newest one shown. A tenant admin sees only the
