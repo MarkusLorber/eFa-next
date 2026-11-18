@@ -17,8 +17,18 @@ critical changes asks for password and code. A code counts once. Wrong codes cou
 
 - `totp-policy-set --role tenant --mode required`: logins of this role must set up 2FA at their next login; until then they
   reach only the 2FA setup. Only a super admin sets the rules. Default: optional for every role.
-- Lost phone: an admin with the right to manage the user runs `user-2fa-reset --username <name>`; the main admin of the
-  console is reset only on the console (`efactl user-2fa-reset --username @admin`). Nobody resets their own.
+- New phone, old one still there: My account, set up 2FA again (password and current code). The old app counts until the new
+  one is confirmed.
+- Lost phone: log in with a recovery code, then set up a new app under My account. Every recovery code used is in the audit
+  log, and the login gets a mail to its confirmed address (6.0.0.6.5).
+- Lost phone and no recovery codes: an admin resets it with `user-2fa-reset --username <name>` (Users, 2FA). Nobody resets their
+  own. Since 6.0.0.6.5:
+  - over the web interface or the API only an admin who has an own 2FA (app or passkey), with password and code again;
+  - the 2FA of an admin login only by a super admin; logins of the portal (role user) by the admins of their scope;
+  - the main admin only on the console (`efactl user-2fa-reset --username @admin`);
+  - the reset ends all open sessions of the login, sends it a mail, and the login must set up a new 2FA at its next login
+    before it reaches anything else (before 6.0.0.6.5 it came in with the password alone, unless its role asked for 2FA);
+  - with four eyes on, the reset waits for a second admin; every reset is in the audit log (and the strict audit).
 - `totp-disable --code ...` switches it off, not when the role asks for it.
 - Logins with single sign-on (OIDC) use the second factor of their provider.
 

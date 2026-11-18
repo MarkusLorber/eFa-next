@@ -93,32 +93,115 @@ def parse_answer(data, qid):
     return {'rcode': flags & 0xF, 'ad': bool(flags & 0x0020), 'tc': bool(flags & 0x0200), 'answers': answers}
 
 
+def _exchange(packet, server, timeout):
+    """One query to one server, over TCP when the UDP answer is cut; the raw reply."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.settimeout(timeout)
+        sock.sendto(packet, server)
+        data = sock.recvfrom(4096)[0]
+    if len(data) > 2 and data[2] & 0x02:
+        with socket.create_connection(server, timeout=timeout) as sock:
+            sock.sendall(struct.pack('>H', len(packet)) + packet)
+            size = struct.unpack('>H', sock.recv(2))[0]
+            data = b''
+            while len(data) < size:
+                chunk = sock.recv(size - len(data))
+                if not chunk:
+                    break
+                data += chunk
+    return data
+
+
 def lookup(name, qtype, resolver=RESOLVER, timeout=TIMEOUT):
     """Ask the resolver once, over TCP when the UDP answer is cut. Errors come back as a result, never as an exception."""
     started = time.monotonic()
     qid = secrets.randbelow(65536)
     try:
-        packet = query_packet(name, qtype, qid)
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.settimeout(timeout)
-            sock.sendto(packet, resolver)
-            reply = parse_answer(sock.recvfrom(4096)[0], qid)
-        if reply['tc']:
-            with socket.create_connection(resolver, timeout=timeout) as sock:
-                sock.sendall(struct.pack('>H', len(packet)) + packet)
-                size = struct.unpack('>H', sock.recv(2))[0]
-                data = b''
-                while len(data) < size:
-                    chunk = sock.recv(size - len(data))
-                    if not chunk:
-                        break
-                    data += chunk
-                reply = parse_answer(data, qid)
+        reply = parse_answer(_exchange(query_packet(name, qtype, qid), resolver, timeout), qid)
     except (OSError, ValueError, UnicodeError, struct.error, IndexError) as err:
         reply = {'rcode': None, 'ad': False, 'tc': False, 'answers': [], 'error': str(err)[:120]}
     reply['ms'] = round((time.monotonic() - started) * 1000, 2)
     reply.pop('tc', None)
     return reply
+
+
+# The public DNS as Let's Encrypt sees it: from the root servers down to the authoritative ones, never the local resolver, whose
+# local or forward zones may answer with an internal address (split horizon). IPv4 root servers: a, c, d, f, i, k, m.
+ROOTS = ('198.41.0.4', '192.33.4.12', '199.7.91.13', '192.5.5.241', '192.36.148.17', '193.0.14.129', '202.12.27.33')
+
+
+def _sections(data, qid):
+    """(rcode, authoritative, [answer, authority, additional]) with (owner, type, value) records of a reply."""
+    if len(data) < 12:
+        raise ValueError('short reply')
+    rid, flags, qdcount, *counts = struct.unpack('>HHHHHH', data[:12])
+    if rid != qid:
+        raise ValueError('wrong ID')
+    offset = 12
+    for _ in range(qdcount):
+        offset = _name(data, offset)[1] + 4
+    sections = []
+    for count in counts:
+        records = []
+        for _ in range(count):
+            owner, offset = _name(data, offset)
+            rtype, _rclass, _ttl, length = struct.unpack('>HHIH', data[offset:offset + 10])
+            offset += 10
+            if rtype in NAMES:
+                records.append((owner.lower().rstrip('.'), NAMES[rtype], _rdata(data, offset, rtype, length)))
+            offset += length
+        sections.append(records)
+    return flags & 0xF, bool(flags & 0x0400), sections
+
+
+def _iterate(name, qtype, deadline, timeout, exchange, depth=0):
+    """The values of one type by iteration from the roots: a set (empty: the name or type does not exist), None when not possible."""
+    servers = list(ROOTS)
+    for _hop in range(16):
+        for server in servers[:4]:
+            if time.monotonic() > deadline:
+                return None
+            qid = secrets.randbelow(65536)
+            try:
+                rcode, authoritative, (answers, authority, additional) = _sections(
+                    exchange(query_packet(name, qtype, qid), (server, 53), timeout), qid)
+                break
+            except (OSError, ValueError, UnicodeError, struct.error, IndexError):
+                continue
+        else:
+            return None
+        if rcode == 3:
+            return set()
+        if rcode != 0:
+            return None
+        values = {value for owner, rtype, value in answers if owner == name and rtype == qtype}
+        if values:
+            return values
+        alias = next((value.lower().rstrip('.') for owner, rtype, value in answers if owner == name and rtype == 'CNAME'), None)
+        if alias:
+            return _iterate(alias, qtype, deadline, timeout, exchange, depth + 1) if depth < 8 else None
+        hosts = [value.lower().rstrip('.') for _owner, rtype, value in authority if rtype == 'NS']
+        if authoritative or not hosts:
+            return set()
+        servers = [value for owner, rtype, value in additional if owner in hosts and rtype == 'A']
+        if not servers and depth < 8:
+            for host in hosts[:3]:
+                servers = sorted(_iterate(host, 'A', deadline, timeout, exchange, depth + 1) or ())
+                if servers:
+                    break
+        if not servers:
+            return None
+    return None
+
+
+def public_addresses(name, timeout=TIMEOUT, budget=15.0, exchange=None):
+    """The A and AAAA addresses of a name in the public DNS, or None when it cannot be asked from here (no way out on port 53)."""
+    name = name.lower().rstrip('.')
+    deadline = time.monotonic() + budget
+    found = [_iterate(name, qtype, deadline, timeout, exchange or _exchange) for qtype in ('A', 'AAAA')]
+    addresses = set().union(*(part for part in found if part))
+    # Half an answer is no proof that the name has no address.
+    return None if not addresses and None in found else addresses
 
 
 def record_key(name, qtype, answers):

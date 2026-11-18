@@ -3240,7 +3240,7 @@ def admin_second_factor(code):
 
 def main_admin_needs_setup():
     ok, status = efactl('totp-status')
-    return ok and status.get('required_for_my_role') and not status.get('active')
+    return ok and (status.get('required_for_my_role') or status.get('reset_by_admin')) and not status.get('active')
 
 
 # 5r: a login whose role asks for 2FA and has none sets it up first; only these pages and commands until then.

@@ -11,7 +11,7 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.4
+Version:        6.0.0.6.5
 Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
@@ -151,6 +151,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Wed Nov 18 2026 Markus Lorber - 6.0.0.6.5-1
+- 6.0.0.6.5: 2FA set up again after a reset, Let's Encrypt behind split-horizon DNS, migration checks first; see CHANGELOG.md.
+
 * Sun Nov 15 2026 Markus Lorber - 6.0.0.6.4-1
 - 6.0.0.6.4: one Update card with versions, progress bar, step and time left; see CHANGELOG.md.
 

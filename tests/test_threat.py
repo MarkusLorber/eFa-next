@@ -189,9 +189,12 @@ class Threat(unittest.TestCase):
         queries, audited = [], []
         with mock.patch.object(self.efactl, 'identity_now', None), mock.patch.object(self.efactl, '_cli_user', lambda: ''), \
                 mock.patch.object(self.efactl, '_admin_query', lambda *a: queries.append(a) or []), \
-                mock.patch.object(self.efactl, '_audit', audited.append), mock.patch.object(self.efactl, 'strict_record', lambda *a: None):
-            self.assertEqual(self.efactl.user_2fa_reset(types.SimpleNamespace(username='@admin')), {'reset': '@admin'})
-        self.assertEqual(queries, [('DELETE FROM user_totp WHERE username = %s', ('@admin',))])
+                mock.patch.object(self.efactl, '_audit', audited.append), mock.patch.object(self.efactl, 'strict_record', lambda *a: None), \
+                mock.patch.object(self.efactl, '_2fa_mail', lambda *a: None):
+            self.assertEqual(self.efactl.user_2fa_reset(types.SimpleNamespace(username='@admin'))['reset'], '@admin')
+        # 6.0.0.6.5: the row stays with the mark reenroll (a new 2FA at the next login), the web sessions of the main admin end.
+        self.assertTrue(queries[0][0].startswith('REPLACE INTO user_totp') and queries[0][1] == ('@admin', ''), queries)
+        self.assertTrue(queries[1][0].startswith('UPDATE web_sessions SET ended') and queries[1][1][1] == '', queries)
         self.assertTrue(audited and audited[0].startswith('2FA of @admin reset by'), audited)
         with mock.patch.object(self.efactl, 'identity_now', {'username': 'anna', 'role': 'super'}), \
                 mock.patch.object(self.efactl, '_cli_user', lambda: ''):

@@ -217,12 +217,21 @@ def dns_zones(config):
     return {mailserver.split('.', 1)[1]: servers}
 
 
+# As efa_common.LABEL_RE of efa-apply: a live name it would refuse never replaces the one of eFa-Config.
+LABEL_RE = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$')
+PLACEHOLDER_NAMES = ('localhost', 'localdomain', 'localhost4', 'localhost6', 'localdomain4', 'localdomain6')
+
+
 def live_config(config, hostname, address, timezone):
-    """eFa-Config can be stale on cloned or renamed systems, the running system decides."""
+    """eFa-Config can be stale on cloned or renamed systems, the running system decides, unless its name is no real one
+    (localhost, a single label, *.localdomain): then the names of eFa-Config stay."""
     values = dict(config)
-    values['HOSTNAME'] = hostname.split('.')[0]
-    if '.' in hostname:
-        values['DOMAINNAME'] = hostname.split('.', 1)[1]
+    host, _dot, domain = hostname.strip().rstrip('.').partition('.')
+    if LABEL_RE.match(host) and host.lower() not in PLACEHOLDER_NAMES:
+        values['HOSTNAME'] = host
+    labels = domain.split('.')
+    if len(labels) >= 2 and len(domain) <= 253 and all(LABEL_RE.match(label) for label in labels) and labels[-1].lower() not in PLACEHOLDER_NAMES:
+        values['DOMAINNAME'] = domain
     values['IPV4ADDRESS'] = address.split('/')[0] if address else ''
     values['IPV4NETMASK'] = address.split('/')[1] if address else ''
     values['TZONE'] = values.get('TZONE') or timezone
@@ -444,6 +453,13 @@ def self_test():
     assert dns_zones({'DNSIP1': '10.0.0.1', 'MAILSERVER': '10.0.0.5'}) == {}
     assert live_config({'HOSTNAME': 'OLD', 'DOMAINNAME': 'x.org', 'TZONE': ''}, 'NEW', '10.0.0.4/24', 'Europe/Vienna') == {
         'HOSTNAME': 'NEW', 'DOMAINNAME': 'x.org', 'IPV4ADDRESS': '10.0.0.4', 'IPV4NETMASK': '24', 'TZONE': 'Europe/Vienna'}
+    # A clone renamed to *.localdomain keeps the domain of eFa-Config; efa-apply would refuse the live one after the removal.
+    old = {'HOSTNAME': 'MX1', 'DOMAINNAME': 'example.org', 'TZONE': 'UTC'}
+    assert {k: live_config(old, 'mx1-clone.localdomain', '', '')[k] for k in ('HOSTNAME', 'DOMAINNAME')} == {'HOSTNAME': 'mx1-clone', 'DOMAINNAME': 'example.org'}
+    names = lambda live: tuple(live_config(old, live, '', '')[key] for key in ('HOSTNAME', 'DOMAINNAME'))
+    assert names('localhost.localdomain') == ('MX1', 'example.org') and names('mx.corp') == ('mx', 'example.org')
+    assert names('bad_name.example.net') == ('MX1', 'example.net') and names('mx3') == ('mx3', 'example.org')
+    assert live_config(old, 'mx2.mail.example.net', '', '')['DOMAINNAME'] == 'mail.example.net'
     plan = {'config': {'HOSTNAME': 'mx', 'DOMAINNAME': 'x.org', 'IPV4ADDRESS': '10.0.0.4'}, 'mynetworks': ['10.0.0.0/8'], 'relayhost': '',
             'message_size_mb': 50, 'old_postconf': {'message_size_limit': '52428800'}, 'greylisting': True,
             'recipient_verification': False, 'fail2ban': True, 'quarantine': True, 'quarantine_days': '30',

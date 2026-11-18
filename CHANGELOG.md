@@ -1,6 +1,30 @@
 # Changelog
 
-## 6.0.0.6.4 (release date: pending)
+## 6.0.0.6.5 (release date: pending)
+
+### 2FA: a reset means a new 2FA at the next login
+- `user-2fa-reset` (web interface, API, console) no longer only deletes the 2FA: the login has to set up a new app at its
+  next login and reaches nothing else before; it cannot switch 2FA off instead, and a setup left half way keeps the mark.
+- The reset ends all open web sessions of that login and sends a note to its confirmed address; a used recovery code sends
+  a note too. Without an address the audit log has it.
+- Over the web interface and the API only an admin with an own 2FA (app or passkey) resets, and the 2FA of an admin login
+  only a super admin; portal logins by the admins of their scope. The console of root stays as it was. docs/two-factor.md
+  describes the ways for a new and for a lost phone.
+
+### Let's Encrypt behind split-horizon DNS
+- The name check before a request no longer refuses a public name only because the resolver of the host answers with an
+  internal address: the public DNS decides, asked from the root servers down as Let's Encrypt does. A name that is not a
+  public DNS name, or one without a public address in the public DNS, is refused as before. When the public DNS cannot be
+  asked from the host, the check says so and Let's Encrypt decides (dry run on staging first, a pause after a failure).
+  The ignored internal address is named in the result and in the audit log.
+
+### Migration from eFa 5
+- A running host name that eFa-next would refuse (localhost, *.localdomain, a single label, an invalid label) no longer
+  replaces the names of eFa-Config; a real rename still wins.
+- efa-migrate checks all converted settings with the rules of the setup right after reading the old system, also before
+  `--resume`, and stops with the value it refuses; nothing is downloaded, backed up or removed then.
+
+## 6.0.0.6.4 (2026-11-17)
 
 ### Environment of a host: production, test or development
 - *System › Maintenance › Environment* (`efactl environment-set --env prod|test|dev`, super admin, audited, only this host in

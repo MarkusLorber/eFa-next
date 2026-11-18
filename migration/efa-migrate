@@ -989,6 +989,31 @@ def apply_answers(plan, password):
     return ''.join(f'{key}:{value}\n' for key, value in answers.items())
 
 
+def answers_problem(plan):
+    """Why efa-apply would refuse the converted settings, '' when it takes them. Asked before anything is removed:
+    a refusal in the step configuring comes after the old system is gone."""
+    for folder in (os.path.join(HERE, '..', 'src', 'eFa-base', 'root', 'usr', 'lib', 'eFa', 'python'),
+                   os.path.join(HERE, '..', 'src', 'eFa', 'root', 'usr', 'lib', 'eFa', 'python'), '/usr/lib/eFa/python'):
+        if os.path.isdir(folder) and folder not in sys.path:
+            sys.path.append(folder)
+    try:
+        import efa_apply
+    except ImportError as err:
+        return f'the checks of efa-apply are missing ({err}): run efa-migrate from the eFa-next sources'
+    try:
+        efa_apply.parse_answers(apply_answers(plan, secrets.token_urlsafe(18)))
+    except efa_apply.InputError as err:
+        key = str(err).rsplit(' ', 1)[-1]
+        shown = f' ({key}: {plan["config"].get(key, "")!r})' if key in plan['config'] else ''
+        return f'{err}{shown}'
+    return ''
+
+
+def answers_refusal(problem):
+    return (f'The settings of the old system do not fit eFa-next: {problem}. Correct /etc/eFa/eFa-Config or the host name '
+            '(hostnamectl set-hostname with the full name), then run again. Nothing was changed.')
+
+
 def new_config(plan):
     """The settings file of the new system: the old values, as the new setup writes them."""
     values = dict(plan['config'])
@@ -1296,6 +1321,10 @@ def main():
             target = args.resume.rstrip('/')
             with open(target + '/plan.json') as f:
                 plan = json.load(f)
+            problem = answers_problem(plan)
+            if problem:
+                print(answers_refusal(problem).replace('then run again', f'then edit {target}/plan.json the same way and resume'), file=sys.stderr)
+                return 2
             rpms = preflight_rpms(os.path.abspath(args.rpm_dir or fetch_rpms()))
             password = secrets.token_urlsafe(18)
             warnings = []
@@ -1334,6 +1363,12 @@ def main():
             return 2
         plan = collect()
         plan['foreign_blockers'] = foreign_blockers()
+        problem = answers_problem(plan)
+        if problem:
+            refusal = answers_refusal(problem)
+            print(refusal.replace('Nothing was changed.', 'Only the database root password was set (above), nothing else changed.')
+                  if db_reset else refusal, file=sys.stderr)
+            return 2
         legal = (db_reset and legal) or (legal_confirm(args.accept_legal) if args.execute_i_have_a_snapshot else None)
         if args.execute_i_have_a_snapshot and not legal:
             return 1

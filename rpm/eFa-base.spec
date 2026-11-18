@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.4
+Version:        6.0.0.6.5
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -167,6 +167,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Wed Nov 18 2026 Markus Lorber - 6.0.0.6.5-1
+- 6.0.0.6.5: 2FA set up again after a reset, Let's Encrypt behind split-horizon DNS, migration checks first; see CHANGELOG.md.
+
 * Sun Nov 15 2026 Markus Lorber - 6.0.0.6.4-1
 - 6.0.0.6.4: one Update card with versions, progress bar, step and time left; see CHANGELOG.md.
 

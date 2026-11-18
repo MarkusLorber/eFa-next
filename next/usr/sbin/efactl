@@ -976,6 +976,7 @@ CREATE TABLE IF NOT EXISTS efa.user_totp (
   username VARCHAR(100) PRIMARY KEY, secret TEXT NOT NULL, active TINYINT NOT NULL DEFAULT 0, last_step BIGINT NOT NULL DEFAULT 0,
   recovery TEXT NULL, created DATETIME NOT NULL DEFAULT NOW());
 ALTER TABLE efa.user_totp ADD COLUMN IF NOT EXISTS pending TEXT NULL;
+ALTER TABLE efa.user_totp ADD COLUMN IF NOT EXISTS reenroll TINYINT NOT NULL DEFAULT 0;
 ALTER TABLE efa.users ADD COLUMN IF NOT EXISTS full_name VARCHAR(100) NULL, ADD COLUMN IF NOT EXISTS phone VARCHAR(40) NULL,
   ADD COLUMN IF NOT EXISTS email_pending VARCHAR(254) NULL;
 CREATE TABLE IF NOT EXISTS efa.user_passkeys (
@@ -4783,6 +4784,9 @@ def _totp_gate(found, code):
         found['no_2fa'] = True
     if totp_policy().get(found.get('role')) == 'required' and not (_totp_row(found['username']) or {}).get('active'):
         found['totp_setup_needed'] = True
+    if not (row and row['active']) and _totp_reenroll(found['username']):
+        # 6.0.0.6.5: an admin reset the 2FA (lost phone): this login sets up a new one before anything else.
+        found['totp_setup_needed'] = True
     return found
 
 
@@ -4859,8 +4863,40 @@ def totp_check(username, code):
         hashes.remove(recovery_hash(code))
         _admin_query('UPDATE user_totp SET recovery = %s WHERE username = %s', (json.dumps(hashes), username))
         _audit(f'recovery code used by {username}, {len(hashes)} left')
+        _2fa_mail(username, f'ein Wiederherstellungscode wurde benutzt, {len(hashes)} übrig.', f'a recovery code was used, {len(hashes)} left.')
         return True
     raise EfaError('Wrong 2FA code.')
+
+
+def _totp_reenroll(username):
+    """6.0.0.6.5: the 2FA of this login was reset by an admin and is not set up again yet (no before the column exists)."""
+    import pymysql
+    try:
+        rows = _admin_query('SELECT reenroll FROM user_totp WHERE username = %s', (username,))
+    except pymysql.MySQLError as err:
+        if err.args and err.args[0] in (1054, 1146):
+            return False
+        raise
+    return bool(rows and rows[0]['reenroll'])
+
+
+def _2fa_mail(username, what_de, what_en):
+    """6.0.0.6.5: a note to the own confirmed address of a login when its 2FA changed without its app (reset by an admin, a
+    recovery code used). Never stops the work; without an address only the audit log has it."""
+    def send():
+        address = _admin_email() if username == '@admin' else (_account_row(username)['email'] or '')
+        if not SENDER_RE.match(address or ''):
+            return False
+        name = 'admin' if username == '@admin' else username
+        when = time.strftime('%Y-%m-%d %H:%M %Z')
+        _account_mail(address, 'eFa-next: 2FA Ihres Logins / 2FA of your login',
+                      f'Login {name} auf {own_hostname()}, {when}: {what_de}\n'
+                      'Waren Sie das nicht, melden Sie sich sofort beim Admin.\n\n'
+                      f'Login {name} on {own_hostname()}, {when}: {what_en}\n'
+                      'If this was not you, tell your admin at once.\n')
+        return True
+    if not _safe(send, False):
+        _audit(f'2FA note for {username}: no confirmed address, no mail')
 
 
 def _safe_keys(username):
@@ -4890,7 +4926,8 @@ def totp_status(_args):
     row = _safe(lambda: _totp_row(username), None)
     role = (identity_now or {}).get('role') or 'super'
     return {'account': username, 'active': bool(row and row['active']), 'recovery_codes_left': len(json.loads(row['recovery'] or '[]')) if row else 0,
-            'required_for_my_role': _totp_required(username, role), 'policy': totp_policy()}
+            'required_for_my_role': _totp_required(username, role), 'policy': totp_policy(),
+            'reset_by_admin': not (row and row['active']) and _safe(lambda: _totp_reenroll(username), False)}
 
 
 def totp_setup(args):
@@ -4903,7 +4940,9 @@ def totp_setup(args):
         _admin_query('UPDATE user_totp SET pending = %s WHERE username = %s', (totp_seal(secret, username), username))
         _audit(f'2FA: new app of {username} started, the old one counts until it is confirmed')
     else:
-        _admin_query('REPLACE INTO user_totp (username, secret, active, last_step, recovery) VALUES (%s, %s, 0, 0, NULL)', (username, totp_seal(secret, username)))
+        # The mark of a reset (reenroll) stays until the new app is confirmed: leaving the setup half way does not end it.
+        _admin_query('INSERT INTO user_totp (username, secret, active, last_step, recovery) VALUES (%s, %s, 0, 0, NULL) '
+                     'ON DUPLICATE KEY UPDATE secret = VALUES(secret), active = 0, last_step = 0, recovery = NULL', (username, totp_seal(secret, username)))
     lib = _lib('efa_totp')
     uri = lib.uri(secret, username if username != '@admin' else 'admin@' + own_hostname())
     if getattr(args, 'qr', False):
@@ -4919,7 +4958,7 @@ def totp_confirm(args):
     username = _totp_self()
     row = _totp_row(username)
     pending = _totp_pending(username) if row and row['active'] else None
-    if not row or (row['active'] and not pending):
+    if not row or (row['active'] and not pending) or not (pending or row['secret']):
         raise EfaError('Start with totp-setup.')
     step = totp_step(totp_open(pending or row['secret'], username), (args.code or '').strip(), 0)
     if step is None:
@@ -4930,7 +4969,7 @@ def totp_confirm(args):
         _admin_query('UPDATE user_totp SET secret = %s, pending = NULL, last_step = %s, recovery = %s WHERE username = %s', (pending, step, hashes, username))
         _audit(f'2FA of {username}: new app confirmed, the old app and the old recovery codes no longer count')
     else:
-        _admin_query('UPDATE user_totp SET active = 1, last_step = %s, recovery = %s WHERE username = %s', (step, hashes, username))
+        _admin_query('UPDATE user_totp SET active = 1, last_step = %s, recovery = %s, reenroll = 0 WHERE username = %s', (step, hashes, username))
         _audit(f'2FA switched on by {username}')
     return {'active': True, 'recovery_codes': codes, 'note': 'Keep these codes safe, each works once. They are not shown again.'}
 
@@ -4941,6 +4980,8 @@ def totp_disable(args):
     role = (identity_now or {}).get('role') or 'super'
     if _totp_required(username, role):
         raise EfaError('Your role asks for 2FA: it cannot be switched off.')
+    if not (_totp_row(username) or {}).get('active') and _totp_reenroll(username):
+        raise EfaError('An admin reset your 2FA: set up a new one first (totp-setup).')
     # The web interface and the API: password and current code (the re-auth takes the code); the console: the code.
     if not _reauth(username):
         totp_check(username, (args.code or '').strip() or None)
@@ -5155,10 +5196,26 @@ def user_2fa_reset(args):
         return {'reset': username}
     if username == '@admin' and not _on_console():
         raise EfaError('The 2FA of the main admin is reset on the console only.')
-    _admin_query('DELETE FROM user_totp WHERE username = %s', (username,))
-    _audit(f'2FA of {username} reset by {_dmarc_who()}')
+    if _web_call():
+        # 6.0.0.6.5 (Hans 2026-11-16): a reset over the web interface or the API only by an admin with an own second factor,
+        # and the 2FA of an admin login only by a super admin; logins of the portal (role user) by the admins of their scope.
+        actor = _totp_self()
+        if not ((_totp_row(actor) or {}).get('active') or _safe_keys(actor)):
+            raise EfaError('Set up your own 2FA first: only an admin with 2FA resets the 2FA of others.')
+        if username != '@admin' and (identity_now or {}).get('role', 'super') != 'super' \
+                and _load_identity(username, allow_disabled=True).get('role') != 'user':
+            raise EfaError('The 2FA of an admin login is reset by a super admin.')
+    # 6.0.0.6.5: the old app and its recovery codes go; the login must set up a new one at its next login before anything else
+    # (before, it came in with the password alone unless its role asked for 2FA). Its open sessions end, and it gets a mail.
+    _admin_query('REPLACE INTO user_totp (username, secret, active, last_step, recovery, pending, reenroll) VALUES (%s, %s, 0, 0, NULL, NULL, 1)',
+                 (username, ''))
+    _admin_query('UPDATE web_sessions SET ended = NOW(), ended_by = %s WHERE username = %s AND ended IS NULL',
+                 (('2FA reset by ' + _dmarc_who())[:120], '' if username == '@admin' else username))
+    _audit(f'2FA of {username} reset by {_dmarc_who()}: a new one is set up at the next login, its sessions ended')
     strict_record('totp_reset', username)
-    return {'reset': username}
+    _2fa_mail(username, f'die 2FA wurde von {_dmarc_who()} zurückgesetzt. Bei der nächsten Anmeldung richten Sie eine neue ein.',
+              f'the 2FA was reset by {_dmarc_who()}. At your next login you set up a new one.')
+    return {'reset': username, 'next': 'The login sets up a new 2FA at its next login; its open sessions ended.'}
 
 
 def totp_policy_set(args):
@@ -17041,9 +17098,9 @@ def letsencrypt_set(args):
         raise EfaError("Type 'yes' to accept the Let's Encrypt terms of service.")
     # 5t-b: ECDSA P-256 (BSI TR-02102-1), not RSA 2048.
     # P8: the renewals keep the key, so a published TLSA 3 1 1 record stays right (DANE); a new key: letsencrypt-rollover.
-    _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '--key-type', 'ecdsa',
-                   '--elliptic-curve', 'secp256r1', '--reuse-key', '--cert-name', domain, '-m', email, '--domains', domain],
-                  [domain], force=(getattr(args, 'force', '') or '').strip() == 'yes')
+    notes = _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '--key-type', 'ecdsa',
+                           '--elliptic-curve', 'secp256r1', '--reuse-key', '--cert-name', domain, '-m', email, '--domains', domain],
+                          [domain], force=(getattr(args, 'force', '') or '').strip() == 'yes')
     live = f'{ETC}/letsencrypt/live/{domain}'
     web_own = web_cert_own()
     if not web_own:
@@ -17057,7 +17114,7 @@ def letsencrypt_set(args):
     for unit in ('postfix',) if web_own else ('nginx', 'postfix'):
         _platform().service_reload_if_active(unit)
     _audit(f"Let's Encrypt certificate for {domain} set by {_dmarc_who()}" + (' (the web keeps its own ECDSA certificate)' if web_own else ''))
-    return {'letsencrypt': domain, 'web': 'own ECDSA certificate kept' if web_own else 'this certificate'}
+    return {'letsencrypt': domain, 'web': 'own ECDSA certificate kept' if web_own else 'this certificate', **({'hint': ' '.join(notes)} if notes else {})}
 
 
 def web_cert_own():
@@ -18913,12 +18970,13 @@ def letsencrypt_rollover(args):
     following = state.get('next') or (domain + '-next' if current == domain else domain)
     if step == 'prepare':
         # Through the webroot of nginx: certbot never touches the nginx settings of eFa-next.
-        _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '--key-type', 'ecdsa',
-                       '--elliptic-curve', 'secp256r1', '--reuse-key', '--cert-name', following, '--domains', domain], [domain])
+        notes = _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '--key-type', 'ecdsa',
+                               '--elliptic-curve', 'secp256r1', '--reuse-key', '--cert-name', following, '--domains', domain], [domain])
         _json_write(ACME_FILE, {**state, 'domain': domain, 'lineage': current, 'next': following}, mode=0o644)
         record = tlsa_records(_lineage_spki(following), domain)[0]
         return {'prepared': following, 'publish_now': record, 'keep': tlsa_records(_lineage_spki(current), domain)[0],
-                'note': 'Publish the new record next to the old one, wait for the TTL of the record (a day is safe), then run the step switch.'}
+                'note': 'Publish the new record next to the old one, wait for the TTL of the record (a day is safe), then run the step switch.',
+                **({'hint': ' '.join(notes)} if notes else {})}
     if step == 'switch':
         if not state.get('next') or not os.path.isdir(f'{ETC}/letsencrypt/live/{following}'):
             raise EfaError('Run the step prepare first.')
@@ -19023,18 +19081,36 @@ ACME_COOLDOWN_SECONDS = 3600
 ACME_DEV_FLAG = ETC + '/eFa/dev-no-setup-code'
 
 
-def acme_name_problem(name, resolve=None):
-    """'' when Let's Encrypt can check the name (a public DNS name with a public address), else why not."""
+def acme_name_problem(name, resolve=None, public=None, notes=None):
+    """'' when Let's Encrypt can check the name (a public DNS name with a public address), else why not.
+
+    The local resolver may answer with an internal address (split horizon); Let's Encrypt asks the public DNS. So an internal
+    answer is never the refusal: the public DNS decides, and when it cannot be asked from here, Let's Encrypt does."""
     name = (name or '').strip().lower().rstrip('.')
     if not DOMAIN_RE.match(name) or not _harden().public_name(name):
         return f'{name or "no name"} is not a public DNS name'
+    is_global = lambda addr: ipaddress.ip_address(addr.split('%')[0]).is_global
     try:
         found = {item[4][0] for item in (resolve or socket.getaddrinfo)(name, 80, proto=socket.IPPROTO_TCP)}
     except (OSError, UnicodeError):
+        found = set()
+    if any(is_global(addr) for addr in found):
+        return ''
+    outside = (public or _lib('efa_evidence').public_addresses)(name)
+    here = ', '.join(sorted(found))
+    if outside is None:
+        if not found:
+            return f'{name} does not resolve'
+        if notes is not None:
+            notes.append(f'{name}: the public DNS cannot be asked from here; the internal address ({here}) is ignored, Let\'s Encrypt checks it.')
+        return ''
+    if any(is_global(addr) for addr in outside):
+        if found and notes is not None:
+            notes.append(f'{name}: the internal address ({here}) is ignored; the public DNS has {", ".join(sorted(a for a in outside if is_global(a)))}.')
+        return ''
+    if not found and not outside:
         return f'{name} does not resolve'
-    if not any(ipaddress.ip_address(addr.split('%')[0]).is_global for addr in found):
-        return f'{name} resolves only to addresses that are not public ({", ".join(sorted(found))})'
-    return ''
+    return f'{name} resolves only to addresses that are not public ({", ".join(sorted(outside or found))})'
 
 
 def acme_cooldown():
@@ -19043,11 +19119,13 @@ def acme_cooldown():
     return state if isinstance(state, dict) and float(state.get('until') or 0) > time.time() else {}
 
 
-def _acme_request(cmd, names, force=False, run=None, resolve=None):
-    """One certbot certonly: the dry run on staging first, then the real request once. Raises EfaError, never retries."""
+def _acme_request(cmd, names, force=False, run=None, resolve=None, public=None):
+    """One certbot certonly: the dry run on staging first, then the real request once. Raises EfaError, never retries.
+    Returns the notes of the name check (an internal address it ignored)."""
     if os.path.lexists(ACME_DEV_FLAG):
         raise EfaError(f"Dev mode ({ACME_DEV_FLAG}): no Let's Encrypt on this host; the self-signed certificate stays.")
-    problems = [problem for problem in (acme_name_problem(name, resolve) for name in names) if problem]
+    notes = []
+    problems = [problem for problem in (acme_name_problem(name, resolve, public, notes) for name in names) if problem]
     if problems:
         raise EfaError("Let's Encrypt cannot check this name, the certificate stays: " + '; '.join(problems) + '.')
     pause = acme_cooldown()
@@ -19066,7 +19144,9 @@ def _acme_request(cmd, names, force=False, run=None, resolve=None):
         os.unlink(ACME_COOLDOWN)
     except FileNotFoundError:
         pass
-    return done
+    for note in notes:
+        _audit("Let's Encrypt name check: " + note)
+    return notes
 
 
 def acme_banner():
@@ -19122,6 +19202,7 @@ def web_cert_set(args):
     mode = (args.mode or '').strip()
     if mode not in ('ecdsa', 'mail'):
         raise EfaError('Mode: ecdsa or mail.')
+    notes = []
     if mode == 'mail' and _nginx_cert_restore():
         _platform().service_reload_if_active('nginx')
         _audit(f'web certificate set back to the nginx settings before by {_dmarc_who()}')
@@ -19144,7 +19225,7 @@ def web_cert_set(args):
             raise EfaError("Let's Encrypt needs a contact e-mail and the accepted terms (Let's Encrypt certificate first); "
                            'nginx keeps its certificate.')
         try:
-            _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '-m', email,
+            notes = _acme_request(['certbot', 'certonly', '--webroot', '-w', ACME_WEBROOT, '--non-interactive', '--agree-tos', '-m', email,
                            '--key-type', 'ecdsa', '--elliptic-curve', 'secp384r1', '--reuse-key', '--cert-name', WEB_LINEAGE,
                            *[part for name in names for part in ('-d', name)]], names, force=(getattr(args, 'force', '') or '').strip() == 'yes')
         except EfaError as err:
@@ -19156,7 +19237,7 @@ def web_cert_set(args):
     _nginx_certificate(cert, key)
     _platform().service_reload_if_active('nginx')
     _audit(f'web certificate set to {mode} by {_dmarc_who()}')
-    return {'web_certificate': mode, 'file': cert, 'key': cert_key(cert)}
+    return {'web_certificate': mode, 'file': cert, 'key': cert_key(cert), **({'hint': ' '.join(notes)} if notes else {})}
 
 
 def certificate_names(cert_pem):
@@ -33920,8 +34001,13 @@ def acme_test():
     """_acme_request without Let's Encrypt: certbot and DNS are stand-ins."""
     public = lambda name, port, proto=0: [(0, 0, 0, '', ('93.184.215.14', port))]
     private = lambda name, port, proto=0: [(0, 0, 0, '', ('10.0.0.25', port))]
+    nowhere = lambda name: set()
     assert acme_name_problem('mx.own.example') and acme_name_problem('efa-dev-test.efa-test.local', public), 'never a non-public name'
-    assert acme_name_problem('mx.example.org', private) and acme_name_problem('mx', public) and not acme_name_problem('mx.example.org', public)
+    assert acme_name_problem('mx.example.org', private, nowhere) and acme_name_problem('mx', public) and not acme_name_problem('mx.example.org', public)
+    # Split horizon: the internal answer is ignored when the public DNS has a public address; no way out to the public DNS warns only.
+    notes = []
+    assert not acme_name_problem('mx.example.org', private, lambda name: {'93.184.215.14'}, notes) and '10.0.0.25' in notes[0]
+    assert not acme_name_problem('mx.example.org', private, lambda name: None, notes) and len(notes) == 2
     saved = (ACME_COOLDOWN, ACME_DEV_FLAG, AUDIT_LOG)
     with tempfile.TemporaryDirectory() as tmp:
         globals().update(ACME_COOLDOWN=tmp + '/cooldown.json', ACME_DEV_FLAG=tmp + '/dev-no-setup-code', AUDIT_LOG=tmp + '/audit.log')
@@ -33934,7 +34020,7 @@ def acme_test():
             for names, resolve in ((['efa-dev-test.efa-test.local'], public), (['mx.example.org'], private)):
                 calls.clear()
                 try:
-                    _acme_request(['certbot'], names, run=ok, resolve=resolve)
+                    _acme_request(['certbot'], names, run=ok, resolve=resolve, public=nowhere)
                     raise AssertionError('a name that is not public never reaches certbot')
                 except EfaError as err:
                     assert 'cannot check this name' in str(err) and not calls
@@ -37110,7 +37196,7 @@ def self_test():
             globals().update(saved_banner)
         rejected(lambda code: totp_check('anna', code), None, '000000')
         assert totp_check('anna', hotp(rfc, int(time.time() // 30))) and 'last_step' in written[-1][0]
-        assert totp_check('anna', 'AAAA-BBBB-CCCC') and 'recovery' in written[-1][0]
+        assert totp_check('anna', 'AAAA-BBBB-CCCC') and any(sql.startswith('UPDATE user_totp SET recovery') for sql, *_p in written)
         noted = []
         globals()['_audit'], saved_audit = (lambda text: noted.append(text)), _audit
         assert _totp_gate({'username': 'bert', 'role': 'user'}, '') == {'username': 'bert', 'role': 'user', 'totp_setup_needed': True, 'no_2fa': True}
@@ -37213,6 +37299,80 @@ def self_test():
         globals().update(saved_acc)
         if saved_sudo is not None:
             os.environ['SUDO_USER'] = saved_sudo
+        # 6.0.0.6.5: a reset by an admin (lost phone) marks the login: it sets up a new 2FA at its next login before anything
+        # else, also after leaving the setup half way; its sessions end, it gets a mail; switching off is no way around it.
+        names_re = ('_admin_query', '_audit', '_account_mail', '_account_row', 'identity_now', '_cli_user', '_users_in_scope', '_actor_scope', '_safe_keys', '_load_identity',
+                    '_dmarc_who', 'strict_record', 'own_hostname', 'totp_policy', '_totp_row', 'TOTP_KEY')
+        saved_re = {name: globals()[name] for name in names_re}
+        re_db, re_sql, re_sent, re_noted = {}, [], [], []
+
+        def re_query(sql, params=()):
+            re_sql.append((sql, params))
+            if sql.startswith('REPLACE INTO user_totp'):
+                re_db[params[0]] = {'secret': params[1], 'active': 0, 'last_step': 0, 'recovery': None, 'reenroll': 1}
+            elif sql.startswith('INSERT INTO user_totp'):
+                re_db.setdefault(params[0], {'reenroll': 0}).update(secret=params[1], active=0, last_step=0, recovery=None)
+            elif sql.startswith('UPDATE user_totp SET active = 1'):
+                re_db[params[2]].update(active=1, last_step=params[0], recovery=params[1], reenroll=0)
+            elif sql.startswith('SELECT reenroll'):
+                return [{'reenroll': re_db[params[0]]['reenroll']}] if params[0] in re_db else []
+            return []
+        globals().update(_admin_query=re_query, _audit=re_noted.append, _account_mail=lambda *a: re_sent.append(a),
+                         _account_row=lambda user: {'email': user + '@example.org'}, identity_now={'username': 'boss', 'role': 'super'},
+                         _cli_user=lambda: None, _users_in_scope=lambda scope: [{'username': 'dora'}], _actor_scope=lambda perm: None,
+                         _dmarc_who=lambda: 'boss', strict_record=lambda *a, **k: None, own_hostname=lambda: 'mx.example.org',
+                         totp_policy=lambda: {}, _totp_row=lambda user: re_db.get(user), TOTP_KEY=tmp + '/re-totp.key')
+        re_db['dora'] = {'secret': totp_seal(rfc, 'dora'), 'active': 1, 'last_step': 0, 'recovery': '[]', 'reenroll': 0}
+        # Over the web: only with an own 2FA, and an admin login only by a super admin (Hans 2026-11-16).
+        os.environ['SUDO_USER'], saved_sudo_re = 'efa-web', os.environ.get('SUDO_USER')
+        globals().update(_safe_keys=lambda user: [], _load_identity=lambda user, **k: {'role': 'domain' if user == 'dora' else 'user'})
+        re_db['boss'] = {'secret': '', 'active': 0, 'last_step': 0, 'recovery': None, 'reenroll': 0}
+        rejected(lambda name: user_2fa_reset(ns(username=name)), 'dora')
+        assert 'dora' not in [params[0] for sql, params in re_sql if sql.startswith('REPLACE')], 'an admin without 2FA resets nobody'
+        re_db['boss']['active'] = 1
+        globals()['identity_now'] = {'username': 'boss', 'role': 'tenant'}
+        try:
+            user_2fa_reset(ns(username='dora'))
+            raise AssertionError('a tenant admin resets no admin login')
+        except EfaError as err:
+            assert 'super admin' in str(err), err
+        globals()['identity_now'] = {'username': 'boss', 'role': 'super'}
+        assert user_2fa_reset(ns(username='dora'))['reset'] == 'dora'
+        if saved_sudo_re is None:
+            os.environ.pop('SUDO_USER', None)
+        else:
+            os.environ['SUDO_USER'] = saved_sudo_re
+        assert re_db['dora']['active'] == 0 and re_db['dora']['reenroll'] == 1 and not re_db['dora']['secret'], 'the old app is gone'
+        assert any(sql.startswith('UPDATE web_sessions SET ended') and params[1] == 'dora' for sql, params in re_sql), 'its sessions end'
+        assert re_sent and re_sent[-1][0] == 'dora@example.org' and 'reset by boss' in re_sent[-1][2]
+        assert any('2FA of dora reset by boss' in text for text in re_noted)
+        assert _totp_gate({'username': 'dora', 'role': 'super'}, '')['totp_setup_needed'], 'the next login sets up a new one first'
+        rejected(lambda name: user_2fa_reset(ns(username=name)), 'boss', 'stranger', '@admin')
+        globals()['identity_now'] = {'username': 'dora', 'role': 'super'}
+        try:
+            totp_disable(ns(code=''))
+            raise AssertionError('switching off is no way around the new setup')
+        except EfaError as err:
+            assert 'reset your 2FA' in str(err), err
+        try:
+            totp_confirm(ns(code='123456'))
+            raise AssertionError('no confirm before a new app')
+        except EfaError as err:
+            assert 'totp-setup' in str(err), err
+        new_app = totp_setup(ns(qr=False))
+        assert re_db['dora']['reenroll'] == 1 and _totp_gate({'username': 'dora', 'role': 'super'}, '')['totp_setup_needed'], 'half way: still marked'
+        new_secret = totp_open(re_db['dora']['secret'], 'dora')
+        assert new_app['secret'] and totp_confirm(ns(code=hotp(new_secret, int(time.time() // 30))))['active']
+        assert re_db['dora']['reenroll'] == 0 and re_db['dora']['active'] == 1
+        # A recovery code used: a mail to the own address; without an address only the audit log.
+        re_db['dora']['recovery'] = json.dumps([recovery_hash('aaaa-bbbb-cccc')])
+        re_sent.clear()
+        assert totp_check('dora', 'AAAA-BBBB-CCCC') and re_sent and 'recovery code was used, 0 left' in re_sent[-1][2]
+        globals()['_account_row'] = lambda user: {'email': None}
+        re_db['dora']['recovery'] = json.dumps([recovery_hash('aaaa-bbbb-dddd')])
+        re_sent.clear()
+        assert totp_check('dora', 'AAAA-BBBB-DDDD') and not re_sent and 'no confirmed address' in re_noted[-1]
+        globals().update(saved_re)
         # 6.0.0.5: the setup variant. Guided asks 2FA of the main admin, the EU link of the setup is hard, a new EU link locks again.
         names_sv = ('SETUP_VARIANT_FILE', 'totp_policy', 'EU_FILE', '_local_domains', '_audit', '_admin_notify', 'strict_record', '_event',
                     'backup_targets_eu_lock', 'CONSOLE_FAILS', '_totp_row', 'totp_check', '_secrets')

@@ -41,7 +41,7 @@ class LetsencryptSetTests(unittest.TestCase):
         efactl.ETC, efactl.NGINX_CONF, efactl.ACME_FILE = self.folder, self.folder + '/efa.conf', self.folder + '/acme.json'
         # Never the real Let's Encrypt pause or DNS: the names of the test count as public.
         efactl.ACME_COOLDOWN, efactl.ACME_DEV_FLAG = self.folder + '/cooldown.json', self.folder + '/dev-no-setup-code'
-        efactl.acme_name_problem = lambda name, resolve=None: ''
+        efactl.acme_name_problem = lambda name, *_args: ''
         self.runs, self.postconf, self.reloads, self.failing = [], {}, [], False
 
         def run(cmd, **_kwargs):
