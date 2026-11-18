@@ -1,5 +1,43 @@
 # Changelog
 
+## 6.0.0.6.6.1 (2026-11-18)
+
+### Web interface: HTTP/2 off by default
+- Web interface: HTTP/2 is off by default as a precaution against the nginx flaws CVE-2026-123007 (HTTP/2),
+  CVE-2026-123633 (HTTP/2 to a backend), CVE-2026-121810 (HTTP/3) and CVE-2026-113425 (mail proxy), CVSS 8.1 (v3.1) / 9.2
+  (v4.0), see https://www.cert.at/de/warnungen/2026/11/kritische-sicherheitslucken-in-nginx-plus-und-nginx-open-source-updates-verfugbar.
+  CERT.at and F5 name no mitigation besides updating: HTTP/2 off is the precaution of eFa-next, the fix is the nginx update of
+  the operating system vendor (install it as soon as it is there; eFa-next takes it with its system updates). eFa-next uses
+  neither HTTP/3 (QUIC) nor the mail proxy of nginx; CI checks that the nginx settings have neither. Switch with efactl web-http2.
+  `efactl web-http2 --mode on|off` switches it (with an audit entry); `efactl web-http2` shows the setting, the installed nginx
+  version and whether the nginx settings have HTTP/2. The update switches it off, also on hosts that switched it off by hand.
+- Every writer of the nginx settings of eFa-next keeps the setting: the setup, web-harden, the certificates (also
+  `web-cert-set mail`, which puts back the settings of before) and a restore of a backup. nginx -t runs before each reload,
+  a setting nginx refuses is taken back.
+
+### Cluster: the status of the nodes
+- In 6.0.0.6.6 a node answered the status request of its master (`GET /v1/status`) with an error: the cluster service called
+  a function its library does not have. The master showed every node as not reachable, the Cluster card was red and staged
+  updates never saw a healthy node. Syncing the settings (the journal) was not affected. A node now answers with its state,
+  version and platform again.
+- New tests: the status answer runs with the real cluster library, without a fake of it, and a check of the sources makes
+  sure every name a program of eFa-next takes from one of its libraries exists there.
+- Update every node of a cluster (master and clients); the order does not matter, 6.0.0.6.6 and 6.0.0.6.6.1 are one series.
+
+### Cluster: the second factors of the logins on every node
+- Joining a cluster and the sync copied the key of the 2FA secrets from the master, but not the 2FA of the logins (TOTP
+  and passkeys). On a node a user with 2FA on the master logged in with the password alone, and a 2FA set up on the node
+  before the join could no longer be read there. The master now sends the second factors with the join, every resync and
+  every 2FA change; the node takes them in one go. The update brings them to nodes that joined before (in either order of
+  updating master and nodes). A 2FA a node cannot read refuses the login with an entry in the audit log, never password only.
+
+### Cluster: settings files with the right owner
+- A settings file below /etc/eFa that the master sent to a node (join, snapshot or sync) and that was new there came
+  root:root. With the web allowlist this locked the admins out of the node: efa-web could not read web-allowlist.json and
+  refused every admin address, and with the login lockout on Fail2Ban banned them. Such a file now gets the owner, group and
+  mode of the settings table, also when an earlier sync left it root:root; other files keep the owner they have on the node.
+  The update repairs nodes that are affected now.
+
 ## 6.0.0.6.6 (2026-11-18)
 
 ### Web interface: long pages read as a menu

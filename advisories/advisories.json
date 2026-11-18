@@ -65,6 +65,32 @@
       "web_rce": false,
       "summary": "rspamd before 4.3.0: worker crash on crafted headers, use-after-free and out-of-bounds reads in the milter, ARC and Authentication-Results spoofing. Fixed by requiring rspamd 4.3.0.",
       "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.2"
+    },
+    {
+      "id": "EFA-2026-006",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.6.1", "1"],
+      "cves": [],
+      "severity": "Important",
+      "vector": "",
+      "cwe": "CWE-287",
+      "remote": true,
+      "web_rce": false,
+      "summary": "Cluster nodes did not get the 2FA (TOTP, passkeys) of the logins from the master: on a node a user with 2FA on the master logged in with the password alone. The 2FA now goes to every node.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.6.1"
+    },
+    {
+      "id": "EFA-2026-007",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.6.1", "1"],
+      "cves": ["CVE-2026-123007", "CVE-2026-123633", "CVE-2026-121810", "CVE-2026-113425"],
+      "severity": "Critical",
+      "vector": "",
+      "cwe": "CWE-122",
+      "remote": true,
+      "web_rce": false,
+      "summary": "nginx flaws in HTTP/2, HTTP/3 and the mail proxy (CVSS 9.2). Mitigation only: 6.0.0.6.6.1 switches HTTP/2 of the web interface off; the fix is the nginx update of the OS vendor.",
+      "link": "https://www.cert.at/de/warnungen/2026/11/kritische-sicherheitslucken-in-nginx-plus-und-nginx-open-source-updates-verfugbar"
     }
   ]
 }

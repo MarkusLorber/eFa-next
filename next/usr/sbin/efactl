@@ -769,8 +769,8 @@ COMMAND_PERMISSIONS = {
     'blocklist-run': 'settings.edit', 'neural-status': 'settings.view', 'neural-settings': 'settings.view', 'neural-set': 'settings.edit', 'ml-status': 'settings.view', 'ml-settings': 'settings.view', 'ml-set': 'settings.edit', 'ml-train': 'settings.edit', 'attachment-status': 'settings.view', 'attachment-set': 'settings.edit', 'cdr-status': 'settings.view', 'cdr-set': 'settings.edit',
     'reports-in-set': 'settings.edit', 'queue-list': 'settings.view', 'queue-show': 'settings.view', 'queue-action': 'settings.edit',
     'queue-flush': 'settings.edit', 'queue-alarm-set': 'settings.edit', 'spool-status': 'settings.view', 'spool-set': 'settings.edit', 'phish-set': 'domain.settings.edit', 'phish-status': 'settings.view',
-    'banner-set': 'settings.edit', 'banner-status': 'settings.view', 'privacy-evidence': 'audit.view', 'incident-list': 'audit.view', 'incident-open': 'settings.edit', 'incident-report': 'audit.view', 'eu-relation-status': 'domain.settings.view', 'eu-relation-set': 'domain.settings.edit', 'uq-encrypt-set': 'settings.edit', 'gdpr-export': 'mail.view_headers', 'gdpr-delete': 'users.manage', 'pseudonymise-status': 'settings.view', 'pseudonymise-set': 'settings.edit', 'letsencrypt-rollover': 'settings.edit', 'web-cert-set': 'settings.edit', 'own-block-status': 'security.rules', 'own-hash-set': 'security.rules', 'own-yara-set': 'security.rules', 'header-privacy-status': 'settings.view', 'header-privacy-set': 'settings.edit', 'tls-partner-list': 'settings.view', 'tls-partner-set': 'settings.edit', 'login-lockout-status': 'settings.view', 'login-lockout-set': 'settings.edit', 'scan-status': 'settings.view', 'scan-limits-set': 'settings.edit', 'scan-fail-set': 'settings.edit', 'milter-health-set': 'settings.edit', 'milter-health-status': 'settings.view', 'mta-sts-show': 'domain.settings.view', 'mta-sts-set': 'domain.routing', 'mta-sts-check': 'domain.routing', 'mta-sts-text': 'domain.settings.view', 'mta-sts-unserve': 'settings.edit', 'dane-status': 'settings.view', 'dane-set': 'settings.edit', 'tlsa-show': 'settings.view', 'dmarc-report-show': 'domain.settings.view', 'tls-report-show': 'domain.settings.view',
-    'disclaimer-status': 'domain.settings.view', 'disclaimer-set': 'domain.settings.edit', 'disclaimer-template-set': 'domain.settings.edit', 'disclaimer-template-remove': 'domain.settings.edit', 'disclaimer-restore': 'domain.settings.edit', 'disclaimer-import': 'domain.settings.edit', 'disclaimer-export': 'domain.settings.view', 'disclaimer-which': 'domain.settings.view', 'legal-status': None, 'legal-accept': None, 'disclaimer-sync': 'settings.edit', 'dlp-status': 'settings.view', 'dlp-set': 'settings.edit', 'dlp-rule-set': 'settings.edit', 'submitter-list': 'settings.view', 'submitter-set': 'settings.edit', 'submitter-remove': 'settings.edit', 'submission-pam-set': 'settings.edit', 'tls-min-set': 'settings.edit', 'tls-profile-status': 'settings.view', 'uplink-route-set': 'settings.edit', 'network-harden': 'settings.edit', 'tls-profile-set': 'settings.edit', 'tls-port25-set': 'settings.edit', 'tls-profile-upgrade': 'settings.edit', 'ssh-profile-status': 'settings.view', 'ssh-profile-set': 'settings.edit', 'ssh-profile-confirm': 'settings.edit', 'ssh-profile-revert': 'settings.edit', 'pwned-check-set': 'settings.edit', 'security-oval-set': 'settings.edit', 'retention-status': 'settings.view', 'cluster-status': 'settings.view', 'cluster-init': 'settings.edit', 'cluster-token': 'settings.edit', 'cluster-join': 'settings.edit', 'cluster-node-remove': 'settings.edit', 'cluster-leave': 'settings.edit', 'cluster-dkim-apply': 'settings.edit', 'cluster-maillog': 'search', 'cluster-quarantine': 'quarantine.view', 'cluster-queue': 'settings.view', 'cluster-mail-action': 'quarantine.release', 'cluster-unban': 'settings.edit', 'cluster-resync': 'settings.edit', 'cluster-mx-check': 'settings.view', 'hostname-set': 'settings.edit', 'sasl-apply': 'settings.edit', 'web-allowlist-show': 'settings.view', 'web-allowlist-set': 'settings.edit', 'switches-status': 'settings.view', 'form-check': 'settings.view', 'cluster-snapshot': 'settings.edit', 'cluster-content-apply': 'settings.edit', 'retention-set': 'settings.edit', 'content-reason-set': 'settings.edit', 'kernel-hardening-set': 'settings.edit', 'hardening-report': 'settings.view', 'archive-status': 'settings.view', 'bulk-status': 'settings.view', 'bulk-set': 'settings.edit', 'archive-set': 'settings.edit', 'archive-test': 'settings.edit', 'archive-remove': 'settings.edit', 'outbound-limits-set': 'settings.edit', 'pdf-status': 'settings.view', 'pdf-set': 'settings.edit', 'pdf-password-set': 'settings.edit', 'cdr-list': 'quarantine.view', 'links-status': 'settings.view', 'links-set': 'settings.edit', 'cdr-release': 'quarantine.release_malware', 'audit-note': None, 'refusal-note': None,
+    'banner-set': 'settings.edit', 'banner-status': 'settings.view', 'privacy-evidence': 'audit.view', 'incident-list': 'audit.view', 'incident-open': 'settings.edit', 'incident-report': 'audit.view', 'eu-relation-status': 'domain.settings.view', 'eu-relation-set': 'domain.settings.edit', 'uq-encrypt-set': 'settings.edit', 'gdpr-export': 'mail.view_headers', 'gdpr-delete': 'users.manage', 'pseudonymise-status': 'settings.view', 'pseudonymise-set': 'settings.edit', 'letsencrypt-rollover': 'settings.edit', 'web-http2': 'settings.edit', 'web-http2-status': 'settings.view', 'web-cert-set': 'settings.edit', 'own-block-status': 'security.rules', 'own-hash-set': 'security.rules', 'own-yara-set': 'security.rules', 'header-privacy-status': 'settings.view', 'header-privacy-set': 'settings.edit', 'tls-partner-list': 'settings.view', 'tls-partner-set': 'settings.edit', 'login-lockout-status': 'settings.view', 'login-lockout-set': 'settings.edit', 'scan-status': 'settings.view', 'scan-limits-set': 'settings.edit', 'scan-fail-set': 'settings.edit', 'milter-health-set': 'settings.edit', 'milter-health-status': 'settings.view', 'mta-sts-show': 'domain.settings.view', 'mta-sts-set': 'domain.routing', 'mta-sts-check': 'domain.routing', 'mta-sts-text': 'domain.settings.view', 'mta-sts-unserve': 'settings.edit', 'dane-status': 'settings.view', 'dane-set': 'settings.edit', 'tlsa-show': 'settings.view', 'dmarc-report-show': 'domain.settings.view', 'tls-report-show': 'domain.settings.view',
+    'disclaimer-status': 'domain.settings.view', 'disclaimer-set': 'domain.settings.edit', 'disclaimer-template-set': 'domain.settings.edit', 'disclaimer-template-remove': 'domain.settings.edit', 'disclaimer-restore': 'domain.settings.edit', 'disclaimer-import': 'domain.settings.edit', 'disclaimer-export': 'domain.settings.view', 'disclaimer-which': 'domain.settings.view', 'legal-status': None, 'legal-accept': None, 'disclaimer-sync': 'settings.edit', 'dlp-status': 'settings.view', 'dlp-set': 'settings.edit', 'dlp-rule-set': 'settings.edit', 'submitter-list': 'settings.view', 'submitter-set': 'settings.edit', 'submitter-remove': 'settings.edit', 'submission-pam-set': 'settings.edit', 'tls-min-set': 'settings.edit', 'tls-profile-status': 'settings.view', 'uplink-route-set': 'settings.edit', 'network-harden': 'settings.edit', 'tls-profile-set': 'settings.edit', 'tls-port25-set': 'settings.edit', 'tls-profile-upgrade': 'settings.edit', 'ssh-profile-status': 'settings.view', 'ssh-profile-set': 'settings.edit', 'ssh-profile-confirm': 'settings.edit', 'ssh-profile-revert': 'settings.edit', 'pwned-check-set': 'settings.edit', 'security-oval-set': 'settings.edit', 'retention-status': 'settings.view', 'cluster-status': 'settings.view', 'cluster-init': 'settings.edit', 'cluster-token': 'settings.edit', 'cluster-join': 'settings.edit', 'cluster-node-remove': 'settings.edit', 'cluster-leave': 'settings.edit', 'cluster-dkim-apply': 'settings.edit', 'cluster-maillog': 'search', 'cluster-quarantine': 'quarantine.view', 'cluster-queue': 'settings.view', 'cluster-mail-action': 'quarantine.release', 'cluster-unban': 'settings.edit', 'cluster-resync': 'settings.edit', 'cluster-2fa-apply': 'settings.edit', 'cluster-2fa-pull': 'settings.edit', 'cluster-2fa-publish': 'settings.edit', 'cluster-mx-check': 'settings.view', 'hostname-set': 'settings.edit', 'sasl-apply': 'settings.edit', 'web-allowlist-show': 'settings.view', 'web-allowlist-set': 'settings.edit', 'switches-status': 'settings.view', 'form-check': 'settings.view', 'cluster-snapshot': 'settings.edit', 'cluster-content-apply': 'settings.edit', 'retention-set': 'settings.edit', 'content-reason-set': 'settings.edit', 'kernel-hardening-set': 'settings.edit', 'hardening-report': 'settings.view', 'archive-status': 'settings.view', 'bulk-status': 'settings.view', 'bulk-set': 'settings.edit', 'archive-set': 'settings.edit', 'archive-test': 'settings.edit', 'archive-remove': 'settings.edit', 'outbound-limits-set': 'settings.edit', 'pdf-status': 'settings.view', 'pdf-set': 'settings.edit', 'pdf-password-set': 'settings.edit', 'cdr-list': 'quarantine.view', 'links-status': 'settings.view', 'links-set': 'settings.edit', 'cdr-release': 'quarantine.release_malware', 'audit-note': None, 'refusal-note': None,
     'audit-strict-status': 'audit.view', 'audit-verify': 'audit.view', 'audit-anchor-verify': 'audit.view', 'audit-mode': 'settings.edit', 'audit-rules-set': 'settings.edit',
     'quarantine-list': 'quarantine.view', 'quarantine-show': 'mail.view_content', 'quarantine-content': 'mail.view_content', 'uq-content': 'mail.view_content', 'quarantine-release': 'quarantine.release', 'quarantine-delete': 'quarantine.release',
     'uq-list': 'quarantine.self', 'uq-show': 'quarantine.self', 'uq-release': 'quarantine.self', 'uq-request': 'quarantine.self',
@@ -4856,7 +4856,14 @@ def totp_check(username, code):
         return True
     if not code:
         raise EfaError(TOTP_NEEDED)
-    step = totp_step(totp_open(row['secret'], username), code, int(row['last_step']))
+    try:
+        secret = totp_open(row['secret'], username)
+    except Exception as err:  # noqa: BLE001 - InvalidTag of another key, or a damaged value: never a login without the factor
+        # 6.0.0.6.6.1: a node that joined a cluster kept rows sealed with its own old key while totp.key came from the master.
+        _audit(f'2FA of {username} cannot be read on this host ({type(err).__name__}): login refused')
+        raise EfaError('The 2FA of this login cannot be read on this host (sealed with another key): login refused. '
+                       'In a cluster: sudo efactl cluster-2fa-pull on this node; else an admin resets the 2FA of this login.')
+    step = totp_step(secret, code, int(row['last_step']))
     if step is not None:
         _admin_query('UPDATE user_totp SET last_step = %s WHERE username = %s AND last_step < %s', (step, username, step))
         return True
@@ -13950,6 +13957,8 @@ def restore(args):
     result = {'restored': name, 'safety_backup': safety, 'files': len(members)}
     if os.path.exists(EFA5_IMPORT + '/plan.json'):
         result['efa5_import'] = efa5_apply()
+    # A backup of before the HTTP/2 setting brings efa.conf as it was: the setting of this host holds (taken back if nginx refuses).
+    _safe(lambda: web_http2_enforce(reload=False), False)
     for service in ('postfix', 'rspamd', 'nginx', 'unbound'):
         subprocess.run(['systemctl', 'reload-or-restart', service], check=False, capture_output=True)
     return result
@@ -14073,6 +14082,81 @@ def _proxy_key_write():
     os.replace(NGINX_PROXY_KEY + '.tmp', NGINX_PROXY_KEY)
 
 
+# 6.0.0.6.6.1: HTTP/2 of the web interface is a setting, off by default, as a precaution against issues of the HTTP/2 module
+# of nginx. Every writer of efa.conf (setup, web-harden, the certificates, a restore) brings it to this setting, so nothing
+# switches HTTP/2 on again.
+WEB_HTTP2_FILE = ETC + '/eFa/web-http2.json'
+
+
+def web_http2_on():
+    return _json_read(WEB_HTTP2_FILE, {}).get('mode') == 'on'
+
+
+def nginx_version():
+    """(1, 26, 3) of the installed nginx, None when there is none."""
+    try:
+        text = subprocess.run(['nginx', '-v'], capture_output=True, text=True, timeout=10).stderr
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    found = re.search(r'nginx/(\d+)\.(\d+)\.(\d+)', text)
+    return tuple(int(part) for part in found.groups()) if found else None
+
+
+def nginx_http2_text(conf, on, version):
+    """efa.conf with HTTP/2 as set: off removes "http2 on;" and the http2 flag of listen; on adds the form this nginx knows
+    ("http2 on;" from 1.25.1, the flag of listen before)."""
+    conf = re.sub(r'^[ \t]*http2[ \t]+on;[ \t]*\n', '', conf, flags=re.M)
+    conf = re.sub(r'^([ \t]*listen[^;\n]*?)[ \t]+http2\b', r'\1', conf, flags=re.M)
+    if on:
+        if version and version >= (1, 25, 1):
+            conf = re.sub(r'^([ \t]*)(listen[ \t]+(?:\[::\]:)?443[^;\n]*;[ \t]*\n)', r'\1\2\1http2 on;\n', conf, count=1, flags=re.M)
+        else:
+            conf = re.sub(r'^([ \t]*listen[ \t]+(?:\[::\]:)?443[ \t]+ssl)\b', r'\1 http2', conf, flags=re.M)
+    return conf
+
+
+def web_http2_enforce(reload=True):
+    """efa.conf as the setting says; nginx -t before a reload, a config nginx rejects is taken back. True when it changed."""
+    if not os.path.exists(NGINX_CONF):
+        return False
+    with open(NGINX_CONF) as f:
+        conf = f.read()
+    new = nginx_http2_text(conf, web_http2_on(), nginx_version())
+    if new == conf:
+        return False
+    _write(NGINX_CONF, new)
+    done = subprocess.run(['nginx', '-t'], capture_output=True, text=True)
+    if done.returncode != 0:
+        _write(NGINX_CONF, conf)
+        raise EfaError('nginx rejected the HTTP/2 setting, it was taken back: ' + done.stderr[-300:])
+    if reload:
+        _platform().service_reload_if_active('nginx')
+    return True
+
+
+def web_http2(args):
+    """HTTP/2 of the web interface: on, off or status (with the installed nginx version)."""
+    mode = (args.mode or 'status').strip()
+    if mode not in ('on', 'off', 'status'):
+        raise EfaError('Mode: on, off or status.')
+    if mode != 'status':
+        before = 'on' if web_http2_on() else 'off'
+        _json_write(WEB_HTTP2_FILE, {'mode': mode}, mode=0o644)
+        try:
+            changed = web_http2_enforce()
+        except EfaError:
+            _json_write(WEB_HTTP2_FILE, {'mode': before}, mode=0o644)
+            raise
+        _audit(f'web interface HTTP/2 set to {mode} (was {before}) by {_dmarc_who()}' + ('' if changed else ', nginx already so'))
+    version = nginx_version()
+    return {'http2': 'on' if web_http2_on() else 'off', 'nginx': '.'.join(map(str, version)) if version else None,
+            'in_config': bool(os.path.exists(NGINX_CONF) and re.search(r'\bhttp2\b', open(NGINX_CONF).read()))}
+
+
+def web_http2_status(_args):
+    return web_http2(argparse.Namespace(mode='status'))
+
+
 def _nginx_apply():
     """Writes the eFa-next include files and loads them; a config nginx rejects is taken back."""
     include = f'    include {NGINX_HARDENING};\n'
@@ -14095,6 +14179,7 @@ def _nginx_apply():
         backups[path] = open(path).read() if os.path.exists(path) else None
     protocols, ciphers, _out, _in = tls_wanted(tls_profile_state())
     new_conf = re.sub(r'ssl_protocols [^;]+;', f'ssl_protocols {protocols};', new_conf)
+    new_conf = nginx_http2_text(new_conf, web_http2_on(), nginx_version())
     _write(NGINX_HARDENING, f"""ssl_ciphers {ciphers};
 ssl_ecdh_curve {':'.join(web_curves())};
 ssl_prefer_server_ciphers on;""" + """
@@ -19246,7 +19331,7 @@ def _nginx_certificate(cert, key):
     """The certificate of the web interface in the nginx settings of eFa-next; a config nginx rejects is taken back."""
     with open(NGINX_CONF) as f:
         conf = f.read()
-    new = nginx_cert_rewrite(conf, cert, key)
+    new = nginx_http2_text(nginx_cert_rewrite(conf, cert, key), web_http2_on(), nginx_version())
     if new == conf:
         return
     if not os.path.exists(NGINX_CERT_BEFORE):
@@ -19374,6 +19459,8 @@ def _nginx_cert_restore():
     except OSError:
         return False
     new = nginx_cert_restore_text(before, now)
+    # The copy of before may be older than the HTTP/2 setting: it never switches HTTP/2 back on.
+    new = None if new is None else nginx_http2_text(new, web_http2_on(), nginx_version())
     if new is None or not all(os.path.exists(m.group(2)) for regex in (NGINX_CERT_RE, NGINX_KEY_RE) for m in regex.finditer(new)):
         return False
     _write(NGINX_CONF, new)
@@ -23613,6 +23700,8 @@ def cluster_entries(command, args, secrets_seen):
             return []
         return [{'type': 'files', 'files': _tree_files(DISCLAIMER_DIR) if os.path.isdir(DISCLAIMER_DIR) else [],
                  'mirror': [_etc_relative(DISCLAIMER_DIR)], 'then': 'disclaimer-sync'}]
+    if command in CLUSTER_2FA:
+        return [cluster_2fa_entry()]
     if command in CLUSTER_DKIM:
         files = (_tree_files(DKIM_DIR) + ([_file_item(ROTATION_FILE, 0o600)] if os.path.exists(ROTATION_FILE) else [])
                  + ([_file_item(PROVISION_FILE, 0o640)] if os.path.exists(PROVISION_FILE) else []))
@@ -23730,7 +23819,101 @@ def cluster_snapshot(_args):
             item['data'] = base64.b64encode(json.dumps(sane_without_secrets(_sane_state()), indent=2, sort_keys=True).encode()).decode()
     return {'seq': journal[-1]['seq'] if journal else 0, 'hostname': _postconf('myhostname'), 'files': files, 'postconf': explicit, 'services': services, 'sql': sql,
             'units': {unit: platform_now.service_is_active(unit) for unit in SNAP_UNITS},
-            'version': _lib('efa_cluster').own_version(), 'platform': _lib('efa_cluster').own_platform()}
+            'version': _lib('efa_cluster').own_version(), 'platform': _lib('efa_cluster').own_platform(),
+            'second_factors': _safe(cluster_2fa_rows, None)}
+
+
+# 6.0.0.6.6.1: the second factors of the logins (TOTP and passkeys) go from the master to the nodes as rows, keyed by user, in
+# the snapshot and the journal. totp.key comes from the master, so its sealed secrets open on every node. Before, the tables
+# stayed behind: a user with 2FA on the master logged into a node with the password alone, and rows sealed with the old key
+# of a node failed there. A 2FA command is never replayed on a node: it would make a secret of its own.
+CLUSTER_2FA = {'totp-setup', 'totp-confirm', 'totp-disable', 'totp-import', 'user-2fa-reset', 'passkey-register', 'passkey-remove',
+               'passkey-reset'}
+CLUSTER_2FA_COLUMNS = {'user_totp': ('username', 'secret', 'active', 'last_step', 'recovery', 'pending', 'reenroll'),
+                       'user_passkeys': ('id', 'username', 'cred_id', 'alg', 'pem', 'sign_count', 'name', 'aaguid', 'created', 'last_used')}
+
+
+def cluster_2fa_rows():
+    """The rows of the second factors of this host, as JSON values."""
+    found = {}
+    for table, columns in CLUSTER_2FA_COLUMNS.items():
+        rows = _admin_query(f"SELECT * FROM {table} ORDER BY username")
+        found[table] = [{column: (str(row[column]) if hasattr(row.get(column), 'isoformat') else row.get(column))
+                         for column in columns if column in row} for row in rows]
+    return found
+
+
+def cluster_2fa_statements(rows):
+    """The statements that make the tables of this node the ones of the master (one transaction). Only the known columns."""
+    if not isinstance(rows, dict) or set(rows) != set(CLUSTER_2FA_COLUMNS):
+        raise EfaError('The second factors of the master are not complete: nothing changed.')
+    statements = []
+    for table, columns in CLUSTER_2FA_COLUMNS.items():
+        if not isinstance(rows[table], list) or not all(isinstance(row, dict) and isinstance(row.get('username'), str) for row in rows[table]):
+            raise EfaError(f'The {table} rows of the master are not valid: nothing changed.')
+        statements.append((f'DELETE FROM {table}', ()))
+        for row in rows[table]:
+            names = [column for column in columns if column in row]
+            statements.append((f"INSERT INTO {table} ({', '.join(names)}) VALUES ({', '.join(['%s'] * len(names))})",
+                               tuple(row[column] for column in names)))
+    return statements
+
+
+def cluster_2fa_store(rows):
+    """The rows of the master on this node, all or nothing."""
+    statements = cluster_2fa_statements(rows)
+    db = _admin_db()
+    try:
+        db.begin()
+        with db.cursor() as cur:
+            for sql, params in statements:
+                cur.execute(sql, params)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    users = sorted({row['username'] for table in rows.values() for row in table})
+    _audit(f'cluster: second factors of the master taken ({len(rows["user_totp"])} TOTP, {len(rows["user_passkeys"])} passkeys, '
+           f'{len(users)} logins)')
+    return {'second_factors': {'totp': len(rows['user_totp']), 'passkeys': len(rows['user_passkeys'])}}
+
+
+def cluster_2fa_entry():
+    return {'type': 'command', 'command': 'cluster-2fa-apply', 'args': {}, 'secrets': [json.dumps(cluster_2fa_rows(), separators=(',', ':'))]}
+
+
+def cluster_2fa_apply(_args):
+    """On a client, from the journal: the second factors of the master (the rows come on stdin)."""
+    if cluster_role() != 'client':
+        raise EfaError('Only a client takes the second factors of a master.')
+    return cluster_2fa_store(json.loads(_secrets(1, 'Rows')[0]))
+
+
+def cluster_2fa_pull(_args):
+    """On a client (the update): the second factors from the snapshot of the master. A master of before 6.0.0.6.6.1 sends none:
+    then nothing changes here, and its update sends them through the journal."""
+    cluster, base, state = _cluster_parts()
+    if state.get('role') != 'client':
+        return {'second_factors': 'not a client'}
+    master = state['master']
+    try:
+        snapshot = cluster.call(base, master['host'], master['port'], '/v1/snapshot', timeout=120)
+    except (OSError, ValueError) as err:
+        return {'second_factors': f'master not reachable ({err}); they come with its next 2FA change or efactl cluster-2fa-pull'}
+    if not snapshot.get('second_factors'):
+        return {'second_factors': 'the master sends none yet (before 6.0.0.6.6.1); its update sends them'}
+    return cluster_2fa_store(snapshot['second_factors'])
+
+
+def cluster_2fa_publish(_args):
+    """On the master (the update): the second factors once into the journal, so nodes that joined before take them."""
+    cluster, base, state = _cluster_parts()
+    if state.get('role') != 'master':
+        return {'second_factors': 'not a master'}
+    cluster.journal_append(base, [cluster_2fa_entry()])
+    return {'second_factors': 'in the journal'}
 
 
 def _postfix_map_types():
@@ -23782,13 +23965,18 @@ def snapshot_apply(snapshot, files_only=False):
         with open(path + '.new', 'wb') as f:
             f.write(base64.b64decode(item['data']))
         os.chmod(path + '.new', item['mode'])
-        if os.path.exists(path):  # the owner of the file here (rspamd keys, the Dovecot password file) stays
+        if conf_mode(path, item['mode']):
+            # 6.0.0.6.6.1: a settings file below /etc/eFa takes the owner, group and mode of the table, also when it is new here
+            # (it came root:root: efa-web could not read web-allowlist.json and refused every admin) or an older sync left it so.
+            _conf_own(path + '.new', *conf_mode(path, item['mode']))
+        elif os.path.exists(path):  # the owner of the file here (rspamd keys, the Dovecot password file) stays
             owner = os.stat(path)
             os.chown(path + '.new', owner.st_uid, owner.st_gid)
         os.replace(path + '.new', path)
         written.append(item['path'])
         if item.get('hash'):
             maps.append(path)
+    conf_modes_heal(None)
     own_names([os.path.join(ETC, item['path']) for item in snapshot['files']], snapshot.get('hostname', ''), _postconf('myhostname'))
     node_refs = set(re.findall(r'\$\{?([a-z_][a-z0-9_]*)', _ru_postconf('-P')))
     postconf, services, skipped = snapshot_local(snapshot, _map_type(), _postfix_map_types(), node_refs)
@@ -23807,6 +23995,8 @@ def snapshot_apply(snapshot, files_only=False):
         subprocess.run(['postconf', '-M', f'{service}={line}'], check=False, capture_output=True)
     if snapshot['sql']:
         subprocess.run(MYSQL_RESTORE + ['efa'], input=snapshot['sql'], text=True, env=_mysql_env(), check=False, capture_output=True)
+    if snapshot.get('second_factors'):
+        cluster_2fa_store(snapshot['second_factors'])
     platform_now = _platform()
     for unit, active in snapshot['units'].items():
         try:
@@ -32691,6 +32881,10 @@ COMMANDS = {
     'sasl-apply': {'func': sasl_apply, 'title': 'Logins of port 587: apply', 'args': [], 'writes': True},
     'cluster-mx-check': {'func': cluster_mx_check, 'title': 'Cluster: MX records and failover', 'args': [], 'writes': False},
     'cluster-resync': {'func': cluster_resync, 'title': 'Cluster: take all settings of the master anew', 'args': [], 'writes': True},
+    'cluster-2fa-apply': {'func': cluster_2fa_apply, 'title': 'Cluster: the second factors of the master (journal)', 'writes': True,
+                          'args': [{'name': 'rows', 'label': 'Rows', 'secret': True, 'required': True}]},
+    'cluster-2fa-pull': {'func': cluster_2fa_pull, 'title': 'Cluster: take the second factors of the master now', 'args': [], 'writes': True},
+    'cluster-2fa-publish': {'func': cluster_2fa_publish, 'title': 'Cluster: send the second factors to the nodes', 'args': [], 'writes': True},
     'cluster-snapshot': {'func': cluster_snapshot, 'title': 'Cluster: the shared settings of the master', 'args': [], 'writes': False},
     'cluster-dkim-apply': {'func': cluster_dkim_apply, 'title': 'Cluster: apply the DKIM keys of the master', 'args': [], 'writes': False},
     'cluster-content-apply': {'func': cluster_content_apply, 'title': 'Cluster: apply the link key of the master', 'args': [], 'writes': False},
@@ -33035,6 +33229,10 @@ COMMANDS = {
                  'args': [{'name': 'mode', 'label': 'Check the TLSA records of receiving servers: on or off', 'required': True},
                           {'name': 'weaker', 'kind': 'confirm', 'label': 'With TLS required for all mail now: switch anyway (servers without '
                                                                          'TLSA records then get TLS only where they offer it)', 'required': False}]},
+    'web-http2-status': {'func': web_http2_status, 'title': 'Web interface: HTTP/2 and the nginx version', 'args': [], 'writes': False},
+    'web-http2': {'func': web_http2, 'title': 'Web interface: HTTP/2 (off by default)', 'writes': True,
+                  'args': [{'name': 'mode', 'label': 'on, off or status', 'required': False,
+                            'choices': [{'value': 'status', 'text': 'status'}, {'value': 'off', 'text': 'off'}, {'value': 'on', 'text': 'on'}]}]},
     'web-cert-set': {'func': web_cert_set, 'title': 'Web interface: own ECDSA certificate or that of mail', 'writes': True,
                      'args': [{'name': 'mode', 'label': 'Certificate of the web interface', 'required': True},
                               {'name': 'email', 'label': "Contact email for Let's Encrypt (empty: the one of before)", 'required': False},
@@ -38431,10 +38629,15 @@ def self_test():
                 key = lambda evr: (int(evr[0] or 0), [int(x) for x in evr[1].split('.')], evr[2])
                 return key(a) < key(b)
             old_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.5', '1.el9')]}, tree_older, set(), {}, {})
-            new_host = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.2', '2.el9')]}, tree_older, set(), {}, {})
+            # A host on the newest fix of the feed (6.0.0.6.6.1-1 since EFA-2026-006/007) has none open.
+            newest = max((entry['fixed'] for entry in tree_entries if entry['package'] == 'eFa-next'), key=lambda evr: (int(evr[0] or 0), [int(x) for x in evr[1].split('.')], int(evr[2])))
+            new_host = advisory_items(tree_entries, {'eFa-next': [(newest[0], newest[1], newest[2] + '.el9')]}, tree_older, set(), {}, {})
             assert old_host and not new_host and not lockdown_trigger(old_host), (len(old_host), len(new_host))
             # The release of the fix has no platform part: a host on EL10 with the fix counts as fixed too.
-            assert not advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.2', '2.el10')]}, tree_older, set(), {}, {})
+            assert not advisory_items(tree_entries, {'eFa-next': [(newest[0], newest[1], newest[2] + '.el10')]}, tree_older, set(), {}, {})
+            # EFA-2026-006/007: a host on 6.0.0.6.6 gets both, and neither locks the web interface (no web hole of eFa-next).
+            on_666 = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.6', '1.el9')]}, tree_older, set(), {}, {})
+            assert {item['advisory'] for item in on_666} == {'EFA-2026-006', 'EFA-2026-007'} and not lockdown_trigger(on_666), on_666
             # S38 (EFA-2026-004): a host on 6.0.0.6 gets exactly that one.
             assert [item for item in advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6', '2.el10')]}, tree_older, set(), {}, {})], 'EFA-2026-004 for 6.0.0.6'
         # 9o-b: lock once, open after the patch, no lock again after a release by hand for the same items.

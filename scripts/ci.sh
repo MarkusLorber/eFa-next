@@ -180,6 +180,19 @@ if s.get("mode") == "default":
     hc_nginx=$(nginx -v 2>&1 | sed -n 's#.*nginx/\([0-9][0-9.]*\).*#\1#p')
     if printf '%s\n%s\n' 1.25.1 "${hc_nginx:-0}" | sort -t. -k1,1n -k2,2n -k3,3n -C && nginx -t >/dev/null 2>&1; then echo "nginx $hc_nginx: ok"
     else echo "nginx ${hc_nginx:-missing}: FAILED (older than 1.25.1 or nginx -t refuses the files)"; hc_failed=1; fi
+    # 6.0.0.6.6.1: nginx serves no HTTP/3 (QUIC) and no mail or stream proxy (CVE-2026-121810, CVE-2026-113425 of 2026-11-18).
+    hc_ngx_extra=$(nginx -T 2>/dev/null | grep -nE '^[[:space:]]*(mail|stream)[[:space:]]*\{|listen[^;]*[[:space:]](quic|http3)\b|^[[:space:]]*http3[[:space:]]+on' | head -3)
+    if [ -z "$hc_ngx_extra" ]; then echo "nginx without HTTP/3, mail and stream proxy: ok"
+    else echo "nginx without HTTP/3, mail and stream proxy: FAILED ($hc_ngx_extra)"; hc_failed=1; fi
+    # 6.0.0.6.6.1: HTTP/2 of the web interface off by default; on and off round trip, nginx -t each time, a real request.
+    hc_h2_fresh=$(grep -c 'http2' /etc/nginx/conf.d/efa.conf)
+    hc_h2_mode=$(efactl web-http2 2>/dev/null | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["http2"])' 2>&1)
+    hc_h2_off=$(curl -sk --http2 -o /dev/null -w '%{http_version}' https://127.0.0.1/login)
+    efactl web-http2 --mode on >/dev/null 2>&1 && sleep 2 && nginx -t >/dev/null 2>&1 && hc_h2_on=$(curl -sk --http2 -o /dev/null -w '%{http_version}' https://127.0.0.1/login)
+    efactl web-http2 --mode off >/dev/null 2>&1 && sleep 2 && nginx -t >/dev/null 2>&1 && hc_h2_back=$(curl -sk --http2 -o /dev/null -w '%{http_version}' https://127.0.0.1/login)
+    if [ "$hc_h2_fresh" = 0 ] && [ "$hc_h2_mode" = off ] && [ "$hc_h2_off" = 1.1 ] && [ "${hc_h2_on:-}" = 2 ] && [ "${hc_h2_back:-}" = 1.1 ] \
+            && [ "$(grep -c 'http2' /etc/nginx/conf.d/efa.conf)" = 0 ]; then echo "web HTTP/2: ok (off by default, on and off round trip)"
+    else echo "web HTTP/2: FAILED (in efa.conf $hc_h2_fresh, setting $hc_h2_mode, requests off/on/back ${hc_h2_off:-}/${hc_h2_on:-}/${hc_h2_back:-})"; efactl web-http2 --mode off >/dev/null 2>&1; hc_failed=1; fi
     # No IPv6 on the host: Postfix must not try IPv6 sockets (SELinux denies sendmail_t loading the module).
     hc_proto=$(postconf -h inet_protocols 2>/dev/null)
     if [ -e /proc/net/if_inet6 ] || [ "$hc_proto" = ipv4 ]; then echo "postfix inet_protocols: ok ($hc_proto)"

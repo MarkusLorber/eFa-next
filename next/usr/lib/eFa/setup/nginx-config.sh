@@ -22,7 +22,6 @@ server {
 
 server {
     listen 443 ssl default_server;
-    http2 on;
     server_name "";
     # Self-signed by the eFa-next setup, until efactl letsencrypt-set requests a certificate.
     ssl_certificate /etc/pki/tls/certs/efa.crt;
@@ -41,11 +40,7 @@ server {
 }
 EOF
 
-# "http2 on;" exists from nginx 1.25.1 on (the module streams 1.26 and later); before (1.20 of AppStream) it is a flag of listen.
-version="$(nginx -v 2>&1 | sed -n 's#.*nginx/\([0-9][0-9.]*\).*#\1#p')"
-if ! printf '%s\n%s\n' 1.25.1 "${version:-0}" | sort -t. -k1,1n -k2,2n -k3,3n -C; then
-    sed -i -e 's/^\(\s*\)listen 443 ssl default_server;/\1listen 443 ssl http2 default_server;/' -e '/^\s*http2 on;$/d' /etc/nginx/conf.d/efa.conf
-fi
+# 6.0.0.6.6.1: no HTTP/2 here; web-harden below writes it as "efactl web-http2" says (off by default, open flaws of nginx).
 
 # SELinux must allow nginx to reach the local web application.
 setsebool -P httpd_can_network_connect 1 || true

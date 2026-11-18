@@ -106,6 +106,9 @@ upgrade)
     step /usr/sbin/efactl legal-carry-over
     # 6.0.0.6: the key of SecuriteInfo out of the cluster journal (master) and off the nodes.
     step /usr/sbin/efactl cluster-secret-scrub
+    # 6.0.0.6.6.1: the second factors of the logins from the master on every node (a node pulls them, a master sends them).
+    step /usr/sbin/efactl cluster-2fa-pull
+    step /usr/sbin/efactl cluster-2fa-publish
     step /usr/sbin/efactl av-apply
     # The user portal moves out of the admin interface (5q): before web-harden, which points nginx to it.
     step /bin/sh "$DIR/portal-config.sh"

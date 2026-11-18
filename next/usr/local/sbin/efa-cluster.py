@@ -142,15 +142,25 @@ def apply(entry, run=subprocess.run):
         done = run(command_line(entry), input=''.join(secret + '\n' for secret in entry.get('secrets', [])), capture_output=True,
                    text=True, timeout=600, env=env)
         return None if done.returncode == 0 else (done.stdout or done.stderr)[-300:]
-    keep = set()
+    keep, settings = set(), False
     for item in entry['files']:
         path = below(item['path'])
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + '.new', 'wb') as f:
             f.write(base64.b64decode(item['data']))
         os.chmod(path + '.new', item['mode'])
+        if os.path.exists(path):
+            # 6.0.0.6.6.1: the owner of the file here stays (a service reads it with its group), as in snapshot_apply of efactl.
+            owner = os.stat(path)
+            os.chown(path + '.new', owner.st_uid, owner.st_gid)
         os.replace(path + '.new', path)
         keep.add(path)
+        settings = settings or (os.path.dirname(path) == os.path.join(os.path.realpath(ETC), 'eFa') and path.endswith('.json'))
+    healed = None
+    if settings:
+        # A settings file below /etc/eFa, new here or left root:root: the owner, group and mode of the table of efactl.
+        done = run([EFACTL, 'conf-modes-heal'], capture_output=True, text=True, timeout=120, env=env)
+        healed = None if done.returncode == 0 else 'conf-modes-heal: ' + (done.stdout or done.stderr)[-250:]
     for top in entry.get('mirror', []):
         for root, _dirs, names in os.walk(below(top)):
             for name in names:
@@ -158,8 +168,8 @@ def apply(entry, run=subprocess.run):
                     os.remove(os.path.join(root, name))
     if entry.get('then'):
         done = run([EFACTL, entry['then']], capture_output=True, text=True, timeout=300, env=env)
-        return None if done.returncode == 0 else (done.stdout or done.stderr)[-300:]
-    return None
+        return healed if done.returncode == 0 else (done.stdout or done.stderr)[-300:]
+    return healed
 
 
 def protected_networks(state):
@@ -463,7 +473,7 @@ def node_status():
         except OSError:
             continue
     state = efa_cluster.read_state(ETC)
-    return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.release_of(), 'time': int(time.time()),
+    return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.own_platform(), 'time': int(time.time()),
             'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:]}
 
 

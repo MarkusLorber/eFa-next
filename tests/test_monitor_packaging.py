@@ -174,27 +174,13 @@ class PackagingTests(unittest.TestCase):
                     self.assertIn("build tools stay", out)
 
     def test_nginx_http2_follows_the_version(self):
-        """nginx-config.sh: "http2 on;" from nginx 1.25.1 on, "listen ... http2" before (1.20 of AppStream refused the file)."""
-        import shutil
-        import subprocess
-        import tempfile
-        if not shutil.which("sh"):
-            self.skipTest("no sh")
+        """6.0.0.6.6.1: nginx-config.sh writes no HTTP/2; efactl brings efa.conf to the setting web-http2 (off by default) in the
+        form the installed nginx knows ("http2 on;" from 1.25.1, the flag of listen before): tests/test_nginx_http2.py."""
         with open(os.path.join(TOP, "next", "usr", "lib", "eFa", "setup", "nginx-config.sh"), encoding="utf-8") as fh:
             script = fh.read()
-        switch = script[script.index('version="$(nginx -v'):script.index("# SELinux must allow")]
-        for version, wanted in (("1.20.1", "listen 443 ssl http2 default_server;"), ("1.24.0", "listen 443 ssl http2 default_server;"),
-                                ("1.25.1", "http2 on;"), ("1.26.3", "http2 on;")):
-            with tempfile.TemporaryDirectory() as folder:
-                conf = os.path.join(folder, "efa.conf").replace(os.sep, "/")
-                with open(conf, "w") as fh:
-                    fh.write("server {\n    listen 443 ssl default_server;\n    http2 on;\n    server_name \"\";\n}\n")
-                fake = 'nginx() { echo "nginx version: nginx/%s" >&2; }\n' % version
-                subprocess.run(["sh", "-c", fake + switch.replace("/etc/nginx/conf.d/efa.conf", conf)], check=True)
-                with open(conf) as fh:
-                    text = fh.read()
-                self.assertIn(wanted, text, version)
-                self.assertEqual(text.count("http2"), 1, version)
+        self.assertNotIn("http2 on;", script)
+        self.assertNotIn("ssl http2", script)
+        self.assertIn("/usr/sbin/efactl web-harden", script, "web-harden applies the HTTP/2 setting after the setup")
 
     def test_reinstall_after_a_failed_setup_is_a_first_install(self):
         """%pre: first install until /etc/eFa-Version of eFa-next 6 exists, also on a reinstall (its $1 is 2), unless the

@@ -441,6 +441,7 @@ NOTE_SHORT = 110
 # entry and stays empty. Confirmations and secrets always stay empty. The web interface and efa-tui fill the forms from here, and
 # the self test of efactl fails for a form that has fields but no entry here or in FORM_NEW / FORM_KEYED.
 FORM_SOURCE = {
+    'web-http2': ('web-http2-status', {'mode': 'http2'}),
     'admin-email-set': ('settings', {'email': 'admin_email'}),
     'api-set': ('api-status', {'mode': 'api'}),
     'arc-all-set': ('arc-show', {'mode': 'arc_all', 'key': 'arc_all_key', 'bits': 'arc_all_bits'}),

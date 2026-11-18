@@ -1234,6 +1234,18 @@ msgstr "Cluster: MX-Einträge und Ausfallsicherheit"
 msgid "Cluster: take all settings of the master anew"
 msgstr "Cluster: alle Einstellungen des Masters neu übernehmen"
 
+msgid "Cluster: the second factors of the master (journal)"
+msgstr "Cluster: die zweiten Faktoren des Masters (Journal)"
+
+msgid "Rows"
+msgstr "Zeilen"
+
+msgid "Cluster: take the second factors of the master now"
+msgstr "Cluster: die zweiten Faktoren des Masters jetzt übernehmen"
+
+msgid "Cluster: send the second factors to the nodes"
+msgstr "Cluster: die zweiten Faktoren an die Knoten senden"
+
 msgid "Cluster: the shared settings of the master"
 msgstr "Cluster: die gemeinsamen Einstellungen des Masters"
 
@@ -2025,6 +2037,15 @@ msgstr "Die TLSA-Einträge empfangender Server prüfen: an oder aus"
 
 msgid "With TLS required for all mail now: switch anyway (servers without "
 msgstr "Wenn jetzt für alle Mails TLS verlangt ist: trotzdem umschalten (Server ohne "
+
+msgid "Web interface: HTTP/2 and the nginx version"
+msgstr "Weboberfläche: HTTP/2 und die nginx-Version"
+
+msgid "Web interface: HTTP/2 (off by default)"
+msgstr "Weboberfläche: HTTP/2 (standardmäßig aus)"
+
+msgid "on, off or status"
+msgstr "an, aus oder Status"
 
 msgid "Web interface: own ECDSA certificate or that of mail"
 msgstr "Weboberfläche: eigenes ECDSA-Zertifikat oder das der Mail"
@@ -8772,6 +8793,9 @@ msgstr "TLSA-Einträge der empfangenden Server prüfen"
 
 msgid "With TLS required for all mail now: switch anyway (servers without TLSA records then get TLS only where they offer it)"
 msgstr "Wenn jetzt für alle Mails TLS verlangt ist: trotzdem umschalten (Server ohne TLSA-Einträge bekommen TLS dann nur, wo sie es anbieten)"
+
+msgid "status"
+msgstr "Status"
 
 msgid "Own Let's Encrypt certificate, ECDSA P-384 (mail keeps its own)"
 msgstr "Eigenes Let's-Encrypt-Zertifikat, ECDSA P-384 (Mail behält ihres)"
