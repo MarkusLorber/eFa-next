@@ -83,6 +83,11 @@ LOGO = efa_style.LOGO
 # The environment mark (efactl environment-set) under the logo of every page: filled in per request by environment_mark().
 BRAND = '<a class="brand" href="' + WEBSITE_URL + '" target="_blank" rel="noopener noreferrer">' + LOGO + '</a>{{ environment_mark|safe }}'
 ENVIRONMENT_FILE = '/etc/eFa/environment.json'
+# The cluster line on every page (2026-11-18): the small public file efa-cluster writes; no network call per page.
+CLUSTER_DIR, CLUSTER_VIEW = '/etc/eFa/cluster', '/var/lib/efa-cluster/view.json'
+CLUSTER_STALE = 900  # a master that has not answered for 15 minutes: the line says so
+CLUSTER_HEALTH = '/var/lib/efa-cluster/health.json'  # the master's last poll of its nodes (efa-cluster, every minute)
+HEALTH_STALE = 300
 # Colours of the tokens that the contrast test of the self-test checks 4.5:1, light and dark.
 ENVIRONMENT_STYLE = {'test': 'background:var(--note);color:var(--note-ink)', 'dev': 'background:var(--card);color:var(--bad)'}
 FLAG_AT = """<svg viewBox="0 0 30 20" role="img" aria-label="Austria"><rect width="30" height="20" fill="#fff"/>
@@ -107,6 +112,7 @@ import efa_setup  # noqa: E402
 import efa_wizard  # noqa: E402  the guided wizards of some pages
 import efa_harden  # noqa: E402  what the security standards ask of the system and of eFa-next
 import efa_links  # noqa: E402
+import efa_release_upgrade  # noqa: E402  the steps and states of the release upgrade (only constants are read here)
 # Also the start page of the role user, who has no dashboard.
 USER_PAGE = 'held'
 # A command missing from NAV stays reachable here, so a new efactl command cannot get lost.
@@ -262,7 +268,7 @@ table.rbl th.n,table.rbl td.n{white-space:nowrap;width:1%}form.dqs{margin-top:4p
 .card p.h{margin:0 0 14px;color:var(--gray);font-size:13px}
 .card.done{border-color:var(--lime);border-width:2px}
 .err{color:var(--bad);font-weight:500;overflow-wrap:anywhere}
-.row{display:grid;grid-template-columns:230px 1fr;gap:6px 18px;align-items:center;margin:10px 0}.row[hidden]{display:none}.secret{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.secret input{flex:1;min-width:12em}
+.row{display:grid;grid-template-columns:230px 1fr;gap:6px 18px;align-items:center;margin:10px 0}.row[hidden]{display:none}.secretrm{display:inline}.secret{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.secret input{flex:1;min-width:12em}
 /* 6.0.0.6: Mail log: the quick search and Check a mail side by side; the filters of the advanced search in two columns. */
 .duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:0 18px;align-items:start}.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:0 24px}#adv-form>.btns{position:static;margin:14px 0 0;padding:0;border:0;background:none}
 .row label{font-weight:500}
@@ -303,6 +309,7 @@ td.nw button.chip{max-width:none}button.chip:hover,button.chip:focus-visible{bor
 .toast{display:flex;gap:10px;align-items:center;background:var(--side);color:#f2f2f2;border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .toast span{flex:1;overflow-wrap:anywhere}.toast.bad{background:var(--bad)}.toast button{padding:3px 10px;background:transparent;color:inherit;border-color:rgba(255,255,255,.5)}.toast button.x{border:0;font-size:18px;padding:0 4px}
 dialog.confirm{max-width:min(34rem,92vw);border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--card);color:var(--ink)}dialog.confirm h2{margin:0 0 8px;font-size:17px}dialog.confirm p{overflow-wrap:anywhere;margin:4px 0}
+dialog.mailpop{width:min(980px,96vw);height:fit-content;max-height:90vh}.mailpop-body{flex:0 1 auto;overflow:auto;min-height:0}.mailpop-body .card{margin:0 0 10px}
 dialog.drawer{margin:0 0 0 auto;height:100vh;max-height:100vh;width:min(30rem,100vw);border:0;border-left:1px solid var(--line);border-radius:0;padding:16px 18px;background:var(--card);color:var(--ink);overflow:auto}
 dialog.drawer dl{display:grid;grid-template-columns:8rem minmax(0,1fr);gap:4px 12px;font-size:14px}dialog.drawer dt{color:var(--gray)}dialog.drawer dd{margin:0;overflow-wrap:anywhere}dialog.drawer pre{max-height:40vh;overflow:auto}
 .skel{height:14px;margin:8px 0;border-radius:6px;background:linear-gradient(90deg,var(--line),var(--hover),var(--line));background-size:200% 100%;animation:skel 1.2s infinite}
@@ -321,6 +328,11 @@ form:has(input[name=ruf_enable]:checked) .rufbox{display:grid}
 form:has(select[name=key] option[value=own]:checked) .ownbox,form:has(input[name=key][value=own]:checked) .ownbox{display:grid}
 form:has(select[name=kind] option[value=own]:checked) .feedbox,form:has(select[name=kind] option[value=ed25519]:checked) .rsabox,form:has(select[name=kind] option[value=rsa]:checked) .edbox,
 form:has(input[name=kind][value=own]:checked) .feedbox,form:has(input[name=kind][value=ed25519]:checked) .rsabox,form:has(input[name=kind][value=rsa]:checked) .edbox{display:none}
+/* The task cards of the pages reworked by task (Security, Maintenance, Viruses...): two columns, one on a phone. */
+.sec-line{margin:4px 0;display:flex;flex-wrap:wrap;gap:4px 10px}.sec-k{min-width:12rem;color:var(--muted);font-size:14px}.sec-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+@media(max-width:760px){.sec-grid{grid-template-columns:1fr}.sec-k{min-width:0}}
+.clusterline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:0 0 14px;padding:8px 12px;border-radius:8px;background:var(--soft);font-size:14px}
+.clusterline.stale{background:var(--note);color:var(--note-ink)}
 .warnbox{grid-column:1/-1;background:var(--note);color:var(--note-ink);border-radius:8px;padding:8px 12px;margin:0;font-size:13px}
 textarea{width:100%;font:13px/1.4 monospace;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--area);color:var(--ink);resize:vertical}
 .sw input:focus-visible+i{outline:2px solid var(--ink);outline-offset:2px}
@@ -393,6 +405,26 @@ aside a.nav{margin:1px 10px;padding:7px 12px;border-left:0;border-radius:8px}asi
 details.section>summary{list-style:none;display:flex;align-items:center;gap:10px}details.section>summary::-webkit-details-marker{display:none}
 details.section>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--gray);border-bottom:2px solid var(--gray);transform:rotate(-45deg);transition:transform .15s}
 details.section[open]>summary::before{transform:rotate(45deg)}
+/* 6.0.0.6.6: long pages as a menu. Closed sections name their cards; one button opens or closes all. */
+div.secindex{display:flex;justify-content:flex-end;margin:-6px 0 4px}div.secindex .secall{font-size:13px;padding:3px 11px}
+details.section{scroll-margin-top:72px}details.section>summary{flex-wrap:wrap}.secteaser{flex:1 1 100%;margin-left:17px;font-size:13.5px;font-weight:400;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.section[open]>summary .secteaser{display:none}
+/* A card with its actions as one card; each action a button that opens its form below. */
+.cardgroup{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;container-type:inline-size;min-width:0}
+.logtools{margin:0 0 12px;justify-content:flex-start}
+.secbody>.card.ru,.secbody>.ruexpert{grid-column:1/-1}.ru .ok-box{background:var(--pill-g);color:var(--pill-g-ink);padding:10px 14px;border-radius:10px;margin:8px 0}.ru-facts,.ru-reasons{margin:8px 0 4px;padding-left:1.3rem}
+.ru-facts li,.ru-reasons li{margin:0 0 4px}.ru-facts li.bad{color:var(--bad);font-weight:600}.ru .ruform{margin-top:10px}.ru .row.ru-tick{display:block;margin:10px 0}.ru .cfold{margin-top:12px}.ru-live .bar{margin:10px 0 6px}
+.tsteps{margin:4px 0 0;padding-left:1.3rem}.tsteps li{margin:0 0 6px;line-height:1.5}.totpfirst .cfold{margin-top:14px}
+.cardgroup>.card,.cfold>.card{border:0;box-shadow:none;padding:0;margin:0;background:none}.cfold>.card>h2,.cardgroup.same>.card>h2{font-size:0;margin:0}
+.cfold>.card>h2>*,.cardgroup.same>.card>h2>*{font-size:14px}.cardgroup.same>.card>h2:not(:has(form,input,[role=switch])){display:none}
+.cfolds{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.cfold{order:1}.cfold[open]{order:2;flex-basis:100%;border-top:1px solid var(--line);padding-top:10px}
+.cfold>summary{display:inline-block;cursor:pointer;list-style:none;padding:4px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--card)}
+.cfold>summary::-webkit-details-marker{display:none}.cfold>summary::before{content:"+ "}.cfold[open]>summary::before{content:"\\2212  "}.cfold[open]>summary{background:var(--soft);margin-bottom:8px}
+/* Small cards side by side on a wide screen; a card with a table, a text area or a wide form takes the whole row. A narrow card puts the labels above the fields. */
+.secbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,500px),1fr));gap:0 18px;align-items:start}.secbody.one{display:block}
+.secbody>*{min-width:0}.secbody>.card:has(table,textarea,.dchips,.chips,fieldset),.secbody>.cardgroup:has(table,textarea,.dchips,.chips,fieldset),.secbody>.warncard,.secbody>.duo,.secbody>details{grid-column:1/-1}
+.secbody>.cardgroup:has(.cfold[open]){grid-column:1/-1}.secbody>.card:has(form>.row:nth-of-type(6)),.secbody>.cardgroup:has(.card>form>.row:nth-of-type(6)){grid-column:1/-1}
+@container (max-width:860px){.card form:has(>.row:nth-of-type(6)){display:block}.card form:has(>.row:nth-of-type(6))>.row{grid-template-columns:1fr;gap:4px}}.secbody>.card,.secbody>.cardgroup{container-type:inline-size}@container (max-width:600px){.secbody .row{grid-template-columns:1fr;gap:4px}.secbody .row:has(label.sw){grid-template-columns:minmax(0,1fr) auto;gap:6px 14px}}
 .card.done{border-width:1px;border-left:4px solid var(--ok)}
 .segpick{display:inline-flex;flex-wrap:wrap;border:1px solid var(--border);border-radius:999px;overflow:hidden;background:var(--field);justify-self:start}
 .segpick label{position:relative;margin:0;font-weight:500}.segpick input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
@@ -407,6 +439,7 @@ main{max-width:1240px}
 /* Settings forms: fields of one card in two columns on wide screens, label above its field; one column and full width on phones. */
 @media (min-width:1360px){.card form:has(>.row:nth-of-type(6)){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:32px;align-items:start}
 .card form:has(>.row:nth-of-type(6))>*{grid-column:1/-1}.card form:has(>.row:nth-of-type(6))>.row:not(.warnbox){grid-column:auto;grid-template-columns:1fr;gap:4px;margin:8px 0}
+.card form:has(>.row:nth-of-type(6))>.row:has(>.warnbox){grid-column:1/-1;display:block;margin:10px 0 2px}
 .card form:has(>.row:nth-of-type(6))>.row small.now{grid-column:1;margin-top:0}.card form:has(>.row:nth-of-type(6))>.row input,.card form:has(>.row:nth-of-type(6))>.row select{max-width:none}}
 @media (max-width:760px){.row input[type=text],.row input[type=password],.row select{max-width:none}}
 input[type=text].otp,.row input[type=text].otp{width:calc(9ch + 22px);max-width:calc(9ch + 22px);font-variant-numeric:tabular-nums;letter-spacing:.08em}
@@ -451,7 +484,7 @@ dl.accgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))
 .upd .steps li.done{background:var(--pill-g);color:var(--pill-g-ink)}.upd .steps li.now{background:var(--lime);color:#2b2f1a;font-weight:600}.upd .steps li.failed{background:var(--bad);color:#fff;font-weight:600}
 .upd .upd-line{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);margin:4px 0;overflow-wrap:anywhere}.upd .last{border-radius:8px;padding:8px 12px;margin:0 0 12px}
 .upd .last.ok{background:var(--pill-g);color:var(--pill-g-ink)}.upd .last.bad{background:var(--note);color:var(--bad)}.upd pre.upd-log{max-height:24em;overflow:auto;font-size:12px}
-</style></head><body data-yes="{{ _('Yes, do it') }}" data-no="{{ _('Cancel') }}"><div class="wrap">{% block %}{% endblock %}</div>
+</style></head><body data-yes="{{ _('Yes, do it') }}" data-no="{{ _('Cancel') }}" data-close="{{ _('Close') }}"{% if mailpage is defined %} class="mailpage"{% endif %}><div class="wrap">{% block %}{% endblock %}</div>
 <footer><span class="mie">""" + FLAG_AT + FLAG_EU + """ {{ _('Made in Europe, Austria') }}</span>
 <span class="fl"><span class="long">{{ _('eFa-next is a private open source project:') }} </span><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """\">{{ _('Source code') }}</a><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """/blob/master/docs/README.md\">{{ _('Documentation') }}</a>
 {{ _('For qualified administrators, not for consumers. No warranty or liability, to the maximum extent permitted by law:') }} <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """/blob/master/DISCLAIMER.md\">{{ _('Disclaimer') }}</a><a target=\"_blank\" rel=\"noopener noreferrer\" href=\"""" + REPO_URL + """/blob/master/AUTHORS.md\">{{ _('Authors') }}</a>
@@ -1089,7 +1122,47 @@ function efaOpenHash() {
   for (var d = card && card.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
 }
 document.addEventListener('DOMContentLoaded', efaOpenHash);
+// 6.0.0.6.6: on a long page one button opens or closes all sections.
+document.addEventListener('click', function (event) {
+  var all = event.target.closest && event.target.closest('div.secindex .secall');
+  if (!all) return;
+  var sections = document.querySelectorAll('main details.section'), open = all.getAttribute('aria-expanded') !== 'true';
+  sections.forEach(function (d) { d.open = open; });
+  all.setAttribute('aria-expanded', open ? 'true' : 'false'); all.textContent = all.getAttribute(open ? 'data-close' : 'data-open');
+});
+document.addEventListener('DOMContentLoaded', function () {
+  var all = document.querySelector('div.secindex .secall'); if (all) { all.hidden = false; all.setAttribute('aria-expanded', 'false'); }
+});
 window.addEventListener('hashchange', efaOpenHash);
+// 6.0.0.6.6 (Hans 2026-11-18: "the quarantine menü is hidden iside the frame"): the ... menu of a row sits in a table box that
+// scrolls, which cut it off. Open, it is placed over the page next to its button (below, or above when there is no room);
+// scrolling, resizing, Escape or a click elsewhere close it. Without a script it opens in the row as before.
+function efaRowMenusClose(except) {
+  document.querySelectorAll('details.rowmenu[open]').forEach(function (d) { if (d !== except) d.open = false; });
+}
+document.addEventListener('toggle', function (event) {
+  var menu = event.target;
+  if (!menu.matches || !menu.matches('details.rowmenu')) return;
+  var list = menu.querySelector('.menulist');
+  if (!menu.open || !list) { if (list) list.removeAttribute('style'); return; }
+  efaRowMenusClose(menu);
+  var at = menu.querySelector('summary').getBoundingClientRect();
+  list.style.position = 'fixed'; list.style.right = Math.max(8, window.innerWidth - at.right) + 'px'; list.style.left = 'auto';
+  list.style.top = (at.bottom + 4) + 'px';
+  var high = list.getBoundingClientRect().height;
+  if (at.bottom + 4 + high > window.innerHeight - 8 && at.top - 4 - high > 8) list.style.top = (at.top - 4 - high) + 'px';
+}, true);
+window.addEventListener('scroll', function (event) {
+  if (!(event.target.closest && event.target.closest('.menulist'))) efaRowMenusClose(null);
+}, true);
+window.addEventListener('resize', function () { efaRowMenusClose(null); });
+document.addEventListener('keydown', function (event) {
+  var open = document.querySelector('details.rowmenu[open]');
+  if (event.key === 'Escape' && open) { open.open = false; open.querySelector('summary').focus(); }
+});
+document.addEventListener('click', function (event) {
+  if (!(event.target.closest && event.target.closest('details.rowmenu'))) efaRowMenusClose(null);
+});
 // Mail routing (Hans 2026-11-15): a search box with data-filter shows only the entries (data-item) of its list that hold the text;
 // a group (data-group) without a hit hides, folded entries open while searching. Without a script the whole list stays.
 document.addEventListener('input', function (event) {
@@ -1173,8 +1246,8 @@ document.addEventListener('click', function (event) {
   var id = event.target.getAttribute('data-copy');
   if (!id) return;
   var box = document.getElementById(id);
-  box.select();
-  navigator.clipboard.writeText(box.value).then(function () { event.target.textContent = 'Copied'; });
+  if (box.select) box.select();
+  navigator.clipboard.writeText(box.value !== undefined ? box.value : box.textContent).then(function () { event.target.textContent = 'Copied'; });
 });
 // 9f: "/" goes to the search field.
 document.addEventListener('keydown', function (event) {
@@ -1369,7 +1442,108 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   setInterval(tick, 3000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
-});"""
+});
+// 6.0.0.6.6: the guided EL10 card while a step runs: every 4 seconds while the page is seen. During the restarts the host does
+// not answer: a note, and after 30 minutes without an answer the next steps; never a "failed" only because nothing answered.
+document.addEventListener('DOMContentLoaded', function () {
+  var live = document.getElementById('ru-live');
+  if (!live) return;
+  var misses = 0, since = 0;
+  function tick() {
+    if (document.hidden) return;
+    fetch(live.getAttribute('data-url'), {credentials: 'same-origin'}).then(function (reply) {
+      if (reply.redirected || reply.status === 401 || reply.status === 403) { location.reload(); return; }
+      if (!reply.ok) throw new Error(reply.status);
+      return reply.text().then(function (html) {
+        misses = 0; since = 0;
+        var box = document.createElement('div');
+        box.innerHTML = html;
+        var fresh = box.querySelector('.ru-live');
+        if (!fresh) return;
+        if (['checking', 'running'].indexOf(fresh.getAttribute('data-phase')) < 0) { location.hash = 'release-upgrade-guide'; location.reload(); return; }
+        live.innerHTML = box.innerHTML;
+      });
+    }).catch(function () {
+      misses += 1;
+      if (!since) since = Date.now();
+      var off = live.querySelector('.ru-off'), long = live.querySelector('.ru-long');
+      if (off) off.hidden = misses < 2;
+      if (long) long.hidden = Date.now() - since < 30 * 60 * 1000;
+    });
+  }
+  setInterval(tick, 4000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+});
+// 6.0.0.6.6 (Hans 2026-11-18: "emails sollen wenn dann als popup geöffnet werden"): a link to one mail of the log opens it in a
+// dialog over the page, not as a page of its own. Where a reason is asked for, its form shows in the same dialog and is sent from
+// there; the mail then replaces it. The page comes from the same server and is put in as it was rendered (escaped there).
+// Without a script, or if loading fails, the link opens the page as before.
+(function () {
+  // The last reason is offered again for the next mail of this page (it is still sent, checked and audited for each one).
+  var pop = null, lastReason = '';
+  function mailLink(a) {
+    return a && !a.target && !a.hasAttribute('download') && a.origin === location.origin && /\\/mail\\/[0-9]+$/.test(a.pathname)
+      && !document.body.classList.contains('mailpage');
+  }
+  function dialog() {
+    if (pop) return pop;
+    pop = document.createElement('dialog');
+    pop.className = 'popup mailpop';
+    var head = document.createElement('div'), shut = document.createElement('button');
+    head.className = 'live-head';
+    head.appendChild(document.createElement('h2'));
+    head.appendChild(document.createElement('span'));
+    shut.type = 'button';
+    shut.textContent = document.body.getAttribute('data-close') || 'Close';
+    shut.addEventListener('click', function () { pop.close(); });
+    head.appendChild(shut);
+    pop.appendChild(head);
+    var body = document.createElement('div');
+    body.className = 'mailpop-body';
+    pop.appendChild(body);
+    pop.addEventListener('click', function (event) { if (event.target === pop) pop.close(); });
+    pop.addEventListener('submit', function (event) {
+      var form = event.target.closest('form.mail-reason');
+      if (!form) return;
+      event.preventDefault();
+      lastReason = form.querySelector('input[name=reason]').value;
+      show(fetch(form.action, {method: 'POST', credentials: 'same-origin', body: new URLSearchParams(new FormData(form))}), form.action);
+    });
+    document.body.appendChild(pop);
+    return pop;
+  }
+  function show(request, href) {
+    var box = dialog(), body = box.querySelector('.mailpop-body');
+    box.setAttribute('aria-busy', 'true');
+    request.then(function (reply) {
+      if (reply.redirected) throw new Error('login');
+      return reply.text();
+    }).then(function (html) {
+      var page = new DOMParser().parseFromString(html, 'text/html'), main = page.querySelector('main');
+      if (!main) throw new Error('page');
+      main.querySelectorAll('.mback').forEach(function (n) { n.remove(); });
+      var title = main.querySelector('h1');
+      box.querySelector('.live-head h2').textContent = title ? title.textContent : '';
+      box.setAttribute('aria-label', title ? title.textContent : 'Mail');
+      if (title) title.remove();
+      body.textContent = '';
+      Array.prototype.slice.call(main.childNodes).forEach(function (n) { body.appendChild(document.importNode(n, true)); });
+      box.removeAttribute('aria-busy');
+      if (!box.open) box.showModal();
+      var first = body.querySelector('input[name=reason]');
+      if (first && !first.value) first.value = lastReason;
+      if (first) { first.focus(); first.select(); }
+    }).catch(function () { location.href = href; });
+  }
+  document.addEventListener('click', function (event) {
+    var a = event.target.closest && event.target.closest('a[href]');
+    if (!mailLink(a) || event.button || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    var drawer = a.closest('dialog.drawer');
+    if (drawer && drawer.open) drawer.close();
+    show(fetch(a.href, {credentials: 'same-origin'}), a.href);
+  });
+})();"""
 RUF_WARNING = ('Privacy: failure reports (ruf) can contain personal data such as message headers, addresses and parts '
                'of message content. Under the GDPR a legal basis and a processing agreement with the report receiver '
                'may be needed. Many receivers do not send them at all.')
@@ -1398,7 +1572,9 @@ LEGAL_PAGE = PAGE.replace(BLOCK, SOLO + """<div class="card"><h2>{{ _('Legal tex
 <p class="h">{{ _('The legal texts of this version are not confirmed yet. Admin pages open after the confirmation; the user portal and the mail flow are not affected.') }}</p>
 <div class="row"><label><input type="checkbox" name="confirm" value="yes" required> {{ legal.confirm.de if lang == 'de' else legal.confirm.en }}</label></div>
 <div class="btns"><button class="p">{{ _('Confirm') }}</button></div></form>{% endif %}</div></main>""")
-MAIL_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></script><main><p><a class="btn s" href="{{ back }}">Back</a></p>
+MAIL_PAGE = PAGE.replace(BLOCK, """{%- macro mail_download(href, label) -%}{% if reason %}<form method="post" action="{{ href }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="reason" value="{{ reason }}"><button>{{ label }}</button></form>{% else %}<a class="btn" href="{{ href }}">{{ label }}</a>{% endif %}{%- endmacro -%}
+<script src="{{ url_for('copy_js') }}"></script><main><p class="mback"><a class="btn s" href="{{ back }}">{{ _('Back') }}</a></p>
 <h1>Mail {{ view.mail.id }}</h1><p class="sub">{{ view.mail.ts }} · {{ view.mail.sender }} → {{ view.mail.rcpt }}</p>
 <div class="card"><h2>{{ _('Overview') }}</h2><table>{% for key, label in (('subject', 'Subject'), ('action', 'Result'), ('score', 'Score'), ('spf', 'SPF'), ('dkim', 'DKIM'), ('dmarc', 'DMARC'), ('ip', 'Client IP'),
                       ('qid', 'Queue ID'), ('message_id', 'Message-ID'), ('header_from', 'From header'), ('reply_to', 'Reply-To'), ('return_path', 'Return-Path'), ('x_mailer', 'X-Mailer')) %}
@@ -1420,13 +1596,22 @@ MAIL_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></scri
 <td>{{ item.ttl if item.ttl is not none else '' }}</td><td>{{ 'validated' if item.ad else '' }}</td><td>{{ item.ms }}</td></tr>{% endfor %}</table>
 {% for check, verdicts in view.evidence.results.items() %}{% if verdicts %}<p class="h">{{ check|upper }}: {{ verdicts|join(', ') }}</p>{% endif %}{% endfor %}
 {% for item in view.evidence.blocklists %}<p class="h">Blocklist {{ item.symbol }}: {{ item.matched|join(', ') }}</p>{% endfor %}
-{% if can_download %}<div class="btns"><a class="btn" href="{{ url_for('mail_evidence', mail_id=view.mail.id) }}">Download as JSON</a></div>{% endif %}
+{% if can_download %}<div class="btns">{{ mail_download(url_for('mail_evidence', mail_id=view.mail.id), 'Download as JSON') }}</div>{% endif %}
 {% else %}<p class="h">No DNS evidence stored for this mail.</p>{% endif %}</div></details>
 <details class="section"><summary>{{ _('Headers') }}</summary><div class="card">{% if view.headers %}{% if view.headers_note %}<p class="warnbox">{{ view.headers_note }}</p>{% endif %}
 <pre id="raw-headers">{{ view.headers }}</pre><div class="btns"><button type="button" data-copy="raw-headers">Copy</button>
-{% if can_download %}<a class="btn" href="{{ url_for('mail_headers', mail_id=view.mail.id) }}">Download</a>{% endif %}</div>
+{% if can_download %}{{ mail_download(url_for('mail_headers', mail_id=view.mail.id), 'Download') }}{% endif %}</div>
 {% else %}<p class="h">{{ view.headers_note }}</p>{% endif %}</div></details>
 <details class="section"><summary>{{ _('Content') }}</summary><div class="card"><p class="h">{{ view.content }}</p></div></details></main>""")
+# 6.0.0.6.6: where a reason is needed to look at a mail (efactl asks for it, and keeps it in the audit log), the mail page asks for it
+# first; in the mail log the same form shows in the dialog of the mail.
+MAIL_REASON_ERROR = 'Give a reason (at least 5 characters) to see the content of a mail.'
+MAIL_REASON = PAGE.replace(BLOCK, """<main><p class="mback"><a class="btn s" href="{{ back }}">{{ _('Back') }}</a></p>
+<h1>Mail {{ mail_id }}</h1><div class="card"><p>{{ _('Every look at a mail is kept in the audit log. Give a short reason, such as the ticket number or the question of the user.') }}</p>
+{% if error %}<p class="err" role="alert">{{ _('The reason needs at least 5 characters.') }}</p>{% endif %}
+<form method="post" class="mail-reason" action="{{ url_for('mail_page', mail_id=mail_id) }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="row"><label for="mail-reason">{{ _('Reason (at least 5 characters)') }}</label><input type="text" id="mail-reason" name="reason" minlength="5" maxlength="500" required autocomplete="off" value="{{ reason }}"></div>
+<div class="btns"><button class="p">{{ _('Show the mail') }}</button></div></form></div></main>""")
 THREAT_BANNER = """{% set threat = threat_view(commands, session.get('role', 'super')) %}<div id="threat-banner" data-url="{{ url_for('threat_banner') }}">
 {%- if threat %}<div class="threat {{ threat.level }}" role="alert"><span class="beacon" aria-hidden="true"></span><div class="tb-text"><b>{{ threat.head }}</b>
 <ul>{% for item in threat.entries %}<li class="{{ item.level }}">{% if item.href %}<a class="chip" href="{{ item.href }}">{{ item.name }}</a>{% else %}{{ item.name }}{% endif %}: {{ item.line }}
@@ -1455,6 +1640,20 @@ UPDATE_LIVE = """{% set p = u.progress %}<div class="upd-live" data-state="{{ p.
 {% if p.state == 'rebooting' %}<p class="warnbox">{{ _('The host restarts now. This page tries again by itself; mail is accepted again after the restart.') }}</p>{% endif %}
 <p class="h upd-off" hidden>{{ _('The web interface does not answer: it restarts during the update. Trying again ...') }}</p>
 <noscript><meta http-equiv="refresh" content="10"></noscript></div>"""
+# 6.0.0.6.6 (Hans 2026-11-18: "klicken auf upgraden -> dann läuft der preupgrade check+vorbereitungen -> dann wird angezeigt ob
+# das upgrade geht oder warum nicht -> dann bestätigen und es läuft ein progressbar"): the moving part of the guided EL10 card.
+RU_LIVE = """<div class="ru-live" data-phase="{{ v.phase }}">
+<div class="bar" role="progressbar" aria-label="{{ _('Progress of the upgrade') }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ v.percent }}"><i style="width:{{ v.percent }}%"></i></div>
+{%- set labels = {'preflight': _('Preflight'), 'prepare': _('Install the upgrade tool and run the leapp check'), 'backup': _('Backup and maintenance mode'),
+                  'upgrade': _('Upgrade to EL10'), 'reboot': _('Restarts'), 'checks': _('Checks after the upgrade'), 'done': _('Done')} %}
+<ol class="steps">{% for key, st in v.steps %}<li class="{{ st }}">{{ labels[key] }}<span class="sr"> ({{ {'done': _('done'), 'now': _('running'), 'todo': _('to come')}[st] }})</span></li>{% endfor %}</ol>
+{% if v.line %}<p class="upd-line">{{ v.line }}</p>{% endif %}
+{% if v.phase == 'checking' %}<p class="h">{{ _('Usually 5 to 15 minutes. Mail runs as usual. You can close this page.') }}</p>
+{% elif v.state == 'rebooting' %}<p class="warnbox">{{ _('The host restarts, several times. This page waits for it and goes on by itself.') }}</p>
+{% else %}<p class="h">{{ _('About 30 to 60 minutes. New mail gets 421 and is sent again later. You can close this page.') }}</p>{% endif %}
+<p class="h ru-off" hidden>{{ _('The host does not answer: it restarts. Waiting for it ...') }}</p>
+<p class="warnbox ru-long" hidden>{{ _('No answer for more than 30 minutes. Look at the console of the host. If it does not come back, the VM snapshot is the way back.') }}</p>
+<noscript><meta http-equiv="refresh" content="15"></noscript></div>"""
 # Hans 2026-11-15: the page Mail routing by importance. The domains first and in both views (the wizard only adds), what needs a hand
 # (held accounts), then who may send through this server, then the limits; header privacy and TLS with partners folded. Lists are
 # shown, forms open on a click. Same commands and fields as the generic cards; a field keeps its current value (field()).
@@ -1573,6 +1772,10 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
   {%- elif value is sameas false -%}<span class="pill w">no</span>
   {%- elif key in ('arrived', 'checked_at') and value is number -%}{{ value|when }}
   {%- elif value is string -%}{% if value.count('\\n') %}<pre>{{ value }}</pre>{% else %}{{ value }}{% endif %}
+  {%- elif value is mapping and value|length == 2 and 'stored' in value and 'remove' in value -%}
+    {#- A stored secret of a list row (efactl secret_cell): stored or not, Remove while it can go; the value never comes here. -#}
+    <span class="badge{{ ' on' if value.stored }}">{{ _('stored') if value.stored else _('not set') }}</span>
+    {%- if value.remove and 'secret-remove' in commands %} <form method="post" action="{{ url_for('run', name='secret-remove') }}" class="secretrm"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s" name="target" value="{{ value.remove }}">{{ _('Remove') }}</button></form>{% endif -%}
   {%- elif value is mapping -%}
     {%- if not value -%}<span class="pill">{{ _('none') }}</span>{%- else -%}<table class="kv">
     {%- for k, v in value.items() -%}<tr><th{% if k in KEY_LABELS %} class="kc"{% endif %}>{{ _(KEY_LABELS[k]) if k in KEY_LABELS else k|replace('_', ' ') }}</th><td>{{ show(v, k) }}</td></tr>{%- endfor -%}
@@ -1599,7 +1802,7 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
   {#- One click in the head of the card: the form of the card with only the switch changed, the other fields as they are now. -#}
   {%- set sw = switch_arg(name, cmd) -%}{%- set ns = namespace(ok=sw is not none) -%}
   {%- if sw %}{% for arg in cmd.args if arg.required and arg.name != 'mode' and current(name, arg) in ('', none) %}{% set ns.ok = false %}{% endfor %}{% endif -%}
-  {%- if ns.ok -%}<form method="post" action="{{ url_for('run', name=name) }}" class="toggle"><input type="hidden" name="csrf" value="{{ csrf }}">
+  {%- if ns.ok -%}<form method="post" action="{{ url_for('run', name=name) }}" class="toggle"{% if stayable(name) %} data-stay="@card" data-saved="{{ _('Saved.') }}"{% endif %}><input type="hidden" name="csrf" value="{{ csrf }}">
   {%- for arg in cmd.args if arg.name != 'mode' and arg.web is not sameas false %}{% set v = current(name, arg) %}<input type="hidden" name="{{ arg.name }}" value="{{ 'on' if v is sameas true else ('off' if v is sameas false else v) }}">{% endfor -%}
   <input type="hidden" name="mode" value="{{ 'off' if on else 'on' }}"><button class="badge{{ ' on' if on }}" aria-pressed="{{ 'true' if on else 'false' }}" title="{{ _('Turn off') if on else _('Turn on') }}">{{ _('On') if on else _('Off') }}</button></form>
   {%- else -%}<span class="badge{{ ' on' if on }}">{{ _('On') if on else _('Off') }}</span>{%- endif -%}
@@ -1718,7 +1921,7 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
 {%- endmacro -%}
 {%- macro field(name, arg) -%}
   {%- set id = name ~ '-' ~ arg.name -%}{%- set value = current(name, arg) -%}{%- set fh = help_text(name, arg.name) -%}{%- set wl = web_label(arg.label, arg.kind) -%}
-  {%- if arg.hint %}<div class="row {{ arg.group }}box"><p class="warnbox" role="alert">{{ arg.hint }}</p></div>{% endif -%}
+  {%- if arg.hint %}<div class="row {{ arg.group }}box"><p class="warnbox" role="alert">{{ arg.hint|t }}</p></div>{% endif -%}
   <div class="row{% if arg.group %} {{ arg.group }}box{% endif %}"{% if arg.when %} data-when="{{ arg.when }}"{% endif %}>
   {%- if arg.ack -%}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
@@ -1756,6 +1959,11 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
     {%- set chosen = value if value != '' else (arg.preselect or '') %}{% set items = [] %}{% for item in arg.choices %}{% set ignored = items.append((item.value, item.text|t)) %}{% endfor %}
     {{- pickone(id, arg.name, items, chosen) }}
     {%- set now = shown_now(name, arg) %}{% if now is not none %}<small class="now">{{ _('Current:') }} {% for item in arg.choices if item.value == now %}{{ item.text|t }}{% endfor %}</small>{% endif %}
+  {%- elif arg.name == 'limit' and name == 'maillog-search' -%}
+    {#- 6.0.0.6.6: how many rows, as a choice instead of free text (efactl takes 1 to 1000). -#}
+    <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
+    {%- set chosen = (value or arg.default or '100')|string %}<select id="{{ id }}" name="limit">{% for n in ('50', '100', '250', '500', '1000') %}<option{% if n == chosen %} selected{% endif %}>{{ n }}</option>{% endfor %}
+    {%- if chosen not in ('50', '100', '250', '500', '1000') %}<option selected>{{ chosen }}</option>{% endif %}</select>
   {%- elif arg.name == 'tenant' and pick.tenants -%}
     <span class="lb"><label for="{{ id }}">{{ _('Tenant') }}</label>{{ info(id, fh) }}</span>
     <select id="{{ id }}" name="tenant">{% if not arg.required %}<option value="">{{ _('None') }}</option>{% endif %}{% for item in pick.tenants %}<option{% if item == value %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
@@ -1798,7 +2006,14 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 <span class="pending-buttons"><a class="btn p" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}#totp-setup">{{ _('Set up 2FA') }}</a>{% if environment_mark and 'env-dev' in environment_mark and not portal_mode %}<form method="post" action="{{ url_for('run', name='dev-2fa-hint-confirm') }}" data-stay="no-2fa" data-done="{{ _('Confirmed for this development host.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s">{{ _('Confirm') }}</button></form>{% endif %}</span></div>{% endif %}{% if values.get('firewall_pending_seconds') is not none and 'firewall-confirm' in commands %}<div class="pending" role="alert">
 <span><b>Firewall change not confirmed.</b> Check that you still have access. It is taken back in <span data-countdown="{{ values.firewall_pending_seconds }}">{{ values.firewall_pending_seconds // 60 }} min</span>.</span>
 <span class="pending-buttons">{{ post('firewall-confirm', 'Keep the change', {}, 'p') }}{% if 'firewall-revert' in commands %}{{ post('firewall-revert', 'Discard', {}, 'd') }}{% endif %}</span></div>{% endif %}
-{% if values.get('cluster_managed_by') %}<div class="card"><p>{{ 'Managed by'|t }} <b>{{ values.cluster_managed_by }}</b>: {{ 'this node is a client in master/client mode, settings are changed on the master.'|t }}</p></div>{% endif %}
+{#- The cluster on every page, both views (Hans 2026-11-18): from the local state only; the master escaped, its address checked. -#}
+{% if cluster_line and not portal_mode %}<div class="clusterline{{ ' stale' if cluster_line.stale or cluster_line.role == 'unknown' }}" role="note" id="cluster-line">
+{%- if cluster_line.role == 'master' %}<b>{{ _('Cluster: master') }}</b>{% if cluster_line.mode == 'ha' %} <span>({{ _('mode') }} ha)</span>{% endif %}
+{%- elif cluster_line.role == 'client' %}<b>{{ _('Cluster: client of {}').format(cluster_line.master) }}</b> <span>({{ _('mode') }} {{ cluster_line.mode }})</span>
+<span>{{ _('Shared settings are changed on the master.') if cluster_line.mode == 'master-client' else _('Changes here go to the master, which passes them to every node.') }}</span>
+{%- if cluster_line.stale %} <span class="b">{{ _('The master has not answered for a while: this state may be old.') }}</span>{% endif %}
+{%- if cluster_line.url %} <a class="btn s" href="{{ cluster_line.url }}" target="_blank" rel="noopener noreferrer">{{ _('Open the master') }}</a>{% endif %}
+{%- else %}<b>{{ _('Cluster: state unknown') }}</b> <span>{{ _('The cluster state of this node cannot be read.') }}</span>{% endif %}</div>{% endif %}
 <h1>{{ page.title|t }}</h1><p class="sub">{{ page.sub|t }}</p>
 {% if error %}<div class="card"><p class="err" role="alert">{{ error }}</p></div>{% endif %}
 {#- 6.0.0.6 (Hans): after a step that changes the system, a dialog says what happened, or why nothing (or not all) did. -#}
@@ -1817,7 +2032,8 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 .wizsteps li.cur{color:var(--ink);font-weight:600}.wizsteps li::before{content:counter(list-item) ". "}.wizard textarea{min-height:7em}
 .wizard pre.wizpre{white-space:pre-wrap;margin:0}.wizard iframe{width:100%;min-height:10em;border:1px solid var(--border);background:#fff}
 .wizard td.wiztext{white-space:pre-wrap;word-break:break-word;max-width:28rem}
-.wizchecks fieldset{margin:0 0 12px}.wizchecks .wizcheck{display:block;margin:0 0 10px;line-height:1.45}.wizchecks .wizcheck .h{display:inline}</style>
+.wizchecks fieldset{margin:0 0 12px}.wizchecks .wizcheck{display:block;margin:0 0 10px;line-height:1.45}.wizchecks .wizcheck .h{display:inline}
+.row:has(>.wizchecks){grid-template-columns:1fr}.wizchecks fieldset{padding:6px 14px 2px}</style>
 <form method="post" action="{{ url_for('wizard_mode') }}" class="wizmode"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="page" value="{{ page.slug }}">
 <span class="seg" role="group" aria-label="{{ _('Wizard or manual view') }}"><button name="mode" value="wizard"{% if wizard %} class="cur" aria-pressed="true"{% endif %}>{{ _('Wizard') }}</button><button name="mode" value="manual"{% if not wizard %} class="cur" aria-pressed="true"{% endif %}>{{ _('Manual') }}</button></span></form>{% endif %}
 {% if wizard %}{% set w = wizard %}<div class="card wizard" id="wizard"><h2>{{ w.title|t }}{{ info('wizard-' ~ w.name, w.help) }}</h2>
@@ -1920,6 +2136,17 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {% elif t.detail %}<details class="tile"><summary>{{ inner }}</summary><p>{{ t.detail }}</p></details>{% else %}<div class="tile">{{ inner }}</div>{% endif %}{% endfor %}</div>{% endif %}
 {% if chart and 'chart' not in dash.hidden %}<div class="card{{ dash.cls.chart }}" style="{{ dash.style.chart }}"><h2>{{ _('Last hour per minute') }}</h2><p class="h">{{ chart.summary }}</p>{{ chart.svg|safe }}
 <p class="legend"><span class="key m"></span>{{ _('Mails') }} <span class="key s"></span>{{ _('Spam') }} <span class="key v"></span>{{ _('Viruses') }}<span class="span">{{ chart.first }} &ndash; {{ chart.last }}</span></p></div>{% endif %}
+{#- The master: its nodes from the last poll of efa-cluster (2026-11-18); every value a node reported escaped. -#}
+{% if cluster_health and 'cluster' not in dash.hidden %}{% set ch = cluster_health %}<div class="card clusterhealth{{ dash.cls.cluster }}" style="{{ dash.style.cluster }}" id="dash-cluster">
+<h2>{{ _('Cluster') }}</h2><p>{{ _('This host is the master') }}{% if ch.mode == 'ha' %} ({{ _('mode') }} ha){% endif %}.
+<span class="h{{ ' w' if ch.stale }}">{{ _('As of {} s ago').format(ch.age) if ch.age is not none else _('No poll of the nodes yet.') }}</span></p>
+{% if ch.nodes %}<table class="data"><tr><th>{{ _('Node') }}</th><th>{{ _('Version') }}</th><th>{{ _('Last contact') }}</th><th>{{ _('Behind') }}</th><th>{{ _('Sync') }}</th></tr>
+{% for row in ch.nodes %}<tr><td data-label="{{ _('Node') }}">{{ row.name }}</td><td data-label="{{ _('Version') }}">{{ row.version or '–' }}{% if row.platform %} ({{ row.platform }}){% endif %}</td>
+<td data-label="{{ _('Last contact') }}">{{ _('{} s ago').format(row.ago) if row.ago is not none else '–' }}</td><td data-label="{{ _('Behind') }}"><span class="{{ 'w' if row.behind }}">{{ row.behind if row.behind is not none else '–' }}</span></td>
+<td data-label="{{ _('Sync') }}"><span class="{{ {'error': 'b', 'pending': 'w'}.get(row.sync, '') }}">{{ {'ok': _('ok'), 'pending': _('pending'), 'error': _('error')}.get(row.sync, row.sync) }}</span>{% if row.error %} <span class="h">{{ row.error }}</span>{% endif %}</td></tr>{% endfor %}</table>
+{%- else %}<p class="empty">{{ _('No node yet.') }}</p>{% endif %}
+{% if ch.mx %}<p><span class="sec-k">{{ _('MX records') }}</span> <span class="{{ '' if ch.mx.ok else 'w' }}">{{ _('ok') if ch.mx.ok else (ch.mx.problems|join('; ') or _('to look at')) }}</span></p>{% endif %}
+{% if ch.level %}<p><a class="btn s" href="{{ url_for('show_page', slug='cluster') }}">{{ _('Cluster page') }} &rsaquo;</a></p>{% endif %}</div>{% endif %}
 {% if 'load' not in dash.hidden %}<details class="card fold{{ dash.cls.load }}" style="{{ dash.style.load }}" id="load-fold"{% if load_open %} open{% endif %}><summary><h2>{{ _('Load') }}</h2><span class="h">{{ _('CPU, RAM, disks and network: now, 15 min, 24 h') }}</span></summary>
 <div id="load-card" data-url="{{ url_for('load_card') }}">{{ load_html|safe }}</div>{% if 'load-set' in commands %}<p><a class="btn s" href="{{ url_for('show_page', slug='maint') }}#load-set">{{ _('Limits and alerts') }} &rsaquo;</a></p>{% endif %}</details>{% endif %}</div>
 {#- G7-7: the layout of this login: buttons for keyboard and phone, dragging a row as an extra; "Needs attention" stays on top. -#}
@@ -1949,9 +2176,9 @@ time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is 
 {% else %}<div class="facts">
 <div class="fact">eFa-next<b>{% if u.efa_update %}{{ _('{} available').format(u.latest) }}{% elif u.last_check %}{{ _('up to date') }}{% else %}{{ _('not checked yet') }}{% endif %}</b></div>
 <div class="fact">{{ _('Operating system') }}<b>{% if u.os_pending %}{{ _('{} updates').format(u.os_pending) }}{% elif u.os_pending == 0 %}{{ _('up to date') }}{% else %}{{ _('not checked yet') }}{% endif %}</b>{% if 'update-pending' in commands %}{{ post('update-pending', _('Show'), {}, 's') }}{% endif %}</div>
-<div class="fact">{{ _('Restart needed') }}<b>{{ _('yes') if u.reboot_required else (_('no') if u.reboot_required == false else _('unknown')) }}</b>{% if u.reboot_required and 'reboot' in commands %}<a class="btn" href="#reboot">{{ _('Restart') }}</a>{% endif %}</div>
+<div class="fact">{{ _('Restart needed') }}<b>{{ _('yes') if u.reboot_required else (_('no') if u.reboot_required == false else _('unknown')) }}</b>{% if u.reboot_required and 'reboot' in commands %}<a class="btn" href="{{ url_for('show_page', slug='maint', view='expert') }}#reboot">{{ _('Restart') }}</a>{% endif %}</div>
 <div class="fact">{{ _('Last check') }}<b>{{ u.last_check[:16] if u.last_check else _('never') }}</b>{% if 'update-check' in commands %}{{ post('update-check', _('Check now'), {}, 's') }}{% endif %}</div>
-<div class="fact">{{ _('Automatic updates') }}<b>{{ {'off': _('Off'), 'notify': _('Check and report only'), 'auto': _('Install by itself')}.get(u.mode, u.mode) }}</b>{% if 'autoupdate-set' in commands %}<a class="btn" href="#autoupdate-set">{{ _('Adjust') }}</a>{% endif %}</div></div>
+<div class="fact">{{ _('Automatic updates') }}<b>{{ {'off': _('Off'), 'notify': _('Check and report only'), 'auto': _('Install by itself')}.get(u.mode, u.mode) }}</b>{% if 'autoupdate-set' in commands %}<a class="btn" href="{{ url_for('show_page', slug='maint', view='expert') }}#autoupdate-set">{{ _('Adjust') }}</a>{% endif %}</div></div>
 {% set held = u.os_held %}{% if held %}<p class="warnbox upd-held" role="status"><b>{{ _('Held back') }}</b>: {{ _('dnf cannot resolve their dependencies now; the next update tries again.') }}
 {% for h in held %}{{ ', ' if not loop.first }}{{ h.package }}{% if h.security %} <span class="badge bad">{{ _('security update') }}</span>{% endif %}{% if h.efa %} <span class="badge">{{ _('needed by eFa-next') }}</span>{% endif %}{% endfor %}</p>{% endif %}
 {% if p.state in ('done', 'failed') %}<div class="last {{ 'ok' if p.state == 'done' else 'bad' }}" role="status"><b>{{ _('Last update') }}: {{ (p.finished or '')[:16] }}{% if p.took %} ({{ _('{} min').format(((p.took + 59) // 60)|int) }}){% endif %}</b> &middot; {{ (p.result or '')|rt }}
@@ -1962,17 +2189,77 @@ time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is 
 <div class="btns"><button class="p">{{ _('Update now') }}</button></div></form>{% endif %}
 {% set lok, lout = loaded.get('update-status', (False, {})) %}{% if lok and lout.log %}<details class="help"><summary>{{ _('Full log') }}</summary><pre class="upd-log">{{ lout.log|join('\n') }}</pre></details>{% endif %}
 </div>{% endmacro %}
+{#- 6.0.0.6.6 (Hans 2026-11-18: "der upgradeprozess muss wesentlich einfacher und autonomer via dashboard laufen"): the EL10
+    upgrade as one guided card over the steps of efactl. One button prepares and checks (preupgrade, which runs the preflight
+    first), the card then says whether it can run and if not why, the start asks the same confirmations as before (efactl
+    checks them again), and a bar follows the steps, over the restarts. Every form asks for the password like the command. -#}
+{% macro ru_reauth(id) %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
+{% else %}<div class="row"><label for="{{ id }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ id }}-reauth" name="reauth" autocomplete="current-password" required></div>
+<div class="row"><label for="{{ id }}-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ id }}-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endmacro %}
+{% macro ru_form(id, action, label, cls='p', confirm='') %}<form method="post" action="{{ url_for('run', name='release-upgrade') }}" class="ruform"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ action }}">
+{{ caller() if caller else '' }}{{ ru_reauth(id) }}<div class="btns"><button class="{{ cls }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>{{ label }}</button></div></form>{% endmacro %}
+{% macro ru_card() %}{% set rok, rout = loaded['release-upgrade-status'] %}{% set v = ru_view(rout if rok else {}) %}
+{%- set badge = {'check': _('not prepared'), 'checking': _('checking'), 'ready': _('possible'), 'blocked': _('not possible yet'), 'running': _('running'),
+                 'checks_failed': _('checks failed'), 'done': _('done'), 'accepted': _('done, accepted'), 'failed': _('stopped')}[v.phase] %}
+<div class="card upd ru" id="release-upgrade-guide"><h2>{{ _('Upgrade to EL10') }}{{ info('release-upgrade', help_text('release-upgrade')) }}<span class="badge{{ ' on' if v.phase in ('checking', 'running', 'ready', 'done') }}">{{ badge }}</span></h2>
+{% if not rok %}<p class="err">{{ rout.error }}</p>
+{% elif v.phase in ('checking', 'running') %}<div id="ru-live" data-url="{{ url_for('ru_live') }}">{{ ru_live_view(rout)|safe }}</div>
+  {% if v.abortable %}<details class="cfold"><summary>{{ _('Abort (only before the upgrade itself starts)') }}</summary>{% call ru_form('ru-abort', 'abort', _('Abort'), 'd') %}{% endcall %}</details>{% endif %}
+{% elif v.phase == 'ready' %}<p class="ok-box" role="status"><b>{{ _('The upgrade is possible.') }}</b> {{ _('Checked {}.').format(v.checked) if v.checked }}</p>
+  <ul class="ru-facts"><li>{{ _('About 30 to 60 minutes without mail: new mail gets 421 and is sent again later.') }}</li><li>{{ _('Several restarts.') }}</li>
+  <li class="bad">{{ _('No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back.') }}</li></ul>
+  {% call ru_form('ru-start', 'start', _('Start the upgrade now'), 'd', _('Start the upgrade to EL10 now?')) %}
+  <div class="row ru-tick"><label class="tick"><input type="checkbox" name="snapshot" value="yes" required> {{ _('A VM snapshot of this host exists, taken right now') }}</label></div>
+  <div class="row"><label for="ru-host">{{ _('Host name of this system, typed to confirm the start') }}</label><input type="text" id="ru-host" name="hostname" required autocomplete="off" spellcheck="false"></div>
+  <details class="cfold"><summary>{{ _('Start without a backup (only with the VM snapshot)') }}</summary><p class="warnbox">{{ _('Empty (the default): an encrypted backup goes to every external backup target first. With the sentence the start leaves the backup out: then the VM snapshot is the only way back.') }}</p>
+  <div class="row"><label for="ru-nobackup">{{ _('Only to start without a backup: type "without backup, snapshot only"') }}</label><input type="text" id="ru-nobackup" name="no_backup" autocomplete="off"></div></details>
+  {% endcall %}
+  <details class="cfold"><summary>{{ _('Check again') }}</summary>{% call ru_form('ru-again', 'preupgrade', _('Check again')) %}{% endcall %}</details>
+{% elif v.phase == 'checks_failed' %}<p class="err" role="alert"><b>{{ _('The upgrade ran, but checks after it failed. Mail is still refused (421).') }}</b></p>
+  <ul class="ru-reasons">{% for text in v.failed or v.reasons %}<li>{{ text }}</li>{% endfor %}</ul>
+  {% call ru_form('ru-recheck', 'recheck', _('Run the checks again')) %}{% endcall %}
+  <details class="cfold"><summary>{{ _('Accept as it is and take mail again') }}</summary>{% call ru_form('ru-accept', 'accept', _('Accept'), 'd', _('Accept the failed checks and take mail again?')) %}
+  <div class="row"><label for="ru-reason">{{ _('Reason (goes to the audit log)') }}</label><input type="text" id="ru-reason" name="reason" required minlength="3" maxlength="300"></div>{% endcall %}</details>
+{% elif v.phase in ('done', 'accepted') %}<p class="ok-box" role="status"><b>{{ _('This host runs EL10.') }}</b>{% if v.phase == 'accepted' %} {{ _('Failed checks were accepted; they stay in the audit log.') }}{% endif %}</p>
+{% else %}
+  {% if v.phase == 'blocked' %}<p class="err" role="alert"><b>{{ _('The upgrade is not possible yet.') }}</b> {{ _('Fix these points, then check again:') }}</p>
+  <ul class="ru-reasons">{% for text in v.reasons %}<li>{{ text }}</li>{% else %}<li>{{ _('The check did not pass; the log below says why.') }}</li>{% endfor %}</ul>
+  {% elif v.phase == 'failed' %}<p class="err" role="alert"><b>{{ _('The last step stopped.') }}</b> {{ v.error }}</p>
+  <p class="h">{{ _('If the upgrade itself had started, look at the console of the host; the VM snapshot is the way back.') }}</p>
+  {% else %}<p>{{ _('Checks whether this host can move to AlmaLinux or RHEL 10, and prepares it.') }}</p>
+  <p class="h">{{ _('For this it installs the upgrade tool (ELevate and leapp) and the EL10 package source. Mail runs as usual; nothing is switched yet.') }}</p>
+  {% if v.stale %}<p class="warnbox">{{ _('The last check is older than {} hours: check again.').format(ru_hours) }}</p>{% endif %}{% endif %}
+  {% call ru_form('ru-check', 'preupgrade', _('Check again') if v.phase in ('blocked', 'failed') or v.stale else _('Prepare and check the upgrade')) %}{% endcall %}
+{% endif %}
+{% if rok and v.log %}<details class="help"><summary>{{ _('Log') }}</summary><pre class="upd-log">{{ v.log|join('\n') }}</pre></details>{% endif %}
+</div>{% endmacro %}
+{#- 6.0.0.6.6 (Hans 2026-11-18: the first 2FA setup was unclear, the QR code only came after Apply, with a password and an
+    empty code field that a first setup does not need): without 2FA the card says what comes, one step at a time; one button
+    shows the QR code, and the page with the code asks for the first code of the app right there. -#}
+{% macro totp_first_card() %}<div class="card totpfirst" id="totp-setup"><h2>{{ _('Set up 2FA in two steps') }}{{ info('totp-setup', help_text('totp-setup')) }}</h2>
+<ol class="tsteps"><li><b>{{ _('Have an authenticator app ready.') }}</b> {{ _('Any app for one-time codes (TOTP) on your phone or in your password manager.') }}</li>
+<li><b>{{ _('Show the QR code and scan it.') }}</b> {{ _('Then type the six-digit code the app shows; that switches 2FA on.') }}</li></ol>
+<form method="post" action="{{ url_for('run', name='totp-setup') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+{#- 6.0.0.6.6: the first app only with the password too (efactl totp-setup): a taken-over session cannot bind an app of its own. -#}
+<div class="row"><label for="totp-first-reauth">{{ _('Your password') }}</label><input type="password" id="totp-first-reauth" name="reauth" autocomplete="current-password"></div>
+<div class="btns"><button class="p">{{ _('Show the QR code') }}</button></div></form>
+{% if 'totp-confirm' in commands %}<details class="cfold" id="totp-confirm"><summary>{{ _('Already scanned? Switch on with the code') }}</summary>
+<form method="post" action="{{ url_for('run', name='totp-confirm') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="row"><label for="totp-first-code">{{ _('Code of the app (6 digits)') }}</label><input type="text" id="totp-first-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required class="otp"></div>
+<div class="btns"><button class="p">{{ _('Switch 2FA on') }}</button></div></form></details>{% endif %}</div>{% endmacro %}
 {% macro card(name) %}{% set cmd = commands[name] %}
 {#- subject-get only fills the form of subject-set. The history is part of the record list. -#}
+{% set totp_known = loaded.get('totp-status') %}{% set totp_first = totp_known and totp_known[0] and not totp_known[1].get('active') %}
 {% if name == 'update-system' and update_live_html %}{{ update_card() }}
+{%- elif name == 'totp-setup' and totp_first %}{{ totp_first_card() }}
+{%- elif name == 'totp-confirm' and totp_first and 'totp-setup' in commands %}
 {%- elif name not in hidden_cards and name not in merged %}<div class="card" id="{{ name }}">
-{%- set status = status_of.get(name) if status_of.get(name) in loaded else None %}
+{%- set status = status_of_card(name) if status_of_card(name) in loaded else None %}
 {#- One title per card (that of its status, else that of the command, without its tail such as ": switch"), its (i) and the first sentence of its help. -#}
-{%- set help = help_text(name) %}{% set title = short_title(commands[status].title if status else cmd.title)|t %}
+{%- set help = help_text(name) %}{% set title = strip_prefix(short_title(commands[status].title if status else cmd.title)|t) %}
 {%- if status %}{% set sok, sout = loaded[status] %}<h2>{{ title }}{{ info(name, help) }}{% if sok and badge(sout) is not none %}{{ toggle(name, cmd, badge(sout)) }}{% endif %}</h2>
-  {% if help %}<p class="h">{{ first_sentence(help) }}</p>{% endif %}
   {% if sok %}{% if status == 'blocklist-show' %}{{ blocklist_table(sout) }}{% elif expert %}{{ show(without_badge(sout)) }}{% else %}{% for text in warnings_of(loaded[status]) %}<p class="warnbox" role="alert">{{ text|rt }}</p>{% endfor %}{% endif %}{% else %}<p class="err">{{ sout.error }}</p>{% endif %}
-{%- else %}<h2>{{ title }}{{ info(name, help) }}</h2>{% if help %}<p class="h">{{ first_sentence(help) }}</p>{% endif %}{% endif %}
+{%- else %}<h2>{{ title }}{{ info(name, help) }}</h2>{% endif %}
 {% if not help and page.notes and name in page.notes %}{% if page.notes[name]|length <= note_short %}<p class="h">{{ page.notes[name]|t }}</p>
 {% else %}<details class="help"><summary>{{ _('Help') }}</summary><p>{{ page.notes[name]|t }}</p></details>{% endif %}{% endif %}
 {% if name == 'api-set' %}<p class="h">{{ _('Prometheus reads {} with the header Authorization: Bearer and a token of a user who may read the settings of the whole system.').format(request.host_url ~ 'metrics') }}</p>{% endif %}
@@ -1980,7 +2267,7 @@ time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is 
 Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read the settings of the whole system.</p>
 <p>REST API: <span class="badge{{ ' on' if aok and aout.api }}">{{ 'On' if aok and aout.api else 'Off' }}</span> Turn it on and make the token on the page Users.</p>
 {% else %}
-{% if name == 'maillog-search' %}{{ mailui() }}<button type="button" class="p" id="live-open">{{ _('Live log') }}</button>
+{% if name == 'maillog-search' %}{{ mailui() }}<div class="btns logtools"><button type="button" id="live-open">{{ _('Live log') }}</button>{% if page.slug == 'log' and 'message-search' in commands %}{{ advanced_search_link() }}{% endif %}</div>
 {%- set lt = {'columns': {'ts': _('Time'), 'sender': _('Sender'), 'rcpt': _('Recipient'), 'subject': _('Subject'), 'action': _('Result'), 'auth': _('Checks'), 'score': _('Score'),
               'ip': _('IP address'), 'qid': _('Queue ID')}, 'now': _('just now'), 'failed': _('Live log not available, log in again if needed.'), 'pause': _('Pause'),
               'resume': _('Resume'), 'none_match': _('No mail matches the filters.'), 'none_yet': _('No mail yet.')} %}
@@ -2124,29 +2411,30 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     <tr><td><span class="dot {{ 'b' if item.level == 'problem' else 'w' }}"></span></td><td>{{ item.title }}</td><td>{{ item.detail }}</td><td>{{ item.fix }}</td></tr>{% endfor %}</table>
     {% elif output.checked %}<p>No findings.</p>{% endif %}
   {% elif name == 'blocklist-show' %}{{ blocklist_table(output) }}
+  {% elif name == 'group-list' and not output.groups %}<p class="empty">{{ _('No group yet.') }}</p>
   {% elif name == 'group-list' %}<table class="data"><tr><th>{{ _('Group') }}</th><th>{{ _('Description') }}</th><th>{{ _('Scope') }}</th><th>{{ _('Members') }}</th><th>{{ _('Permissions') }}</th></tr>{% for item in output.groups %}
     <tr><td data-label="{{ _('Group') }}"><b>{{ item.name }}</b>{% if item.predefined %} <span class="pill">{{ _('predefined') }}</span>{% endif %}{% if item.disabled %} <span class="pill w">{{ _('off') }}</span>{% endif %}</td>
     <td data-label="{{ _('Description') }}">{{ item.description }}</td><td data-label="{{ _('Scope') }}">{{ item.scope }}</td><td class="nw" data-label="{{ _('Members') }}">{{ item.members }}</td>
     <td data-label="{{ _('Permissions') }}"><details class="help"><summary>{{ item.permissions|length }}</summary><div class="chips">{% for permission in item.permissions %}<span class="chip">{{ permission }}</span>{% endfor %}</div></details></td></tr>{% endfor %}</table>
   {% elif name == 'tenant-list' %}{{ show(output) }}
-    <form method="post" enctype="multipart/form-data" action="{{ url_for('brand_upload') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="row"><label for="brand-tenant">Logo for tenant</label><input type="text" id="brand-tenant" name="tenant" required></div>
-    <div class="row"><label for="brand-logo">PNG, up to 200 KB and 1024 pixels</label><input type="file" id="brand-logo" name="logo" accept="image/png" required></div><div class="btns"><button>Upload</button></div></form>
-  {% elif name == 'backup-list' %}{% if output.backups %}<table class="data"><tr><th>Backup</th><th>Date</th><th>Size</th><th></th><th></th></tr>{% for backup in output.backups %}<tr><td>{{ backup.name }}</td><td>{{ backup.date }}</td><td>{{ backup.size_mb }} MB</td>
-    <td>{% if backup.encrypted %}<span class="pill w">&#128274; encrypted</span>{% endif %}</td>
+    <div class="cfolds"><details class="cfold" id="brand-upload"><summary>{{ _('Upload the logo of a tenant') }}</summary><form method="post" enctype="multipart/form-data" action="{{ url_for('brand_upload') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row"><label for="brand-tenant">{{ _('Tenant') }}</label><input type="text" id="brand-tenant" name="tenant" required></div>
+    <div class="row"><label for="brand-logo">{{ _('PNG, up to 200 KB and 1024 pixels') }}</label><input type="file" id="brand-logo" name="logo" accept="image/png" required></div><div class="btns"><button>{{ _('Upload') }}</button></div></form></details></div>
+  {% elif name == 'backup-list' %}{% if output.backups %}<table class="data"><tr><th>{{ _('Backup') }}</th><th>{{ _('Date') }}</th><th>{{ _('Size') }}</th><th></th><th></th></tr>{% for backup in output.backups %}<tr><td>{{ backup.name }}</td><td>{{ backup.date }}</td><td>{{ backup.size_mb }} MB</td>
+    <td>{% if backup.encrypted %}<span class="pill w">&#128274; {{ _('encrypted') }}</span>{% endif %}</td>
     <td><form method="post" action="{{ url_for('backup_download') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="name" value="{{ backup.name }}">
-    <input type="password" name="password" placeholder="Admin password" aria-label="Admin password" autocomplete="current-password" required style="width:150px"> <button>Download</button></form>
-    <a class="btn" href="{{ url_for('show_page', slug='bak', name=backup.name) }}#restore">Restore</a></td></tr>{% endfor %}</table>
+    <input type="password" name="password" placeholder="{{ _('Admin password') }}" aria-label="{{ _('Admin password') }}" autocomplete="current-password" required style="width:150px"> <button>{{ _('Download') }}</button></form>
+    <a class="btn" href="{{ url_for('show_page', slug='bak', name=backup.name) }}#restore">{{ _('Restore') }}</a></td></tr>{% endfor %}</table>
     {% else %}<span class="pill">{{ _('none') }}</span>{% endif %}
-    <form method="post" enctype="multipart/form-data" action="{{ url_for('backup_upload') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="row"><label for="backup-file">Upload a backup (.tar.gz or .tar.gz.gpg, up to 64 MB)</label><input type="file" id="backup-file" name="file" required></div><div class="btns"><button>Upload</button></div></form>
-  {% elif name == 'autoupdate-status' %}<p class="h">Installed: {{ output.installed }}. Newest: {{ output.latest or 'not checked yet' }}. Operating system updates: {{ output.os_updates }}.</p>
-    {% if output.update_available %}<p class="warnbox">Update available: {{ output.latest }}</p><pre>{{ output.release_notes }}</pre>{% endif %}
-    <p class="h">Last check: {{ output.last_check or 'not yet' }}. Last result: {{ output.last_result or 'none' }}</p>
+    <div class="cfolds"><details class="cfold" id="backup-upload"><summary>{{ _('Upload a backup') }}</summary><form method="post" enctype="multipart/form-data" action="{{ url_for('backup_upload') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row"><label for="backup-file">{{ _('File (.tar.gz or .tar.gz.gpg, up to 64 MB)') }}</label><input type="file" id="backup-file" name="file" required></div><div class="btns"><button>{{ _('Upload') }}</button></div></form></details></div>
+  {% elif name == 'autoupdate-status' %}<p class="h">{{ _('Installed') }}: {{ output.installed }}. {{ _('Newest') }}: {{ output.latest or _('not checked yet') }}. {{ _('Operating system updates') }}: {{ output.os_updates }}.</p>
+    {% if output.update_available %}<p class="warnbox">{{ _('Update available') }}: {{ output.latest }}</p><details class="help"><summary>{{ _('Release notes') }}</summary><pre>{{ output.release_notes }}</pre></details>{% endif %}
+    <p class="h">{{ _('Last check') }}: {{ output.last_check or _('not yet') }}. {{ _('Last result') }}: {{ output.last_result or _('none') }}</p>
   {% else %}{{ show(output) }}{% endif %}
-{% else %}{% if name == 'release-upgrade' %}<p class="err" role="alert">{{ _('No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back. About 30 to 60 minutes without mail (new mail gets 421), several reboots.') }}</p>
+{% else %}{% if name == 'release-upgrade' %}<p class="err" role="alert">{{ _('No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back.') }}</p>
 <p class="err" role="alert">{{ _('Started with the sentence "without backup, snapshot only", no backup is made and nothing of this host is kept anywhere else: the VM snapshot is then the only way back.') }}</p>{% endif %}
-<form method="post" action="{{ url_for('run', name=name) }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<form method="post" action="{{ url_for('run', name=name) }}"{% if stayable(name) %} data-stay="@card" data-saved="{{ _('Saved.') }}"{% endif %}><input type="hidden" name="csrf" value="{{ csrf }}">
   {% if name == 'dkim-create' %}{{ keytable() }}{% endif %}
   {% for arg in cmd.args if arg.web is not sameas false %}{{ field(name, arg) }}{% endfor %}
   {% if name == 'passkey-register' %}<div class="btns"><button type="button" id="passkey-add" hidden>{{ _('Make the passkey now') }}</button></div>
@@ -2156,13 +2444,13 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
   <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
   <div class="btns"><button class="{{ 'd' if name in danger else 'p' }}"{% if name in danger %} data-confirm="{{ cmd.title|t }}?"{% endif %}>{{ (_('Run') if not cmd.args else _('Apply')) if cmd.writes else _('Show') }}</button>{% if name == 'hardening-report' %} <button class="p" formaction="{{ url_for('hardening_pdf') }}">{{ _('Download PDF') }}</button>{% endif %}</div></form>
 {% endif %}{% endif %}</div>{% endif %}{% endmacro %}
-{% macro mail_check_card() %}<div class="card" id="mail-check"><h2>{{ _('Check a mail') }}</h2>
-<p class="h">{{ _('The verdict of rspamd for one .eml file: action, score and every rule that counted. Nothing is stored or learned.') }}</p>
+{% macro mail_check_card() %}<div class="card" id="mail-check"><h2>{{ _('Check a mail') }}{{ info('mail-check', _('The verdict of rspamd for one .eml file: action, score and every rule that counted. Nothing is stored or learned.')) }}</h2>
 <form method="post" enctype="multipart/form-data" action="{{ url_for('mail_check') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
 <div class="row"><label for="mail-check-file">{{ _('Mail (.eml, up to 10 MB)') }}</label><input type="file" id="mail-check-file" name="mail" accept=".eml,message/rfc822" required></div>
 <div class="btns"><button class="p">{{ _('Check') }}</button></div></form></div>{% endmacro %}
 {#- 6.0.0.6 (Hans): the message search opens in a window of its own (copy.js; without a script a new tab), with all its filters. -#}
-{% macro advanced_search_button() %}<div class="btns" id="message-search"><a class="btn p" href="{{ url_for('advanced_search') }}" target="efa-advanced-search" data-popup>{{ _('Advanced search') }}</a></div>{% endmacro %}
+{% macro advanced_search_link() %}<a class="btn" id="message-search" href="{{ url_for('advanced_search') }}" target="efa-advanced-search" data-popup>{{ _('Advanced search') }}</a>{% endmacro %}
+{% macro advanced_search_button() %}<div class="btns">{{ advanced_search_link() }}</div>{% endmacro %}
 {#- 6.0.0.6.x (Hans): My account only in the user menu at the top right; an overview first, then three groups, rare actions folded. -#}
 {% macro account_overview() %}{% set me = account_view() %}{% set aok, a = loaded.get('account-show', (false, {})) %}{% set tok, t = loaded.get('totp-status', (false, {})) %}
 {%- set pok, pk = loaded.get('passkey-status', (false, {})) %}{% set sok, ss = loaded.get('session-list', (false, {})) %}
@@ -2186,6 +2474,10 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
 <td class="acts">{% if row.id == mine %}<span class="pill">{{ _('This browser') }}</span>{% elif 'session-end' in commands %}{{ post('session-end', _('End session'), {'session': row.id}, 'd') }}{% endif %}</td></tr>{% endfor %}</table></div>
 {% else %}<p class="empty">{{ _('No other session.') }}</p>{% endif %}</div>
 {% endmacro %}
+{#- 6.0.0.6.6: a card with the cards that act on it, as one card: its own content, then one button per action that opens its form
+    below. The head drops its title when the section says the same; a link to a folded card (#name) opens its fold. -#}
+{% macro card_group(head, rest, section_title) %}<div class="cardgroup{% if card_title(head, commands) == section_title %} same{% endif %}">{{ card(head) }}<div class="cfolds">
+{%- for name in rest %}<details class="cfold"{% if name == result_name %} open{% endif %}><summary>{{ strip_prefix(card_title(name, commands)) }}</summary>{{ card(name) }}</details>{% endfor %}</div></div>{% endmacro %}
 {% macro account_fold(title, names, id) %}<details class="card fold accfold" id="{{ id }}"><summary><h2>{{ title }}</h2></summary>{% for name in names if name in commands %}{{ card(name) }}{% endfor %}</details>{% endmacro %}
 {#- 6.0.0.6.x (Hans): Impersonation & BEC by task, one card each: the switch with what it protects, the VIPs, the protected domains,
 the scores folded. Before, each of the three forms repeated the whole state. Without the right to change, the lists stay, the forms go. -#}
@@ -2200,34 +2492,33 @@ the scores folded. Before, each of the three forms repeated the whole state. Wit
 .bec-group .row{grid-template-columns:minmax(0,1fr) 150px}.bec-group input,.bec-group select{width:100%}
 @media(max-width:760px){.bec-group .row{grid-template-columns:1fr}}</style>
 <div class="card" id="bec-set"><h2>{{ _('BEC checks') }}{{ info('bec-set', help_text('bec-set')) }}{% if 'bec-set' in commands %}{{ toggle('bec-set', commands['bec-set'], b.enabled) }}{% else %}<span class="badge{{ ' on' if b.enabled }}">{{ _('On') if b.enabled else _('Off') }}</span>{% endif %}</h2>
-<p class="h">{{ first_sentence(help_text('bec-set')) }}</p>
 {% for text in b.warnings or [] %}<p class="warnbox" role="alert">{{ text|rt }}</p>{% endfor %}
 {% if b.enabled %}<p class="bec-sum"><span><b>{{ b.vips|length }}</b>{{ _('VIPs') }}</span><span><b>{{ b.partners|length }}</b>{{ _('Partner domains') }}</span><span><b>{{ (b.own_domains or [])|length }}</b>{{ _('Own domains') }}</span></p>
 {% else %}<p class="warnbox" role="alert">{{ _('Off: none of these checks runs. On is recommended.') }}</p>{% endif %}
 {% if page.notes and page.notes['bec-set'] %}<details class="help" style="margin-top:10px"><summary>{{ _('Help') }}</summary><p>{{ page.notes['bec-set']|t }}</p></details>{% endif %}</div>
-<div class="card" id="bec-vip-set"><h2>{{ _('VIPs') }}{{ info('bec-vip-set', help_text('bec-vip-set')) }}</h2><p class="h">{{ help_text('bec-vip-set') }}</p>
+<div class="card" id="bec-vip-set"><h2>{{ _('VIPs') }}{{ info('bec-vip-set', help_text('bec-vip-set')) }}</h2>
 {% if b.vips %}<table class="bec-list"><tr><th>{{ _('Name') }}</th><th>{{ _('Real address') }}</th><th><span class="sr">{{ _('Actions') }}</span></th></tr>
-{% for vip in b.vips %}<tr><td>{{ vip.name }}</td><td>{{ vip.address }}</td><td class="act">{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% for vip in b.vips %}<tr><td>{{ vip.name }}</td><td>{{ vip.address }}</td><td class="act">{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}" data-stay="@card" data-saved="{{ _('Saved.') }}\"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="action" value="remove"><input type="hidden" name="name" value="{{ vip.name }}"><input type="hidden" name="address" value="">
 <button class="d s" data-confirm="{{ _('Remove VIP {}?').format(vip.name) }}">{{ _('Remove') }}</button></form>{% endif %}</td></tr>{% endfor %}</table>
-{% else %}<p class="empty">{{ _('No VIP yet.') }}</p>{% endif %}
-{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+{% else %}<p class="empty">{{ _('No VIP yet.') }}</p><p class="h">{{ help_text('bec-vip-set') }}</p>{% endif %}
+{% if can_vip %}<form method="post" action="{{ url_for('run', name='bec-vip-set') }}" data-stay="@card" data-saved="{{ _('Saved.') }}\" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
 <label for="bec-vip-name">{{ _('Name as in the display name') }}<input type="text" id="bec-vip-name" name="name" required minlength="3" maxlength="100" placeholder="Jane Doe"></label>
 <label for="bec-vip-address">{{ _('Real address') }}<input type="text" id="bec-vip-address" name="address" inputmode="email" autocomplete="off" required maxlength="254" placeholder="jane.doe@example.org"></label>
 <div class="btns"><button class="p">{{ _('Add VIP') }}</button></div></form>{% endif %}</div>
 <div class="card" id="bec-partner-set"><h2>{{ _('Protected domains') }}{{ info('bec-partner-set', help_text('bec-partner-set')) }}</h2><p class="h">{{ _('A sender domain that looks like one of these, such as examp1e.org, counts as a lookalike.') }}</p>
 <h3 class="bec-sub">{{ _('Partner domains') }}</h3>
-{% if b.partners %}<div class="chips">{% for domain in b.partners %}<span class="chip bec-chip">{{ domain }}{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% if b.partners %}<div class="chips">{% for domain in b.partners %}<span class="chip bec-chip">{{ domain }}{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}" data-stay="@card" data-saved="{{ _('Saved.') }}\"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input type="hidden" name="action" value="remove"><input type="hidden" name="domain" value="{{ domain }}"><button title="{{ _('Remove') }}" aria-label="{{ _('Remove') }} {{ domain }}" data-confirm="{{ _('Remove partner domain {}?').format(domain) }}">&times;</button></form>{% endif %}</span>{% endfor %}</div>
 {% else %}<p class="h">{{ _('No partner domain yet: banks, suppliers and customers whose lookalikes you want to catch.') }}</p>{% endif %}
-{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+{% if can_partner %}<form method="post" action="{{ url_for('run', name='bec-partner-set') }}" data-stay="@card" data-saved="{{ _('Saved.') }}\" class="bec-add"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
 <label for="bec-partner-domain">{{ _('Domain of a partner') }}<input type="text" id="bec-partner-domain" name="domain" required maxlength="253" placeholder="bank.example"></label>
 <div class="btns"><button class="p">{{ _('Add partner domain') }}</button></div></form>{% endif %}
 <h3 class="bec-sub">{{ _('Own domains') }} <span class="pill">{{ (b.own_domains or [])|length }}</span></h3>
-<p class="h">{{ _('Protected automatically: the domains of the routes, the DKIM keys and the tenants.') }}</p>{{ show(b.own_domains or []) }}</div>
+<p class="h">{{ _('Protected automatically: the domains of the routes, the DKIM keys and the tenants.') }}</p>{% if b.own_domains %}{{ show(b.own_domains) }}{% endif %}</div>
 <details class="card fold becadv" id="bec-scores"><summary><h2>{{ _('Scores and time windows') }}</h2><span class="h">{{ _('Each check that hits adds its score to the spam score of the mail. 0 switches a check off.') }}</span></summary>
 {% if 'bec-set' in commands %}{% set cmd = commands['bec-set'] %}{% set young = cmd.args|selectattr('name', 'equalto', 'young_days')|first %}
-<form method="post" action="{{ url_for('run', name='bec-set') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="{{ 'on' if b.enabled else 'off' }}">
+<form method="post" action="{{ url_for('run', name='bec-set') }}" data-stay="@card" data-saved="{{ _('Saved.') }}\"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="{{ 'on' if b.enabled else 'off' }}">
 {% macro num(arg, label, value, low=-20, high=50, pattern='-?[0-9]{1,2}([.][0-9]{1,2})?', mode='decimal') %}<div class="row"><span class="lb"><label for="bec-{{ arg }}">{{ label }}</label>{{ info('bec-' ~ arg, help_text('bec-set', arg)) }}</span>
 <input type="text" id="bec-{{ arg }}" name="{{ arg }}" value="{{ value }}" inputmode="{{ mode }}" pattern="{{ pattern }}" title="{{ low }} &ndash; {{ high }}" required></div>{% endmacro %}
 <fieldset class="bec-group"><legend>{{ _('Fake sender') }}</legend>
@@ -2247,24 +2538,229 @@ the scores folded. Before, each of the three forms repeated the whole state. Wit
 <div class="btns"><button class="p">{{ _('Apply') }}</button></div></form>
 {% else %}<table class="kv">{% for key, value in sc.items() %}<tr><th>{{ key|replace('_', ' ') }}</th><td>{{ value }}</td></tr>{% endfor %}</table>{% endif %}</details>
 {% endmacro %}
+{#- Hans 2026-11-17: the Security page by task, four compact cards in both views: one line of state each and one action; the
+full cards of the four tasks and every other switch in Expert. -#}
+{#- Viruses, attachments & links by task (Hans 2026-11-17): virus signatures, attachments, links and the warning banner,
+content disarm. One line of state each, the switch in the head; the full cards in Expert. -#}
+{% macro files_view() %}{% set expert_url = url_for('show_page', slug='files', view='expert') %}
+{% set sane, extra, att = (loaded['sanesecurity-status'][1] if loaded.get('sanesecurity-status', [false])[0] else {}), (loaded['clam-source-status'][1] if loaded.get('clam-source-status', [false])[0] else {}), (loaded['attachment-status'][1] if loaded.get('attachment-status', [false])[0] else {}) %}
+{% set links, ban, cdr = (loaded['links-status'][1] if loaded.get('links-status', [false])[0] else {}), (loaded['banner-status'][1] if loaded.get('banner-status', [false])[0] else {}), (loaded['cdr-status'][1] if loaded.get('cdr-status', [false])[0] else {}) %}
+{% set how = {'reject': _('reject'), 'mark': _('mark'), 'off': _('off')} %}<div class="sec-grid">
+<div class="card task" id="files-virus"><h2>{{ _('Virus signatures') }}{% if 'sanesecurity-set' in commands %}{{ toggle('sanesecurity-set', commands['sanesecurity-set'], sane.active) }}{% endif %}</h2>
+{{ sec_line(_('Sanesecurity'), (_('on') ~ ((', ' ~ sane.signatures ~ ' ' ~ _('signatures')) if sane.signatures else '')) if sane.active else _('off'), '' if sane.active else 'w') }}
+{{ sec_line(_('Last check'), sane.last_check or _('not yet'), 'b' if sane.errors else '') }}
+{{ sec_line(_('More sources'), (extra.sources or [])|selectattr('active')|map(attribute='name')|join(', ') or _('none')) }}
+<p>{% if sane.active and 'sanesecurity-update' in commands %}<form method="post" action="{{ url_for('run', name='sanesecurity-update') }}" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s">{{ _('Update now') }}</button></form> {% endif %}<a class="btn s" href="{{ expert_url }}#clam-source-status">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="files-attach"><h2>{{ _('Attachments') }}{% if 'attachment-set' in commands %}{{ toggle('attachment-set', commands['attachment-set'], att.enabled) }}{% endif %}</h2>
+{% if att.enabled %}{{ sec_line(_('Dangerous endings'), how.get(att.action, att.action or '–')) }}{{ sec_line(_('Encrypted archives'), how.get(att.encrypted, att.encrypted or '–')) }}{{ sec_line(_('Office files with macros'), how.get(att.macros, att.macros or '–')) }}
+{%- else %}<p class="h w">{{ _('Off: dangerous attachments such as .exe reach the mailboxes.') }}</p>{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#attachment-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="files-links"><h2>{{ _('Link check') }}{% if 'links-set' in commands %}{{ toggle('links-set', commands['links-set'], links.enabled) }}{% endif %}</h2>
+{{ sec_line(_('Links checked when clicked'), (_('on') ~ (', ' ~ links.base if links.base else '')) if links.enabled else _('off')) }}
+{{ sec_line(_('Warning banner'), _('on') if ban.enabled else _('off')) }}
+<p><a class="btn s" href="{{ expert_url }}#links-set">{{ _('Settings') }} &rsaquo;</a> <a class="btn s" href="{{ expert_url }}#banner-set">{{ _('Warning banner') }} &rsaquo;</a></p></div>
+<div class="card task" id="files-cdr"><h2>{{ _('Content disarm') }}{% if 'cdr-set' in commands %}{{ toggle('cdr-set', commands['cdr-set'], cdr.enabled) }}{% endif %}</h2>
+<p class="h">{{ _('Removes active content (macros, scripts) from Office and PDF files; the original stays here.') }}</p>
+{% if cdr.enabled %}{{ sec_line(_('Originals kept'), cdr.originals or 0) }}{% if cdr.service is sameas false %}{{ sec_line(_('Service'), _('not running'), 'b') }}{% endif %}{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#cdr-list">{{ _('Originals') }} &rsaquo;</a></p></div></div>{% endmacro %}
+{#- Spam filter by task (Hans 2026-11-17): when mail counts as spam, greylisting, how the filter learns, the extra checks.
+One line of state each, the switch in the head; the full cards in Expert. -#}
+{% macro spam_view() %}{% set expert_url = url_for('show_page', slug='spam', view='expert') %}
+{% set sc, subj, grey, bay = values.get('spam_scores') or {}, (loaded['subject-get'][1] if loaded.get('subject-get', [false])[0] else {}), (loaded['greylisting-status'][1] if loaded.get('greylisting-status', [false])[0] else {}), (loaded['bayes-status'][1] if loaded.get('bayes-status', [false])[0] else {}) %}
+{% set ml, nn, pz, ob, fz, cm, gm = (loaded['ml-status'][1] if loaded.get('ml-status', [false])[0] else {}), (loaded['neural-status'][1] if loaded.get('neural-status', [false])[0] else {}), (loaded['pyzor-status'][1] if loaded.get('pyzor-status', [false])[0] else {}), (loaded['outbreak-status'][1] if loaded.get('outbreak-status', [false])[0] else {}), (loaded['fuzzy-status'][1] if loaded.get('fuzzy-status', [false])[0] else {}), (loaded['community-status'][1] if loaded.get('community-status', [false])[0] else {}), (loaded['graymail-status'][1] if loaded.get('graymail-status', [false])[0] else {}) %}
+<div class="sec-grid">
+<div class="card task" id="spam-limits"><h2>{{ _('When mail counts as spam') }}</h2>
+{{ sec_line(_('Greylist from'), sc.greylist or '–') }}{{ sec_line(_('Mark as spam from'), sc.rewrite_subject or '–') }}{{ sec_line(_('Reject from'), sc.reject or '–') }}
+{{ sec_line(_('Subject marking'), subj.subject_tag or _('off')) }}
+<p><a class="btn s" href="{{ expert_url }}#spam-scores-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="spam-grey"><h2>{{ _('Greylisting') }}{% if 'greylisting-set' in commands %}{{ toggle('greylisting-set', commands['greylisting-set'], values.get('greylisting')) }}{% endif %}</h2>
+{% if values.get('greylisting') %}{{ sec_line(_('A new sender waits'), (values.get('greylist_minutes') or '–') ~ ' min') }}{{ sec_line(_('Exceptions'), (grey.exceptions_ip or [])|length + (grey.exceptions_domain or [])|length) }}
+{%- else %}<p class="h">{{ _('Off: a new sender is not asked to try again.') }}</p>{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#greylisting-exception-set">{{ _('Exceptions') }} &rsaquo;</a></p></div>
+<div class="card task" id="spam-learn"><h2>{{ _('How the filter learns') }}</h2>
+{{ sec_line(_('Bayes'), (_('active') if bay.active else _('learning')) ~ ', ' ~ _('{} spam, {} ham').format(bay.spam_learned or 0, bay.ham_learned or 0), '' if bay.active else 'w') }}
+{{ sec_line(_('Own model'), _('on') if ml.enabled else _('off')) }}{{ sec_line(_('Neural network'), _('on') if nn.enabled is sameas true else (_('off') if nn.enabled is sameas false else _('rspamd default'))) }}
+<p><a class="btn s" href="{{ expert_url }}#ml-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="spam-extra"><h2>{{ _('Extra checks') }}</h2>
+{% for label, on in [(_('Newsletters (graymail)'), gm.enabled), (_('Outbreak filter'), ob.enabled), (_('Pyzor'), pz.enabled), (_('Own fuzzy store'), fz.enabled), (_('Community fuzzy store'), cm.enabled)] %}{{ sec_line(label, _('on') if on else _('off')) }}{% endfor %}
+<p><a class="btn s" href="{{ expert_url }}#outbreak-set">{{ _('All checks') }} &rsaquo;</a></p></div></div>{% endmacro %}
+{#- Network, DNS & certificate by task (Hans 2026-11-18): this server's address, DNS, the certificate, the resolver for
+other networks. One line of state each; the full cards (they ask before a change) in Expert. -#}
+{% macro net_view() %}{% set expert_url = url_for('show_page', slug='net', view='expert') %}
+{% set nw, zl, fw, sh = (loaded['network-show'][1] if loaded.get('network-show', [false])[0] else {}), (loaded['dns-zone-list'][1] if loaded.get('dns-zone-list', [false])[0] else {}), (loaded['dns-forward-status'][1] if loaded.get('dns-forward-status', [false])[0] else {}), (loaded['dns-share-list'][1] if loaded.get('dns-share-list', [false])[0] else {}) %}
+<div class="sec-grid">
+<div class="card task" id="net-addr"><h2>{{ _('This server') }}</h2>
+{{ sec_line(_('Host name'), nw.hostname or '–') }}
+{{ sec_line('IPv4', (nw['ipv4.addresses'] or _('automatic (DHCP)')) if nw['ipv4.method'] == 'manual' else _('automatic (DHCP)')) }}
+{% if nw['ipv4.gateway'] %}{{ sec_line(_('Gateway'), nw['ipv4.gateway']) }}{% endif %}
+{{ sec_line('IPv6', nw['ipv6.addresses'] or ({'disabled': _('off'), 'ignore': _('off')}.get(nw['ipv6.method'], nw['ipv6.method'] or '–'))) }}
+<p><a class="btn s" href="{{ expert_url }}#network-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="net-dns"><h2>{{ _('DNS') }}</h2>
+{{ sec_line(_('Resolver'), _('this server (unbound)') if fw.system_uses_unbound is not sameas false else _('other')) }}
+{{ sec_line(_('Names go to'), (_('public resolvers') if fw.public else _('own forwarders')) if fw.forward_all else _('the root servers directly'), 'w' if fw.forward_all and fw.public else '') }}
+{{ sec_line(_('Internal domains'), (zl.zones or {})|length) }}
+<p><a class="btn s" href="{{ expert_url }}#dns-servers-set">{{ _('Settings') }} &rsaquo;</a>{% if fw.forward_all and 'dns-forward-fix' in commands %} <a class="btn s" href="{{ expert_url }}#dns-forward-fix">{{ _('Fix') }} &rsaquo;</a>{% endif %}</p></div>
+<div class="card task" id="net-cert"><h2>{{ _('Certificate') }}</h2>
+<p class="h">{{ _("The certificate of the web interface and of mail: Let's Encrypt for a public name, or your own.") }}</p>
+<p>{% if 'letsencrypt-set' in commands %}<a class="btn s" href="{{ expert_url }}#letsencrypt-set">Let's Encrypt &rsaquo;</a> {% endif %}{% if 'web-cert-set' in commands %}<a class="btn s" href="{{ expert_url }}#web-cert-set">{{ _('Own certificate') }} &rsaquo;</a>{% endif %}</p></div>
+<div class="card task" id="net-share"><h2>{{ _('DNS resolver for other networks') }}</h2>
+{{ sec_line(_('Networks'), (sh.entries or [])|map(attribute='net')|join(', ') or _('none')) }}
+{% if sh.listens_on %}{{ sec_line(_('Answers on'), sh.listens_on|join(', ')) }}{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#dns-share-add">{{ _('Settings') }} &rsaquo;</a></p></div></div>{% endmacro %}
+{#- Monitoring by task (Hans 2026-11-17/18): send data to my monitoring, one card per way (OpenTelemetry, SIEM, Wazuh) with
+its state and switch, then where metrics and reports are. The full cards (receiver, token, certificates) in Expert. -#}
+{% macro mon_view() %}{% set expert_url = url_for('show_page', slug='export', view='expert') %}
+{% set ot, si, wz = (loaded['otlp-status'][1] if loaded.get('otlp-status', [false])[0] else {}), (loaded['siem-status'][1] if loaded.get('siem-status', [false])[0] else {}), (loaded['wazuh-status'][1] if loaded.get('wazuh-status', [false])[0] else {}) %}
+<div class="sec-grid">
+<div class="card task" id="mon-otel"><h2>OpenTelemetry{% if 'otlp-set' in commands %}{{ toggle('otlp-set', commands['otlp-set'], ot.enabled) }}{% endif %}</h2>
+{% if ot.enabled %}{{ sec_line(_('Receiver'), ot.endpoint or '–') }}{{ sec_line(_('Last sent'), ot.last_sent or _('not yet'), '' if not ot.last_status or ot.last_status|string|first in '2' else 'b') }}
+{% if ot.dropped %}{{ sec_line(_('Dropped'), ot.dropped, 'b') }}{% endif %}{% else %}<p class="h">{{ _('Events, mail log and metrics to an OpenTelemetry collector (OTLP/HTTP).') }}</p>{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#otlp-set">{{ _('Settings') }} &rsaquo;</a>{% if ot.enabled and 'otlp-test' in commands %} <a class="btn s" href="{{ expert_url }}#otlp-test">{{ _('Test') }} &rsaquo;</a>{% endif %}</p></div>
+<div class="card task" id="mon-siem"><h2>{{ _('SIEM (syslog)') }}{% if 'siem-set' in commands %}{{ toggle('siem-set', commands['siem-set'], si.siem) }}{% endif %}</h2>
+{% if si.siem %}{{ sec_line(_('Target'), (si.target or '–') ~ ':' ~ (si.port or '')) }}{{ sec_line(_('Protocol'), (si.protocol or '–')|upper ~ (', ' ~ si.format if si.format else ''), 'w' if si.protocol and si.protocol != 'tls' else '') }}
+{%- else %}<p class="h">{{ _('Logs and events to your SIEM over syslog, with TLS.') }}</p>{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#siem-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+<div class="card task" id="mon-wazuh"><h2>{{ _('Wazuh agent') }}</h2>
+{% set wz_on = wz.installed and wz.installed != 'not present' %}
+{% if wz_on %}{{ sec_line(_('Version'), wz.installed) }}{{ sec_line(_('Connection'), {'connected': _('connected'), 'disconnected': _('disconnected'), 'pending': _('waiting')}.get(wz.connection, wz.connection or '–'), '' if wz.connection == 'connected' else 'b') }}
+{% if wz.manager %}{{ sec_line(_('Manager'), wz.manager) }}{% endif %}{% else %}{{ sec_line(_('Installed'), _('no')) }}{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#{{ 'wazuh-config' if wz_on else 'wazuh-install' }}">{{ _('Settings') if wz_on else _('Install') }} &rsaquo;</a></p></div>
+{% set allowed = [] %}{% for _group, side in nav %}{% for p in side %}{% set ignored = allowed.append(p.slug) %}{% endfor %}{% endfor %}
+<div class="card task mon-more"><h2>{{ _('Metrics and reports') }}</h2>
+<p class="h">{{ _('Prometheus reads /metrics with an API token. Reports on the mail and on DMARC and TLS have their own pages.') }}</p>
+<p>{% for slug, label in [('users', _('API tokens')), ('report', _('Mail report')), ('dkim', _('DMARC and TLS reports'))] if slug in allowed %}<a class="btn s" href="{{ url_for('show_page', slug=slug) }}{{ '#token-create' if slug == 'users' else '' }}">{{ label }} &rsaquo;</a> {% endfor %}</p></div></div>{% endmacro %}
+{#- Cluster & offline by task (Hans 2026-11-18, UI review: "Cluster has 0 cards in Standard"): the state of the cluster, its
+staged updates, operation without internet, the views over all nodes. One line of state each; the full cards in Expert. -#}
+{% macro cluster_view() %}{% set expert_url = url_for('show_page', slug='cluster', view='expert') %}
+{% set cs, cu, off = (loaded['cluster-status'][1] if loaded.get('cluster-status', [false])[0] else {}), (loaded['cluster-update-status'][1] if loaded.get('cluster-update-status', [false])[0] else {}), (loaded['offline-status'][1] if loaded.get('offline-status', [false])[0] else {}) %}
+{% set role = cs.role or 'none' %}{% set nodes = cs.nodes or [] %}{% set away = nodes|rejectattr('reachable')|list %}
+{% macro go(anchor, label) %}{% if anchor in commands %}<a class="btn s" href="{{ expert_url }}#{{ anchor }}">{{ label }} &rsaquo;</a> {% endif %}{% endmacro %}
+<div class="sec-grid">
+<div class="card task" id="cluster-state"><h2>{{ _('Cluster') }}</h2>
+{{ sec_line(_('This node'), {'none': _('not in a cluster'), 'master': _('master'), 'client': _('client')}.get(role, role) ~ (' (' ~ cs.name ~ ')' if cs.name else '')) }}
+{% if role != 'none' %}{{ sec_line(_('Mode'), {'master-client': _('settings only on the master'), 'ha': _('settings on every node (HA)')}.get(cs.mode, cs.mode or '–')) }}{% endif %}
+{% if role == 'master' %}{{ sec_line(_('Nodes'), nodes|length ~ ((', ' ~ _('{} not reachable').format(away|length)) if away else ''), 'b' if away else '') }}
+{% set behind = nodes|selectattr('reachable')|selectattr('behind')|list %}{% if behind %}{{ sec_line(_('Behind'), behind|map(attribute='node')|join(', '), 'w') }}{% endif %}
+{%- elif role == 'client' %}{{ sec_line(_('Master'), (cs.master or {}).get('name') or (cs.master or {}).get('host') or '–') }}{% endif %}
+{% if cs.certificate_until %}{{ sec_line(_('Node certificate until'), cs.certificate_until) }}{% endif %}
+<p>{% if role == 'none' %}{{ go('cluster-init', _('Start a cluster')) }}{{ go('cluster-join', _('Join a cluster')) }}{% elif role == 'master' %}{{ go('cluster-token', _('Add a node')) }}{{ go('cluster-status', _('Nodes')) }}{% else %}{{ go('cluster-status', _('Details')) }}{% endif %}</p></div>
+<div class="card task" id="cluster-upd"><h2>{{ _('Staged updates') }}<span class="badge{{ ' on' if cu.enabled }}">{{ _('On') if cu.enabled else _('Off') }}</span></h2>
+{% if cu.enabled %}{{ sec_line(_('Health window'), (cu.window or 1) ~ ' h') }}{{ sec_line(_('First node'), cu.first or _('the first by name')) }}
+{%- else %}<p class="h">{{ _('Off: every node installs an update by itself.') }}</p>{% endif %}
+<p>{{ go('cluster-update-set', _('Settings')) }}</p></div>
+<div class="card task" id="cluster-offline"><h2>{{ _('Operation without internet') }}</h2>
+{{ sec_line(_('Updates from'), off.mirror or _('the eFa-next repository')) }}
+{{ sec_line(_('Signed bundles'), _('trusted key set') if off.trusted_key else _('no key trusted')) }}
+{% set age = off.get('virus_signatures_days') %}{% if age is not none %}{{ sec_line(_('Virus signatures'), _('{} days old').format(age), 'b' if age > 2 else '') }}{% endif %}
+<p>{{ go('update-mirror-set', _('Settings')) }}{{ go('offline-bundle-make', _('Make a bundle')) }}</p></div>
+{% if role == 'master' %}<div class="card task" id="cluster-all"><h2>{{ _('All nodes') }}</h2>
+<p class="h">{{ _('Mail log, quarantine and queue of every node in one place.') }}</p>
+<p>{{ go('cluster-maillog', _('Mail log')) }}{{ go('cluster-quarantine', _('Quarantine')) }}{{ go('cluster-queue', _('Queue')) }}</p></div>{% endif %}</div>{% endmacro %}
+{#- Domain settings by task (Hans 2026-11-18, UI review: 13 cards in Standard): every own domain in one table (its domain
+check light, role addresses, job applications), the EU relation, the domain check. The full cards per domain in Expert. -#}
+{% macro domset_view() %}{% set expert_url = url_for('show_page', slug='domset', view='expert') %}
+{% set dc, ro, ap, eu = (loaded['domain-check-status'][1] if loaded.get('domain-check-status', [false])[0] else {}), (loaded['role-status'][1] if loaded.get('role-status', [false])[0] else {}), (loaded['application-status'][1] if loaded.get('application-status', [false])[0] else {}), (loaded['eu-relation-status'][1] if loaded.get('eu-relation-status', [false])[0] else {}) %}
+{% set rows = {} %}{% for r in dc.get('domains', []) %}{% set ignored = rows.setdefault(r.domain, {}).update(light=r.light, problems=r.problems|length) %}{% endfor %}
+{% for r in ro.get('domains', []) %}{% set ignored = rows.setdefault(r.domain, {}).update(roles=r.on) %}{% endfor %}
+{% set rules = {} %}{% for r in ap.get('domains', []) %}{% set ignored = rules.update({r.domain: r.mode}) %}{% endfor %}
+{% set how = {'open': _('to everybody'), 'list': _('only listed addresses')} %}
+{% macro go(anchor, label) %}{% if anchor in commands %}<a class="btn s" href="{{ expert_url }}#{{ anchor }}">{{ label }} &rsaquo;</a> {% endif %}{% endmacro %}
+<div class="card task" id="domset-domains"><h2>{{ _('Your domains') }}</h2>
+{% if rows %}<table class="data"><tr><th>{{ _('Domain') }}</th><th>{{ _('Domain check') }}</th><th>{{ _('Role addresses') }}</th><th>{{ _('Job applications') }}</th></tr>
+{% for domain, r in rows|dictsort %}<tr><td data-label="{{ _('Domain') }}">{{ domain }}</td>
+<td data-label="{{ _('Domain check') }}"><span class="{{ {'red': 'b', 'yellow': 'w'}.get(r.light, '') }}">{{ {'green': _('ok'), 'yellow': _('{} to look at').format(r.problems), 'red': _('{} problems').format(r.problems)}.get(r.light, _('not checked yet')) }}</span></td>
+<td data-label="{{ _('Role addresses') }}">{{ _('on') if r.roles else (_('off') if r.roles is defined else '–') }}</td>
+<td data-label="{{ _('Job applications') }}">{{ how.get(rules.get(domain, rules.get('*')), _('not set')) }}</td></tr>{% endfor %}</table>
+{%- else %}<p class="empty">{{ _('No own domain yet.') }}</p>{% endif %}
+{{ sec_line(_('Last domain check'), {'never': _('never')}.get(dc.last, dc.last or '–')) }}
+{% if 'domain-check-run' in commands %}<form method="post" action="{{ url_for('run', name='domain-check-run') }}" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="domain" value=""><button class="s">{{ _('Check all now') }}</button></form> {% endif %}
+{{- go('domain-settings-show', _('Values of a domain')) }}{{ go('role-set', _('Role addresses')) }}{{ go('application-set', _('Job applications')) }}</div>
+<div class="sec-grid">
+<div class="card task" id="domset-eu"><h2>{{ _('EU relation') }}</h2>
+{{ sec_line(_('All domains'), {'yes': _('yes'), 'no': _('no')}.get(eu.choice, _('not answered')), 'w' if not eu.choice else '') }}
+{% if eu.domains %}{{ sec_line(_('Differ'), eu.domains|length) }}{% endif %}
+<p class="h">{{ _('With EU relation: no failure reports, backups only in the EU.') }}</p>
+<p>{{ go('eu-relation-set', _('Settings')) }}</p></div>
+<div class="card task" id="domset-check"><h2>{{ _('Domain check') }}<span class="badge{{ ' on' if dc.mode == 'on' }}">{{ _('On') if dc.mode == 'on' else _('Off') }}</span></h2>
+{{ sec_line(_('Weekly reminder'), _('on') if dc.prompt == 'on' else _('off')) }}
+<p class="h">{{ _('Checks SPF, DKIM, DMARC, MTA-STS and TLS-RPT of every domain every 6 hours.') }}</p>
+<p>{{ go('domain-check-set', _('Settings')) }}{{ go('domain-check-show', _('Details of a domain')) }}</p></div></div>{% endmacro %}
+{% macro sec_line(label, text, cls='') %}<p class="sec-line"><span class="sec-k">{{ label }}</span> <span class="{{ cls }}">{{ text }}</span></p>{% endmacro %}
+{% macro sec_view() %}
+{% set expert_url = url_for('show_page', slug='sec', view='expert') %}
+<div class="sec-grid">
+{% set st, fl, cve, th = (loaded['security-status'][1] if loaded.get('security-status', [false])[0] else {}), (loaded['floor-status'][1] if loaded.get('floor-status', [false])[0] else {}), (loaded['cve-watch-status'][1] if loaded.get('cve-watch-status', [false])[0] else {}), (loaded['threat-status'][1] if loaded.get('threat-status', [false])[0] else {}) %}
+<div class="card task" id="sec-state"><h2>{{ _('State of this server') }}</h2>
+{{ sec_line(_('Self check'), (_('{} findings').format(st.findings|length) ~ ', ' ~ st.checked) if st.checked else _('not checked yet'), 'b' if st.findings else '') }}
+{{ sec_line(_('Security minimum'), _('ok') if not fl.failed else _('{} settings set back').format(fl.failed|length), 'b' if fl.failed else '') }}
+{{ sec_line(_('CVE watch'), (_('on') if cve.mode == 'on' else _('off')) ~ ((', ' ~ _('{} open').format(cve.alerts|length)) if cve.alerts else '') ~ ((', ' ~ cve.last) if cve.last else ''), 'b' if cve.alerts else '') }}
+{{ sec_line(_('Attack alert'), _('ok') if th.level in (none, 'ok') else th.level, '' if th.level in (none, 'ok') else 'b') }}
+{% if 'security-check' in commands %}<form method="post" action="{{ url_for('run', name='security-check') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="btns"><button class="p">{{ _('Check now') }}</button></div></form>{% endif %}</div>
+{% set ssh, allow = (loaded['ssh-root-status'][1] if loaded.get('ssh-root-status', [false])[0] else {}), (loaded['web-allowlist-show'][1] if loaded.get('web-allowlist-show', [false])[0] else {}) %}
+<div class="card task" id="sec-access"><h2>{{ _('Admin access') }}</h2>
+{{ sec_line(_('Root login through SSH'), {'off': _('Off'), 'key-only': _('With an SSH key only'), 'on': _('On, also with a password')}.get(ssh.mode, ssh.mode or '–'), 'b' if ssh.mode == 'on' else '') }}
+{{ sec_line(_('Web interface from'), _('all addresses') if allow.mode in (none, 'all') else (allow.networks or '–')) }}
+<p><a class="btn s" href="{{ expert_url }}#ssh-root-set">{{ _('Change access') }} &rsaquo;</a></p></div>
+{% set lock = (loaded['login-lockout-status'][1] if loaded.get('login-lockout-status', [false])[0] else {}) %}
+<div class="card task" id="sec-logins"><h2>{{ _('Logins') }}{% if 'login-lockout-set' in commands %}{{ toggle('login-lockout-set', commands['login-lockout-set'], lock.mode == 'on') }}{% endif %}</h2>
+{{ sec_line(_('Lockout'), _('after {} failed logins in {} minutes, for {} hours').format(lock.tries, lock.minutes, lock.hours) if lock.mode == 'on' else _('off'), '' if lock.mode == 'on' else 'b') }}
+{{ sec_line(_('Banned now'), (lock.banned_now or {}).values()|map('length')|sum) }}
+<p><a class="btn s" href="{{ url_for('show_page', slug='users') }}">{{ _('2FA of the users') }} &rsaquo;</a></p></div>
+{% set tls = (loaded['tls-profile-status'][1] if loaded.get('tls-profile-status', [false])[0] else {}) %}
+<div class="card task" id="sec-tls"><h2>{{ _('TLS') }}</h2>
+{{ sec_line(_('Profile in effect'), tls.profile or '–') }}{{ sec_line(_('Web interface'), tls.web_protocols or '–') }}
+<p>{% if 'tls-profile-set' in commands %}<a class="btn s" href="{{ expert_url }}#tls-profile-set">{{ _('Settings') }} &rsaquo;</a> {% endif %}<a class="btn s" href="{{ url_for('show_page', slug='standards') }}">{{ _('Security standards') }} &rsaquo;</a></p></div></div>{% endmacro %}
+{% if page.slug == 'sec' %}{{ sec_view() }}{% endif %}
+{% if page.slug == 'domset' and not expert %}{{ domset_view() }}{% endif %}
+{% if page.slug == 'cluster' and not expert %}{{ cluster_view() }}{% endif %}
+{#- Maintenance & update by task (Hans 2026-11-17): the Update card (versions, pending, automatic updates, restart), then the
+maintenance mode and power; the full cards in Expert. -#}
+{% macro maint_view() %}{% if 'update-system' in names %}{{ card('update-system') }}{% endif %}
+{% set expert_url = url_for('show_page', slug='maint', view='expert') %}<div class="sec-grid">
+<div class="card task" id="maint-mode"><h2>{{ _('Maintenance mode') }}{% if 'maintenance-set' in commands %}{{ toggle('maintenance-set', commands['maintenance-set'], values.get('maintenance_mode')) }}{% endif %}</h2>
+<p class="h">{{ _('On: the service monitor does not restart stopped services. Switch it off when you are done.') }}</p></div>
+<div class="card task" id="maint-power"><h2>{{ _('Power') }}</h2><p class="h">{{ _('Both interrupt mail and ask first.') }}</p>
+<p>{% if 'reboot' in commands %}<a class="btn s" href="{{ expert_url }}#reboot">{{ _('Reboot') }} &rsaquo;</a> {% endif %}{% if 'halt' in commands %}<a class="btn s" href="{{ expert_url }}#halt">{{ _('Shut down') }} &rsaquo;</a>{% endif %}</p></div></div>{% endmacro %}
+{% set maint_own = ['update-system'] if page.slug == 'maint' else [] %}{% if page.slug == 'maint' %}{{ maint_view() }}{% endif %}
+{% if page.slug == 'files' and not expert %}{{ files_view() }}{% endif %}
+{% if page.slug == 'spam' and not expert %}{{ spam_view() }}{% endif %}
+{% if page.slug == 'net' and not expert %}{{ net_view() }}{% endif %}
+{% if page.slug == 'export' and not expert %}{{ mon_view() }}{% endif %}
 {% set ns = namespace(hidden=0) %}
 {% set bec_own = ['bec-status', 'bec-set', 'bec-vip-set', 'bec-partner-set'] if page.slug == 'bec' and loaded.get('bec-status', (false,))[0] else [] %}{% if bec_own %}{{ bec_view() }}{% endif %}
 {% set t_on = page.slug == 'account' and loaded.get('totp-status', (false, {}))[1].get('active') %}
 {% set acc_own = ['whoami', 'totp-status', 'account-show', 'session-end', 'passkey-register', 'passkey-remove', 'totp-confirm' if t_on else 'none', 'totp-recovery-new' if t_on else 'none']
                  + ([] if t_on else ['totp-recovery-new', 'totp-disable']) if page.slug == 'account' else [] %}{% if page.slug == 'account' %}{{ account_overview() }}{% endif %}
 {% if page.slug == 'flow' %}{{ flow_rest() }}{% else %}
-{% for section in page.sections %}{% set all = section[1]|select('in', names)|reject('in', hidden_cards)|reject('in', merged)|reject('in', bec_own)|reject('in', acc_own)|list %}
+{#- 6.0.0.6.6 (Hans 2026-11-18): long pages read like a menu. First which cards each section shows; from four sections on
+    (or three with 8 cards and more) only the first (the most important) is open, plus any with a warning or the card just used. Closed sections name their
+    cards, so the page reads as its own menu; one button opens all. Card titles drop the part that the section already says. -#}
+{% set plan = [] %}{% for section in page.sections %}{% set all = section[1]|select('in', names)|reject('in', hidden_cards)|reject('in', merged)|reject('in', bec_own)|reject('in', acc_own)|reject('in', maint_own)|list %}
 {% set shown = [] %}{% set warned = [] %}{% for name in all %}{% if expert or card_level(name, commands[name], section, page.slug) == 'standard' %}{% set ignored = shown.append(name) %}
 {%- else %}{% set ns.hidden = ns.hidden + 1 %}{% if warnings_of(loaded.get(name)) %}{% set ignored = warned.append(name) %}{% endif %}{% endif %}{% endfor %}
-{% if shown or warned %}{% if section[0] %}<details class="section"{% if section|length < 3 or (not expert and section[2] != 'folded') %} open{% endif %}><summary>{{ section[0]|t }}</summary>{% endif %}
+{% if shown or warned %}{% set ignored = plan.append((section, shown, warned)) %}{% endif %}{% endfor %}
+{% set titled = plan|selectattr('0.0')|list %}{% set cards = namespace(n=0) %}{% for section, shown, warned in titled %}{% set cards.n = cards.n + shown|length %}{% endfor %}
+{% set long_page = page.slug != 'account' and (titled|length >= 4 or (titled|length == 3 and cards.n >= 8)) %}
+{% if long_page %}<div class="secindex"><button type="button" class="secall" hidden data-open="{{ _('Open all') }}" data-close="{{ _('Close all') }}">{{ _('Open all') }}</button></div>{% endif %}
+{% set sn = namespace(i=0) %}{% set one_column = ('account', 'log', 'quar', 'held', 'queue', 'dash') %}{% for section, shown, warned in plan %}
+{#- A page with one section that only repeats (a part of) the page title shows its cards without that heading. -#}
+{% set section = ('',) + section[1:] if plan|length == 1 and section[0] and (section[0]|t|lower) in (page.title|t|lower) else section %}
+{% if section[0] %}{% set sn.i = sn.i + 1 %}{% set alert = warned or result_name in shown or (error and result_name in section[1]) or shown|select('card_alert', loaded)|list %}
+{%- set open = alert or (sn.i == 1 if long_page else section|length < 3 or (not expert and section[2] != 'folded')) %}
+{%- set ignored = card_prefixes(section[0]|t, page.title|t, shown|map('card_title', commands)|list) -%}
+<details class="section" id="sec-{{ sn.i }}"{% if open %} open{% endif %}><summary>{{ section[0]|t }}{% if long_page %}{% set teaser = section_teaser(card_groups(shown, commands)|map('first')|map('card_title', commands)|map('strip_prefix')|list, section[0]|t) %}{% if teaser %}<span class="secteaser">{{ teaser }}</span>{% endif %}{% endif %}</summary><div class="secbody{% if page.slug in one_column %} one{% endif %}">{% else %}{% set ignored = card_prefixes(page.title|t, shown|map('card_title', commands)|list) %}{% endif %}
 {#- Values are for the expert view, but what asks for an action shows in the standard view too, as a short message. -#}
 {% for name in warned %}<div class="card warncard" id="{{ name }}">{% for text in warnings_of(loaded.get(name)) %}<p class="warnbox" role="alert">{{ text }}</p>{% endfor %}</div>{% endfor %}
+{% set grouped = {} %}{% set followers = [] %}{% if page.slug not in ('account', 'log', 'dash') %}{% for head, rest in card_groups(shown, commands) if rest %}{% set ignored = grouped.update({head: rest}) %}{% set ignored = followers.extend(rest) %}{% endfor %}{% endif %}
 {% for name in shown %}{% if page.slug == 'account' and name in ('password-change', 'passkey-status', 'totp-disable', 'account-email-set', 'session-list') or (t_on and name == 'totp-setup') %}
 {%- if name == 'session-list' %}{{ account_sessions() }}{% elif name == 'passkey-status' %}{{ account_fold(_('Passkeys'), ['passkey-status', 'passkey-register', 'passkey-remove'], 'passkeys-fold') }}
 {%- elif name == 'totp-setup' %}{{ account_fold(_('2FA: new app or new recovery codes'), ['totp-setup', 'totp-confirm', 'totp-recovery-new'], 'totp-fold') }}
 {%- else %}{{ account_fold(short_title(commands[name].title)|t, [name], name ~ '-fold') }}{% endif %}
 {%- elif page.slug == 'log' and name == 'maillog-search' %}<div class="duo">{{ card(name) }}{% if 'mail-check' in commands %}{{ mail_check_card() }}{% endif %}</div>
-{%- elif page.slug == 'log' and name == 'message-search' %}{{ advanced_search_button() }}{% else %}{{ card(name) }}{% endif %}{% endfor %}{% if section[0] %}</details>{% endif %}{% endif %}{% endfor %}
+{%- elif name == 'release-upgrade-status' and 'release-upgrade' in commands and loaded.get('release-upgrade-status') %}{{ ru_card() }}
+{%- if expert %}<details class="cfold ruexpert"><summary>{{ _('Single steps and status (expert)') }}</summary>{{ card('release-upgrade-status') }}{{ card('release-upgrade') }}</details>{% endif %}
+{%- elif name == 'release-upgrade' and 'release-upgrade-status' in shown and loaded.get('release-upgrade-status') %}
+{%- elif page.slug == 'log' and name == 'message-search' %}{% if 'maillog-search' not in shown %}{{ advanced_search_button() }}{% endif %}{% elif name in grouped %}{{ card_group(name, grouped[name], section[0]|t) }}{% elif name not in followers %}{{ card(name) }}{% endif %}{% endfor %}{% if section[0] %}</div></details>{% endif %}{% endfor %}{% set ignored = card_prefixes() %}
 {% set others = names|reject('in', page.commands)|reject('in', hidden_cards)|list %}{% if others %}{% if expert %}<details class="section"><summary>Other</summary>
 {% for name in others %}{{ card(name) }}{% endfor %}</details>{% else %}{% set ns.hidden = ns.hidden + others|length %}{% endif %}{% endif %}{% endif %}
 {% if page.slug == 'log' and 'mail-check' in commands and 'maillog-search' not in names %}{{ mail_check_card() }}{% endif %}
@@ -2321,7 +2817,7 @@ def acting_as():
 STRICT_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/audit-strict.json'
 strict_cache = {'mtime': None, 'on': False}
 # Polled by the pages themselves, or files without a meaning of their own.
-STRICT_SKIP = {'dash_js', 'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'update_live', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon', 'stay_js'}
+STRICT_SKIP = {'dash_js', 'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'update_live', 'ru_live', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon', 'stay_js'}
 
 
 def reader_language():
@@ -2408,6 +2904,95 @@ app.jinja_env.globals['help_text'] = help_text
 app.jinja_env.globals['first_sentence'] = efa_help.first_sentence
 app.jinja_env.globals['short_title'] = efa_help.short_title
 app.jinja_env.globals['web_label'] = efa_help.web_label
+
+
+# 6.0.0.6.6 (Hans 2026-11-18): in a section the card titles drop the part before ": " that the section, the page or another card
+# of the section already names ("Users: lock" under "Users" reads "Lock"). Per request, set by the section loop of PAGE_TEMPLATE.
+# 6.0.0.6.6: on these pages several cards read the same status; only the first shows it under the status title, the others
+# keep their own title ("Data loss prevention: own rule") and so go under the first as a fold instead of a second card with
+# the same title and the same values.
+STATUS_ONCE = {'dlp-status', 'pdf-status', 'disclaimer-status', 'archive-status', 'audit-strict-status', 'bec-status'}
+STATUS_FIRST = {}
+for _name, _status in STATUS_OF.items():
+    STATUS_FIRST.setdefault(_status, _name)
+
+
+def status_of_card(name):
+    """The status read whose values a card shows, or None."""
+    status = STATUS_OF.get(name)
+    return None if status in STATUS_ONCE and STATUS_FIRST.get(status) != name else status
+
+
+def card_title(name, commands):
+    """The title a card shows: that of its status read (efa_nav.STATUS_OF) if there is one, short and in the reader's language."""
+    cmd = commands.get(status_of_card(name)) or commands.get(name) or {}
+    return translate(efa_help.short_title(cmd.get('title') or name))
+
+
+def card_prefixes(*titles):
+    """Remember the names a card title may drop in the current section; no argument forgets them (after the section)."""
+    found = set()
+    for item in titles:
+        for text in item if isinstance(item, (list, tuple)) else (item,):
+            if text and ': ' not in text:
+                found.add(text.casefold())
+                # "Data of one person (GDPR)" names GDPR too, so "GDPR: export ..." shows as "Export ...".
+                found.update(short.casefold() for short in re.findall(r'\(([^()]{2,12})\)\s*$', text))
+    g.card_prefixes = found
+    return ''
+
+
+def strip_prefix(title):
+    """The title without its head when the head is one of the names of the section; the rest starts with a capital."""
+    head, sep, tail = str(title).partition(': ')
+    if sep and tail and head.casefold() in getattr(g, 'card_prefixes', ()):
+        return tail[:1].upper() + tail[1:]
+    return title
+
+
+def card_groups(names, commands):
+    """6.0.0.6.6 (Hans 2026-11-18: "sinnvoll zusammenfassbare dinge zusammenfassen"): the cards of a section, each with the cards
+    that only act on it. A card whose (English) title is that of an earlier card plus ": ..." ("Users: lock" after "Users") goes
+    under it as a fold; the rest stay cards of their own. [(head, [followers])] in the order of the menu."""
+    groups, heads = [], {}
+    for name in names:
+        cmd = commands.get(status_of_card(name)) or commands.get(name) or {}
+        title = efa_help.short_title(cmd.get('title') or name)
+        head, sep, _rest = title.partition(': ')
+        if sep and head in heads:
+            groups[heads[head]][1].append(name)
+            continue
+        heads.setdefault(title, len(groups))
+        groups.append((name, []))
+    return groups
+
+
+def section_teaser(titles, section_title):
+    """What a closed section holds: its card titles once each, without the one that only repeats the section title."""
+    seen, out = {str(section_title).casefold()}, []
+    for title in titles:
+        if str(title).casefold() not in seen:
+            seen.add(str(title).casefold()); out.append(str(title))
+    return ' · '.join(out)
+
+
+def card_alert(name, loaded):
+    """True when the card or its status read carries a warning, so its section opens by itself."""
+    return any(warnings_of(loaded.get(key)) for key in (name, STATUS_OF.get(name)) if key in loaded)
+
+
+app.jinja_env.filters['card_title'] = card_title
+app.jinja_env.globals['card_title'] = card_title
+app.jinja_env.globals['status_of_card'] = status_of_card
+app.jinja_env.globals['ru_view'] = lambda output: ru_view(output)
+app.jinja_env.globals['ru_hours'] = efa_release_upgrade.REPORT_HOURS
+app.jinja_env.globals['ru_live_view'] = lambda output: ru_live_view(output)
+app.jinja_env.filters['strip_prefix'] = strip_prefix
+app.jinja_env.globals['strip_prefix'] = strip_prefix
+app.jinja_env.globals['card_prefixes'] = card_prefixes
+app.jinja_env.tests['card_alert'] = card_alert
+app.jinja_env.globals['section_teaser'] = section_teaser
+app.jinja_env.globals['card_groups'] = card_groups
 SETUP_VARIANT_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/setup-variant.json'
 setup_variant_seen = {'mtime': None, 'locked': False}
 
@@ -2868,7 +3453,7 @@ ROUTE_RIGHTS = {
     'passkey_js': 'open', 'passkey_options': 'open', 'passkey_register_options': 'efactl',
     'link_check': 'open', 'api': 'open', 'api_schema': 'open', 'metrics': 'open', 'copy_js': 'open', 'stay_js': 'open', 'favicon': 'open', 'live_js': 'open', 'senders_js': 'open', 'mailui_js': 'open', 'advanced_js': 'open', 'senders_check': 'efactl',
     'index': 'efactl', 'show_page': 'efactl', 'search': 'efactl', 'search_suggest': 'efactl', 'set_view': 'efactl', 'set_lang': 'efactl', 'mail_check': 'efactl', 'disclaimer_import': 'efactl', 'disclaimer_export': 'efactl', 'legal': 'open', 'legal_file': 'open', 'legal_accept': 'efactl', 'hardening_pdf': 'efactl', 'run': 'efactl', 'mail_page': 'efactl', 'mail_headers': 'efactl', 'mail_evidence': 'efactl',
-    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'threat_banner': 'efactl', 'status_board': 'efactl',
+    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'ru_live': 'super', 'threat_banner': 'efactl', 'status_board': 'efactl',
     'backup_download': 'super', 'backup_upload': 'super', 'rspamd_auth': 'super', 'rspamd_open': 'super', 'export_dkim': 'super',
     'senders_data': 'super', 'resetup_view': 'super', 'static': 'open',
     'wizard_step': 'efactl', 'wizard_test': 'efactl', 'wizard_mode': 'efactl', 'wizard_js': 'open', 'dialog_js': 'open',
@@ -2885,6 +3470,8 @@ REAUTH_FAILED = 'Password or 2FA code wrong, nothing changed.'
 REAUTH_COMMANDS |= {'four-eyes-set', 'audit-rules-set', 'retention-set', 'tenant-delete', 'history-undo'}
 # G7-9: settings into or out of this host only with the password and 2FA again.
 REAUTH_COMMANDS |= {'settings-export', 'settings-import', 'pyzor-set'}
+# 2026-11-18 (cluster wizard): every change of the cluster with the password and 2FA again, joining too.
+REAUTH_COMMANDS |= {'cluster-join', 'cluster-mode-set', 'cluster-promote', 'cluster-node-remove'}
 def account_view():
     """6.0.0.6: who works, for the menu at the top right: the login name and its role. The main admin has no user entry."""
     user = session.get('user')
@@ -2908,6 +3495,7 @@ app.jinja_env.globals['my_session_id'] = my_session_id
 # The release upgrade, the security standards and the extra ClamAV sources: super admins only (efactl decides, SUPER_COMMANDS
 # there); other logins and tokens get 403, not 404.
 SUPER_COMMANDS = {'release-upgrade', 'release-upgrade-status', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-source-set', 'clam-securiteinfo-set', 'threat-set', 'environment-set'}
+SUPER_COMMANDS |= {'cluster-init', 'cluster-token', 'cluster-join', 'cluster-mode-set', 'cluster-leave', 'cluster-promote', 'cluster-node-remove'}  # the cluster, as in efactl (2026-11-18)
 
 
 def reauth_left():
@@ -3107,10 +3695,82 @@ def dev_2fa_confirmed(env):
         return False
 
 
+cluster_view_cache = {}
+
+
+def master_url(host):
+    """https:// to the address of the master, or None: a host name or an IP address, nothing else."""
+    host = str(host or '').strip()
+    try:
+        address = ipaddress.ip_address(host)
+        return f'https://[{address}]/' if address.version == 6 else f'https://{address}/'
+    except ValueError:
+        pass
+    return f'https://{host}/' if re.fullmatch(r'(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?)*', host) else None
+
+
+def cluster_line(now=None):
+    """What the line on every page shows: None outside a cluster, else the role, the mode, on a client the master (its name
+    and a checked https address) and whether the state is old; 'unknown' when the file cannot be read."""
+    if not os.path.isdir(CLUSTER_DIR):
+        return None
+    try:
+        info = os.stat(CLUSTER_VIEW)
+        key = (info.st_mtime_ns, info.st_size)
+        if cluster_view_cache.get('key') != key:
+            with open(CLUSTER_VIEW) as f:
+                cluster_view_cache.update(key=key, view=json.load(f))
+        view = cluster_view_cache['view']
+    except (OSError, ValueError):
+        return {'role': 'unknown'}
+    if not isinstance(view, dict) or view.get('role') not in ('master', 'client'):
+        return {'role': 'unknown'}
+    line = {'role': view['role'], 'mode': view.get('mode') if view.get('mode') in ('master-client', 'ha') else 'master-client'}
+    if view['role'] == 'client':
+        master = view.get('master') if isinstance(view.get('master'), dict) else {}
+        seen = view.get('contact') or view.get('written') or 0
+        now = time.time() if now is None else now
+        line.update(master=str(master.get('name') or master.get('host') or '?')[:100], url=master_url(master.get('host')),
+                    stale=bool(view.get('down_since')) or not isinstance(seen, (int, float)) or now - seen > CLUSTER_STALE)
+    return line
+
+
+cluster_health_cache = {}
+
+
+def cluster_health(now=None):
+    """The card of the master on the dashboard: its last poll of the nodes, how old it is, what is wrong. None elsewhere.
+    Read from the file of efa-cluster only: the page never calls a node."""
+    line = cluster_line()
+    if not line or line.get('role') != 'master':
+        return None
+    try:
+        info = os.stat(CLUSTER_HEALTH)
+        key = (info.st_mtime_ns, info.st_size)
+        if cluster_health_cache.get('key') != key:
+            with open(CLUSTER_HEALTH) as f:
+                cluster_health_cache.update(key=key, data=json.load(f))
+        data = cluster_health_cache['data'] if isinstance(cluster_health_cache['data'], dict) else {}
+    except (OSError, ValueError):
+        data = {}
+    now = time.time() if now is None else now
+    written = data.get('written') if isinstance(data.get('written'), (int, float)) else None
+    nodes = [row for row in data.get('nodes', []) if isinstance(row, dict)] if isinstance(data.get('nodes'), list) else []
+    for row in nodes:
+        row['ago'] = int(now - row['contact']) if isinstance(row.get('contact'), (int, float)) else None
+    mx = data.get('mx') if isinstance(data.get('mx'), dict) else {}
+    age = int(now - written) if written else None
+    wrong = [row for row in nodes if row.get('sync') == 'error' or (row.get('behind') or 0) > 0]
+    level = 'b' if any(row.get('sync') == 'error' for row in nodes) else ('w' if wrong or mx.get('ok') is False or age is None or age > HEALTH_STALE
+                                                                         or any(row.get('sync') == 'pending' for row in nodes) else '')
+    return {'mode': line['mode'], 'nodes': nodes, 'mx': mx, 'age': age, 'stale': age is None or age > HEALTH_STALE, 'level': level}
+
+
 @app.context_processor
 def environment_mark():
     env = environment_now()
-    return {'environment_mark': environment_mark_html(socket.getfqdn(), env), 'dev_2fa_confirmed': dev_2fa_confirmed(env)}
+    return {'environment_mark': environment_mark_html(socket.getfqdn(), env), 'dev_2fa_confirmed': dev_2fa_confirmed(env),
+            'cluster_line': cluster_line()}
 
 
 @app.after_request
@@ -3948,6 +4608,10 @@ def card_level(name, cmd, section, slug):
         return 'standard'
     # The release upgrade in the standard view too (Hans: the button for every super admin, with the warning). Only super
     # admins have it in their schema at all (efactl SUPER_COMMANDS); every other login gets 403.
+    # The pages by task (Hans 2026-11-17): an advanced section stays in Expert, also for super-only commands; the release
+    # upgrade is in a folded section, not an advanced one.
+    if len(section) >= 3 and section[2] == 'advanced':
+        return 'expert'
     if name in SUPER_COMMANDS:
         return 'standard'
     if len(section) >= 3 and section[2] == 'advanced':
@@ -4069,14 +4733,16 @@ def page_view(slug, result=None, result_title=None, error=None, result_name=None
     load_open = bool(advice)
     board_html = render_template_string(STATUS_BOARD, board=board_view(loaded['status'][1] if loaded.get('status', (False,))[0] else None, threat_current(), load_samples)) \
         if slug == 'dash' and not PORTAL and 'threat-status' in commands else None
-    dash = dash_layout_view({name for name, there in (('board', board_html), ('flow', flow_picture), ('tiles', tiles), ('chart', chart), ('load', tiles)) if there}) \
+    health = cluster_health() if slug == 'dash' and not PORTAL else None
+    dash = dash_layout_view({name for name, there in (('board', board_html), ('flow', flow_picture), ('tiles', tiles), ('chart', chart), ('load', tiles),
+                                                      ('cluster', health)) if there}) \
         if slug == 'dash' and tiles else {'hidden': set(), 'cls': {}, 'style': {}}
     # The portal serves only the page of the role user (show_page), so it lists no other.
     allowed = [(group, [p for p in pages if set(p['commands']) & set(commands) and (not PORTAL or p['slug'] == USER_PAGE)]) for group, pages in NAV]
     merged = {STATUS_OF[name] for name in names if name in STATUS_OF and STATUS_OF[name] in names}
     pick = form_picks(shown, commands)
     wizard = wizard_view(wizard_name, loaded, commands) if wizard_on else None
-    html = render_template_string(MAIN, wizard=wizard, wizard_name=wizard_name, dash=dash, load_html=load_html, load_open=load_open, board_html=board_html, nav=[(group, side) for group, side in ((group, [p for p in pages if p.get('menu') != 'user']) for group, pages in allowed) if side], page=page, names=names, commands=commands, loaded=loaded, values=values,
+    html = render_template_string(MAIN, cluster_health=health, wizard=wizard, wizard_name=wizard_name, dash=dash, load_html=load_html, load_open=load_open, board_html=board_html, nav=[(group, side) for group, side in ((group, [p for p in pages if p.get('menu') != 'user']) for group, pages in allowed) if side], page=page, names=names, commands=commands, loaded=loaded, values=values,
                                   hidden_cards=HIDDEN_CARDS, current=current, choices=CHOICES, option_text=OPTION_TEXT, ruf_warning=RUF_WARNING, current_info=CURRENT, danger=DANGER, tiles=tiles, update_live_html=update_live_html,
                                   attention=attention, notices_done=notices_done, cve_banner=cve_banner, chart=chart, flow_picture=flow_picture, pages_by_slug=PAGES, csrf=csrf_token(), result=result, result_name=result_name, dialog_results=DIALOG_RESULTS, merged=merged, status_of=STATUS_OF,
                                   badge=status_badge, without_badge=without_badge, switch_arg=switch_arg, card_level=card_level, notice_href=notice_href, warnings_of=warnings_of, expert=PORTAL or reader_view() == 'expert', note_short=NOTE_SHORT, short_results=SHORT_RESULTS, pick=pick, pick_domain_commands=PICK_DOMAIN_COMMANDS,
@@ -4109,6 +4775,77 @@ def update_live():
     if not ok:
         abort(502)
     return update_live_view(output)
+
+
+RU_RUNNING = ('starting', 'upgrading', 'rebooting', 'finishing', 'rechecking')
+
+
+def ru_view(output):
+    """6.0.0.6.6: where the release upgrade stands, for the guided card: check, checking, ready, blocked, running, checks_failed,
+    done, accepted or failed, the steps of the bar and the reasons. Only reads the status of efactl; the steps stay those of efactl."""
+    output = output if isinstance(output, dict) else {}
+    state, request = output.get('state') or 'idle', output.get('request')
+    report = output.get('preupgrade') if isinstance(output.get('preupgrade'), dict) else {}
+    try:
+        age = time.time() - float(report.get('time') or 0)
+    except (TypeError, ValueError):
+        age = float('inf')
+    # Ready only with a passed leapp check without any inhibitor and without a package it would remove (VMAP-2: a discarded
+    # vendor map would remove eFa-next).
+    clean = bool(report.get('ok')) and not report.get('inhibitors') and not report.get('unknown_inhibitors') and not report.get('removal')
+    fresh = clean and age <= efa_release_upgrade.REPORT_HOURS * 3600
+    if state in ('preflight', 'preupgrade') or (state == 'queued' and request in ('preflight', 'preupgrade')):
+        phase = 'checking'
+    elif state in RU_RUNNING or (state == 'queued' and request in ('start', 'recheck')):
+        phase = 'running'
+    elif state in ('checks_failed', 'done', 'accepted', 'failed'):
+        phase = state
+    elif state == 'ready' and fresh:
+        phase = 'ready'
+    elif state in ('blocked', 'inhibited') or (state == 'ready' and report and not clean):
+        phase = 'blocked'
+    else:
+        phase = 'check'
+    if phase == 'checking':
+        keys, at = ['preflight', 'prepare'], 1 if state == 'preupgrade' else 0
+        percent = (15, 55)[at]
+    elif phase == 'running':
+        keys = ['backup', 'upgrade', 'reboot', 'checks', 'done']
+        at = {'upgrading': 1, 'rebooting': 2, 'finishing': 3, 'rechecking': 3}.get(state, 0)
+        percent = (5, 30, 65, 85)[at]
+    else:
+        keys, at, percent = [], 0, 0
+    steps = [(key, 'done' if n < at else 'now' if n == at else 'todo') for n, key in enumerate(keys)]
+    log = output.get('log') if isinstance(output.get('log'), list) else []
+    result = output.get('result') if isinstance(output.get('result'), dict) else {}
+    return {'phase': phase, 'state': state, 'steps': steps, 'percent': percent, 'line': str(log[-1])[:300] if log else '',
+            'reasons': ru_reasons(output, report), 'error': output.get('error') or '',
+            'failed': [str(text) for text in result.get('failed') or []], 'stale': clean and not fresh,
+            'checked': time.strftime('%Y-%m-%d %H:%M', time.localtime(report['time'])) if isinstance(report.get('time'), (int, float)) else '',
+            'abortable': state in ('queued', 'starting') and request != 'recheck', 'log': [str(line) for line in log]}
+
+
+def ru_reasons(output, report):
+    """Why the upgrade cannot run: the warnings of efactl, plus every inhibitor of the leapp report that they do not name yet."""
+    reasons = [str(text) for text in output.get('warnings') or []]
+    for item in (report.get('inhibitors') or []) if isinstance(report.get('inhibitors'), list) else []:
+        title = str(item.get('title') if isinstance(item, dict) else item)
+        if title and not any(title in text for text in reasons):
+            reasons.append('leapp inhibitor: ' + title)
+    return reasons
+
+
+def ru_live_view(output):
+    return render_template_string(RU_LIVE, v=ru_view(output))
+
+
+@app.route('/release-upgrade-live')
+def ru_live():
+    """The moving part of the guided EL10 card, renewed by the page while a step runs (super admins, like the command)."""
+    ok, output = efactl('release-upgrade-status')
+    if not ok:
+        abort(502)
+    return ru_live_view(output)
 
 
 @app.route('/')
@@ -4351,31 +5088,43 @@ def backup_download():
         'Content-Disposition': f'attachment; filename="{name}"', 'Content-Length': str(info['size'])})
 
 
-@app.route('/mail/<int:mail_id>')
+@app.route('/mail/<int:mail_id>', methods=['GET', 'POST'])
 def mail_page(mail_id):
-    """One mail of the log. Everything comes escaped; headers are never shown as HTML."""
-    ok, view = efactl('mail-show', f'--id={mail_id}')
+    """One mail of the log. Everything comes escaped; headers are never shown as HTML. Where efactl asks for a reason, the page asks
+    for it first and posts it (with the CSRF token, so it is in no address or server log); efactl checks it and audits it."""
+    reason = request.form.get('reason', '').strip()[:500] if request.method == 'POST' else ''
+    ok, view = efactl('mail-show', f'--id={mail_id}', *mail_reason_args())
+    if not ok and MAIL_REASON_ERROR in (view.get('error') or ''):
+        return render_template_string(MAIL_REASON, mail_id=mail_id, back=url_for('show_page', slug='log'), csrf=csrf_token(), reason=reason,
+                                      error=request.method == 'POST'), 403
     if not ok:
         return render_template_string(FAILED, error=view.get('error')), 404
     ok, commands = efactl('schema')
     can_download = ok and bool(view.get('headers')) and efactl('whoami')[1].get('permissions', {}).get('export') is not None
     lang = reader_language()
-    return render_template_string(MAIL_PAGE, view=view, back=url_for('show_page', slug='log'), can_download=can_download, lang=lang)
+    return render_template_string(MAIL_PAGE, view=view, back=url_for('show_page', slug='log'), can_download=can_download, lang=lang, mailpage=True,
+                                  reason=reason, csrf=csrf_token())
 
 
-@app.route('/mail/<int:mail_id>/headers.txt')
+def mail_reason_args():
+    """The reason a download of a mail was posted with (where one is asked for), for efactl to check and audit."""
+    reason = request.form.get('reason', '').strip()[:500] if request.method == 'POST' else ''
+    return [f'--reason={reason}'] if reason else []
+
+
+@app.route('/mail/<int:mail_id>/headers.txt', methods=['GET', 'POST'])
 def mail_headers(mail_id):
     """The raw header block as a file, with its line ends. efactl checks the permission export."""
-    ok, found = efactl('mail-show', f'--id={mail_id}', '--format=raw')
+    ok, found = efactl('mail-show', f'--id={mail_id}', '--format=raw', *mail_reason_args())
     if not ok:
         return Response(found.get('error', 'Not found') + '\n', status=403 if 'Not allowed' in found.get('error', '') else 404, mimetype='text/plain')
     return Response(found['raw'], mimetype='text/plain; charset=utf-8', headers={'Content-Disposition': f'attachment; filename="{found["filename"]}"'})
 
 
-@app.route('/mail/<int:mail_id>/evidence.json')
+@app.route('/mail/<int:mail_id>/evidence.json', methods=['GET', 'POST'])
 def mail_evidence(mail_id):
     """The DNS evidence as JSON. efactl checks the permission export."""
-    ok, found = efactl('mail-show', f'--id={mail_id}', '--format=evidence')
+    ok, found = efactl('mail-show', f'--id={mail_id}', '--format=evidence', *mail_reason_args())
     if not ok:
         return Response(found.get('error', 'Not found') + '\n', status=403 if 'Not allowed' in found.get('error', '') else 404, mimetype='text/plain')
     return Response(json.dumps(found['evidence'], indent=1), mimetype='application/json', headers={'Content-Disposition': f'attachment; filename="{found["filename"]}"'})
@@ -4613,7 +5362,7 @@ ADVANCED_PAGE = PAGE.replace(BLOCK, """<script src="{{ url_for('copy_js') }}"></
 <th>{{ _('Score') }}</th><th>{{ _('IP address') }}</th><th class="opt">{{ _('Queue ID') }}</th><th></th></tr></thead><tbody id="adv-rows">
 {% for mail in mails %}<tr><td class="nw">{{ mail.ts }}</td><td class="cut">{{ mail.sender or '' }}</td><td class="cut">{{ mail.rcpt or '' }}</td><td class="cut subj">{{ mail.subject or '' }}</td>
 <td class="nw">{{ mail.action or '' }}</td><td class="nw">{{ '%.1f'|format(mail.score) if mail.score is number else '' }}</td><td class="nw mono">{{ mail.ip or '' }}</td><td class="nw mono opt">{{ mail.qid or '' }}</td>
-<td><a class="btn" href="{{ url_for('mail_page', mail_id=mail.id) }}" target="_blank">{{ _('Details') }}</a></td></tr>{% endfor %}</tbody></table></div>
+<td><a class="btn" href="{{ url_for('mail_page', mail_id=mail.id) }}">{{ _('Details') }}</a></td></tr>{% endfor %}</tbody></table></div>
 {% if not mails %}<p class="empty" id="adv-empty">{{ _('No mail matches. Fewer filters or a shorter text find more.') }}</p>{% endif %}</div>
 <script src="{{ url_for('advanced_js') }}" defer></script></main>""")
 ADVANCED_JS = """(function () {
@@ -4628,7 +5377,7 @@ ADVANCED_JS = """(function () {
     var row = document.createElement('tr'), td = document.createElement('td'), link = document.createElement('a');
     cell(row, mail.ts, 'nw'); cell(row, mail.sender, 'cut'); cell(row, mail.rcpt, 'cut'); cell(row, mail.subject, 'cut subj'); cell(row, mail.action, 'nw');
     cell(row, typeof mail.score === 'number' ? mail.score.toFixed(1) : '', 'nw'); cell(row, mail.ip, 'nw mono'); cell(row, mail.qid, 'nw mono opt');
-    link.className = 'btn'; link.target = '_blank'; link.href = box.getAttribute('data-mail') + encodeURIComponent(mail.id); link.textContent = t.details;
+    link.className = 'btn'; link.href = box.getAttribute('data-mail') + encodeURIComponent(mail.id); link.textContent = t.details;
     td.appendChild(link); row.appendChild(td);
     body.insertBefore(row, body.firstChild);
   }
@@ -4912,6 +5661,11 @@ def run(name):
         return redirect(url_for('show_page', slug=page_of(name)) + '#' + name, code=303)
     if name in REAUTH_COMMANDS and not reauth_ok(request.form):
         return result_store(page_of(name), error='Confirm this change with your password.')
+    if name == 'release-upgrade' and request.form.get('action') in ('preflight', 'preupgrade', 'start', 'recheck'):
+        # 6.0.0.6.6: a second tab or a second click while a step waits for its run never queues it again.
+        ru_ok, ru_now = efactl('release-upgrade-status')
+        if ru_ok and isinstance(ru_now, dict) and ru_now.get('state') == 'queued':
+            return result_store(page_of(name), error=_('A step already waits for its run: see its progress on the card.'), result_name=name)
     own_reauth = any(arg['name'] == 'reauth' for arg in commands[name]['args'])
     client = client_address()
     count, since = login_failures.get(client, (0, 0))
@@ -4922,9 +5676,12 @@ def run(name):
         login_failures[client] = (count + 1, time.time())
         # Fail2Ban reads this line.
         app.logger.warning('efa-web login failed from %s', client)
-    if request.form.get('json') == '1' and name in STAY_RUN:
+    if request.form.get('json') == '1' and stayable(name):
         # stay.js: only whether it worked; the page part it swaps in shows the new state.
-        return Response(json.dumps({'ok': ok, 'error': None if ok else runtime_text(output.get('error'))}), mimetype='application/json')
+        # A short note of the command (its note or first warning) is shown in place of the generic one.
+        note = (output.get('note') or (output.get('warnings') or [None])[0]) if ok and isinstance(output, dict) else None
+        return Response(json.dumps({'ok': ok, 'error': None if ok else runtime_text(output.get('error')),
+                                    'note': runtime_text(note) if isinstance(note, str) else None}), mimetype='application/json')
     if request.form.get('json') == '1' and name in JSON_RUN:
         # 6.0.0.6: the mail views stay on the page; the answer feeds the toast with its undo.
         if ok and name == 'sender-action':
@@ -4952,9 +5709,14 @@ def run(name):
         return result_store(page_of(name), error=output.get('error'), result_name=name)
     if name == 'totp-setup' and 'qr_svg' in output:
         # The SVG is made by efa_qr from the otpauth address: only rects and a path, nothing of the user in it.
-        return Response(TOTP_PAGE.format(title=html_escape(_('2FA: set up the app')), svg=output['qr_svg'], secret=html_escape(output['secret']),
-                                         hint=html_escape(_('Scan the code with the app, or type the key. Then confirm with the first code it shows.')),
-                                         back=url_for('show_page', slug=USER_PAGE if PORTAL else 'account') + '#totp-confirm', more=html_escape(_('Back, to confirm'))),
+        return Response(TOTP_PAGE.format(lang=reader_language(), title=html_escape(_('Set up 2FA')), svg=output['qr_svg'], secret=html_escape(output['secret']),
+                                         step1=html_escape(_('In the authenticator app, add an account and scan this QR code.')),
+                                         nokey=html_escape(_('No camera? Type this key in the app instead:')),
+                                         step2=html_escape(_('Type the six-digit code the app shows now.')),
+                                         confirm=url_for('run', name='totp-confirm'), csrf=html_escape(csrf_token()),
+                                         label=html_escape(_('Code of the app (6 digits)')), switch=html_escape(_('Switch 2FA on')),
+                                         after=html_escape(_('Then eFa-next shows ten recovery codes once. Keep them safe: each one logs you in once without the phone.')),
+                                         back=url_for('show_page', slug=USER_PAGE if PORTAL else 'account') + '#totp-setup', cancel=html_escape(_('Cancel'))),
                         mimetype='text/html')
     if ok and name == 'totp-confirm':
         session.pop('totp_setup', None)
@@ -4975,15 +5737,38 @@ def run(name):
 JSON_RUN = {'sender-action', 'quarantine-release', 'quarantine-delete', 'sender-add', 'sender-remove', 'sender-move'}
 # Posted by stay.js (data-stay): the page stays where it is, only the changed part is swapped (Hans 2026-11-15).
 STAY_RUN = {'notice-ack', 'rbl-set', 'clam-source-set', 'dev-2fa-hint-confirm'}
+# Hans 2026-11-17: on the Security pages every setting keeps the page where it is. A -set command there posts through stay.js,
+# except those whose answer is a page of its own (a confirmation with a timer, a preview, a step-up of the password).
+# 2026-11-17 (UI review): every page, not only the Security pages. Excepted: an answer that is a page of its own (a confirmation
+# with a timer, a preview, a step-up of the password), a change outside the card (language, the host name in the header,
+# the address of the server) or a long run with its own result.
+STAY_EXCEPT = {'firewall-set', 'ssh-profile-set', 'standards-set', 'standards-rollback', 'web-lockdown',
+               'my-settings-set', 'environment-set', 'interface-set', 'network-set', 'hostname-set', 'uplink-route-set',
+               'cluster-mode-set', 'letsencrypt-set', 'web-cert-set'}
+
+
+def stayable(name):
+    return name in STAY_RUN or (name.endswith('-set') and name not in STAY_EXCEPT and name not in REAUTH_COMMANDS)
+
+
+app.jinja_env.globals['stayable'] = stayable
 assert not JSON_RUN & STAY_RUN, 'one way to stay per command'
 # Commands whose output can be a PDF to download.
 PDF_COMMANDS = {'incident-report', 'privacy-evidence', 'report-show'}
 # Commands whose output is a file to save (5n): always as a download, never shown in the browser.
 FILE_COMMANDS = {'emergency-file'}
-TOTP_PAGE = ('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title>'
-             '<style>body{{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}}svg{{width:16rem;height:auto}}'
-             'code{{font-size:1.1rem;letter-spacing:1px}}a{{display:inline-block;padding:.4rem 1rem;border:1px solid #c0cf48;border-radius:999px;color:inherit;text-decoration:none}}</style></head><body><h1>{title}</h1><p>{hint}</p><p>{svg}</p><p><code>{secret}</code></p>'
-             '<p><a href="{back}">{more}</a></p></body></html>')
+# 6.0.0.6.6 (Hans 2026-11-18): the QR code with what to do, and the first code asked right here; no going back to another card.
+TOTP_PAGE = ('<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title>'
+             '<style>body{{font:15px/1.5 system-ui,sans-serif;max-width:34rem;margin:2rem auto;padding:0 1rem;background:#fff;color:#1d1d1b}}'
+             'svg{{width:15rem;height:auto;background:#fff;padding:.5rem;border-radius:8px}}code{{font-size:1.1rem;letter-spacing:1px;word-break:break-all}}'
+             'ol{{padding-left:1.3rem}}li{{margin:0 0 1.2rem}}input{{font:inherit;font-size:1.3rem;letter-spacing:4px;width:9ch;padding:.35rem .5rem;margin-right:.5rem}}'
+             'button{{font:inherit;font-weight:600;padding:.45rem 1.1rem;border:0;border-radius:999px;background:#c0cf48;color:#2b2f1a;cursor:pointer}}'
+             'a{{color:inherit}}small{{color:#5f625a}}@media (prefers-color-scheme: dark){{body{{background:#1e1f1d;color:#e6e7e3}}small{{color:#a9aca3}}}}</style></head>'
+             '<body><h1>{title}</h1><ol><li><b>{step1}</b><br><p>{svg}</p><small>{nokey}</small><br><code>{secret}</code></li>'
+             '<li><b>{step2}</b><form method="post" action="{confirm}"><input type="hidden" name="csrf" value="{csrf}">'
+             '<p><label for="code">{label}</label><br><input type="text" id="code" class="otp" name="code" inputmode="numeric" autocomplete="one-time-code" '
+             'pattern="[0-9]{{6}}" maxlength="6" required autofocus><button>{switch}</button></p></form><small>{after}</small></li></ol>'
+             '<p><a href="{back}">{cancel}</a></p></body></html>')
 
 
 # 6.0.0.5: Re-Setup, the questions of the setup for a running system (efactl resetup): first the comparison of old and new, then
@@ -5115,6 +5900,8 @@ DIALOG_RESULTS = frozenset({'release-upgrade', 'update-install', 'update-rollbac
 STAY_JS = """(function () {
   document.addEventListener('submit', function (event) {
     var form = event.target, target = form.getAttribute && form.getAttribute('data-stay');
+    // @card: the card the form is in (the generic cards of the Security pages).
+    if (target === '@card') { var card = form.closest('.card[id]'); target = card ? card.id : null; }
     if (!target || !window.fetch || !window.DOMParser || form.getAttribute('data-busy')) return;
     // A button with its own formaction (Remove of a stored secret) posts to another command: the browser does it, as it is.
     if (event.submitter && event.submitter.getAttribute('formaction')) return;
@@ -5142,7 +5929,7 @@ STAY_JS = """(function () {
         var note = document.createElement('p');
         note.className = data.ok ? 'h stay-done' : 'err stay-done';
         note.setAttribute('role', data.ok ? 'status' : 'alert');
-        note.textContent = data.ok ? (form.getAttribute('data-done') || '') : (data.error || '');
+        note.textContent = data.ok ? (form.getAttribute('data-done') || data.note || form.getAttribute('data-saved') || '') : (data.error || '');
         old.replaceWith(fresh);
         if (note.textContent) {
           var card = fresh.classList.contains('card') ? fresh : fresh.querySelector('.card') || fresh;
@@ -5176,7 +5963,8 @@ WIZARD_JS = """(function () {
 
 
 # G7-7: the blocks of the dashboard a login may arrange (efactl DASH_BLOCKS), with their names on the page.
-DASH_LABELS = {'board': 'Status at a glance', 'flow': 'Mail flow', 'tiles': 'Overview tiles', 'chart': 'Last hour per minute', 'load': 'Load'}
+DASH_LABELS = {'board': 'Status at a glance', 'flow': 'Mail flow', 'tiles': 'Overview tiles', 'chart': 'Last hour per minute', 'load': 'Load',
+               'cluster': 'Cluster'}
 DASH_CHANGE_RE = re.compile(r'reset|[a-z]{1,10}:(?:up|down|hide|show|half|full|to=\d{1,2})')
 DASH_JS = """(function () {
   // G7-7: drag a row of "Customize dashboard" onto another; the buttons do the same without a mouse.
@@ -6056,7 +6844,10 @@ def self_test():
     threat_now['result'] = None
     assert '<svg' in gauge_svg('X', None, 100, 50, 80) and 'class="gauge u"' in gauge_svg('X', None, 100, 50, 80)
     for name in SUPER_COMMANDS:
-        assert card_level(name, {'writes': name == 'release-upgrade', 'args': []}, ('Release-Upgrade', [name], 'advanced'), 'maint') == 'standard'
+        assert card_level(name, {'writes': name == 'release-upgrade', 'args': []}, ('Release-Upgrade', [name], 'folded'), 'maint') == 'standard'
+        # An advanced section of a page by task stays in Expert, also for super-only commands (2026-11-18).
+        assert card_level(name, {'writes': True, 'args': []}, ('Environment', [name], 'advanced'), 'maint') == 'expert'
+    assert card_level('threat-set', {'writes': True, 'args': []}, ('Attack alert', ['threat-set'], 'advanced'), 'sec') == 'expert'
     # The release upgrade in the standard view for a super admin: the state first, the record folded away, the red warning.
     outputs['schema']['release-upgrade-status'] = {'title': 'Release upgrade to EL10: status and log', 'writes': False, 'args': []}
     outputs['schema']['release-upgrade'] = {'title': 'Release upgrade to EL10', 'writes': True, 'args': [{'name': 'action', 'label': 'Step', 'required': True}]}
@@ -6066,11 +6857,46 @@ def self_test():
     with client.session_transaction(**https) as sess:
         view_before, sess['view'] = sess.get('view'), 'standard'
     maint = client.get('/p/maint', **https).get_data(as_text=True)
+    # 6.0.0.6.6 (Hans): one guided card in the standard view: while a step runs a bar that renews itself, no form to start anything.
+    guide = maint[maint.index('id="release-upgrade-guide"'):]
+    guide = guide[:guide.index('</details></div>') if '</details></div>' in guide else len(guide)]
+    assert 'id="ru-live" data-url="/release-upgrade-live"' in guide and 'role="progressbar"' in guide and 'data-phase="running"' in guide
+    assert '2026-11-10 19:38:02 leapp upgrade' in guide and 'id="release-upgrade-status"' not in maint and 'action="/run/release-upgrade"' not in maint
+    assert 'data-phase="running"' in client.get('/release-upgrade-live', **https).get_data(as_text=True)
+    outputs['release-upgrade-status'] = {'state': 'inhibited', 'preupgrade': {'ok': False, 'time': time.time()}, 'warnings': ['leapp inhibitor: <b>x</b>'], 'log': []}
+    blocked = client.get('/p/maint', **https).get_data(as_text=True)
+    assert 'The upgrade is not possible yet.' in blocked and 'leapp inhibitor: &lt;b&gt;x&lt;/b&gt;' in blocked and 'value="preupgrade"' in blocked
+    outputs['release-upgrade-status'] = {'state': 'ready', 'preupgrade': {'ok': True, 'time': time.time()}, 'warnings': [], 'log': []}
+    ready = client.get('/p/maint', **https).get_data(as_text=True)
+    form = ready[ready.index('value="start"'):]
+    assert 'The upgrade is possible.' in ready and ready.index('No way back') < ready.index('value="start"')
+    assert 'name="snapshot" value="yes" required' in form and 'name="hostname" required' in form and 'name="no_backup"' in form
+    outputs['release-upgrade-status'] = {'state': 'ready', 'preupgrade': {'ok': True, 'time': time.time() - 30 * 3600}, 'warnings': [], 'log': []}
+    assert 'value="start"' not in client.get('/p/maint', **https).get_data(as_text=True), 'a check older than a day: check again first'
+    outputs['release-upgrade-status'] = {'state': 'queued', 'request': 'start', 'log': []}
+    with client.session_transaction(**https) as sess:
+        reauth_before, sess['reauth'] = sess.get('reauth'), time.time()
+    calls_ru = len(calls)
+    twice = client.post('/run/release-upgrade', data={'csrf': 'token', 'action': 'start', 'snapshot': 'yes', 'hostname': 'x'}, **https)
+    assert twice.status_code in (302, 303) and not [c for c in calls[calls_ru:] if 'release-upgrade' in str(c) and 'status' not in str(c)], 'a waiting step is never queued twice'
+    assert 'A step already waits for its run' in client.get(twice.headers['Location'], **https).get_data(as_text=True)
+    with client.session_transaction(**https) as sess:
+        sess['reauth'] = reauth_before or 0
+    # The expert view keeps the single steps as before, folded under the guided card.
+    outputs['release-upgrade-status'] = {'state': 'upgrading', 'request': None, 'updated': '2026-11-10 19:38:02', 'error': None,
+                                         'warnings': ['600 MB free on /boot: tight'], 'log': ['2026-11-10 19:37:58 maintenance', '2026-11-10 19:38:02 leapp upgrade'],
+                                         'preflight': {'ready': True, 'checks': []}}
+    with client.session_transaction(**https) as sess:
+        sess['view'] = 'expert'
+    maint = client.get('/p/maint', **https).get_data(as_text=True)
+    with client.session_transaction(**https) as sess:
+        sess['view'] = 'standard'
     card = maint[maint.index('id="release-upgrade-status"'):]
+    assert maint.index('id="release-upgrade-guide"') < maint.index('class="cfold ruexpert"') < maint.index('id="release-upgrade-status"')
     assert card.index('<span class="badge">upgrading</span>') < card.index('<summary>Details</summary>'), 'the state before the details'
     assert '2026-11-10 19:38:02 leapp upgrade' in card[:card.index('<summary>Details</summary>')] and '600 MB free on /boot: tight' in card
     assert 'action="/run/release-upgrade"' in maint and 'No way back: the upgrade to EL10 cannot be undone' in maint
-    assert maint.index('No way back') < maint.index('action="/run/release-upgrade"')
+    assert maint.index('No way back', maint.index('id="release-upgrade-status"')) < maint.index('action="/run/release-upgrade"')
     # 6.0.0.6 (Hans): a step that changes the system ends in a dialog (native, focus on its button, Esc closes it), also when it stopped.
     with client.session_transaction(**https) as sess:
         sid_now = sess.get('sid')
@@ -6201,12 +7027,12 @@ def self_test():
     assert 'b.example lacks DMARC</span>' in client.get('/', **https).get_data(as_text=True), 'another text comes back'
     before_ack = len(calls)
     answer = client.post('/run/notice-ack', data={'csrf': 'token', 'json': '1', 'action': 'confirm', 'text': lacking[0], 'slug': 'domset', 'anchor': 'domain-check-status'}, **https)
-    assert answer.get_json() == {'ok': True, 'error': None}, answer.get_data(as_text=True)
+    assert answer.get_json() == {'ok': True, 'error': None, 'note': None}, answer.get_data(as_text=True)
     assert ('notice-ack', '--action=confirm', f'--text={lacking[0]}', '--slug=domset', '--anchor=domain-check-status', '--key=') in calls[before_ack:], calls[before_ack:]
     failing.append("rbl-set")
     refused = client.post('/run/rbl-set', data={'csrf': 'token', 'json': '1', 'id': '1', 'mode': 'on'}, **https).get_json()
     failing.remove("rbl-set")
-    assert refused == {'ok': False, 'error': 'rbl-set failed'}, refused
+    assert refused == {'ok': False, 'error': 'rbl-set failed', 'note': None}, refused
     outputs['schema'], outputs['status'] = saved_notices
     outputs['schema'], outputs['status'] = saved_notices
     with client.session_transaction(**https) as sess:
@@ -6279,7 +7105,8 @@ def self_test():
     outputs['schema']['totp-setup'] = {'title': '2FA: set up the app', 'writes': True, 'args': []}
     outputs['totp-setup'] = {'secret': 'ABCD EFGH', 'otpauth': 'otpauth://totp/x', 'qr_svg': '<svg id="qr"></svg>'}
     setup_page = client.post('/run/totp-setup', data={'csrf': 'token'}, **https).get_data(as_text=True)
-    assert '<svg id="qr"></svg>' in setup_page and 'ABCD EFGH' in setup_page and '/p/account#totp-confirm' in setup_page
+    assert '<svg id="qr"></svg>' in setup_page and 'ABCD EFGH' in setup_page and '/p/account#totp-setup' in setup_page
+    assert 'action="/run/totp-confirm"' in setup_page and 'name="code"' in setup_page and 'name="csrf"' in setup_page, 'the first code asked on the same page'
     with client.session_transaction(**https) as sess:
         sess.pop('totp_setup', None)
     # ACC-1: My account top right for every login; a login without 2FA sees the warning on the dashboard only; the own re-auth
@@ -6657,7 +7484,7 @@ def self_test():
                                                           {'name': 'action', 'label': 'Dangerous endings', 'required': False}]}})
     outputs['attachment-status'] = {'enabled': False, 'action': 'reject', 'endings': [f'e{number}' for number in range(20)]}
     card = client.get('/p/files', **https).get_data(as_text=True).split('id="attachment-set"')[1].split('<div class="card"')[0]
-    assert card.count('<form method="post" action="/run/attachment-set" class="toggle">') == 1, card
+    assert card.count('<form method="post" action="/run/attachment-set" class="toggle" data-stay="@card"') == 1, card
     assert '<input type="hidden" name="mode" value="on">' in card and '<input type="hidden" name="action" value="reject">' in card
     assert '>enabled<' not in card, 'no second line for what the switch shows'
     assert card.count('<span class="chip">') == 20 and 'Show all' in card and '(20)' in card
@@ -6676,7 +7503,7 @@ def self_test():
     del outputs['hardening-report']
     dkim = client.get('/p/dkim', **https).get_data(as_text=True)
     assert 'value="2048" checked><span>2048</span>' in dkim and 'value="3072"><span>3072</span>' in dkim and 'value="4096"><span>4096</span>' in dkim
-    assert 'copy.js' in dkim and 'data-copy' in dkim and 'DKIM keys: generate' in dkim and 'a-sel' in dkim
+    assert 'copy.js' in dkim and 'data-copy' in dkim and 'id="dkim-create"' in dkim and '>Generate<' in dkim and 'a-sel' in dkim
     # One form, the domain once: the RSA fields go away with Ed25519 only, the Ed25519 field with RSA only (CSS, no script).
     assert dkim.count('id="dkim-create-domain"') == 1 and 'value="both" checked' in dkim and 'class="row rsabox"' in dkim
     assert 'class="row edbox"' in dkim and 'option[value=ed25519]:checked) .rsabox' in dkim and '<span class="pill">none</span>' not in dkim
@@ -6772,8 +7599,8 @@ def self_test():
                               'retention-set': {'title': 'Retention: set', 'writes': True, 'args': [{'name': 'data', 'label': 'Data'}, {'name': 'days', 'label': 'Days'}]}})
     log = client.get('/p/log', **https).get_data(as_text=True)
     duo = log[log.index('<div class="duo">'):]
-    assert duo.index('id="maillog-search"') < duo.index('id="mail-check"') < duo.index('id="message-search"'), 'quick search, Check a mail beside it, then the button'
-    advanced = re.search(r'<a class="btn p" href="(/p/log/search)" target="efa-advanced-search" data-popup>Advanced search</a>', log)
+    assert duo.index('id="maillog-search"') < duo.index('id="live-open"') < duo.index('id="message-search"') < duo.index('id="mail-check"'), 'quick search with Live log and Advanced search, Check a mail beside it'
+    advanced = re.search(r'<a class="btn" id="message-search" href="(/p/log/search)" target="efa-advanced-search" data-popup>Advanced search</a>', log)
     top = log[log.index('<h1>'):log.index('</main>')]
     assert not re.findall(r'<a (?![^>]*class=)', top[top.index('<div class="duo">'):]), 'the new controls are buttons, no plain links'
     assert advanced and log.count('id="mail-check"') == 1 and 'id="gdpr-export"' not in log and 'id="headers-export"' not in log and 'id="retention-set"' not in log
@@ -6793,7 +7620,7 @@ def self_test():
     assert all(f'name="{name}"' in window for name in SEARCH_FIELDS) and 'name="after_id"' not in window and '<option value="reject">Rejected</option>' in window
     assert window.index('id="adv-form"') < window.index('id="adv-result"') < window.index('&lt;b&gt;Offer&lt;/b&gt;') and '<b>Offer</b>' not in window
     assert 'data-after="41"' in window and 'id="adv-live" aria-pressed="false" hidden' in window and 'advanced.js' in window and '<aside' not in window
-    assert 'href="/mail/41" target="_blank"' in window and not re.findall(r'<a (?![^>]*class=)', window[window.index('<main'):window.index('</main>')]), 'every link of the window is a button'
+    assert 'href="/mail/41">' in window and not re.findall(r'<a (?![^>]*class=)', window[window.index('<main'):window.index('</main>')]), 'every link of the window is a button'
     assert client.get('/advanced.js', **https).mimetype == 'text/javascript' and 'visibilityState' in ADVANCED_JS
     assert efa_a11y.page_problems(window) == [], efa_a11y.page_problems(window)
     before = len(calls)
@@ -6924,13 +7751,13 @@ def self_test():
     page = client.get('/p/maint', **https)
     maint = page.get_data(as_text=True)
     card = maint[maint.index('<div class="card upd" id="update-system">'):]
-    card = card[:card.index('</div>{# end upd #}') if '{# end upd #}' in card else card.index('<details class="section"')]
+    card = card[:card.index('</div>{# end upd #}') if '{# end upd #}' in card else card.index('<div class="sec-grid">')]
     assert 'Refresh' not in page.headers and 'id="update-live"' not in card and 'http-equiv="refresh"' not in maint
     assert '6.0.0.6.3' in card and 'v6.0.0.6.4' in card and 'Security update' in card and '23 updates' in card and 'action="/run/update-system"' in card
-    assert 'action="/run/update-check"' in card and ('href="#autoupdate-set"' in card) == ('autoupdate-set' in outputs['schema'])
-    assert ('href="#reboot"' in card) == ('reboot' in outputs['schema']), 'a restart only for who may'
-    assert maint.index('id="update-system"') < maint.index('<summary>Automatic updates</summary>'), 'the Update card first'
-    assert '<details class="section"><summary>Automatic updates</summary>' in maint, 'folded in the standard view'
+    assert 'action="/run/update-check"' in card and ('?view=expert#autoupdate-set"' in card) == ('autoupdate-set' in outputs['schema'])
+    assert ('?view=expert#reboot"' in card) == ('reboot' in outputs['schema']), 'a restart only for who may'
+    # 2026-11-17: the Update card first, then the task cards; Automatic updates is in Expert (the card shows its mode).
+    assert maint.index('id="update-system"') < maint.index('id="maint-mode"') and '<summary>Automatic updates</summary>' not in maint
     assert 'id="update-check"' not in maint and 'id="update-install"' not in maint, 'the single steps only in the expert view'
     record = {'state': 'running', 'kind': 'system', 'steps': ['backup', 'check', 'efa', 'os', 'health'], 'step': 'os', 'step_started': 100,
               'packages': [27, 46], 'line': 'Upgrading : openssl-libs-1:3.2.2-6.el9_5.1.x86_64 27/46', 'from': '6.0.0.6.3', 'to': 'v6.0.0.6.4', 'backup': 'backup-1.tar.gz'}
@@ -6966,6 +7793,18 @@ def self_test():
     with app.test_request_context('/'):
         shown_keys = app.jinja_env.from_string(macro + "{{ show(v) }}").render(v={'efa_installed': 'eFa-6.0.0.6', 'reboot_required': False})
     assert '<th class="kc">eFa-next installed</th>' in shown_keys and '<th>reboot required</th>' in shown_keys, shown_keys
+    # A stored secret of a list row: the chip, and Remove (posts its target to secret-remove) only while it can go.
+    with app.test_request_context('/'):
+        cell = app.jinja_env.from_string(macro + "{{ show(v) }}")
+        shown_row = cell.render(v=[{'name': 'intel', 'api_key': {'stored': True, 'remove': 'feed-set api_key intel'}}], commands={'secret-remove': {}}, csrf='c')
+        shown_busy = cell.render(v=[{'name': 'intel', 'api_key': {'stored': True, 'remove': ''}}], commands={'secret-remove': {}}, csrf='c')
+        shown_none = cell.render(v={'password': {'stored': False, 'remove': ''}}, commands={'secret-remove': {}}, csrf='c')
+        shown_ro = cell.render(v={'password': {'stored': True, 'remove': 'retro-imap-set password'}}, commands={}, csrf='c')
+    assert '>stored</span>' in shown_row and 'action="/run/secret-remove"' in shown_row and 'value="feed-set api_key intel"' in shown_row, shown_row
+    assert '>stored</span>' in shown_busy and 'secret-remove' not in shown_busy and '>not set</span>' in shown_none, shown_busy
+    assert 'secret-remove' not in shown_ro, 'no Remove without the right'
+    with app.test_request_context('/run/secret-remove', method='POST', data={'target': 'feed-set api_key intel'}):
+        assert page_of('secret-remove') == page_of('feed-set')
     # Sustained means the 15-minute average at the limit for the whole time, and not one peak.
     high, low = {'cpu': 90}, {'cpu': 10}
     assert load_sustained([high] * 45, 'cpu', 80, 30) and not load_sustained([high] * 20, 'cpu', 80, 30)
@@ -7058,6 +7897,28 @@ def self_test():
     failing.append('mail-show')
     assert client.get('/mail/8', **https).status_code == 404 and client.get('/mail/8/headers.txt', **https).status_code == 404
     failing.remove('mail-show')
+    # 6.0.0.6.6: where efactl asks for a reason, the page asks for it and posts it on; downloads then post it too.
+    real = efactl
+    def needs_reason(*args, secrets_in=None, who=None):
+        if args[0] == 'mail-show' and not any(a.startswith('--reason=') and len(a) >= 14 for a in args):
+            calls.append(args)
+            return False, {'error': MAIL_REASON_ERROR}
+        return real(*args, secrets_in=secrets_in, who=who)
+    efactl = needs_reason
+    outputs['mail-show'] = {'mail': {'id': 7, 'ts': 't', 'sender': 'a@x.example', 'rcpt': 'b@y.example', 'action': 'no action'}, 'headers': 'Subject: x\r\n',
+                            'headers_note': '', 'received': [], 'checks': [], 'spam': [], 'content': '', 'verdict': []}
+    outputs['whoami'] = {'permissions': {'export': 'global'}}
+    asked = client.get('/mail/7', **https)
+    text = asked.get_data(as_text=True)
+    assert asked.status_code == 403 and 'class="mail-reason"' in text and 'name="reason"' in text and 'minlength="5"' in text and 'class="err"' not in text
+    short = client.post('/mail/7', data={'csrf': 'token', 'reason': 'abc'}, **https).get_data(as_text=True)
+    assert 'class="mail-reason"' in short and 'class="err"' in short
+    shown = client.post('/mail/7', data={'csrf': 'token', 'reason': 'Ticket 4711 <x>'}, **https).get_data(as_text=True)
+    assert 'Why this result' in shown and 'class="mback"' in shown and 'value="Ticket 4711 &lt;x&gt;"' in shown and 'action="/mail/7/headers.txt"' in shown
+    assert [c for c in calls if c[0] == 'mail-show'][-1][-1] == '--reason=Ticket 4711 <x>' and 'class="mailpage"' in shown
+    assert client.get('/mail/7', **https).status_code == 403 and client.post('/mail/7', data={'reason': 'Ticket 4711'}, **https).status_code != 200, 'no CSRF, no mail'
+    efactl = real
+    assert 'mailpop' in COPY_JS and "closest('form.mail-reason')" in COPY_JS
     assert page_of('brand-new') == FALLBACK_PAGE and page_of('transport-set') == 'flow'
     # Sessions: checked again after 15 seconds; ended elsewhere means logged out, efactl failing does not.
     with client.session_transaction(**https) as sess:

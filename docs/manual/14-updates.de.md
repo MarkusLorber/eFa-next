@@ -114,6 +114,12 @@ AlmaLinux 10, mit ELevate (leapp), in festen Schritten:
    Audit-Log hält es fest, und der Rückweg ist dann nur der VM-Snapshot.
 4. **abort** stoppt einen Schritt und hebt den Wartungsmodus auf, aber nur bevor `leapp upgrade` begonnen hat.
 
+In der Weboberfläche (*Wartung & Update › Release-Upgrade*) führt eine Karte durch diese Schritte: *Upgrade vorbereiten und
+prüfen* führt Vorprüfung und Preupgrade in einem Zug aus; danach sagt die Karte *Das Upgrade ist möglich* oder nennt die Gründe,
+warum nicht; der Start fragt nach VM-Snapshot, Hostname, Passwort und 2FA-Code (wahlweise nach dem Satz für einen Start ohne
+Sicherung); dann zeigt ein Balken Sicherung, Upgrade, Neustarts und Prüfungen und wartet während der Neustarts auf den Host. Die
+einzelnen Schritte bleiben in der Expertenansicht.
+
 Nach dem ersten Start in EL10 schließt eFa-next das Upgrade ab (Datenbank, Postfix-Tabellen, SELinux) und prüft das ganze System:
 Dienste, Adressen, Firewall, DKIM-Schlüssel, Zählungen, eine Testmail und dass jede Einstellung wie vorher ist. Mail wird erst
 wieder angenommen, wenn jede Prüfung besteht.

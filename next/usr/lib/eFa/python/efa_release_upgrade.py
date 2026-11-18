@@ -307,6 +307,10 @@ def preflight(facts):
               'virtio or vmxnet3) before the upgrade, or the host may have no network after it.', required=False),
         check('Postfix maps without Berkeley DB', not bdb, 'none' if not bdb else 'hash:/btree: in ' + ', '.join(sorted(bdb)) +
               ': switched to lmdb: and rebuilt after the upgrade', required=False),
+        check('CRB for the SELinux policy of ClamAV on EL10', crb_enabled(facts.get('repos_enabled')),
+              'on: selinux-policy-targeted-extra comes along' if crb_enabled(facts.get('repos_enabled')) else
+              'off: after the upgrade ClamAV runs without its SELinux domain (antivirus_t is in selinux-policy-targeted-extra of CRB '
+              'in EL10). Before the upgrade: dnf config-manager --set-enabled crb', required=False),
         check('Repository of eFa-next for EL10 is the real one', not EL10_TEST_REPO and not EL10_TEST_IGNORED,
               EL10_TEST_IGNORED or ('yes' if not EL10_TEST_REPO else
                                     f'TEST: unsigned test builds from {EL10_TEST_REPO} (EFA_EL10_TEST_REPO); never in production'),
@@ -384,43 +388,68 @@ def abort_problem(state):
     return None
 
 
-# The format leapp-upgrade-el9toel10 0.24 takes for vendor maps (as the maps of leapp-data-almalinux): 1.3.0, data stream 4.2,
-# and the distribution in every repository entry.
+# The format of leapp's vendor maps follows the installed leapp: leapp-upgrade-el9toel10 0.24 (leapp-data-almalinux of 2026-11)
+# takes 1.3.0 with data stream 4.2 and one list of targets; 0.25 takes 2.0.0 with data stream 5.0 and the targets under
+# "default", and calls a map of another format invalid (the vendor is then not active and leapp would remove eFa-next). The
+# repository map of leapp-data (repomap.json) names the format the installed leapp takes; the vendor maps of eFa-next follow it.
+LEAPP_REPOMAP = '/etc/leapp/files/repomap.json'
+VENDOR_FORMATS = {'1.3.0': '4.2', '2.0.0': '5.0'}
 VENDOR_MAP_FORMAT = '1.3.0'
 VENDOR_DATA_STREAM = '4.2'
 
 
-def vendor_map(pesid, el9_repoid, el10_repoid, distro):
-    """A leapp vendor map: the EL9 repository of a vendor to its EL10 one, for this distribution."""
+def leapp_map_format(repomap):
+    """(format, data stream) for the vendor maps, as the repository map of the installed leapp-data has them; the format of
+    leapp 0.24 when there is none. A format eFa-next does not know: (format, None), and preupgrade stops."""
+    found = str((repomap or {}).get('version_format') or VENDOR_MAP_FORMAT)
+    streams = (repomap or {}).get('provided_data_streams') or []
+    stream = VENDOR_FORMATS.get(found)
+    if stream is None:
+        return found, None
+    return found, str(streams[-1]) if streams else stream
+
+
+def vendor_map(pesid, el9_repoid, el10_repoid, distro, map_format=(VENDOR_MAP_FORMAT, VENDOR_DATA_STREAM)):
+    """A leapp vendor map: the EL9 repository of a vendor to its EL10 one, for this distribution, in leapp's format."""
+    version, stream = map_format
     def entries(major, repoid):
         return [{'major_version': major, 'repoid': repoid, 'arch': 'x86_64', 'channel': 'ga', 'repo_type': REPO_TYPE, 'distro': distro}]
-    return {'datetime': '202611100000Z', 'version_format': VENDOR_MAP_FORMAT, 'provided_data_streams': [VENDOR_DATA_STREAM],
+    target = [f'{pesid}-el10']
+    if version != '1.3.0':
+        target = {'default': target}
+    return {'datetime': '202611100000Z', 'version_format': version, 'provided_data_streams': [stream],
             'mapping': [{'source_major_version': '9', 'target_major_version': '10',
-                         'entries': [{'source': f'{pesid}-el9', 'target': [f'{pesid}-el10']}]}],
+                         'entries': [{'source': f'{pesid}-el9', 'target': target}]}],
             'repositories': [{'pesid': f'{pesid}-el9', 'entries': entries('9', el9_repoid)},
                              {'pesid': f'{pesid}-el10', 'entries': entries('10', el10_repoid)}]}
 
 
-# No package events: the packages keep their names from EL9 to EL10.
-VENDOR_PES = {'legal_notice': '', 'packageinfo': [], 'provided_data_streams': [VENDOR_DATA_STREAM], 'timestamp': '202611100000Z'}
+def vendor_pes(stream=VENDOR_DATA_STREAM):
+    """No package events: the packages keep their names from EL9 to EL10."""
+    return {'legal_notice': '', 'packageinfo': [], 'provided_data_streams': [stream], 'timestamp': '202611100000Z'}
 
 
-def vendor_files(distro='almalinux'):
+VENDOR_PES = vendor_pes()
+
+
+def vendor_files(distro='almalinux', map_format=(VENDOR_MAP_FORMAT, VENDOR_DATA_STREAM)):
     """The leapp vendor files for the eFa-next and rspamd repositories: the EL10 repository, its mapping from the EL9 one, no
-    package events, the keys."""
+    package events, the keys; the maps in the format of the installed leapp (leapp_map_format)."""
+    # VMAP-3: the keys as the local files the preupgrade put there checked by fingerprint (efactl repo_keys_install), not
+    # addresses: leapp 0.25 checks that each key of a target repository is in the package database or its trusted folder.
     repo = ('[efa-next-el10]\nname=eFa-next EL10\nbaseurl=' + EL10_REPO + '\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\n'
-            'gpgkey=https://repo.efa-next.eu/RPM-GPG-KEY-efa-next\n')
+            'gpgkey=file://' + REPO_KEYS['https://repo.efa-next.eu/RPM-GPG-KEY-efa-next'][1] + '\n')
     if EL10_TEST_REPO:
         repo = ('[efa-next-el10]\nname=eFa-next EL10 TEST BUILDS (unsigned, not for production)\nbaseurl=' + EL10_REPO +
                 '\nenabled=1\ngpgcheck=0\nrepo_gpgcheck=0\n')
     rspamd_repo = ('[rspamd-el10]\nname=Rspamd stable repository EL10\nbaseurl=' + RSPAMD_REPO + '\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\n'
-                   'gpgkey=https://rspamd.com/rpm/rspamd.asc\n'
+                   'gpgkey=file://' + REPO_KEYS['https://rspamd.com/rpm/rspamd.asc'][1] + '\n'
                    # The same pin as the EL9 repository: rspamd 5 and newer stay out until eFa-next allows them.
                    'exclude=rspamd-[5-9]* rspamd-[1-9][0-9]*\n')
-    pes = json.dumps(VENDOR_PES, indent=1) + '\n'
-    return {'efa-next.repo': repo, 'efa-next_map.json': json.dumps(vendor_map('efa-next', 'efa-next', 'efa-next-el10', distro), indent=1) + '\n',
+    pes = json.dumps(vendor_pes(map_format[1]), indent=1) + '\n'
+    return {'efa-next.repo': repo, 'efa-next_map.json': json.dumps(vendor_map('efa-next', 'efa-next', 'efa-next-el10', distro, map_format), indent=1) + '\n',
             'efa-next_pes.json': pes, 'efa-next.sigs': KEY_ID + '\n',
-            'rspamd.repo': rspamd_repo, 'rspamd_map.json': json.dumps(vendor_map('rspamd', 'rspamd', 'rspamd-el10', distro), indent=1) + '\n',
+            'rspamd.repo': rspamd_repo, 'rspamd_map.json': json.dumps(vendor_map('rspamd', 'rspamd', 'rspamd-el10', distro, map_format), indent=1) + '\n',
             'rspamd_pes.json': pes, 'rspamd.sigs': ''.join(key + '\n' for key in RSPAMD_KEY_IDS)}
 
 
@@ -455,7 +484,23 @@ def repo_enabled(text, on):
 # (to_keep takes names out of the removals) and take eFa-next and what it needs from the target repositories (to_install).
 # efactl adds these lines for each leapp run and takes them out again after; the rest of the files stays as leapp ships it.
 LEAPP_TRANSACTION_DIR = '/etc/leapp/transaction'
-LEAPP_TO_INSTALL = ('eFa-next', 'eFa-next-base', 'python3-pymilter', 'certbot', 'python3-certbot-nginx')
+# fail2ban-selinux: in EL10 the policy of fail2ban (fail2ban_t) is in this package of EPEL only; a host upgraded without it had
+# no fail2ban_t (2026-11-18), and fail2ban ran without its domain.
+LEAPP_TO_INSTALL = ('eFa-next', 'eFa-next-base', 'python3-pymilter', 'certbot', 'python3-certbot-nginx', 'fail2ban-selinux')
+# EL9 has the policy of ClamAV (antivirus_t) in selinux-policy-targeted, EL10 in selinux-policy-targeted-extra of CRB: without
+# it ClamAV runs unconfined after the upgrade (a host on 10.3, 2026-11-18). Only with CRB on, else leapp would not find it.
+LEAPP_SELINUX_EXTRA = 'selinux-policy-targeted-extra'
+
+
+def leapp_to_install(repos):
+    """The names for leapp's to_install: LEAPP_TO_INSTALL, and the extra SELinux modules where CRB is on."""
+    return LEAPP_TO_INSTALL + ((LEAPP_SELINUX_EXTRA,) if crb_enabled(repos) else ())
+
+
+def crb_enabled(repos):
+    return any(repo == 'crb' or repo.endswith('-crb') or 'codeready' in repo or repo == 'powertools' for repo in repos or ())
+
+
 LEAPP_TO_KEEP = ('nginx', 'sendmail-milter', 'python3-pytz', 'wazuh-agent')
 LEAPP_FILES_MARK = '# eFa-next release upgrade (efactl), removed after the leapp run:'
 
@@ -545,10 +590,20 @@ def leapp_transaction(log_text):
     return found
 
 
+# leapp 0.25 (repomaputils.RepoMapData.load_from_dict, vendorrepositoriesmapping) rejects a vendor map of another format or
+# schema with these words; the vendor is then not active and leapp would remove its packages.
+MAP_REJECTED = re.compile(r'The repository mapping file is invalid[^\n]{0,300}|unsupported version of format[^\n]{0,200}')
+
+
 def removal_problems(log_text, report, test_builds=False):
-    """Why leapp must not go on: the vendor efa-next not taken, eFa-next not in the upgrade, a package eFa-next needs
-    removed, or the report saying it would remove eFa-next as a package of a third party. [] when none."""
+    """Why leapp must not go on: a vendor map rejected, the vendor efa-next not taken, eFa-next not in the upgrade, a package
+    eFa-next needs removed, or the report saying it would remove eFa-next as a package of a third party. [] when none."""
     problems = []
+    texts = [log_text or ''] + [f"{entry.get('title', '')}\n{entry.get('summary', '')}" for entry in (report or {}).get('entries', [])
+                                if isinstance(entry, dict)]
+    rejected = next((found.group(0) for found in map(MAP_REJECTED.search, texts) if found), None)
+    if rejected:
+        problems.append(f'leapp rejected a vendor map ({rejected.strip()}): eFa-next would not be upgraded but removed.')
     if VENDOR_ACTIVE not in (log_text or ''):
         problems.append('leapp did not take the eFa-next repository (vendor efa-next not active): it would remove eFa-next.')
     found = leapp_transaction(log_text)
@@ -624,6 +679,13 @@ REPO_KEYS = {
     'https://rspamd.com/rpm/rspamd.asc': ('3FA347D5E599BE4595CA2576FFA232EDBF21E25E', '/etc/pki/rpm-gpg/RPM-GPG-KEY-rspamd'),
     'https://repo.efa-next.eu/RPM-GPG-KEY-efa-next': ('1823D6D3BB7D5AEA286E836DCFE7E07916CC8046', '/etc/pki/rpm-gpg/RPM-GPG-KEY-efa-next'),
 }
+# VMAP-3/4: copies of a key on the host, tried before the address: the key of eFa-next comes with its package (efa_sign). A
+# migrated host had neither the file in /etc/pki/rpm-gpg nor the key in the package database.
+REPO_KEY_COPIES = {'https://repo.efa-next.eu/RPM-GPG-KEY-efa-next': ('/usr/share/eFa/RPM-GPG-KEY-efa-next',)}
+# leapp 0.25 (gpg.get_path_to_gpg_certs) trusts every key file in this folder besides the keys of the package database.
+LEAPP_KEY_DIR = '/etc/leapp/files/vendors.d/rpm-gpg'
+# The signing key of eFa 5: left in place (packages of eFa 5 may still be installed), the security check names it.
+EFA5_KEY_RPM = 'gpg-pubkey-141b6cd8'
 
 
 def key_fingerprints(colons):
@@ -688,12 +750,40 @@ def recheck_problem(state):
     return None
 
 
+# Port 587 (2026-11-18): what decides who may log in there, as Postfix uses it: the -o of submission/inet in master.cf, else
+# main.cf, else the default of Postfix. Its AUTH set in main.cf (no -o) or by an -o with the same value is the same port 587.
+SUBMISSION_KEYS = ('smtpd_sasl_auth_enable', 'smtpd_sasl_type', 'smtpd_sasl_path', 'smtpd_tls_auth_only', 'smtpd_sasl_security_options')
+
+
+def submission_overrides(postconf_p):
+    """{key: value} of the -o of submission/inet in master.cf (postconf -P) for SUBMISSION_KEYS."""
+    found = {}
+    for line in (postconf_p or '').splitlines():
+        name, _, value = line.partition('=')
+        service, _, key = name.strip().rpartition('/')
+        if service == 'submission/inet' and key in SUBMISSION_KEYS:
+            found[key] = value.strip()
+    return found
+
+
+def submission_effective(overrides, main_value):
+    """The values port 587 uses: its -o, else main_value(key) (postconf -h: main.cf or the default of Postfix)."""
+    return {key: overrides[key] if key in overrides else main_value(key) for key in SUBMISSION_KEYS}
+
+
 def config_diff(before, after):
-    """What differs in the settings: changed postconf lines, files changed, added or removed, enabled units. Empty: the same."""
+    """What differs in the settings: changed postconf lines, files changed, added or removed, enabled units. Empty: the same.
+    Port 587 counts by what it uses (submission_effective), not by where it is written."""
     found = []
+    raw_587 = tuple(f'submission/inet/{key}' for key in SUBMISSION_KEYS)
     for key in ('postconf_n', 'postconf_p'):
         old, new = set(before.get(key, [])), set(after.get(key, []))
+        if key == 'postconf_p' and 'submission' in before and 'submission' in after:
+            old, new = ({line for line in lines if not line.split('=')[0].strip().startswith(raw_587)} for lines in (old, new))
         found += [f'{key} before: {line}' for line in sorted(old - new)] + [f'{key} after: {line}' for line in sorted(new - old)]
+    if 'submission' in before and 'submission' in after:
+        found += [f'port 587 {name}: before {before["submission"].get(name)!r}, after {after["submission"].get(name)!r}'
+                  for name in SUBMISSION_KEYS if before['submission'].get(name) != after['submission'].get(name)]
     # A file of its package, unchanged before and after (or dropped, or new with it), is the package's; everything an admin
     # or eFa-next changed still counts, also when the package replaced it.
     old_files, new_files = before.get('files', {}), after.get('files', {})
@@ -777,6 +867,23 @@ def strip_counters(ruleset):
     return re.sub(r'\s*counter packets \d+ bytes \d+', '', ruleset or '')
 
 
+def nft_structure(ruleset):
+    """The structure of an nft table: chains, rules and the definitions of its sets, without counters and without the elements
+    of the sets, which the feeds of the blocklists and fail2ban change while the upgrade runs (like the bans of fail2ban)."""
+    text = re.sub(r'\n?\s*elements = \{[^}]*\}', '', strip_counters(ruleset))
+    return '\n'.join(line.rstrip() for line in text.splitlines() if line.strip())
+
+
+def nft_tables_diff(before, after):
+    """(problems, notes) of the other nft tables (efa_block and the like) before and after: a table gone or another structure is
+    a problem; a table that was not recorded before (an EL9 baseline without it) is a note, not a failure."""
+    before, after = before or {}, after or {}
+    problems = [f'{name}: gone' for name in sorted(set(before) - set(after))]
+    problems += [f'{name}: other rules or sets' for name in sorted(set(before) & set(after)) if nft_structure(before[name]) != nft_structure(after[name])]
+    notes = [f'{name}: not recorded before' for name in sorted(set(after) - set(before))]
+    return problems, notes
+
+
 # The bans of fail2ban (action firewallcmd-rich-rules): reject for one source address, by port or by service. They come and go
 # while the upgrade runs, so they are no setting; every other rich rule (above all accept) is compared as it is.
 FAIL2BAN_RULE = re.compile(r'^rule family="ipv[46]" source address="[0-9A-Fa-f.:]+(/(32|128))?" '
@@ -825,8 +932,9 @@ def post_checks(facts, before):
     perl_extra = sorted(set(facts.get('perl_extra') or []) - set(PERL_ALLOWED) - set(kept))
     hints = [f'{name}: {why}' for name, why in sorted(kept.items())]
     down = service_problems(facts.get('service_states') or {})
-    changed = compare({key: before.get(key) for key in ('addresses', 'routes', 'mail_block', 'counts', 'wazuh')},
-                      {key: facts.get(key) for key in ('addresses', 'routes', 'mail_block', 'counts', 'wazuh')})
+    changed = compare({key: before.get(key) for key in ('addresses', 'routes', 'counts', 'wazuh')},
+                      {key: facts.get(key) for key in ('addresses', 'routes', 'counts', 'wazuh')})
+    nft_problems, nft_notes = nft_tables_diff(before.get('mail_block'), facts.get('mail_block'))
     firewall = firewall_diff(before.get('firewall'), facts.get('firewall'))
     units = unit_problems(set(facts.get('active', [])))
     mail = facts.get('mail', {})
@@ -852,7 +960,9 @@ def post_checks(facts, before):
         check('Wazuh agent unchanged', 'wazuh' not in changed, 'not installed' if not before.get('wazuh') else 'same: package, the program runs (-V), ossec.conf, '
               'client.keys, enabled and running state' if 'wazuh' not in changed else
               f"before {before.get('wazuh')}, now {facts.get('wazuh') or 'not installed'}"),
-        check('Other nft tables unchanged (mail block)', 'mail_block' not in changed, 'same' if 'mail_block' not in changed else 'changed'),
+        check('Other nft tables unchanged (mail block)', not nft_problems,
+              '; '.join(nft_problems) if nft_problems else 'same rules and sets (their elements not counted)'),
+        check('Other nft tables recorded before the upgrade', not nft_notes, '; '.join(nft_notes) or 'all', required=False),
         check('Services running', not units, 'all' if not units else 'not running: ' + ', '.join(units)),
         # Also the units of the host that are not eFa-next's (an own collector, an agent): named, not required.
         check('Every service of before runs again', not services_missing(before.get('services'), facts.get('active')),
@@ -882,13 +992,21 @@ def post_checks(facts, before):
     return {'ok': not failed, 'checks': checks, 'failed': failed}
 
 
+EFA_BLOCK_TEST = ('table inet efa_block {\n\tset feed_v4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { 192.0.2.1, 192.0.2.2 }\n\t}\n'
+                  '\tchain input {\n\t\ttype filter hook input priority -10; policy accept;\n\t\tip saddr @feed_v4 tcp dport 25 counter packets 3 bytes 180 drop\n\t}\n}\n')
+
+
 def self_test():
     v3 = 'processor : 0\nflags : fpu avx avx2 bmi1 bmi2 f16c fma abm movbe xsave sse4_2\n'
     assert cpu_v3(v3) and not cpu_v3(v3.replace(' avx2', '')) and not cpu_v3('')
     assert os_major('NAME="AlmaLinux"\nVERSION_ID="9.8"\n') == 9 and os_major('VERSION_ID=10.1\n') == 10 and os_major('') is None
     assert ifcfg_files(['readme-ifcfg-rh.txt', 'ifcfg-lo', 'ifcfg-ens33']) == ['ifcfg-ens33']
     facts = {'os_release': 'ID="almalinux"\nVERSION_ID="9.8"\n', 'efa_version': '6.0.0.6', 'el10_repo': True, 'cpuinfo': v3, 'free_root': 6 * 1024 ** 3,
-             'free_boot': 2 * 1024 ** 3, 'pending': [], 'ifcfg': [], 'time_synced': True, 'queue': 3, 'cluster_role': 'none'}
+             'free_boot': 2 * 1024 ** 3, 'pending': [], 'ifcfg': [], 'time_synced': True, 'queue': 3, 'cluster_role': 'none',
+             'repos_enabled': ['baseos', 'appstream', 'crb']}
+    # Without CRB: a warning, not a stop (ClamAV would run without its SELinux domain on EL10).
+    nocrb = preflight({**facts, 'repos_enabled': ['baseos', 'appstream']})
+    assert nocrb['ready'] and any('CRB for the SELinux policy of ClamAV' in text for text in nocrb['warnings']), nocrb['warnings']
     assert preflight(facts)['ready']
     for key, bad in (('efa_version', '6.0.0.5.1'), ('el10_repo', 'HTTP 404'), ('free_boot', 399 * 1024 ** 2), ('pending', [{'package': 'x'}]),
                      ('ifcfg', ['ifcfg-ens33']), ('time_synced', False), ('os_release', 'VERSION_ID="10.0"\n'), ('cpuinfo', '')):
@@ -931,6 +1049,17 @@ def self_test():
         assert found['version_format'] == '1.3.0' and found['provided_data_streams'] == ['4.2'], name
         assert all(entry['distro'] == 'almalinux' for repo in found['repositories'] for entry in repo['entries']), name
     assert json.loads(files['efa-next_pes.json'])['packageinfo'] == []
+    # leapp 0.25 (leapp-data-almalinux 0.14-3): 2.0.0, stream 5.0, targets under "default"
+    assert leapp_map_format({}) == ('1.3.0', '4.2') and leapp_map_format(None) == ('1.3.0', '4.2')
+    assert leapp_map_format({'version_format': '1.3.0', 'provided_data_streams': ['4.2']}) == ('1.3.0', '4.2')
+    assert leapp_map_format({'version_format': '2.0.0', 'provided_data_streams': ['5.0']}) == ('2.0.0', '5.0')
+    assert leapp_map_format({'version_format': '2.0.0'}) == ('2.0.0', '5.0') and leapp_map_format({'version_format': '3.0.0'}) == ('3.0.0', None)
+    new = vendor_files('almalinux', ('2.0.0', '5.0'))
+    for name in ('efa-next_map.json', 'rspamd_map.json'):
+        found = json.loads(new[name])
+        assert found['version_format'] == '2.0.0' and found['provided_data_streams'] == ['5.0'], name
+        assert found['mapping'][0]['entries'][0]['target'] == {'default': [name.split('_')[0] + '-el10']}, name
+    assert json.loads(new['efa-next_pes.json'])['provided_data_streams'] == ['5.0'] and new['efa-next.repo'] == files['efa-next.repo']
     assert json.loads(files['efa-next_map.json'])['mapping'] and json.loads(files['rspamd_map.json'])['repositories'][0]['entries'][0]['repoid'] == 'rspamd'
     el9_repo = ('[efa-next]\nname=eFa-next EL9\nbaseurl=https://repo.efa-next.eu/el9/\nenabled=0\n\n[rspamd]\nname=Rspamd stable repository\n'
                 'baseurl=https://rspamd.com/rpm-stable/centos-9/$basearch\nexclude=rspamd-[5-9]*\n')
@@ -1028,6 +1157,14 @@ def self_test():
     warned = preflight({**facts, 'net_drivers': {'enp0s3': 'e1000'}, 'postconf_n': postconf_n})
     assert warned['ready'] and len(warned['warnings']) == 2 and 'enp0s3 (e1000)' in warned['warnings'][0]
     assert files['efa-next.sigs'].strip() == KEY_ID and 'gpgcheck=1' in files['efa-next.repo']
+    # 2026-11-18: the extra SELinux modules (ClamAV) come along only with CRB on; fail2ban-selinux always (EPEL).
+    assert leapp_to_install(['baseos', 'appstream', 'crb', 'epel'])[-2:] == ('fail2ban-selinux', 'selinux-policy-targeted-extra')
+    assert leapp_to_install(['baseos', 'epel'])[-1] == 'fail2ban-selinux' and leapp_to_install(None) == LEAPP_TO_INSTALL
+    assert crb_enabled(['rhel-9-for-x86_64-codeready-builder-rpms']) and crb_enabled(['rocky-crb']) and not crb_enabled(['epel'])
+    # VMAP-3: the keys of the target repositories as the checked local files, which leapp 0.25 checks against its trust.
+    assert 'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-efa-next\n' in files['efa-next.repo'] and 'repo_gpgcheck=1' in files['efa-next.repo']
+    assert 'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rspamd\n' in files['rspamd.repo'] and 'https://' not in ''.join(
+        line for line in files['efa-next.repo'].splitlines() if line.startswith('gpgkey'))
     assert el9_leftovers(['bash-5.2-1.el10.x86_64', 'foo-1-1.el9.noarch', 'gpg-pubkey-1-2.el9']) == ['foo-1-1.el9.noarch']
     assert unit_problems({'postfix', 'rspamd', 'clamd@scan', 'mariadb', 'valkey', 'unbound', 'nginx', 'efa-web', 'efactl-runner',
                           'efa-maillog', 'efa-milter-health', 'chronyd', 'firewalld'}) == []
@@ -1047,7 +1184,7 @@ def self_test():
     assert firewall_diff(fw, {}) == ['public: zone no longer active'] and firewall_diff(None, None) == []
     # A reject for a whole network is a setting of the admin, not a ban.
     assert not FAIL2BAN_RULE.match('rule family="ipv4" source address="192.0.2.0/24" service name="smtp" reject')
-    before = {'addresses': ['10.0.0.1/24'], 'routes': ['default via 10.0.0.254'], 'firewall': 'z', 'mail_block': 'm', 'counts': {'q': 1},
+    before = {'addresses': ['10.0.0.1/24'], 'routes': ['default via 10.0.0.254'], 'firewall': 'z', 'mail_block': {'inet efa_block': EFA_BLOCK_TEST}, 'counts': {'q': 1},
               'dkim': ['k'], 'os_id': 'almalinux'}
     # S22: only a package signed by the ELevate key counts.
     good = 'e.rpm: digests signatures OK\n'
@@ -1088,6 +1225,20 @@ def self_test():
     config_after = {**config, 'postconf_n': config_postconf('default_database_type = lmdb\ntransport_maps = lmdb:/etc/postfix/transport\n'
                                                             'myhostname = mx.example\n')}
     assert config_diff(config, config_after) == []
+    # 2026-11-18: port 587 by what it uses. AUTH of main.cf (no -o) and the same written as an -o: the same port 587; another
+    # SASL backend (efa-sasl in place of Dovecot) or AUTH on where it was off: a difference.
+    uses = {'smtpd_sasl_auth_enable': 'yes', 'smtpd_sasl_type': 'dovecot', 'smtpd_sasl_path': 'private/auth', 'smtpd_tls_auth_only': 'yes',
+            'smtpd_sasl_security_options': 'noanonymous'}
+    p_before, p_after = ['submission/inet/syslog_name = postfix/submission'], ['submission/inet/syslog_name = postfix/submission',
+                                                                              'submission/inet/smtpd_sasl_auth_enable = yes']
+    assert config_diff({**config, 'postconf_p': p_before, 'submission': uses}, {**config_after, 'postconf_p': p_after, 'submission': uses}) == []
+    moved = config_diff({**config, 'submission': uses}, {**config_after, 'submission': {**uses, 'smtpd_sasl_type': 'dovecot', 'smtpd_sasl_path': '/run/efa-sasl/auth'}})
+    assert moved == ["port 587 smtpd_sasl_path: before 'private/auth', after '/run/efa-sasl/auth'"], moved
+    assert config_diff({**config, 'submission': {**uses, 'smtpd_sasl_auth_enable': 'no'}}, {**config_after, 'submission': uses})
+    assert submission_overrides('submission/inet/smtpd_sasl_path = /run/efa-sasl/auth\nsmtp/inet/smtpd_sasl_auth_enable = no\n') == \
+        {'smtpd_sasl_path': '/run/efa-sasl/auth'}
+    assert submission_effective({'smtpd_sasl_path': 'x'}, lambda key: 'main')['smtpd_sasl_path'] == 'x' and \
+        submission_effective({}, lambda key: 'main')['smtpd_sasl_type'] == 'main'
     assert config_diff(config, {**config_after, 'files': {'/etc/rspamd/local.d/actions.conf': 'b' * 64}}) == ['changed: /etc/rspamd/local.d/actions.conf']
     assert config_diff(config, {**config_after, 'units': []}) == ['unit no longer enabled: efa-web.service']
     assert any('myhostname = other' in item for item in config_diff(config, {**config_after, 'postconf_n': config_postconf('myhostname = other\n')}))
@@ -1119,7 +1270,14 @@ def self_test():
     assert post_checks(after, before)['ok'], post_checks(after, before)['failed']
     assert not post_checks({**after, 'config_diff': ['changed: /etc/nginx/conf.d/efa.conf']}, before)['ok']
     assert not post_checks(after, {key: value for key, value in before.items() if key != 'config'})['ok']
-    assert not post_checks({**after, 'mail_block': 'gone'}, before)['ok'] and not post_checks({**after, 'kernel': '5.14.0.el9'}, before)['ok']
+    # The elements of a set come and go (feeds, fail2ban); a rule or a set definition changed, or the table gone, fails.
+    elements = {'inet efa_block': EFA_BLOCK_TEST.replace('192.0.2.1, 192.0.2.2', '198.51.100.7')}
+    assert post_checks({**after, 'mail_block': elements}, before)['ok'], 'other elements of a set: the same'
+    assert not post_checks({**after, 'mail_block': {'inet efa_block': EFA_BLOCK_TEST.replace('drop', 'accept')}}, before)['ok']
+    assert not post_checks({**after, 'mail_block': {'inet efa_block': EFA_BLOCK_TEST.replace('flags interval', 'flags timeout')}}, before)['ok']
+    unrecorded = post_checks({**after}, {**before, 'mail_block': {}})
+    assert unrecorded['ok'] and any('not recorded before' in item['detail'] for item in unrecorded['checks']), 'an EL9 baseline without the table'
+    assert not post_checks({**after, 'mail_block': {}}, before)['ok'] and not post_checks({**after, 'kernel': '5.14.0.el9'}, before)['ok']
     assert not post_checks({**after, 'mail': {'clean': 'accepted', 'gtube': 'accepted', 'eicar': 'rejected'}}, before)['ok']
     # Rehearsal 3: perl-locale with its reason, any other new Perl package stops.
     assert post_checks({**after, 'perl_extra': ['perl-locale']}, before)['ok']

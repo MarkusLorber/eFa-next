@@ -40,10 +40,13 @@ NAV = [
          'notes': {'spool-set': 'After a server is back, Postfix starts with this many connections and raises them while delivery works.'}}]),
     ('Protection', [
                 {'slug': 'spam', 'title': 'Spam filter', 'sub': 'When mail is greylisted, marked or rejected, and how the filter learns.',
-         'sections': [('Spam', ['spam-scores-set', 'greylisting-set', 'subject-get', 'subject-set', 'bayes-status']),
+         # Hans 2026-11-17 (UI review, page by page like Security): four task cards in Standard (efa-web spam_view), the full
+         # cards in Expert.
+         'sections': [('Spam', ['spam-scores-set', 'greylisting-set', 'subject-get', 'subject-set', 'bayes-status'], 'advanced'),
                       ('Greylisting exceptions', ['greylisting-status', 'greylisting-exception-set'], 'advanced'),
                       ('Newsletters and own limits', ['graymail-status', 'graymail-set', 'user-spam-status', 'user-spam-set'], 'advanced'),
                       ('Outbreak filter', ['outbreak-status', 'outbreak-set'], 'advanced'),
+                      ('Address harvesting', ['harvest-status', 'harvest-set'], 'advanced'),
                       ('Spam traps', ['trap-status', 'trap-set'], 'advanced'),
                       ('Pyzor', ['pyzor-status', 'pyzor-set'], 'advanced'),
                       ('Own fuzzy store', ['fuzzy-status', 'fuzzy-set'], 'advanced'),
@@ -58,8 +61,10 @@ NAV = [
                                 'the spam score (2.0 by default). Each mail waits at most 3 seconds for the answer; after 3 failures '
                                 'in a row Pyzor pauses for 5 minutes.'}},
         {'slug': 'files', 'title': 'Viruses, attachments & links', 'sub': 'Virus signatures and scanners, attachments, links and phishing, and the check after delivery.',
-         'sections': [('Virus signatures', ['sanesecurity-status', 'sanesecurity-set', 'sanesecurity-update', 'clam-source-status', 'clam-source-set', 'clam-securiteinfo-set']),
-                      ('Attachments', ['attachment-status', 'attachment-set']),
+         # Hans 2026-11-17 (UI review, page by page like Security): four task cards in Standard (efa-web files_view), the full
+         # cards in Expert.
+         'sections': [('Virus signatures', ['sanesecurity-status', 'sanesecurity-set', 'sanesecurity-update', 'clam-source-status', 'clam-source-set', 'clam-securiteinfo-set'], 'advanced'),
+                      ('Attachments', ['attachment-status', 'attachment-set'], 'advanced'),
                       ('Link check', ['links-status', 'links-set', 'links-hint-set'], 'advanced'),
                       ('Phishing reports and banner', ['phish-status', 'phish-set', 'banner-status', 'banner-set', 'outlook-addin'], 'advanced'),
                       ('Content disarm', ['cdr-status', 'cdr-set', 'cdr-list', 'cdr-release', 'html-disarm-set', 'bimi-set'], 'advanced'),
@@ -149,12 +154,12 @@ NAV = [
                                        'Move to quarantine and then reject once all legitimate mail passes.',
                    'dmarc-record-check': 'Names tags that RFC 9989 removed, such as pct. Saves nothing.'}},
                 {'slug': 'domset', 'title': 'Domain settings', 'sub': 'Values of a tenant or a domain over the global ones; the domain wins over its tenant.',
-         'sections': [('Values per domain', ['domain-settings-show', 'domain-spam-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-general-set']),
-                      ('Domain check', ['domain-check-status', 'domain-check-show', 'domain-check-run', 'domain-check-set']),
-                      ('Role addresses', ['role-status', 'role-set']),
-                      ('Job applications', ['application-status', 'application-set', 'application-exception-set']),
-                      ('EU relation', ['eu-relation-status', 'eu-relation-set']),
-                      ('security.txt', ['security-txt'])],
+         'sections': [('Values per domain', ['domain-settings-show', 'domain-spam-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-general-set'], 'advanced'),
+                      ('Domain check', ['domain-check-status', 'domain-check-show', 'domain-check-run', 'domain-check-set'], 'advanced'),
+                      ('Role addresses', ['role-status', 'role-set'], 'advanced'),
+                      ('Job applications', ['application-status', 'application-set', 'application-exception-set'], 'advanced'),
+                      ('EU relation', ['eu-relation-status', 'eu-relation-set'], 'advanced'),
+                      ('security.txt', ['security-txt'], 'advanced')],
          'notes': {'domain-settings-show': 'Each value with its source: domain, tenant or global.',
                    'domain-spam-set': 'Type inherit to take the value of the tenant or global again. Rules for a sender or recipient still win.',
                    'domain-routing-set': 'The mail server of a domain is on the page Mail routing.',
@@ -242,19 +247,20 @@ NAV = [
                                 'Scope: global, or the tenants or domains named. Permissions marked global_only need a global group.',
                    'group-map-set': 'For LDAP the full DN or the CN, for OIDC the name or ID of the group. A login gets one eFa-next group per mapped directory group.'}}]),
     ('Security & privacy', [
-                {'slug': 'sec', 'title': 'Security', 'sub': 'Findings and alerts first, then admin access, the logins and the TLS and SSH profiles.',
-         'sections': [('Security self check', ['security-status', 'security-check', 'security-check-set', 'security-oval-set', 'pwned-check-set']),
-                      ('Attack alert', ['threat-status', 'threat-set']),
-                      ('CVE watch', ['cve-watch-status', 'cve-watch-set', 'cve-watch-run', 'cve-mute', 'web-lockdown', 'cluster-cve']),
-                      ('Admin access', ['ssh-root-status', 'ssh-root-set', 'web-allowlist-show', 'web-allowlist-set', 'fail2ban-set', 'admin-email-set', 'rspamd-sso-set', 'audit-rspamd', 'web-harden']),
-                      ('Failed logins', ['login-lockout-status', 'login-lockout-set']),
-                      ('Four eyes', ['four-eyes-list', 'four-eyes-decide', 'four-eyes-set']),
-                      ('Address harvesting', ['harvest-status', 'harvest-set']),
-                      ('Setup variant', ['setup-variant-status', 'setup-offer-dismiss', 'console-2fa-set']),
+                # Hans 2026-11-17 (security-ux/plan.md): Standard shows four tasks, every switch of them and the rest in Expert.
+                {'slug': 'sec', 'title': 'Security', 'sub': 'Is this server safe, who may administer it, how logins are protected, which TLS it speaks.',
+         # The four tasks are compact cards of their own in both views (efa-web sec_view); the full cards are here, in Expert.
+         'sections': [('State of this server', ['security-status', 'security-check', 'floor-status', 'cve-watch-status', 'threat-status'], 'advanced'),
+                      ('Admin access', ['ssh-root-status', 'ssh-root-set', 'web-allowlist-show', 'web-allowlist-set', 'ssh-profile-status', 'ssh-profile-set', 'ssh-profile-confirm'], 'advanced'),
+                      ('Logins', ['login-lockout-status', 'login-lockout-set'], 'advanced'),
+                      ('TLS', ['tls-profile-status', 'tls-profile-set', 'tls-port25-set'], 'advanced'),
+                      ('Self check and security minimum', ['security-check-set', 'security-oval-set', 'pwned-check-set', 'floor-check'], 'advanced'),
+                      ('Attack alert', ['threat-set'], 'advanced'),
+                      ('CVE watch', ['cve-watch-set', 'cve-watch-run', 'cve-mute', 'web-lockdown', 'cluster-cve'], 'advanced'),
+                      ('More access settings', ['fail2ban-set', 'admin-email-set', 'rspamd-sso-set', 'audit-rspamd', 'web-harden'], 'advanced'),
+                      ('Four eyes', ['four-eyes-list', 'four-eyes-decide', 'four-eyes-set'], 'advanced'),
+                      ('Setup variant', ['setup-variant-status', 'setup-offer-dismiss', 'console-2fa-set'], 'advanced'),
                       ('Milter health', ['milter-health-status', 'milter-health-set'], 'advanced'),
-                      ('TLS profile', ['tls-profile-status', 'tls-profile-set', 'tls-port25-set']),
-                      ('Security minimum', ['floor-status', 'floor-check']),
-                      ('SSH profile', ['ssh-profile-status', 'ssh-profile-set', 'ssh-profile-confirm'], 'advanced'),
                       ('Hardening report', ['hardening-report', 'switches-status', 'tls-min-set', 'kernel-hardening-set', 'service-harden-status', 'service-harden'], 'advanced')],
          'notes': {'login-lockout-set': 'Counts the failed logins of the web interface, the user portal, the API and port 587 per address. '
                                         'Relay networks, the firewall allowlist and cluster nodes are never banned.',
@@ -310,9 +316,9 @@ NAV = [
                    'geoip-set': 'Off by default. On, this server downloads the DB-IP Lite files once a month; every lookup happens here.',
                    'report-set': 'Tenant admins with an email address get the report of their tenant.'}},
                 {'slug': 'export', 'title': 'Monitoring', 'sub': 'Send logs and events to a SIEM or an OTLP collector, and run the Wazuh agent. Prometheus reads /metrics with an API token (Users).',
-         'sections': [('SIEM export', ['siem-status', 'siem-set']),
-                      ('OTLP', ['otlp-status', 'otlp-set', 'otlp-test']),
-                      ('Wazuh agent', ['wazuh-status', 'wazuh-config', 'wazuh-service']),
+         'sections': [('SIEM export', ['siem-status', 'siem-set'], 'advanced'),
+                      ('OTLP', ['otlp-status', 'otlp-set', 'otlp-test'], 'advanced'),
+                      ('Wazuh agent', ['wazuh-status', 'wazuh-config', 'wazuh-service'], 'advanced'),
                       ('Wazuh: install & update', ['wazuh-check', 'wazuh-install', 'wazuh-update', 'wazuh-remove'], 'advanced')],
          'notes': {'otlp-set': 'OTLP/HTTP with JSON, gzip, a disk buffer that drops the oldest data when full, and retries that wait longer each time. '
                                'The token is never shown again: the status only says set or not set.',
@@ -327,14 +333,16 @@ NAV = [
                 {'slug': 'maint', 'title': 'Maintenance & update', 'sub': 'Updates, maintenance mode and power. Actions that interrupt mail ask first.',
          # Hans 2026-11-15: one Update card on top (versions, what is pending, one button, the progress bar); the rest folded.
          # 'folded': in the standard view too, but closed.
+         # Hans 2026-11-17 (UI review, page by page like Security): the Update card of 2026-11-15 stays the first task; three more
+         # task cards (efa-web maint_view), the full cards in Expert; the release upgrade stays for super admins (card_level).
          'sections': [('Updates', ['update-progress', 'update-system', 'update-pending', 'update-status', 'update-now', 'update-system-run', 'update-post-boot', 'update-run']),
-                      ('Automatic updates', ['autoupdate-status', 'autoupdate-set'], 'folded'),
-                      ('Back to the version before, checks after package updates', ['update-rollback', 'os-check-status', 'os-check-run'], 'folded'),
+                      ('Automatic updates', ['autoupdate-status', 'autoupdate-set'], 'advanced'),
+                      ('Back to the version before, checks after package updates', ['update-rollback', 'os-check-status', 'os-check-run'], 'advanced'),
                       ('Update details', ['update-check', 'update-install'], 'advanced'),
-                      ('Maintenance', ['maintenance-set', 'load-set', 'load-notify']),
-                      ('Environment', ['environment-status', 'environment-set']),
+                      ('Maintenance', ['maintenance-set', 'load-set', 'load-notify'], 'advanced'),
+                      ('Environment', ['environment-status', 'environment-set'], 'advanced'),
                       ('Release-Upgrade', ['release-upgrade-status', 'release-upgrade'], 'folded'),
-                      ('Power', ['reboot', 'halt']),
+                      ('Power', ['reboot', 'halt'], 'advanced'),
                       ('Advanced', ['milter-chain-set', 'extra-service-set', 'mariadb-repair'], 'advanced')],
          'show': ['smtpd_milters', 'extra_services'],
          # The Update card reads it (it has no card of its own).
@@ -347,8 +355,14 @@ NAV = [
                    'autoupdate-set': 'Auto installs in the window with a backup, a health check and a rollback if that fails. The packages are not signed: '
                                      'auto trusts the release account. RPM signing is recommended before using it in production.'}},
                 {'slug': 'bak', 'title': 'Backup & restore', 'sub': 'Backups hold the database and private keys; encrypted ones need their password to restore.',
-         'commands': ['backup-list', 'backup-now', 'backup-set', 'backup-password-set', 'backup-key-show', 'restore', 'backup-download', 'backup-read', 'backup-import',
-                      'backup-target-list', 'backup-target-set', 'backup-target-test', 'backup-hsm-set', 'settings-export', 'settings-import'],
+         # 6.0.0.6.6 (Hans 2026-11-18): in sections, so the page reads as a menu: the backups and their settings, restore, the
+         # external targets, settings for another host; the hardware key for the signature only in the expert view.
+         'sections': [('Backups', ['backup-list', 'backup-now', 'backup-set', 'backup-password-set', 'backup-key-show', 'backup-download', 'backup-read',
+                                   'backup-import']),
+                      ('Restore', ['restore']),
+                      ('External backup targets', ['backup-target-list', 'backup-target-set', 'backup-target-test']),
+                      ('Settings to another host', ['settings-export', 'settings-import']),
+                      ('Signature key in a hardware module', ['backup-hsm-set'], 'advanced')],
          'notes': {'backup-password-set': 'Automatic backups are encrypted with it. It is stored for root only and never shown '
                                           'again. If you lose it, those backups are unusable.',
                    'settings-import': 'Super admin only. The other host runs the same version; copy the file to /var/tmp. A preview first; '
@@ -356,12 +370,14 @@ NAV = [
                    'backup-target-set': 'Only encrypted backups leave this host, right after each backup. For SFTP, compare the host key shown '
                                         'with the one of the server before the first backup goes there.'}},
                 {'slug': 'net', 'title': 'Network, DNS & certificate', 'sub': 'Changes to the network apply after a reboot. Other servers of your network may use the resolver of this host.',
-         'sections': [('Main interface', ['network-show', 'network-set', 'hostname-set']),
-                      ('DNS and certificate', ['dns-zone-list', 'dns-servers-set', 'dns-zone-set', 'dns-zone-test', 'dns-forward-status', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover']),
+         # Hans 2026-11-18 (UI review, page by page like Security): four task cards in Standard (efa-web net_view), the full
+         # cards in Expert.
+         'sections': [('Main interface', ['network-show', 'network-set', 'hostname-set'], 'advanced'),
+                      ('DNS and certificate', ['dns-zone-list', 'dns-servers-set', 'dns-zone-set', 'dns-zone-test', 'dns-forward-status', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover'], 'advanced'),
                       ('More interfaces', ['interfaces-list', 'interface-set', 'interface-confirm', 'interface-revert', 'uplink-route-set'], 'advanced'),
                       ('DANE', ['dane-status', 'dane-set', 'tlsa-show', 'letsencrypt-rollover', 'web-cert-set'], 'advanced'),
                       ('MTA-STS', ['mta-sts-show', 'mta-sts-set', 'mta-sts-check', 'mta-sts-text'], 'advanced'),
-                      ('DNS resolver for other networks', ['dns-share-list', 'dns-share-add', 'dns-share-del', 'dns-share-secondary-set'])],
+                      ('DNS resolver for other networks', ['dns-share-list', 'dns-share-add', 'dns-share-del', 'dns-share-secondary-set'], 'advanced')],
          'show': ['dns_zones'],
          'notes': {'interface-set': 'For internal mail servers or a second uplink. The interface of the default route is changed above, not here. '
                                     'Reverts after 5 minutes unless you keep the change; a firewall zone changes only between minute 20 and 50.',
@@ -393,6 +409,8 @@ MOVED_CARDS = {('log', name): 'privacy' for section in PAGES['privacy']['section
 MOVED_CARDS.update({('spam', name): 'files' for name in PAGES['files']['commands']})
 MOVED_CARDS.update({('sec', name): 'firewall' for name in PAGES['firewall']['commands']})
 MOVED_CARDS.update({('sec', name): 'privacy' for name in ('history-list', 'history-show', 'history-undo')})
+# Hans 2026-11-17: address harvesting is a topic of the spam filter, not of admin security.
+MOVED_CARDS.update({('sec', name): 'spam' for name in ('harvest-status', 'harvest-set')})
 MOVED_CARDS.update({('users', name): 'privacy' for name in ('audit-search', 'incident-list', 'incident-open', 'incident-report', 'privacy-evidence',
                                                            'audit-strict-status', 'audit-mode', 'audit-verify', 'audit-anchor-verify', 'audit-rules-set')})
 MOVED_CARDS.update({('domset', 'trap-status'): 'spam', ('domset', 'trap-set'): 'spam', ('export', 'api-status'): 'users'})

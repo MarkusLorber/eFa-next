@@ -9,7 +9,7 @@ user efa-web: sudo -u efa-web python3 -I scripts/page_times.py [--rounds 5] [--b
 With --portal USER the user portal instead, as the user efa-portal, logged in as USER (role user) with the password from
 stdin: sudo -u efa-portal python3 -I scripts/page_times.py --portal a@example.org < password-file
 With --check-standard every page in the standard view: a card there needs a control (form or button) unless it is a
-warning card or a list of every day (efa-web WARNING_CARDS, DAILY_LISTS).
+warning card or a list of every day (efa-web WARNING_CARDS, DAILY_LISTS); a task card (task_card_problems) its own rules.
 One round first fills the caches; then the median and the slowest of the rounds per page. With --budget-ms every page
 whose median is over the budget fails the run (the slowest of a few rounds is mostly noise of the host).
 """
@@ -90,6 +90,71 @@ def _render_all(web, view):
 RENDER_STATUS = {}
 
 
+def form_fields(html):
+    """(action, field name, value) of every form field: the value of a text or hidden field, a checked box or radio button,
+    the chosen option, the text of a text area. The form token is left out (one per session)."""
+    import re
+    found = set()
+    for head, action, body in re.findall(r'(<form\b[^>]*\baction="([^"]*)"[^>]*>)(.*?)</form>', html, re.S):
+        if re.search(r'\bclass="[^"]*\btoggle\b', head):
+            # A switch (efa-web toggle()): its hidden fields carry what a click would post (empty keeps a value), so it is
+            # compared by the state it shows, as the switch in the head of the Expert card shows it.
+            state = re.search(r'\baria-(?:pressed|checked)="(true|false)"', body)
+            found.add((action, '@switch', state[1] if state else ''))
+            continue
+        for tag in re.findall(r'<input\b[^>]*>', body):
+            name = re.search(r'\bname="([^"]*)"', tag)
+            kind = (re.search(r'\btype="([^"]*)"', tag) or [None, 'text'])[1]
+            if not name or name[1] == 'csrf' or kind in ('submit', 'button', 'file'):
+                continue
+            if kind in ('checkbox', 'radio') and not re.search(r'\bchecked\b', tag):
+                continue
+            found.add((action, name[1], (re.search(r'\bvalue="([^"]*)"', tag) or [None, ''])[1]))
+        for name, options in re.findall(r'<select\b[^>]*\bname="([^"]*)"[^>]*>(.*?)</select>', body, re.S):
+            chosen = re.search(r'<option\b[^>]*\bvalue="([^"]*)"[^>]*\bselected\b', options)
+            found.add((action, name, chosen[1] if chosen else ''))
+        for name, text in re.findall(r'<textarea\b[^>]*\bname="([^"]*)"[^>]*>(.*?)</textarea>', body, re.S):
+            found.add((action, name, text))
+    return found
+
+
+def task_card_problems(slug, standard, expert):
+    """6.0.0.6.6: a task card (class card task) exists only in the standard view and sums up full cards of Expert. It needs a
+    control or a link to ?view=expert#anchor; every such anchor exists in Expert; every field it posts has the same value as
+    the field of that name in a form of Expert that posts to the same address."""
+    import re
+    task = re.compile(r'<div class="card task" id="([a-z0-9-]+)">(.*?)(?=<div class="card[ "]|</main>)', re.S)
+    in_expert = form_fields(expert)
+    # Every address a form of Expert posts to, also a form whose only field is an unticked box (it gives no field).
+    actions = set(re.findall(r'<form\b[^>]*\baction="([^"]*)"', expert))
+    broken = []
+    for name, body in task.findall(standard):
+        anchors = re.findall(r'href="[^"#]*[?&](?:amp;)?view=expert#([A-Za-z0-9_-]+)"', body)
+        if not anchors and not re.search(r'<form\b|<button\b|<input\b', body):
+            broken.append(f'{slug}/{name}: task card without a control or a link to the expert view')
+        for anchor in anchors:
+            if f'id="{anchor}"' not in expert:
+                broken.append(f'{slug}/{name}: link to #{anchor}, which the expert view lacks')
+        for action, field, value in sorted(form_fields(body)):
+            if action not in actions:
+                broken.append(f'{slug}/{name}: posts to {action}, no form of the expert view does')
+            elif field == '@switch' and any(a == action and f == '@switch' for a, f, _v in in_expert):
+                # Expert has the same switch: only its state counts.
+                if (action, field, value) not in in_expert:
+                    broken.append(f"{slug}/{name}: switch {value}, the expert view shows it "
+                                  f"{sorted(v for a, f, v in in_expert if a == action and f == '@switch')} ({action})")
+            elif field == '@switch' and (action, 'mode', 'on' if value == 'true' else 'off') in in_expert:
+                # Expert shows the same switch as the mode field of its form: on as mode=on, off as mode=off.
+                continue
+            elif field == '@switch' and value == 'false' and (action, 'mode', 'on') not in in_expert:
+                # Off with an unticked box: the box posts nothing, so no mode=on in Expert is the same off.
+                continue
+            elif (action, field, value) not in in_expert:
+                other = sorted(v for a, f, v in in_expert if a == action and f == field)
+                broken.append(f'{slug}/{name}: {field}={value!r}, the expert view has {other or "no such field"} ({action})')
+    return broken
+
+
 def check_standard(web):
     """Cards without a control belong to the expert view, and the view only hides: a card or tile seen in both views shows
     the same values in both. Returns what breaks it."""
@@ -107,6 +172,7 @@ def check_standard(web):
         if RENDER_STATUS.get(('standard', slug)) != 200 or RENDER_STATUS.get(('expert', slug)) != 200:
             continue
         cards_expert = dict(card.findall(expert[slug]))
+        broken.extend(task_card_problems(slug, html, expert[slug]))
         for name, body in card.findall(html):
             if '<form' not in body and '<button' not in body and 'warnbox' not in body and name not in web.WARNING_CARDS | web.DAILY_LISTS:
                 broken.append(f'{slug}/{name}: no control')

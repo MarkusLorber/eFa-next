@@ -31,7 +31,8 @@ On the same card:
 
 - **Pseudonyms:** addresses in the mail log become pseudonyms after a number of days (`pseudonymise-set`).
 - **A reason for content:** opening the content of a mail can require a typed reason, kept in the audit log
-  (`content-reason-set`).
+  (`content-reason-set`). In the mail log a mail opens in a window over the page; the reason is asked for there, and the last
+  one is offered again for the next mail.
 - **Subject display:** whether the mail log shows subjects (`subject-display-set`).
 
 Details: [privacy-and-reason.md](../privacy-and-reason.md), [header-privacy.md](../header-privacy.md).

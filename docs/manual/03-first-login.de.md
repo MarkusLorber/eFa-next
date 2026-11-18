@@ -25,9 +25,10 @@ Authenticator und andere). Den QR-Code zeichnet eFa-next selbst.
 
 **In der Weboberfläche:** *Mein Konto › Zwei-Faktor-Anmeldung (2FA)*:
 
-1. *Einrichten* zeigt den QR-Code und den Schlüssel als Text.
-2. Den ersten Code der App eingeben. 2FA ist an, und zehn Wiederherstellungscodes werden einmal gezeigt. Sicher aufbewahren:
-   Jeder gilt einmal statt eines Codes.
+1. *QR-Code anzeigen* öffnet eine Seite mit dem QR-Code und dem Schlüssel als Text. Dafür fragt eFa-next einmal Ihr Passwort: eine fremde, übernommene Sitzung kann so keine eigene App binden.
+2. Auf derselben Seite den sechsstelligen Code der App eingeben und *2FA einschalten* drücken. Danach werden zehn
+   Wiederherstellungscodes einmal gezeigt. Sicher aufbewahren: Jeder gilt einmal statt eines Codes. Eine neue App bei schon
+   eingeschalteter 2FA fragt zuerst Passwort und aktuellen Code.
 
 Solange eine Anmeldung keine 2FA hat, zeigt das Dashboard einen Hinweis mit *2FA einrichten*. Ein Super-Admin kann 2FA je Rolle
 verlangen (*Benutzer › 2FA der Benutzer*, `efactl totp-policy-set --role tenant --mode required`): Solche Anmeldungen erreichen

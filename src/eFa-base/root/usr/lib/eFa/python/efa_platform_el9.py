@@ -334,6 +334,17 @@ class EL9(Platform):
     def package_installed(self, package):
         return c.run(["rpm", "-q", "--quiet", package], check=False).returncode == 0
 
+    # The commands the security check gives when a program runs without its own SELinux domain (EL10: ClamAV, fail2ban).
+    SELINUX_DOMAIN_FIX = {
+        "selinux-policy-targeted-extra": "dnf -y --enablerepo=crb install selinux-policy-targeted-extra, then systemctl restart clamd@scan",
+        "antivirus_t": "restorecon -v /usr/sbin/clamd /usr/bin/freshclam, then systemctl restart clamd@scan",
+        "fail2ban-selinux": "dnf -y install fail2ban-selinux, then systemctl restart fail2ban",
+    }
+
+    def repos_enabled(self):
+        res = c.run(["dnf", "-q", "repolist", "--enabled"], check=False)
+        return sorted(line.split()[0] for line in (res.stdout or "").splitlines()[1:] if line.split())
+
     def repo_key_import(self, path):
         c.run(["rpm", "--import", path])
 

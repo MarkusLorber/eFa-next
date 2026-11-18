@@ -120,6 +120,10 @@ class Platform:
         raise NotImplementedError
 
     # ------------------------------------------------ packages and updates
+    def repos_enabled(self):
+        """The ids of the enabled package repositories."""
+        raise NotImplementedError
+
     def package_installed(self, package):
         raise NotImplementedError
 

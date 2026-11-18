@@ -13,6 +13,12 @@ import subprocess
 import sys
 import tempfile
 
+# The main.cf of before as a marker while this step runs, SIGTERM through finally (scripts/ci_guard.py).
+import importlib.util  # noqa: E402
+_guard_spec = importlib.util.spec_from_file_location('ci_guard', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci_guard.py'))
+guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 CLIENT = '203.0.113.26'  # TEST-NET-3: outside mynetworks
 ALLOWED = 'ci-allowed@ai.local'
 
@@ -51,6 +57,7 @@ def main():
     import efactl_main as efactl  # noqa: E402  the installed efactl, with the state of the release upgrade in the test folder
     saved_xclient = run('postconf', '-h', 'smtpd_authorized_xclient_hosts')
     state = {}
+    guard.begin('maintenance-cidr-live')
     try:
         run('postconf', '-e', 'smtpd_authorized_xclient_hosts = 127.0.0.1')
         run('/usr/sbin/efactl', 'sender-add', '--list=allow', f'--entries={ALLOWED}', '--comment=CI S36')
@@ -86,6 +93,7 @@ def main():
         else:
             run('postconf', '-X', 'smtpd_authorized_xclient_hosts', check=False)
         run('postfix', 'reload', check=False)
+        guard.end('maintenance-cidr-live')
 
 
 if __name__ == '__main__':

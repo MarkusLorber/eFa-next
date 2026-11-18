@@ -62,7 +62,11 @@ pre{background:var(--area);padding:10px;border-radius:8px;overflow:auto}code{bac
 @media (prefers-reduced-motion:reduce){.setup-prog i{animation:none}}
 ol.groups{display:flex;flex-wrap:wrap;gap:2px 14px;list-style:none;padding:0;margin:0 0 16px;font-size:13px;color:var(--gray)}
 ol.groups .done::before{content:"\\2713  ";color:var(--ok)}ol.groups .cur{color:var(--ink);font-weight:600}
-.step{color:var(--gray);font-size:13px;margin:0}.help{color:var(--gray);margin:0 0 6px}.hint{display:block;color:var(--gray);font-weight:400;font-size:13px}
+.step{color:var(--gray);font-size:13px;margin:0}
+/* Hans 2026-11-17: "Start over" is no step of the way, so it sits in the step row as a quiet link, not next to Back and Next. */
+.steprow{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.startover{margin:0}
+.linkbtn,.linkbtn:hover{background:none;filter:none;border:0;padding:0;margin:0;color:var(--gray);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;min-height:0}
+.linkbtn:hover,.linkbtn:focus-visible{color:var(--ink)}.help{color:var(--gray);margin:0 0 6px}.hint{display:block;color:var(--gray);font-weight:400;font-size:13px}
 .actions{display:flex;align-items:center;gap:10px;margin-top:18px;border-top:1px solid var(--line);padding-top:4px}.actions .next{margin-left:auto;margin-right:0}
 .legal{max-height:20rem;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:2px 14px;background:var(--area)}
 .codes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}

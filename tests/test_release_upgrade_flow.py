@@ -25,6 +25,11 @@ from unittest import mock
 
 sys.dont_write_bytecode = True
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+# VMAP-3: the key of eFa-next as its package ships it, and a key with another fingerprint (ELevate).
+EFA_KEY_URL = 'https://repo.efa-next.eu/RPM-GPG-KEY-efa-next'
+RSPAMD_KEY_URL = 'https://rspamd.com/rpm/rspamd.asc'
+EFA_KEY_COPY = os.path.join(ROOT, 'next', 'usr', 'share', 'eFa', 'RPM-GPG-KEY-efa-next')
+ELEVATE_KEY = os.path.join(ROOT, 'next', 'usr', 'share', 'eFa', 'keys', 'RPM-GPG-KEY-ELevate')
 for name in ('grp', 'pwd', 'syslog', 'termios', 'resource'):
     sys.modules.setdefault(name, __import__(name) if importlib.util.find_spec(name) else types.ModuleType(name))
 # Windows (a test run by hand): tarfile asks pwd and grp for the owner names.
@@ -257,6 +262,23 @@ class Reply:
 
 @unittest.skipUnless(os.name == 'posix' and shutil.which('gpg'), 'the backup test of start needs gpg on a Unix host')
 class ReleaseUpgradeFlow(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # VMAP-3: the package ships no copy of the rspamd key; a throwaway key stands in for it, pinned by its own fingerprint.
+        cls.keys = tempfile.mkdtemp(prefix='efa-ru-keys-')
+        home = cls.keys + '/gnupg'
+        os.makedirs(home, mode=0o700)
+        gpg = ['gpg', '--homedir', home, '--batch', '--pinentry-mode', 'loopback', '--passphrase', '']
+        subprocess.run(gpg + ['--quick-gen-key', 'eFa-next test rspamd <test@example.org>', 'ed25519', 'sign', 'never'], check=True, capture_output=True)
+        with open(cls.keys + '/rspamd.asc', 'wb') as f:
+            f.write(subprocess.run(gpg + ['--armor', '--export'], check=True, capture_output=True).stdout)
+        colons = subprocess.run(gpg + ['--with-colons', '--list-keys'], check=True, capture_output=True, text=True).stdout
+        cls.rspamd_fingerprint = next(line.split(':')[9] for line in colons.splitlines() if line.startswith('fpr:'))
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.keys, True)
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix='efa-ru-')
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -307,6 +329,13 @@ class ReleaseUpgradeFlow(unittest.TestCase):
                       mock.patch.object(self.efactl.smtplib, 'SMTP', FakeSMTP), mock.patch.object(self.efactl, 'BACKUP_PATHS', (etc + '/postfix',)), mock.patch.object(self.efactl, 'BACKUP_DATA_PATHS', ()),
                       mock.patch.object(self.efactl, 'RU_FINISH_TRIES', 1), mock.patch.object(self.efactl, 'RU_FINISH_WAIT', 0),
                       mock.patch.object(lib, 'LEAPP_REPORT', self.platform.report), mock.patch.object(lib, 'VENDORS_DIR', self.tmp + '/vendors.d'),
+                      mock.patch.object(lib, 'LEAPP_REPOMAP', self.tmp + '/leapp-repomap.json'),
+                      # VMAP-3: a migrated host: the key of eFa-next only as the copy of its package, no file in /etc/pki; leapp's
+                      # trusted folder below the temp root; rspamd with the throwaway key of setUpClass.
+                      mock.patch.object(lib, 'REPO_KEYS', {EFA_KEY_URL: (lib.REPO_KEYS[EFA_KEY_URL][0], self.tmp + '/pki/RPM-GPG-KEY-efa-next'),
+                                                           RSPAMD_KEY_URL: (self.rspamd_fingerprint, self.tmp + '/pki/RPM-GPG-KEY-rspamd')}),
+                      mock.patch.object(lib, 'REPO_KEY_COPIES', {EFA_KEY_URL: (EFA_KEY_COPY,), RSPAMD_KEY_URL: (self.keys + '/rspamd.asc',)}),
+                      mock.patch.object(lib, 'LEAPP_KEY_DIR', self.tmp + '/vendors.d/rpm-gpg'),
                       # Never the files of the host that runs the test: the repositories and the settings below the temp root.
                       mock.patch.object(lib, 'REPO_FILES', (etc + '/yum.repos.d/efa-next.repo',)),
                       mock.patch.object(lib, 'LEAPP_LOG', self.platform.log), mock.patch.object(lib, 'RECOVER_DIR', self.net),
@@ -339,6 +368,19 @@ class ReleaseUpgradeFlow(unittest.TestCase):
     def state(self):
         return self.efactl.release_upgrade_status(None)
 
+    def test_a_waiting_step_is_not_queued_twice(self):
+        """6.0.0.6.6: efactl itself refuses a second preflight, preupgrade or start while a step waits for its run (a second
+        tab, the console beside the web interface); the web guard is not the only gate."""
+        args = argparse.Namespace(action='preflight', snapshot='', hostname='', no_backup='')
+        self.efactl.release_upgrade(args)
+        self.assertEqual(self.state()['state'], 'queued')
+        started = self.platform.calls.count(('service_start_background', self.efactl.RU_UNIT))
+        for action in ('preflight', 'preupgrade'):
+            with self.assertRaisesRegex(self.efactl.EfaError, 'waits for its run already: preflight'):
+                self.efactl.release_upgrade(argparse.Namespace(action=action, snapshot='', hostname='', no_backup=''))
+        self.assertEqual(self.platform.calls.count(('service_start_background', self.efactl.RU_UNIT)), started)
+        self.assertEqual(self.state()['request'], 'preflight')
+
     def test_save_takes_state_as_a_change(self):
         record = {}
         self.efactl._ru_save(record, state='preflight', request=None)
@@ -355,6 +397,16 @@ class ReleaseUpgradeFlow(unittest.TestCase):
         self.assertEqual([item['key'] for item in state['preupgrade']['high_risk']], ['k4'])
         self.assertTrue(os.path.exists(self.tmp + '/vendors.d/efa-next_map.json'))
         self.assertIn(('leapp', 'preupgrade'), self.platform.calls)
+        # VMAP-3: the checked key as a file, in leapp's trusted folder and in the package database, before leapp ran.
+        imported = self.platform.calls.index(('repo_key_import', self.tmp + '/pki/RPM-GPG-KEY-efa-next'))
+        self.assertLess(imported, self.platform.calls.index(('leapp', 'preupgrade')))
+        with open(EFA_KEY_COPY, 'rb') as f:
+            key = f.read()
+        for path in (self.tmp + '/pki/RPM-GPG-KEY-efa-next', self.tmp + '/vendors.d/rpm-gpg/efa-next.gpg'):
+            with open(path, 'rb') as f:
+                self.assertEqual(f.read(), key, path)
+        with open(self.tmp + '/vendors.d/efa-next.repo') as f:
+            self.assertIn('gpgkey=file://' + self.tmp + '/pki/RPM-GPG-KEY-efa-next\n', f.read())
         self.assertEqual(state['preupgrade']['removal'], [])
         self.assertEqual([call for call in self.platform.calls if call[0] == 'repo while leapp'], [('repo while leapp', True)])
         # During leapp: nginx, sendmail-milter and pytz kept against the PES removals, eFa-next taken from the EL10 repository,
@@ -362,7 +414,7 @@ class ReleaseUpgradeFlow(unittest.TestCase):
         seen = [call[1] for call in self.platform.calls if call[0] == 'leapp files'][0]
         self.assertTrue(seen['to_keep'].startswith(self.shipped['to_keep']))
         self.assertTrue(seen['to_keep'].endswith('nginx\nsendmail-milter\npython3-pytz\nwazuh-agent\n'), seen['to_keep'])
-        self.assertTrue(seen['to_install'].endswith('eFa-next\neFa-next-base\npython3-pymilter\ncertbot\npython3-certbot-nginx\n'))
+        self.assertTrue(seen['to_install'].endswith('eFa-next\neFa-next-base\npython3-pymilter\ncertbot\npython3-certbot-nginx\nfail2ban-selinux\n'))
         self.assertIn('metalink?repo=epel-10.2&arch=', seen['epel.repo'])
         for name in ('to_install', 'to_keep', 'epel.repo'):
             with open(self.platform.leapp_files[name]) as f:
@@ -417,6 +469,28 @@ class ReleaseUpgradeFlow(unittest.TestCase):
         self.assertEqual(self.efactl.release_upgrade_finish(None), {'release_upgrade': 'nothing to do'})
         self.assertFalse(os.path.exists(self.net) or os.path.exists(lib.RECOVER_UNIT_FILE))
         self.assertIn(('service_disable', lib.RECOVER_UNIT), self.platform.calls)
+
+    def test_vendor_maps_follow_the_format_of_leapp(self):
+        # leapp-upgrade-el9toel10 0.25 calls a map of format 1.3.0 invalid: the maps follow repomap.json.
+        with open(self.tmp + '/leapp-repomap.json', 'w') as f:
+            json.dump({'version_format': '2.0.0', 'provided_data_streams': ['5.0']}, f)
+        self.step('preflight')
+        self.step('preupgrade')
+        with open(self.tmp + '/vendors.d/efa-next_map.json') as f:
+            found = json.load(f)
+        self.assertEqual((found['version_format'], found['provided_data_streams']), ('2.0.0', ['5.0']))
+        self.assertEqual(found['mapping'][0]['entries'][0]['target'], {'default': ['efa-next-el10']})
+
+    def test_preupgrade_stops_at_an_unknown_map_format(self):
+        with open(self.tmp + '/leapp-repomap.json', 'w') as f:
+            json.dump({'version_format': '3.0.0', 'provided_data_streams': ['6.0']}, f)
+        self.step('preflight')
+        with self.assertRaisesRegex(self.efactl.EfaError, 'format 3.0.0'):
+            self.step('preupgrade')
+        state = self.state()
+        self.assertNotEqual(state['state'], 'ready', state)
+        self.assertFalse(os.path.exists(self.tmp + '/vendors.d/efa-next_map.json'))
+        self.assertNotIn(('leapp', 'preupgrade'), self.platform.calls)
 
     def test_preupgrade_stops_when_leapp_would_remove_efa_next(self):
         self.platform.leapp['preupgrade'] = BAD_LEAPP
@@ -582,6 +656,33 @@ class ReleaseUpgradeFlow(unittest.TestCase):
         self.assertEqual(self.state()['state'], 'done', self.state().get('result', {}).get('failed'))
         self.no_hash_left()
         self.assertFalse(os.path.exists(self.efactl.RU_MAINTENANCE_MAP))
+
+    def test_preupgrade_key_with_another_fingerprint_is_refused(self):
+        """VMAP-3: a copy of the key with another fingerprint (here the ELevate key) is never taken: nothing written or
+        imported, the preupgrade stops before leapp, and the heal reports it."""
+        lib = self.efactl._ru_lib()
+        with mock.patch.object(lib, 'REPO_KEY_COPIES', {EFA_KEY_URL: (ELEVATE_KEY,), RSPAMD_KEY_URL: (self.keys + '/rspamd.asc',)}):
+            steps = dict((name, (ok, detail)) for name, ok, detail in self.efactl.repo_keys_install(leapp=True))
+            efa = steps[f"key {lib.REPO_KEYS[EFA_KEY_URL][0][-16:]}"]
+            self.assertFalse(efa[0], steps)
+            self.assertIn('another fingerprint, not taken', efa[1])
+            self.assertFalse(os.path.exists(self.tmp + '/pki/RPM-GPG-KEY-efa-next'))
+            self.assertFalse(os.path.exists(self.tmp + '/vendors.d/rpm-gpg/efa-next.gpg'))
+            self.assertNotIn(('repo_key_import', self.tmp + '/pki/RPM-GPG-KEY-efa-next'), self.platform.calls)
+            self.assertFalse(self.efactl.repo_keys_heal(None)['keys'][0]['ok'])
+            self.step('preflight')
+            with self.assertRaisesRegex(self.efactl.EfaError, 'is not in place'):
+                self.step('preupgrade')
+        self.assertNotIn(('leapp', 'preupgrade'), self.platform.calls)
+
+    def test_heal_puts_the_key_of_a_migrated_host_in_place(self):
+        """VMAP-4: a migrated host (no file in /etc/pki, the key not in the package database): the heal writes the checked
+        copy of the package and imports it; not into leapp's folder (only the release upgrade does that)."""
+        found = self.efactl.repo_keys_heal(None)['keys']
+        self.assertEqual([item['ok'] for item in found], [True, True], found)
+        self.assertIn(('repo_key_import', self.tmp + '/pki/RPM-GPG-KEY-efa-next'), self.platform.calls)
+        self.assertTrue(os.path.exists(self.tmp + '/pki/RPM-GPG-KEY-efa-next'))
+        self.assertFalse(os.path.exists(self.tmp + '/vendors.d/rpm-gpg'))
 
     def test_repo_key_with_another_fingerprint_is_not_taken(self):
         """The finish takes a repository key only with its fingerprint: an answer without it (here: empty) is not imported,

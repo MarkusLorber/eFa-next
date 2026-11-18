@@ -184,5 +184,22 @@ class OvalNotices(unittest.TestCase):
         self.assertEqual(len(self.notices(status, 86400 + 60)), 1)
 
 
+class SelinuxDomains(RootTestCase):
+    """2026-11-18: on EL10 the policy of ClamAV (CRB) and fail2ban come in packages of their own; the security check names the
+    command of the platform, and the enabled repositories decide whether leapp takes the extra modules along."""
+
+    def test_the_commands_name_crb_and_the_packages(self):
+        fix = efa_platform_el10.EL10.SELINUX_DOMAIN_FIX
+        self.assertIn('--enablerepo=crb install selinux-policy-targeted-extra', fix['selinux-policy-targeted-extra'])
+        self.assertIn('install fail2ban-selinux', fix['fail2ban-selinux'])
+        self.assertIn('restorecon', fix['antivirus_t'])
+
+    def test_repos_enabled_reads_the_ids(self):
+        import subprocess
+        listed = "repo id    repo name\nbaseos     AlmaLinux 10 - BaseOS\ncrb        AlmaLinux 10 - CRB\n"
+        with mock.patch.object(c, 'run', lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, listed, '')):
+            self.assertEqual(efa_platform_el9.EL9().repos_enabled(), ['baseos', 'crb'])
+
+
 if __name__ == '__main__':
     unittest.main()

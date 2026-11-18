@@ -440,10 +440,10 @@ def netmask_prefix(value, version=4):
 def current_fqdn():
     """The host name from the settings, else /etc/hostname, else a default."""
     cfg = read_kv(P("efa_config"))
-    name = "%s.%s" % (cfg.get("HOSTNAME", ""), cfg.get("DOMAINNAME", ""))
+    name = ("%s.%s" % (cfg.get("HOSTNAME", ""), cfg.get("DOMAINNAME", ""))).lower()
     if valid_fqdn(name):
         return name
-    name = read_text(P("hostname_file"), "").strip()
+    name = read_text(P("hostname_file"), "").strip().lower()
     return name if valid_fqdn(name) else "efa.localdomain"
 
 

@@ -33,7 +33,8 @@ Auf derselben Karte:
 
 - **Pseudonyme:** Adressen im Mail-Log werden nach einigen Tagen zu Pseudonymen (`pseudonymise-set`).
 - **Ein Grund für Inhalte:** Vor dem Öffnen des Inhalts einer Mail kann ein getippter Grund verlangt werden, der im Audit-Log steht
-  (`content-reason-set`).
+  (`content-reason-set`). Im Mail-Log öffnet sich eine Mail in einem Fenster über der Seite; dort wird der Grund abgefragt, und
+  der letzte wird für die nächste Mail wieder angeboten.
 - **Betreffanzeige:** ob das Mail-Log Betreffzeilen zeigt (`subject-display-set`).
 
 Details: [privacy-and-reason.md](../privacy-and-reason.md), [header-privacy.md](../header-privacy.md).

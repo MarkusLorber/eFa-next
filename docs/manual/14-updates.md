@@ -109,6 +109,12 @@ AlmaLinux 9 to AlmaLinux 10 with ELevate (leapp), in fixed steps:
    last field the start leaves the backup out; the audit log keeps it, and the VM snapshot is then the only way back.
 4. **abort** stops a step and lifts the maintenance mode, but only before `leapp upgrade` has started.
 
+In the web interface (*Maintenance & update › Release-Upgrade*) one guided card leads through these steps: *Prepare and check
+the upgrade* runs preflight and preupgrade in one go; the card then says *The upgrade is possible* or lists why not; the start
+asks for the VM snapshot, the host name, your password and 2FA code (optionally the sentence for a start without backup); then a
+bar follows backup, upgrade, restarts and the checks, and waits for the host during the restarts. The single steps stay in the
+expert view.
+
 After the first EL10 boot eFa-next finishes the upgrade (database, Postfix maps, SELinux) and checks the whole system: services,
 addresses, firewall, DKIM keys, counts, a test mail, and that every setting is the same as before. Mail is accepted again only
 when every check passes.

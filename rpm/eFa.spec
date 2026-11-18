@@ -11,7 +11,7 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.5
+Version:        6.0.0.6.6
 Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
@@ -151,6 +151,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Wed Nov 18 2026 Markus Lorber - 6.0.0.6.6-1
+- 6.0.0.6.6: release upgrade to EL10 with leapp 0.25 (vendor maps 2.0.0, signing keys), SELinux module 1.4.1 for AlmaLinux 10.3, port 587 and checks after the upgrade, clusters of EL9 and EL10 nodes updated one at a time, guided 2FA setup and pages by task; see CHANGELOG.md.
+
 * Wed Nov 18 2026 Markus Lorber - 6.0.0.6.5-1
 - 6.0.0.6.5: 2FA set up again after a reset, Let's Encrypt behind split-horizon DNS, migration checks first; see CHANGELOG.md.
 

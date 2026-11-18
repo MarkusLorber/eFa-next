@@ -18,6 +18,12 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+# The main.cf of before as a marker while this step runs, SIGTERM through finally (scripts/ci_guard.py).
+import importlib.util  # noqa: E402
+_guard_spec = importlib.util.spec_from_file_location('ci_guard', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci_guard.py'))
+guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
+
 LE = '/etc/letsencrypt'
 NGINX_CONF = '/etc/nginx/conf.d/efa.conf'
 ACME_FILE = '/etc/eFa/acme.json'
@@ -92,6 +98,7 @@ def main():
         return 0
     saved = {'conf': open(NGINX_CONF).read(), 'cron': open(CRON).read() if os.path.exists(CRON) else None,
              'postfix': {k: run('postconf', '-h', k).strip() for k in ('smtpd_tls_cert_file', 'smtpd_tls_key_file')}, 'le': os.path.isdir(LE)}
+    guard.begin('le-takeover-live')
     try:
         root, leaf, key_pem = lineage(name)
         with open(ANCHOR, 'wb') as f:
@@ -142,6 +149,7 @@ def main():
             shutil.rmtree(LE, ignore_errors=True)
         run('systemctl', 'reload', 'nginx', check=False)
         run('systemctl', 'reload', 'postfix', check=False)
+        guard.end('le-takeover-live')
 
 
 if __name__ == '__main__':

@@ -30,7 +30,8 @@ import efa_release_upgrade as ru  # noqa: E402
 V3 = 'processor : 0\nflags : fpu avx avx2 bmi1 bmi2 f16c fma abm movbe xsave\n'
 FACTS = {'os_release': 'NAME="AlmaLinux"\nID="almalinux"\nVERSION_ID="9.8"\n', 'efa_version': '6.0.0.6', 'el10_repo': True, 'cpuinfo': V3,
          'free_root': 60 * 1024 ** 3, 'free_boot': 2 * 1024 ** 3, 'pending': [], 'ifcfg': [], 'time_synced': True, 'queue': 15,
-         'cluster_role': 'none', 'net_drivers': {'ens33': 'vmxnet3'}, 'postconf_n': 'mynetworks = 127.0.0.0/8\n'}
+         'cluster_role': 'none', 'net_drivers': {'ens33': 'vmxnet3'}, 'postconf_n': 'mynetworks = 127.0.0.0/8\n',
+         'repos_enabled': ['baseos', 'appstream', 'crb', 'epel']}
 # The structure of a real leapp-report.json of a preupgrade run (AlmaLinux 9 to 10), shortened, plus one inhibitor.
 LEAPP_REPORT = {'leapp_run_id': 'x', 'entries': [
     {'title': 'Leapp detected loaded kernel drivers which are no longer maintained in RHEL 10.', 'severity': 'high',

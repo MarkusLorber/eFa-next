@@ -103,6 +103,9 @@ msgstr "Newsletter und eigene Grenzen"
 msgid "Outbreak filter"
 msgstr "Ausbruchsfilter"
 
+msgid "Address harvesting"
+msgstr "Adress-Ausspähung"
+
 msgid "Spam traps"
 msgstr "Spamfallen"
 
@@ -571,11 +574,23 @@ msgstr "Sicherheit & Datenschutz"
 msgid "Security"
 msgstr "Sicherheit"
 
-msgid "Findings and alerts first, then admin access, the logins and the TLS and SSH profiles."
-msgstr "Zuerst Befunde und Alarme, dann Admin-Zugang, Anmeldungen und die TLS- und SSH-Profile."
+msgid "Is this server safe, who may administer it, how logins are protected, which TLS it speaks."
+msgstr "Ist dieser Server sicher, wer darf ihn verwalten, wie sind Anmeldungen geschützt, welches TLS spricht er."
 
-msgid "Security self check"
-msgstr "Sicherheits-Selbstprüfung"
+msgid "State of this server"
+msgstr "Zustand dieses Servers"
+
+msgid "Admin access"
+msgstr "Admin-Zugang"
+
+msgid "Logins"
+msgstr "Anmeldungen"
+
+msgid "TLS"
+msgstr "TLS"
+
+msgid "Self check and security minimum"
+msgstr "Selbstprüfung und Sicherheitsminimum"
 
 msgid "Attack alert"
 msgstr "Angriffswarnung"
@@ -583,32 +598,17 @@ msgstr "Angriffswarnung"
 msgid "CVE watch"
 msgstr "CVE-Wache"
 
-msgid "Admin access"
-msgstr "Admin-Zugang"
-
-msgid "Failed logins"
-msgstr "Fehlanmeldungen"
+msgid "More access settings"
+msgstr "Weitere Zugangseinstellungen"
 
 msgid "Four eyes"
 msgstr "Vier-Augen-Prinzip"
-
-msgid "Address harvesting"
-msgstr "Adress-Ausspähung"
 
 msgid "Setup variant"
 msgstr "Einrichtungsvariante"
 
 msgid "Milter health"
 msgstr "Milter-Gesundheit"
-
-msgid "TLS profile"
-msgstr "TLS-Profil"
-
-msgid "Security minimum"
-msgstr "Mindestsicherheit"
-
-msgid "SSH profile"
-msgstr "SSH-Profil"
 
 msgid "Hardening report"
 msgstr "Härtungsbericht"
@@ -843,6 +843,21 @@ msgstr "Sicherung & Wiederherstellung"
 
 msgid "Backups hold the database and private keys; encrypted ones need their password to restore."
 msgstr "Sicherungen enthalten die Datenbank und private Schlüssel; verschlüsselte brauchen zum Wiederherstellen ihr Passwort."
+
+msgid "Backups"
+msgstr "Sicherungen"
+
+msgid "Restore"
+msgstr "Wiederherstellen"
+
+msgid "External backup targets"
+msgstr "Externe Sicherungsziele"
+
+msgid "Settings to another host"
+msgstr "Einstellungen auf einen anderen Host"
+
+msgid "Signature key in a hardware module"
+msgstr "Signaturschlüssel in einem Hardwaremodul"
 
 msgid "Automatic backups are encrypted with it. It is stored for root only and never shown again. If you lose it, those backups are unusable."
 msgstr "Automatische Sicherungen werden damit verschlüsselt. Es wird nur für root gespeichert und nie wieder angezeigt. Wenn Sie es verlieren, sind diese Sicherungen unbrauchbar."
@@ -1126,6 +1141,9 @@ msgstr "Schalter: was gerade eingestellt ist"
 msgid "Forms: current values (check)"
 msgstr "Formulare: aktuelle Werte (Prüfung)"
 
+msgid "Security self check"
+msgstr "Sicherheits-Selbstprüfung"
+
 msgid "Cluster: make this node the master"
 msgstr "Cluster: diesen Knoten zum Master machen"
 
@@ -1247,7 +1265,7 @@ msgid "Ask for a reason before mail content is shown: on or off"
 msgstr "Vor dem Anzeigen von Mail-Inhalt nach einer Begründung fragen: an oder aus"
 
 msgid "Security self check: CVEs from OVAL data"
-msgstr "Sicherheits-Check: CVEs aus OVAL-Daten"
+msgstr "Sicherheits-Selbstprüfung: CVEs aus OVAL-Daten"
 
 msgid "Check the packages against the OVAL data of the distribution: on or off"
 msgstr "Pakete gegen die OVAL-Daten der Distribution prüfen: an oder aus"
@@ -1257,6 +1275,9 @@ msgstr "Neue Passwörter: gegen bekannte Datenlecks prüfen"
 
 msgid "Check against Have I Been Pwned (k-anonymity): on or off"
 msgstr "Gegen Have I Been Pwned prüfen (k-Anonymität): an oder aus"
+
+msgid "TLS profile"
+msgstr "TLS-Profil"
 
 msgid "TLS profile for the web interface and mail"
 msgstr "TLS-Profil für Weboberfläche und Mail"
@@ -1272,6 +1293,9 @@ msgstr "TLS auf Port 25 verlangen"
 
 msgid "I have read the warning and the senders without TLS of the last 7 days"
 msgstr "Ich habe die Warnung und die Absender ohne TLS der letzten 7 Tage gelesen"
+
+msgid "SSH profile"
+msgstr "SSH-Profil"
 
 msgid "SSH profile: BSI TR-02102-4 or the system setting"
 msgstr "SSH-Profil: BSI TR-02102-4 oder die Systemeinstellung"
@@ -2065,9 +2089,6 @@ msgstr "Unzustellbarkeitsmeldungen warten bis zu, etwa 5d"
 msgid "Connections when a server is back, 1 to 20"
 msgstr "Verbindungen, wenn ein Server zurück ist, 1 bis 20"
 
-msgid "External backup targets"
-msgstr "Externe Sicherungsziele"
-
 msgid "External backup targets: add or remove"
 msgstr "Externe Sicherungsziele: hinzufügen oder entfernen"
 
@@ -2196,9 +2217,6 @@ msgstr "Welche Mails"
 
 msgid "Domains, comma separated; empty for all domains of this server"
 msgstr "Domains, durch Komma getrennt; leer für alle Domains dieses Servers"
-
-msgid "TLS"
-msgstr "TLS"
 
 msgid "What the archive gets"
 msgstr "Was das Archiv bekommt"
@@ -2854,6 +2872,9 @@ msgstr "Modus: check, prestart oder apply"
 msgid "Service: postfix, nginx or dovecot (empty for all)"
 msgstr "Dienst: postfix, nginx oder dovecot (leer für alle)"
 
+msgid "Security minimum"
+msgstr "Mindestsicherheit"
+
 msgid "Passkeys: host name and mode per role"
 msgstr "Passkeys: Hostname und Modus je Rolle"
 
@@ -2945,7 +2966,7 @@ msgid "Mark as spam from this score on, inherit for the limit of the admin"
 msgstr "Ab diesem Score als Spam markieren, inherit für die Grenze des Admins"
 
 msgid "Link check: own hint on the warning page"
-msgstr "Link-Prüfung: eigener Hinweis auf der Warnseite"
+msgstr "Linkprüfung: eigener Hinweis auf der Warnseite"
 
 msgid "Tenant, empty for all"
 msgstr "Mandant, leer für alle"
@@ -2966,7 +2987,7 @@ msgid "Weight of blocklists that drops a client"
 msgstr "Gewicht der Sperrlisten, ab dem ein Client abgewiesen wird"
 
 msgid "Content disarm: active HTML"
-msgstr "Inhaltsbereinigung: aktives HTML"
+msgstr "Entschärfung von Inhalten: aktives HTML"
 
 msgid "Remove scripts, forms and event handlers from HTML mail: on or off"
 msgstr "Skripte, Formulare und Event-Handler aus HTML-Mails entfernen: an oder aus"
@@ -3077,19 +3098,19 @@ msgid "Reason of the release"
 msgstr "Grund der Freigabe"
 
 msgid "Domain check: light of each domain"
-msgstr "Domain-Check: Ampel je Domain"
+msgstr "Domainprüfung: Ampel je Domain"
 
 msgid "Domain check: details and DNS records of a domain"
-msgstr "Domain-Check: Einzelheiten und DNS-Einträge einer Domain"
+msgstr "Domainprüfung: Einzelheiten und DNS-Einträge einer Domain"
 
 msgid "Domain check: check now"
-msgstr "Domain-Check: jetzt prüfen"
+msgstr "Domainprüfung: jetzt prüfen"
 
 msgid "One domain; empty for all"
 msgstr "Eine Domain; leer für alle"
 
 msgid "Domain check: switch and weekly reminder"
-msgstr "Domain-Check: Schalter und wöchentliche Erinnerung"
+msgstr "Domainprüfung: Schalter und wöchentliche Erinnerung"
 
 msgid "Check every 6 hours"
 msgstr "Alle 6 Stunden prüfen"
@@ -3968,7 +3989,7 @@ msgid "Remove a network"
 msgstr "Ein Netz entfernen"
 
 msgid "Network"
-msgstr "Netz"
+msgstr "Netzwerk"
 
 msgid "Apply relay network changes"
 msgstr "Änderungen der Relay-Netze übernehmen"
@@ -5119,6 +5140,9 @@ msgstr "Ja, ausführen"
 msgid "Cancel"
 msgstr "Abbrechen"
 
+msgid "Close"
+msgstr "Schließen"
+
 msgid "Made in Europe, Austria"
 msgstr "Made in Europe, Österreich"
 
@@ -5176,6 +5200,9 @@ msgstr "Die Rechtstexte dieser Version sind noch nicht bestätigt. Die Admin-Sei
 msgid "Confirm"
 msgstr "Bestätigen"
 
+msgid "Back"
+msgstr "Zurück"
+
 msgid "Overview"
 msgstr "Übersicht"
 
@@ -5199,6 +5226,18 @@ msgstr "Header"
 
 msgid "Content"
 msgstr "Inhalt"
+
+msgid "Every look at a mail is kept in the audit log. Give a short reason, such as the ticket number or the question of the user."
+msgstr "Jeder Blick in eine Mail steht im Audit-Log. Geben Sie einen kurzen Grund an, etwa die Ticketnummer oder die Frage des Benutzers."
+
+msgid "The reason needs at least 5 characters."
+msgstr "Der Grund braucht mindestens 5 Zeichen."
+
+msgid "Reason (at least 5 characters)"
+msgstr "Grund (mindestens 5 Zeichen)"
+
+msgid "Show the mail"
+msgstr "Mail anzeigen"
 
 msgid "since"
 msgstr "seit"
@@ -5301,6 +5340,45 @@ msgstr "Der Server startet jetzt neu. Diese Seite versucht es von selbst wieder;
 
 msgid "The web interface does not answer: it restarts during the update. Trying again ..."
 msgstr "Die Weboberfläche antwortet nicht: sie startet während des Updates neu. Neuer Versuch ..."
+
+msgid "Progress of the upgrade"
+msgstr "Fortschritt des Upgrades"
+
+msgid "Preflight"
+msgstr "Vorprüfung"
+
+msgid "Install the upgrade tool and run the leapp check"
+msgstr "Upgrade-Werkzeug installieren und leapp-Prüfung"
+
+msgid "Backup and maintenance mode"
+msgstr "Sicherung und Wartungsmodus"
+
+msgid "Upgrade to EL10"
+msgstr "Upgrade auf EL10"
+
+msgid "Restarts"
+msgstr "Neustarts"
+
+msgid "Checks after the upgrade"
+msgstr "Prüfungen nach dem Upgrade"
+
+msgid "Done"
+msgstr "Erledigt"
+
+msgid "Usually 5 to 15 minutes. Mail runs as usual. You can close this page."
+msgstr "Meist 5 bis 15 Minuten. Mail läuft normal weiter. Sie können diese Seite schließen."
+
+msgid "The host restarts, several times. This page waits for it and goes on by itself."
+msgstr "Der Host startet neu, mehrmals. Diese Seite wartet auf ihn und macht von selbst weiter."
+
+msgid "About 30 to 60 minutes. New mail gets 421 and is sent again later. You can close this page."
+msgstr "Etwa 30 bis 60 Minuten. Neue Mail bekommt 421 und wird später erneut gesendet. Sie können diese Seite schließen."
+
+msgid "The host does not answer: it restarts. Waiting for it ..."
+msgstr "Der Host antwortet nicht: Er startet neu. Warte auf ihn ..."
+
+msgid "No answer for more than 30 minutes. Look at the console of the host. If it does not come back, the VM snapshot is the way back."
+msgstr "Seit über 30 Minuten keine Antwort. Die Konsole des Hosts ansehen. Kommt er nicht zurück, ist der VM-Snapshot der Weg zurück."
 
 msgid "Apply"
 msgstr "Übernehmen"
@@ -5479,6 +5557,15 @@ msgstr "Mehr auf dieser Seite in der Expertenansicht:"
 msgid "Show"
 msgstr "Anzeigen"
 
+msgid "stored"
+msgstr "gespeichert"
+
+msgid "not set"
+msgstr "nicht gesetzt"
+
+msgid "Remove"
+msgstr "Entfernen"
+
 msgid "Show all"
 msgstr "Alle anzeigen"
 
@@ -5490,6 +5577,9 @@ msgstr "Standard"
 
 msgid "Expert"
 msgstr "Experte"
+
+msgid "Saved."
+msgstr "Gespeichert."
 
 msgid "Turn off"
 msgstr "Ausschalten"
@@ -5544,9 +5634,6 @@ msgstr "wieder entfernt"
 
 msgid "Undo"
 msgstr "Rückgängig"
-
-msgid "Close"
-msgstr "Schließen"
 
 msgid "That did not work, log in again if needed."
 msgstr "Das hat nicht geklappt, bei Bedarf neu anmelden."
@@ -5647,15 +5734,6 @@ msgstr "Aktiv"
 msgid "empty keeps it"
 msgstr "leer behält es"
 
-msgid "stored"
-msgstr "gespeichert"
-
-msgid "not set"
-msgstr "nicht gesetzt"
-
-msgid "Remove"
-msgstr "Entfernen"
-
 msgid "Current:"
 msgstr "Aktuell:"
 
@@ -5722,8 +5800,32 @@ msgstr "2FA einrichten"
 msgid "Confirmed for this development host."
 msgstr "Für diesen Entwicklungshost bestätigt."
 
-msgid "Done"
-msgstr "Erledigt"
+msgid "Cluster: master"
+msgstr "Cluster: Master"
+
+msgid "mode"
+msgstr "Modus"
+
+msgid "Cluster: client of {}"
+msgstr "Cluster: Client von {}"
+
+msgid "Shared settings are changed on the master."
+msgstr "Gemeinsame Einstellungen werden am Master geändert."
+
+msgid "Changes here go to the master, which passes them to every node."
+msgstr "Änderungen hier gehen an den Master, der sie an jeden Knoten weitergibt."
+
+msgid "The master has not answered for a while: this state may be old."
+msgstr "Der Master hat länger nicht geantwortet: dieser Stand kann veraltet sein."
+
+msgid "Open the master"
+msgstr "Master öffnen"
+
+msgid "Cluster: state unknown"
+msgstr "Cluster: Zustand unbekannt"
+
+msgid "The cluster state of this node cannot be read."
+msgstr "Der Cluster-Zustand dieses Knotens kann nicht gelesen werden."
 
 msgid "Not done"
 msgstr "Nicht ausgeführt"
@@ -5878,9 +5980,6 @@ msgstr "Weiter"
 msgid "Test the connection"
 msgstr "Verbindung testen"
 
-msgid "Back"
-msgstr "Zurück"
-
 msgid "Hardening wizard"
 msgstr "Härtungs-Assistent"
 
@@ -5946,6 +6045,45 @@ msgstr "Mails"
 
 msgid "Viruses"
 msgstr "Viren"
+
+msgid "This host is the master"
+msgstr "Dieser Host ist der Master"
+
+msgid "As of {} s ago"
+msgstr "Stand vor {} s"
+
+msgid "No poll of the nodes yet."
+msgstr "Die Knoten wurden noch nicht abgefragt."
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Last contact"
+msgstr "Letzter Kontakt"
+
+msgid "Behind"
+msgstr "Im Rückstand"
+
+msgid "Sync"
+msgstr "Abgleich"
+
+msgid "{} s ago"
+msgstr "vor {} s"
+
+msgid "pending"
+msgstr "ausstehend"
+
+msgid "No node yet."
+msgstr "Noch kein Knoten."
+
+msgid "MX records"
+msgstr "MX-Einträge"
+
+msgid "to look at"
+msgstr "zu prüfen"
+
+msgid "Cluster page"
+msgstr "Cluster-Seite"
 
 msgid "CPU, RAM, disks and network: now, 15 min, 24 h"
 msgstr "CPU, RAM, Festplatten und Netzwerk: jetzt, 15 Min., 24 h"
@@ -6060,6 +6198,141 @@ msgstr "Installiert eFa-next und die Pakete des Betriebssystems in einem Schritt
 
 msgid "Full log"
 msgstr "Ganzes Protokoll"
+
+msgid "not prepared"
+msgstr "nicht vorbereitet"
+
+msgid "checking"
+msgstr "wird geprüft"
+
+msgid "possible"
+msgstr "möglich"
+
+msgid "not possible yet"
+msgstr "noch nicht möglich"
+
+msgid "checks failed"
+msgstr "Prüfungen fehlgeschlagen"
+
+msgid "done, accepted"
+msgstr "fertig, angenommen"
+
+msgid "stopped"
+msgstr "abgebrochen"
+
+msgid "Abort (only before the upgrade itself starts)"
+msgstr "Abbrechen (nur bevor das Upgrade selbst beginnt)"
+
+msgid "Abort"
+msgstr "Abbrechen"
+
+msgid "The upgrade is possible."
+msgstr "Das Upgrade ist möglich."
+
+msgid "Checked {}."
+msgstr "Geprüft {}."
+
+msgid "About 30 to 60 minutes without mail: new mail gets 421 and is sent again later."
+msgstr "Etwa 30 bis 60 Minuten ohne Mail: Neue Mail bekommt 421 und wird später erneut gesendet."
+
+msgid "Several restarts."
+msgstr "Mehrere Neustarts."
+
+msgid "No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back."
+msgstr "Kein Weg zurück: Das Upgrade auf EL10 lässt sich nicht rückgängig machen, nur ein VM-Snapshot dieses Hosts führt zurück."
+
+msgid "Start the upgrade now"
+msgstr "Upgrade jetzt starten"
+
+msgid "Start the upgrade to EL10 now?"
+msgstr "Das Upgrade auf EL10 jetzt starten?"
+
+msgid "Start without a backup (only with the VM snapshot)"
+msgstr "Ohne Sicherung starten (nur mit VM-Snapshot)"
+
+msgid "Empty (the default): an encrypted backup goes to every external backup target first. With the sentence the start leaves the backup out: then the VM snapshot is the only way back."
+msgstr "Leer (Standard): Zuerst geht eine verschlüsselte Sicherung an jedes externe Sicherungsziel. Mit dem Satz lässt der Start die Sicherung weg: Dann ist der VM-Snapshot der einzige Weg zurück."
+
+msgid "Check again"
+msgstr "Erneut prüfen"
+
+msgid "The upgrade ran, but checks after it failed. Mail is still refused (421)."
+msgstr "Das Upgrade ist durchgelaufen, aber Prüfungen danach sind fehlgeschlagen. Mail wird noch abgewiesen (421)."
+
+msgid "Run the checks again"
+msgstr "Prüfungen erneut ausführen"
+
+msgid "Accept as it is and take mail again"
+msgstr "So annehmen und wieder Mail annehmen"
+
+msgid "Accept"
+msgstr "Annehmen"
+
+msgid "Accept the failed checks and take mail again?"
+msgstr "Die fehlgeschlagenen Prüfungen annehmen und wieder Mail annehmen?"
+
+msgid "Reason (goes to the audit log)"
+msgstr "Grund (geht ins Audit-Log)"
+
+msgid "This host runs EL10."
+msgstr "Dieser Host läuft mit EL10."
+
+msgid "Failed checks were accepted; they stay in the audit log."
+msgstr "Fehlgeschlagene Prüfungen wurden angenommen; sie bleiben im Audit-Log."
+
+msgid "The upgrade is not possible yet."
+msgstr "Das Upgrade ist noch nicht möglich."
+
+msgid "Fix these points, then check again:"
+msgstr "Diese Punkte beheben, dann erneut prüfen:"
+
+msgid "The check did not pass; the log below says why."
+msgstr "Die Prüfung ist nicht durchgegangen; das Protokoll unten sagt warum."
+
+msgid "The last step stopped."
+msgstr "Der letzte Schritt ist abgebrochen."
+
+msgid "If the upgrade itself had started, look at the console of the host; the VM snapshot is the way back."
+msgstr "Falls das Upgrade selbst schon begonnen hatte: die Konsole des Hosts ansehen; der VM-Snapshot ist der Weg zurück."
+
+msgid "Checks whether this host can move to AlmaLinux or RHEL 10, and prepares it."
+msgstr "Prüft, ob dieser Host auf AlmaLinux oder RHEL 10 wechseln kann, und bereitet ihn vor."
+
+msgid "For this it installs the upgrade tool (ELevate and leapp) and the EL10 package source. Mail runs as usual; nothing is switched yet."
+msgstr "Dafür installiert es das Upgrade-Werkzeug (ELevate und leapp) und die EL10-Paketquelle. Mail läuft normal weiter; noch wird nichts umgestellt."
+
+msgid "The last check is older than {} hours: check again."
+msgstr "Die letzte Prüfung ist älter als {} Stunden: erneut prüfen."
+
+msgid "Prepare and check the upgrade"
+msgstr "Upgrade vorbereiten und prüfen"
+
+msgid "Set up 2FA in two steps"
+msgstr "2FA in zwei Schritten einrichten"
+
+msgid "Have an authenticator app ready."
+msgstr "Eine Authenticator-App bereitlegen."
+
+msgid "Any app for one-time codes (TOTP) on your phone or in your password manager."
+msgstr "Jede App für Einmal-Codes (TOTP) auf dem Handy oder im Passwort-Manager."
+
+msgid "Show the QR code and scan it."
+msgstr "QR-Code anzeigen und scannen."
+
+msgid "Then type the six-digit code the app shows; that switches 2FA on."
+msgstr "Dann den sechsstelligen Code eingeben, den die App zeigt; damit ist 2FA eingeschaltet."
+
+msgid "Your password"
+msgstr "Ihr Passwort"
+
+msgid "Show the QR code"
+msgstr "QR-Code anzeigen"
+
+msgid "Already scanned? Switch on with the code"
+msgstr "Schon gescannt? Mit dem Code einschalten"
+
+msgid "Switch 2FA on"
+msgstr "2FA einschalten"
 
 msgid "Help"
 msgstr "Hilfe"
@@ -6301,9 +6574,6 @@ msgstr "Treffer"
 msgid "Errors"
 msgstr "Fehler"
 
-msgid "Saved."
-msgstr "Gespeichert."
-
 msgid "Spamhaus DQS key"
 msgstr "Spamhaus-DQS-Schlüssel"
 
@@ -6334,6 +6604,9 @@ msgstr "Größe"
 msgid "The quarantine is empty."
 msgstr "Die Quarantäne ist leer."
 
+msgid "No group yet."
+msgstr "Noch keine Gruppe."
+
 msgid "Group"
 msgstr "Gruppe"
 
@@ -6343,8 +6616,47 @@ msgstr "Mitglieder"
 msgid "predefined"
 msgstr "vordefiniert"
 
-msgid "No way back: the upgrade to EL10 cannot be undone, only a VM snapshot of this host leads back. About 30 to 60 minutes without mail (new mail gets 421), several reboots."
-msgstr "Kein Weg zurück: Das Upgrade auf EL10 lässt sich nicht rückgängig machen, nur ein VM-Snapshot dieses Hosts führt zurück. Etwa 30 bis 60 Minuten ohne Mail (neue Mail bekommt 421), mehrere Neustarts."
+msgid "Upload the logo of a tenant"
+msgstr "Logo eines Mandanten hochladen"
+
+msgid "PNG, up to 200 KB and 1024 pixels"
+msgstr "PNG, bis 200 KB und 1024 Pixel"
+
+msgid "Upload"
+msgstr "Hochladen"
+
+msgid "Backup"
+msgstr "Sicherung"
+
+msgid "Date"
+msgstr "Datum"
+
+msgid "encrypted"
+msgstr "verschlüsselt"
+
+msgid "Admin password"
+msgstr "Admin-Passwort"
+
+msgid "Download"
+msgstr "Herunterladen"
+
+msgid "Upload a backup"
+msgstr "Sicherung hochladen"
+
+msgid "File (.tar.gz or .tar.gz.gpg, up to 64 MB)"
+msgstr "Datei (.tar.gz oder .tar.gz.gpg, bis 64 MB)"
+
+msgid "Newest"
+msgstr "Neueste"
+
+msgid "Operating system updates"
+msgstr "Updates des Betriebssystems"
+
+msgid "Release notes"
+msgstr "Versionshinweise"
+
+msgid "Last result"
+msgstr "Letztes Ergebnis"
 
 msgid "Started with the sentence \"without backup, snapshot only\", no backup is made and nothing of this host is kept anywhere else: the VM snapshot is then the only way back."
 msgstr "Mit dem Satz \"ohne Backup, nur Snapshot\" gestartet, entsteht keine Sicherung und nichts von diesem Host liegt anderswo: Der Rückweg ist dann nur der VM-Snapshot."
@@ -6499,8 +6811,365 @@ msgstr "Bekannter Absender schreibt zu neuer Stunde, viel mehr oder an neue Empf
 msgid "Behaviour counts from {} mails of a sender on, the tools from {} mails on."
 msgstr "Das Verhalten zählt ab {} Mails eines Absenders, die Programme ab {} Mails."
 
+msgid "reject"
+msgstr "abweisen"
+
+msgid "mark"
+msgstr "markieren"
+
+msgid "Sanesecurity"
+msgstr "Sanesecurity"
+
+msgid "signatures"
+msgstr "Signaturen"
+
+msgid "More sources"
+msgstr "Weitere Quellen"
+
+msgid "Off: dangerous attachments such as .exe reach the mailboxes."
+msgstr "Aus: gefährliche Anhänge wie .exe erreichen die Postfächer."
+
+msgid "Links checked when clicked"
+msgstr "Links beim Klick prüfen"
+
+msgid "Removes active content (macros, scripts) from Office and PDF files; the original stays here."
+msgstr "Entfernt aktive Inhalte (Makros, Skripte) aus Office- und PDF-Dateien; das Original bleibt hier."
+
+msgid "Originals kept"
+msgstr "Aufbewahrte Originale"
+
+msgid "not running"
+msgstr "läuft nicht"
+
+msgid "Originals"
+msgstr "Originale"
+
+msgid "When mail counts as spam"
+msgstr "Wann eine Mail als Spam gilt"
+
+msgid "Subject marking"
+msgstr "Betreffmarkierung"
+
+msgid "Exceptions"
+msgstr "Ausnahmen"
+
+msgid "Off: a new sender is not asked to try again."
+msgstr "Aus: ein neuer Absender wird nicht gebeten, es später erneut zu versuchen."
+
+msgid "How the filter learns"
+msgstr "Wie der Filter lernt"
+
+msgid "Bayes"
+msgstr "Bayes"
+
+msgid "active"
+msgstr "aktiv"
+
+msgid "learning"
+msgstr "lernt noch"
+
+msgid "{} spam, {} ham"
+msgstr "{} Spam, {} Ham"
+
+msgid "rspamd default"
+msgstr "Vorgabe von rspamd"
+
+msgid "Extra checks"
+msgstr "Zusätzliche Prüfungen"
+
+msgid "All checks"
+msgstr "Alle Prüfungen"
+
+msgid "This server"
+msgstr "Dieser Server"
+
+msgid "automatic (DHCP)"
+msgstr "automatisch (DHCP)"
+
+msgid "Gateway"
+msgstr "Gateway"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "Resolver"
+msgstr "Resolver"
+
+msgid "this server (unbound)"
+msgstr "dieser Server (unbound)"
+
+msgid "other"
+msgstr "anderer"
+
+msgid "Names go to"
+msgstr "Namen gehen an"
+
+msgid "public resolvers"
+msgstr "öffentliche Resolver"
+
+msgid "own forwarders"
+msgstr "eigene Weiterleitungen"
+
+msgid "the root servers directly"
+msgstr "direkt an die Root-Server"
+
+msgid "Internal domains"
+msgstr "Interne Domains"
+
+msgid "Fix"
+msgstr "Beheben"
+
+msgid "Certificate"
+msgstr "Zertifikat"
+
+msgid "The certificate of the web interface and of mail: Let's Encrypt for a public name, or your own."
+msgstr "Das Zertifikat der Weboberfläche und der Mail: Let's Encrypt für einen öffentlichen Namen oder Ihr eigenes."
+
+msgid "Own certificate"
+msgstr "Eigenes Zertifikat"
+
+msgid "Networks"
+msgstr "Netzwerke"
+
+msgid "Answers on"
+msgstr "Antwortet auf"
+
+msgid "Receiver"
+msgstr "Empfänger"
+
+msgid "Last sent"
+msgstr "Zuletzt gesendet"
+
+msgid "Dropped"
+msgstr "Verworfen"
+
+msgid "Events, mail log and metrics to an OpenTelemetry collector (OTLP/HTTP)."
+msgstr "Ereignisse, Mail-Log und Metriken an einen OpenTelemetry-Collector (OTLP/HTTP)."
+
+msgid "Test"
+msgstr "Test"
+
+msgid "SIEM (syslog)"
+msgstr "SIEM (Syslog)"
+
+msgid "Target"
+msgstr "Ziel"
+
+msgid "Logs and events to your SIEM over syslog, with TLS."
+msgstr "Logs und Ereignisse per Syslog an Ihr SIEM, mit TLS."
+
+msgid "Connection"
+msgstr "Verbindung"
+
+msgid "connected"
+msgstr "verbunden"
+
+msgid "disconnected"
+msgstr "getrennt"
+
+msgid "Manager"
+msgstr "Manager"
+
+msgid "Install"
+msgstr "Installieren"
+
+msgid "Metrics and reports"
+msgstr "Metriken und Berichte"
+
+msgid "Prometheus reads /metrics with an API token. Reports on the mail and on DMARC and TLS have their own pages."
+msgstr "Prometheus liest /metrics mit einem API-Token. Berichte zur Mail sowie zu DMARC und TLS haben eigene Seiten."
+
+msgid "DMARC and TLS reports"
+msgstr "DMARC- und TLS-Berichte"
+
+msgid "This node"
+msgstr "Dieser Knoten"
+
+msgid "not in a cluster"
+msgstr "in keinem Cluster"
+
+msgid "master"
+msgstr "Master"
+
+msgid "client"
+msgstr "Client"
+
+msgid "settings only on the master"
+msgstr "Einstellungen nur am Master"
+
+msgid "settings on every node (HA)"
+msgstr "Einstellungen auf jedem Knoten (HA)"
+
+msgid "Nodes"
+msgstr "Knoten"
+
+msgid "{} not reachable"
+msgstr "{} nicht erreichbar"
+
+msgid "Master"
+msgstr "Master"
+
+msgid "Node certificate until"
+msgstr "Knotenzertifikat bis"
+
+msgid "Start a cluster"
+msgstr "Cluster starten"
+
+msgid "Join a cluster"
+msgstr "Einem Cluster beitreten"
+
+msgid "Add a node"
+msgstr "Knoten hinzufügen"
+
+msgid "First node"
+msgstr "Erster Knoten"
+
+msgid "the first by name"
+msgstr "der erste nach Name"
+
+msgid "Off: every node installs an update by itself."
+msgstr "Aus: jeder Knoten installiert ein Update selbst."
+
+msgid "Operation without internet"
+msgstr "Betrieb ohne Internet"
+
+msgid "Updates from"
+msgstr "Updates von"
+
+msgid "the eFa-next repository"
+msgstr "dem eFa-next-Repository"
+
+msgid "Signed bundles"
+msgstr "Signierte Pakete"
+
+msgid "trusted key set"
+msgstr "vertrauenswürdiger Schlüssel gesetzt"
+
+msgid "no key trusted"
+msgstr "kein Schlüssel vertraut"
+
+msgid "{} days old"
+msgstr "{} Tage alt"
+
+msgid "Make a bundle"
+msgstr "Paket erstellen"
+
+msgid "All nodes"
+msgstr "Alle Knoten"
+
+msgid "Mail log, quarantine and queue of every node in one place."
+msgstr "Mail-Log, Quarantäne und Warteschlange aller Knoten an einer Stelle."
+
+msgid "to everybody"
+msgstr "an alle"
+
+msgid "only listed addresses"
+msgstr "nur gelistete Adressen"
+
+msgid "Your domains"
+msgstr "Ihre Domains"
+
+msgid "{} to look at"
+msgstr "{} zu prüfen"
+
+msgid "{} problems"
+msgstr "{} Probleme"
+
+msgid "No own domain yet."
+msgstr "Noch keine eigene Domain."
+
+msgid "Last domain check"
+msgstr "Letzte Domainprüfung"
+
+msgid "Check all now"
+msgstr "Alle jetzt prüfen"
+
+msgid "Values of a domain"
+msgstr "Werte einer Domain"
+
+msgid "All domains"
+msgstr "Alle Domains"
+
+msgid "not answered"
+msgstr "nicht beantwortet"
+
+msgid "Differ"
+msgstr "Abweichend"
+
+msgid "With EU relation: no failure reports, backups only in the EU."
+msgstr "Mit EU-Bezug: keine Fehlerberichte, Sicherungen nur in der EU."
+
+msgid "Weekly reminder"
+msgstr "Wöchentliche Erinnerung"
+
+msgid "Checks SPF, DKIM, DMARC, MTA-STS and TLS-RPT of every domain every 6 hours."
+msgstr "Prüft SPF, DKIM, DMARC, MTA-STS und TLS-RPT jeder Domain alle 6 Stunden."
+
+msgid "Details of a domain"
+msgstr "Details einer Domain"
+
+msgid "Self check"
+msgstr "Selbstprüfung"
+
+msgid "{} findings"
+msgstr "{} Befunde"
+
+msgid "{} settings set back"
+msgstr "{} Einstellungen zurückgesetzt"
+
+msgid "{} open"
+msgstr "{} offen"
+
+msgid "With an SSH key only"
+msgstr "Nur mit SSH-Schlüssel"
+
+msgid "On, also with a password"
+msgstr "An, auch mit Passwort"
+
+msgid "Web interface from"
+msgstr "Weboberfläche erreichbar von"
+
+msgid "all addresses"
+msgstr "allen Adressen"
+
+msgid "Change access"
+msgstr "Zugang ändern"
+
+msgid "Lockout"
+msgstr "Sperre"
+
+msgid "after {} failed logins in {} minutes, for {} hours"
+msgstr "nach {} Fehlversuchen in {} Minuten, für {} Stunden"
+
+msgid "Banned now"
+msgstr "Jetzt gesperrt"
+
+msgid "Profile in effect"
+msgstr "Aktives Profil"
+
+msgid "Web interface"
+msgstr "Weboberfläche"
+
+msgid "On: the service monitor does not restart stopped services. Switch it off when you are done."
+msgstr "An: Die Dienstüberwachung startet gestoppte Dienste nicht neu. Ausschalten, wenn Sie fertig sind."
+
+msgid "Both interrupt mail and ask first."
+msgstr "Beides unterbricht die Mail und fragt vorher nach."
+
+msgid "Shut down"
+msgstr "Herunterfahren"
+
+msgid "Open all"
+msgstr "Alle aufklappen"
+
+msgid "Close all"
+msgstr "Alle zuklappen"
+
 msgid "2FA: new app or new recovery codes"
 msgstr "2FA: neue App oder neue Wiederherstellungscodes"
+
+msgid "Single steps and status (expert)"
+msgstr "Einzelne Schritte und Status (Experten)"
 
 msgid "manifest.json, body.html and/or body.txt, media/ and attachments/. Checked whole before anything changes."
 msgstr "manifest.json, body.html und/oder body.txt, media/ und attachments/. Wird vollständig geprüft, bevor sich etwas ändert."
@@ -6567,9 +7236,6 @@ msgstr "Hauptadmin"
 
 msgid "Development"
 msgstr "Entwicklung"
-
-msgid "Test"
-msgstr "Test"
 
 msgid "To the start page"
 msgstr "Zur Startseite"
@@ -6940,14 +7606,20 @@ msgstr "Gefundene Mails"
 msgid "Live filtering adds new mails that match the filters at the top, every 5 seconds while this window is in view."
 msgstr "Der Live-Filter fügt neue Mails, die zu den Filtern passen, oben an: alle 5 Sekunden, solange dieses Fenster sichtbar ist."
 
-msgid "2FA: set up the app"
-msgstr "2FA: App einrichten"
+msgid "A step already waits for its run: see its progress on the card."
+msgstr "Ein Schritt wartet schon auf seinen Lauf: Den Fortschritt zeigt die Karte."
 
-msgid "Scan the code with the app, or type the key. Then confirm with the first code it shows."
-msgstr "Den Code mit der App scannen oder den Schlüssel eintippen. Dann mit dem ersten angezeigten Code bestätigen."
+msgid "In the authenticator app, add an account and scan this QR code."
+msgstr "In der Authenticator-App ein Konto hinzufügen und diesen QR-Code scannen."
 
-msgid "Back, to confirm"
-msgstr "Zurück, zum Bestätigen"
+msgid "No camera? Type this key in the app instead:"
+msgstr "Keine Kamera? Stattdessen diesen Schlüssel in der App eintippen:"
+
+msgid "Type the six-digit code the app shows now."
+msgstr "Den sechsstelligen Code eingeben, den die App jetzt zeigt."
+
+msgid "Then eFa-next shows ten recovery codes once. Keep them safe: each one logs you in once without the phone."
+msgstr "Danach zeigt eFa-next einmalig zehn Wiederherstellungscodes. Gut aufbewahren: Jeder meldet Sie einmal ohne Handy an."
 
 msgid "Please confirm the note to go on."
 msgstr "Bitte bestätigen Sie den Hinweis, um fortzufahren."
@@ -6981,9 +7653,6 @@ msgstr "DKIM-Rotationsprüfung"
 
 msgid "Security check"
 msgstr "Sicherheitsprüfung"
-
-msgid "Bayes"
-msgstr "Bayes"
 
 msgid "Important note on presets and recommendations"
 msgstr "Wichtiger Hinweis zu Voreinstellungen und Empfehlungen"
@@ -7117,9 +7786,6 @@ msgstr "Ich bin fachkundige Administratorin oder fachkundiger Administrator und 
 msgid "Server"
 msgstr "Server"
 
-msgid "DNS"
-msgstr "DNS"
-
 msgid "Admins"
 msgstr "Admins"
 
@@ -7197,9 +7863,6 @@ msgstr "IPv4-Gateway"
 
 msgid "The router this server sends to other networks through."
 msgstr "Der Router, über den dieser Server in andere Netze sendet."
-
-msgid "Gateway"
-msgstr "Gateway"
 
 msgid "An IPv4 address such as 192.0.2.1."
 msgstr "Eine IPv4-Adresse wie 192.0.2.1."
@@ -7465,9 +8128,6 @@ msgstr "Bewahren Sie dieses Blatt offline und verschlossen auf; wer einen Code u
 msgid "Setup progress"
 msgstr "Fortschritt der Einrichtung"
 
-msgid "Start over"
-msgstr "Von vorne beginnen"
-
 msgid "Dev mode: setup code switched off - not for production"
 msgstr "Dev-Modus: Setup-Code abgeschaltet – nicht für Produktion"
 
@@ -7573,6 +8233,9 @@ msgstr "Der Browser hat das Zertifikat der neuen Adresse noch nicht akzeptiert: 
 msgid "The address the server really has, on its console:"
 msgstr "Die Adresse, die der Server wirklich hat, auf seiner Konsole:"
 
+msgid "Start over"
+msgstr "Von vorne beginnen"
+
 msgid "Setting up"
 msgstr "Einrichtung läuft"
 
@@ -7588,11 +8251,8 @@ msgstr "Falscher Code: Prüfen Sie die Uhrzeit des Telefons und versuchen Sie de
 msgid "Failed in:"
 msgstr "Fehlgeschlagen bei:"
 
-msgid "With an SSH key only"
-msgstr "Nur mit SSH-Schlüssel"
-
-msgid "On, also with a password"
-msgstr "An, auch mit Passwort"
+msgid "2FA: set up the app"
+msgstr "2FA: App einrichten"
 
 msgid "Time on this server: {time} ({utc} UTC)"
 msgstr "Uhrzeit dieses Servers: {time} ({utc} UTC)"
@@ -7794,6 +8454,9 @@ msgstr "Gegen Have I Been Pwned prüfen (k-Anonymität)"
 
 msgid "Custom, checked"
 msgstr "Eigenes, geprüft"
+
+msgid "Required TLS on port 25 refuses every sending server that does not start TLS, and its mail goes back to the sender. RFC 3207 says a public mail server should not require it; MTA-STS, DANE and TLS for partner domains protect the way without refusing anyone. Look at the senders without TLS of the last 7 days before you switch it on."
+msgstr "Pflicht-TLS auf Port 25 weist jeden sendenden Server ab, der kein TLS startet, und seine Mail geht an den Absender zurück. Laut RFC 3207 soll ein öffentlicher Mailserver TLS nicht verlangen; MTA-STS, DANE und TLS für Partnerdomains schützen den Weg, ohne jemanden abzuweisen. Sehen Sie sich vor dem Einschalten die Absender ohne TLS der letzten 7 Tage an."
 
 msgid "BSI TR-02102-4 (back by itself unless confirmed)"
 msgstr "BSI TR-02102-4 (geht ohne Bestätigung von selbst zurück)"
@@ -8028,9 +8691,6 @@ msgstr "auditd-Regeln"
 
 msgid "Keep the lists rspamd uses now on"
 msgstr "Die Listen, die rspamd jetzt nutzt, eingeschaltet lassen"
-
-msgid "Version"
-msgstr "Version"
 
 msgid "Empty for the newest"
 msgstr "Leer: die neueste"
@@ -8275,9 +8935,6 @@ msgstr "Ein Konto über der Grenze anhalten, bis ein Admin es freigibt"
 msgid "throttle: the sender tries again later"
 msgstr "bremsen: der Absender versucht es später erneut"
 
-msgid "reject"
-msgstr "abweisen"
-
 msgid "Keyword, such as [secure]"
 msgstr "Stichwort, etwa [secure]"
 
@@ -8449,9 +9106,6 @@ msgstr "fail closed (sicher sperren)"
 msgid "fail open"
 msgstr "fail open (durchlassen)"
 
-msgid "Lockout"
-msgstr "Sperre"
-
 msgid "Within"
 msgstr "Innerhalb von"
 
@@ -8613,9 +9267,6 @@ msgstr "als zweiter Faktor oder allein, ohne Passwort"
 
 msgid "Graymail"
 msgstr "Graymail"
-
-msgid "mark"
-msgstr "markieren"
 
 msgid "deliver as it is"
 msgstr "unverändert zustellen"
@@ -9055,9 +9706,6 @@ msgstr "Auch als PDF-Anhang"
 msgid "Mail yesterday's report to the admin"
 msgstr "Den Bericht von gestern an den Admin mailen"
 
-msgid "Subject marking"
-msgstr "Betreffmarkierung"
-
 msgid "Empty turns it off"
 msgstr "Leer: schaltet es aus"
 
@@ -9130,6 +9778,9 @@ msgstr "Dieses eFa-next liest sie (reports-in-set)"
 msgid "Failure reports (ruf)"
 msgstr "Fehlerberichte (ruf)"
 
+msgid "Privacy: failure reports (ruf) can contain personal data such as message headers, addresses and parts of message content. Under the GDPR a legal basis and a processing agreement with the report receiver may be needed. Many receivers do not send them at all."
+msgstr "Datenschutz: Fehlerberichte (ruf) können personenbezogene Daten enthalten, etwa Header, Adressen und Teile des Inhalts. Nach der DSGVO können eine Rechtsgrundlage und ein Auftragsverarbeitungsvertrag mit dem Empfänger der Berichte nötig sein. Viele Empfänger senden sie gar nicht."
+
 msgid "Zone file"
 msgstr "Zonendatei"
 
@@ -9196,6 +9847,9 @@ msgstr "Adresse der Probe"
 msgid "Reboot automatically after the update"
 msgstr "Nach dem Update automatisch neu starten"
 
+msgid "At your own risk: mail is not accepted during the reboot, and a host that does not come back needs console access."
+msgstr "Auf eigenes Risiko: Während des Neustarts wird keine Mail angenommen, und ein Host, der nicht zurückkommt, braucht Zugang über die Konsole."
+
 msgid "Yes, I accept the reboot risk"
 msgstr "Ja, ich nehme das Risiko des Neustarts an"
 
@@ -9223,6 +9877,9 @@ msgstr "Annehmen: nach fehlgeschlagenen Prüfungen wieder Mail annehmen (Grund n
 msgid "Recheck: after failed checks, run the checks again; mail only when all pass"
 msgstr "Erneut prüfen: nach fehlgeschlagenen Prüfungen die Prüfungen wiederholen; Mail erst, wenn alle bestehen"
 
+msgid "Upgrade from AlmaLinux 9 to 10: about 30 to 60 minutes without mail (new mail gets 421 and is sent again later), several reboots. There is no rollback: the only way back is a VM snapshot. Take a snapshot first. Start only after preupgrade shows no inhibitor."
+msgstr "Upgrade von AlmaLinux 9 auf 10: etwa 30 bis 60 Minuten ohne Mail (neue Mail bekommt 421 und wird später erneut gesendet), mehrere Neustarts. Es gibt kein Zurück: Der einzige Weg zurück ist ein VM-Snapshot. Zuerst einen Snapshot machen. Erst starten, wenn Preupgrade kein Hindernis (inhibitor) zeigt."
+
 msgid "Empty sends directly"
 msgstr "Leer: sendet direkt"
 
@@ -9249,9 +9906,6 @@ msgstr "Die vor dem Update erstellte Sicherung wiederherstellen"
 
 msgid "Install now"
 msgstr "Jetzt installieren"
-
-msgid "Backup"
-msgstr "Sicherung"
 
 msgid "Restore an unsigned backup (6.0.0.4 or older, efa5-export)"
 msgstr "Eine unsignierte Sicherung wiederherstellen (6.0.0.4 oder älter, efa5-export)"
@@ -13363,9 +14017,6 @@ msgstr "Für wen"
 msgid "Id of the new disclaimer"
 msgstr "Kennung des neuen Disclaimers"
 
-msgid "All domains"
-msgstr "Alle Domains"
-
 msgid "One tenant"
 msgstr "Ein Mandant"
 
@@ -13608,9 +14259,6 @@ msgstr "Opportunistisch ist die Regel für Mail zwischen Servern (RFC 3207): ein
 
 msgid "The warnings name what may stop working; tick when you have read them."
 msgstr "Die Warnungen nennen, was aufhören kann zu funktionieren; setzen Sie das Häkchen, wenn Sie sie gelesen haben."
-
-msgid "Download"
-msgstr "Herunterladen"
 
 msgid "Check packages"
 msgstr "Pakete prüfen"

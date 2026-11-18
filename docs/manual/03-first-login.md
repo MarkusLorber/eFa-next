@@ -25,9 +25,10 @@ Authenticator and others). The QR code is drawn by eFa-next itself.
 
 **In the web interface:** *My account › Two-factor login (2FA)*:
 
-1. *Set up* shows the QR code and the key as text.
-2. Enter the first code of the app. 2FA is on, and ten recovery codes are shown once. Keep them safe: each works once instead
-   of a code.
+1. *Show the QR code* opens a page with the QR code and the key as text. For this eFa-next asks your password once: a taken-over session cannot bind an app of its own.
+2. On that same page, enter the six-digit code the app shows and press *Switch 2FA on*. Ten recovery codes are then shown
+   once. Keep them safe: each works once instead of a code. Setting up a new app when 2FA is already on asks for the
+   password and the current code first.
 
 While a login has no 2FA, the dashboard shows a notice with *Set up 2FA*. A super admin can require 2FA per role
 (*Users › 2FA of the users*, `efactl totp-policy-set --role tenant --mode required`): such logins reach only the 2FA setup

@@ -3905,7 +3905,7 @@ PREFS_DEFAULTS = {'language': 'auto', 'timezone': '', 'page_size': 100, 'notific
 PREFS_PAGE_SIZES = (25, 50, 100, 200, 500)
 # G7-7: the blocks of the dashboard a login may move, hide or set to half width. "Needs attention" and the CVE banner are
 # not in this list: they always stay on top.
-DASH_BLOCKS = ('board', 'flow', 'tiles', 'chart', 'load')
+DASH_BLOCKS = ('board', 'flow', 'tiles', 'chart', 'load', 'cluster')
 DASH_ACTIONS = ('up', 'down', 'hide', 'show', 'half', 'full')
 
 
@@ -4367,8 +4367,10 @@ def _own_tenant(args):
 def tenant_idp_status(args):
     """The login directory of a tenant: LDAP and OIDC, and its group mappings."""
     tenant_id = _own_tenant(args)
-    return {'ldap': ldap_status(None, _idp_file('ldap', tenant_id)), 'oidc': oidc_status(None, _idp_file('oidc', tenant_id)),
-            'groups': group_map_list(None, tenant_id)['groups']}
+    ldap, oidc = ldap_status(None, _idp_file('ldap', tenant_id)), oidc_status(None, _idp_file('oidc', tenant_id))
+    ldap['bind_password'] = secret_cell(ldap.pop('bind_password_stored'), f'tenant-ldap-set bind_password {tenant_id}', ldap.get('ldap'))
+    oidc['client_secret'] = secret_cell(oidc.pop('client_secret_stored'), f'tenant-oidc-set client_secret {tenant_id}', oidc.get('oidc'))
+    return {'ldap': ldap, 'oidc': oidc, 'groups': group_map_list(None, tenant_id)['groups']}
 
 
 def tenant_ldap_set(args):
@@ -4940,6 +4942,10 @@ def totp_setup(args):
         _admin_query('UPDATE user_totp SET pending = %s WHERE username = %s', (totp_seal(secret, username), username))
         _audit(f'2FA: new app of {username} started, the old one counts until it is confirmed')
     else:
+        # 6.0.0.6.6: a first app only with the password too: a taken-over session must not bind an app of its own and lock the
+        # login out. A login of a provider or a link has no password here; the console asks nothing (_reauth).
+        if _password_login(username):
+            _reauth(username)
         # The mark of a reset (reenroll) stays until the new app is confirmed: leaving the setup half way does not end it.
         _admin_query('INSERT INTO user_totp (username, secret, active, last_step, recovery) VALUES (%s, %s, 0, 0, NULL) '
                      'ON DUPLICATE KEY UPDATE secret = VALUES(secret), active = 0, last_step = 0, recovery = NULL', (username, totp_seal(secret, username)))
@@ -5028,6 +5034,15 @@ ACCOUNT_PROVIDER = 'The address and password of this login come from its login p
 
 def _web_call():
     return identity_now is not None or os.environ.get('SUDO_USER') == 'efa-web'
+
+
+def _password_login(username):
+    """True for a login whose password eFa-next can check: the main admin, a local login, an LDAP login."""
+    if username == '@admin':
+        return True
+    rows = _admin_query('SELECT source FROM users WHERE username = %s', (username,))
+    source = (rows[0]['source'] or '') if rows else ''
+    return source == 'local' or source.startswith('ldap')
 
 
 def _reauth(username):
@@ -5699,7 +5714,8 @@ def dev_flag_banner():
     header mark is enough (Hans 2026-11-17)."""
     if not os.path.lexists(DEV_NO_SETUP_CODE):
         return []
-    if _safe(lambda: environment_status()['set'], '') == 'dev' and _lib('efa_setup').dev_flag_problem() is None:
+    # The flag this function looks at, not the default path of efa_setup (a self-test, a test root).
+    if _safe(lambda: environment_status()['set'], '') == 'dev' and _lib('efa_setup').dev_flag_problem(DEV_NO_SETUP_CODE) is None:
         return []
     return [_text('{path} exists: the setup wizard opens without the setup code (dev mode, not for production). '
                   'Remove the file on a production host.', path=DEV_NO_SETUP_CODE)]
@@ -5758,14 +5774,24 @@ def _challenge_store(key, value=None, take=False):
     return base64.b64decode(found[0]) if found else None
 
 
+def cert_valid_from(cert):
+    """notBefore, timezone-aware: *_utc from cryptography 42 on (the naive one warns there), the naive one before (EL9)."""
+    return getattr(cert, 'not_valid_before_utc', None) or cert.not_valid_before.replace(tzinfo=datetime.timezone.utc)
+
+
+def cert_valid_until(cert):
+    """notAfter, timezone-aware, as cert_valid_from."""
+    return getattr(cert, 'not_valid_after_utc', None) or cert.not_valid_after.replace(tzinfo=datetime.timezone.utc)
+
+
 def certificate_for(rp_id, pem):
     """'' when the certificate is not self-signed, valid now and names rp_id, else why not."""
     from cryptography import x509
     cert = x509.load_pem_x509_certificate(pem)
+    rp_id = rp_id.lower()
     if cert.issuer == cert.subject:
         return 'the certificate is self-signed: passkeys need Let\'s Encrypt or a certificate of a CA the browsers of the admins trust'
-    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    if not cert.not_valid_before <= now <= cert.not_valid_after:
+    if not cert_valid_from(cert) <= datetime.datetime.now(datetime.timezone.utc) <= cert_valid_until(cert):
         return 'the certificate is not valid now'
     try:
         names = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)
@@ -8348,6 +8374,43 @@ def _certificate_end():
     return time.mktime(time.strptime(found.group(1).strip().replace(' GMT', ''), '%b %d %H:%M:%S %Y')) if found else None
 
 
+def clam_domains(proc='/proc'):
+    """{program: sorted SELinux types} of the running clamd and freshclam, read from /proc (no tool)."""
+    found = {}
+    for pid in (name for name in _safe(lambda: os.listdir(proc), []) if name.isdigit()):
+        try:
+            with open(f'{proc}/{pid}/comm') as f:
+                comm = f.read().strip()
+            if comm not in ('clamd', 'freshclam'):
+                continue
+            with open(f'{proc}/{pid}/attr/current') as f:
+                context = f.read().strip('\x00\n ')
+        except OSError:
+            continue
+        parts = context.split(':')
+        found.setdefault(comm, set()).add(parts[2] if len(parts) > 2 else context)
+    return {comm: sorted(types) for comm, types in found.items()}
+
+
+def selinux_domain_findings(installed, domains, fixes):
+    """EL10: a warning for each missing policy package of a program eFa-next runs, and for clamd or freshclam running in
+    another domain than antivirus_t while its policy is there. installed: {package: bool}, domains: clam_domains(), fixes: the
+    commands of the platform (SELINUX_DOMAIN_FIX)."""
+    found = []
+    if not installed.get('selinux-policy-targeted-extra', True):
+        found.append(finding('warning', 'clamd/freshclam run without their own SELinux domain',
+                             'selinux-policy-targeted-extra (repository CRB) is not installed: antivirus_t is missing',
+                             fixes.get('selinux-policy-targeted-extra', '')))
+    else:
+        wrong = [f"{comm} ({', '.join(types)})" for comm, types in sorted(domains.items()) if types != ['antivirus_t']]
+        if wrong:
+            found.append(finding('warning', 'clamd/freshclam not in their SELinux domain antivirus_t', ', '.join(wrong), fixes.get('antivirus_t', '')))
+    if not installed.get('fail2ban-selinux', True):
+        found.append(finding('warning', 'fail2ban runs without its own SELinux domain', 'fail2ban-selinux is not installed: fail2ban_t is missing',
+                             fixes.get('fail2ban-selinux', '')))
+    return found
+
+
 def security_check(_args):
     """Looks for what makes this host weak: missing security updates, ports, firewall, SSH, TLS, relay, file modes, certificate. Changes nothing."""
     checks, platform_now = [], _platform()
@@ -8406,6 +8469,15 @@ def security_check(_args):
     checks += pam_findings(_pam_on(), _submission_active())
     checks += relay_findings(_postconf('smtpd_relay_restrictions') + ' ' + _postconf('smtpd_recipient_restrictions'), _postconf('mynetworks'))
     checks += mode_findings(sorted(glob.glob(ETC + '/eFa/*.json')) + [ETC + '/eFa/MySQL-Config', WEB_DIR + '/admin.pw', WEB_DIR + '/maillog.pw'])
+    # 2026-11-18: in EL10 the SELinux domains of ClamAV (selinux-policy-targeted-extra, CRB) and fail2ban (fail2ban-selinux)
+    # come with packages of their own; a host upgraded from EL9 may lack them, and then these programs run unconfined.
+    if _safe(lambda: platform_now.mac_enabled(), False) and _safe(lambda: _ru_lib().os_major(open('/etc/os-release').read()), 0) == 10:
+        checks += selinux_domain_findings({package: _safe(lambda package=package: platform_now.package_installed(package), True)
+                                           for package in ('selinux-policy-targeted-extra', 'fail2ban-selinux')}, clam_domains(),
+                                          getattr(platform_now, 'SELINUX_DOMAIN_FIX', {}))
+    if _safe(lambda: platform_now.package_installed(_ru_lib().EFA5_KEY_RPM), False):
+        checks.append(finding('ok', 'Signing key of eFa 5 still trusted', f'{_ru_lib().EFA5_KEY_RPM} is in the package database',
+                              'Once no package of eFa 5 is left: rpm -e ' + _ru_lib().EFA5_KEY_RPM))
     try:
         checks += certificate_findings(_certificate_end())
     except (OSError, ValueError):
@@ -11634,20 +11706,58 @@ def submission_record():
     pam_on = _pam_on()
     if not pam_on:
         _write(PAM_OFF_FILE, 'off\n')
-    return {'auth': _submission_auth(), 'pam_on': pam_on}
+    effective, overrides = _submission_effective()
+    return {'auth': _submission_auth(), 'pam_on': pam_on, 'effective': effective, 'overrides': overrides, 'units': _submission_units()}
+
+
+def _submission_effective():
+    """(the values port 587 uses, its own -o in master.cf) for efa_release_upgrade.SUBMISSION_KEYS."""
+    lib = _ru_lib()
+    overrides = lib.submission_overrides(_ru_postconf('-P'))
+    return lib.submission_effective(overrides, _postconf), overrides
+
+
+def _submission_units():
+    """{unit: enabled} of the login services of port 587: efa-sasl and Dovecot."""
+    platform_now = _platform()
+    units = [SASL_UNITS[0], _safe(lambda: platform_now.service('sasl'), '')]
+    return {unit: bool(_safe(lambda unit=unit: platform_now.service_is_enabled(unit), False)) for unit in units if isinstance(unit, str) and unit}
 
 
 def submission_restore(recorded):
-    """F3: after the upgrade, exactly the recorded state of port 587, whatever a package put back. (changed, what)."""
+    """F3: after the upgrade, exactly the recorded state of port 587, whatever a package put back. (changed, what).
+    2026-11-18: by what 587 uses (AUTH, the SASL backend and its socket, from master.cf or main.cf) and the login services as
+    they were enabled: the recorded -o and units come back, never a choice of eFa-next; AUTH that was off stays off."""
     if not recorded:
         return False, 'nothing recorded before the upgrade'
     if not recorded['pam_on']:
         _write(PAM_OFF_FILE, 'off\n')
     _pam_keep()
-    if _submission_auth() == recorded['auth'] and _pam_on() == recorded['pam_on']:
-        return False, f"AUTH {recorded['auth']}, system accounts {'on' if recorded['pam_on'] else 'off'}"
-    _sasl_apply(recorded['auth'] == 'yes', pam_on=recorded['pam_on'])
-    return True, f"back to AUTH {recorded['auth']}, system accounts {'on' if recorded['pam_on'] else 'off'}"
+    if 'effective' not in recorded:
+        # A record of 6.0.0.6.5 (AUTH and the system accounts only): with AUTH as before, the backend of 587 stays as it is.
+        if _submission_auth() == recorded['auth']:
+            return False, f"AUTH {recorded['auth']} as before (the login service of 587 left as it is)"
+        _sasl_apply(recorded['auth'] == 'yes', pam_on=recorded['pam_on'])
+        return True, f"back to AUTH {recorded['auth']}, system accounts {'on' if recorded['pam_on'] else 'off'}"
+    effective, overrides = _submission_effective()
+    units = _submission_units()
+    if effective == recorded['effective'] and units == recorded['units']:
+        return False, f"AUTH {effective['smtpd_sasl_auth_enable']} with {effective['smtpd_sasl_type']} {effective['smtpd_sasl_path']}, as before"
+    for key in _ru_lib().SUBMISSION_KEYS:
+        if key in recorded['overrides']:
+            subprocess.run(['postconf', '-P', f"submission/inet/{key}={recorded['overrides'][key]}"], check=True, capture_output=True)
+        elif key in overrides:
+            subprocess.run(['postconf', '-PX', f'submission/inet/{key}'], check=False, capture_output=True)
+    platform_now = _platform()
+    for unit, enabled in sorted(recorded['units'].items()):
+        if _safe(lambda unit=unit: platform_now.service_exists(unit), True) and units.get(unit) != enabled:
+            (platform_now.service_enable(unit, start=True) if enabled else platform_now.service_disable(unit, stop=True))
+    platform_now.service_reload_if_active(platform_now.service('mta'))
+    after = _submission_effective()[0]
+    if after['smtpd_sasl_auth_enable'] != recorded['effective']['smtpd_sasl_auth_enable']:
+        raise EfaError(f"port 587: AUTH is {after['smtpd_sasl_auth_enable']}, before the upgrade it was {recorded['effective']['smtpd_sasl_auth_enable']}")
+    return True, (f"back as before: AUTH {after['smtpd_sasl_auth_enable']} with {after['smtpd_sasl_type']} {after['smtpd_sasl_path']}, "
+                  + ', '.join(f"{unit} {'on' if on else 'off'}" for unit, on in sorted(recorded['units'].items())))
 
 
 def sasl_apply(_args):
@@ -13316,7 +13426,9 @@ def backup_target_list(_args):
             f"sftp://{target['user']}@{target['host']}:{target.get('port', 22)}/{target.get('path', '')}"
         rows.append({'name': key, 'kind': target['kind'], 'where': where, 'keep_days': target['keep_days'], 'limit_kbps': target.get('limit_kbps', 0),
                      'provider': EU_BACKUP_PROVIDERS.get(target.get('provider', ''), ('not chosen (before 6.0.0.5)',))[0],
-                     'locked': target.get('locked', ''), 'last': target.get('last'), 'last_result': target.get('last_result')})
+                     'locked': target.get('locked', ''), 'last': target.get('last'), 'last_result': target.get('last_result'),
+                     # An S3 target cannot work without its secret key: it goes with the target (remove the target).
+                     'secret_key': secret_cell(target.get('secret_key'), '', True) if target['kind'] == 's3' else None})
     return {'targets': rows}
 
 
@@ -15326,6 +15438,8 @@ RU_LEAPP_WAIT = 1800
 RU_FINISH_WAIT = 30
 # Security standards and extra ClamAV sources (terms of a third party) change the whole host: super admins only too.
 SUPER_COMMANDS = {'settings-export', 'settings-import', 'pyzor-set', 'geoip-set', 'geoip-import', 'release-upgrade', 'release-upgrade-status', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-source-set', 'clam-securiteinfo-set', 'threat-set', 'environment-set'}
+# 2026-11-18 (cluster wizard): what makes, joins, changes or ends a cluster is for super admins only, whatever else a group grants.
+SUPER_COMMANDS |= {'cluster-init', 'cluster-token', 'cluster-join', 'cluster-mode-set', 'cluster-leave', 'cluster-promote', 'cluster-node-remove'}
 
 
 def _ru_lib():
@@ -15344,7 +15458,7 @@ def _ru_config(facts):
     for path in _platform().release_package_unchanged(sorted(files)):
         files[path] = lib.PACKAGE_FILE
     return {'postconf_n': lib.config_postconf(_ru_postconf('-n')), 'postconf_p': lib.config_postconf(_ru_postconf('-P')),
-            'files': files, 'units': facts.get('enabled_units', [])}
+            'files': files, 'units': facts.get('enabled_units', []), 'submission': _submission_effective()[0]}
 
 
 def _file_sha256(path):
@@ -15378,6 +15492,7 @@ def _ru_facts():
     facts = _platform().release_facts()
     facts['efa_version'] = _update_installed()
     facts['cluster_role'] = cluster_role()
+    facts['repos_enabled'] = _safe(lambda: _platform().repos_enabled(), [])
     try:
         facts['pending'] = _pending_os_updates()
     except (EfaError, OSError, subprocess.TimeoutExpired) as err:
@@ -15463,6 +15578,65 @@ def _ru_repo_keys():
                 ok, said = _platform().repo_refresh(repo)
                 steps.append((f'dnf makecache --repo {repo}', ok, '' if ok else said))
     return steps
+
+
+def repo_keys_install(leapp=False, fetch=False):
+    """VMAP-3/4: the signing keys of the repositories of eFa-next and rspamd, each only with its pinned fingerprint: from a
+    copy on the host (the package of eFa-next ships its key, efa_release_upgrade.REPO_KEY_COPIES) or the file in
+    /etc/pki/rpm-gpg, with fetch also from its address, to /etc/pki/rpm-gpg and into the package database; with leapp also into
+    leapp's trusted folder. A file with another fingerprint is never taken. Steps (name, ok, detail)."""
+    lib, steps = _ru_lib(), []
+    for url, (fingerprint, local) in lib.REPO_KEYS.items():
+        name = f'key {fingerprint[-16:]}'
+        key, refused = None, []
+        for source in (*lib.REPO_KEY_COPIES.get(url, ()), local, *([url] if fetch else [])):
+            try:
+                if source.startswith('https://'):
+                    with urllib.request.urlopen(source, timeout=30, context=ssl.create_default_context()) as reply:
+                        data = reply.read(256 * 1024)
+                elif os.path.exists(source):
+                    with open(source, 'rb') as f:
+                        data = f.read(256 * 1024)
+                else:
+                    continue
+            except OSError as err:
+                refused.append(f'{source}: {err}'[:120])
+                continue
+            shown = subprocess.run(['gpg', '--show-keys', '--with-colons'], input=data, capture_output=True, check=False).stdout.decode()
+            if fingerprint in lib.key_fingerprints(shown):
+                key = data
+                break
+            refused.append(f'{source}: another fingerprint, not taken')
+        if key is None and not refused and not fetch:
+            # No copy on the host at all (rspamd ships none): the release upgrade fetches it with fetch, checked as here.
+            steps.append((name, True, 'no copy on this host; the release upgrade takes it from its address, checked'))
+            continue
+        if key is None:
+            steps.append((name, False, f'no copy with the fingerprint {fingerprint}' + (f" ({'; '.join(refused)})" if refused else '')))
+            continue
+        try:
+            for path in [local] + ([f'{lib.LEAPP_KEY_DIR}/{os.path.basename(local).replace("RPM-GPG-KEY-", "")}.gpg'] if leapp else []):
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                if not os.path.exists(path) or open(path, 'rb').read() != key:
+                    with open(path + '.new', 'wb') as f:
+                        f.write(key)
+                    os.chmod(path + '.new', 0o644)
+                    os.replace(path + '.new', path)
+            _platform().repo_key_import(local)
+            steps.append((name, True, local + (' and leapp' if leapp else '')))
+        except Exception as err:  # the file system or rpm: the step names the cause
+            steps.append((name, False, str(err)[:200]))
+    return steps
+
+
+def repo_keys_heal(_args):
+    """VMAP-4: after an install, an upgrade or the migration from eFa 5: the signing keys of the repositories as files and in
+    the package database, from the copies on the host only (no network)."""
+    steps = repo_keys_install()
+    for name, ok, detail in steps:
+        if ok:
+            _audit(f'repository signing {name} in place ({detail})')
+    return {'keys': [{'key': name, 'ok': ok, 'detail': detail} for name, ok, detail in steps]}
 
 
 def _ru_repo_answers():
@@ -15844,7 +16018,10 @@ def _ru_backup():
 
 def _ru_queue(action):
     state = _ru_state()
-    if state.get('state') in ('preflight', 'preupgrade', 'starting', *_ru_lib().POINT_OF_NO_RETURN):
+    # 6.0.0.6.6: also a step that waits for its run (a second tab, the console beside the web interface): queued once only.
+    if state.get('state') == 'queued':
+        raise EfaError(f"A step waits for its run already: {state.get('request') or 'unknown'}. Its progress: efactl release-upgrade-status.")
+    if state.get('state') in ('preflight', 'preupgrade', 'starting', 'rechecking', *_ru_lib().POINT_OF_NO_RETURN):
         raise EfaError(f"A step runs already: {state['state']}.")
     _ru_save(state, request=action, state='queued', error=None)
     _platform().service_start_background(RU_UNIT)
@@ -15976,7 +16153,8 @@ def _ru_leapp_files(on):
     """leapp's customisation for eFa-next (efa_release_upgrade.LEAPP_TO_KEEP and _TO_INSTALL, the EPEL of the target
     release) for one leapp run, then the files as leapp shipped them."""
     lib = _ru_lib()
-    for name, names in (('to_install', lib.LEAPP_TO_INSTALL), ('to_keep', lib.LEAPP_TO_KEEP)):
+    to_install = lib.leapp_to_install(_safe(lambda: _platform().repos_enabled(), [])) if on else lib.LEAPP_TO_INSTALL
+    for name, names in (('to_install', to_install), ('to_keep', lib.LEAPP_TO_KEEP)):
         path, text = f'{lib.LEAPP_TRANSACTION_DIR}/{name}', ''
         if os.path.exists(path):
             with open(path) as f:
@@ -16059,7 +16237,17 @@ def _ru_preupgrade(state):
         ok, output = _platform().release_prepare(local, packages)
     if not ok:
         raise EfaError(f'The upgrade tool could not be installed: {output}')
-    for name, text in lib.vendor_files(source).items():
+    map_format = lib.leapp_map_format(_json_read(lib.LEAPP_REPOMAP, {}))
+    if map_format[1] is None:
+        raise EfaError(f'leapp takes vendor maps of format {map_format[0]}, which this eFa-next does not write yet: update eFa-next first.')
+    _ru_log(f'leapp vendor maps: format {map_format[0]}, data stream {map_format[1]}')
+    # VMAP-3: leapp 0.25 stops at keys of target repositories it does not trust (package database or its trusted folder): the
+    # checked keys first, else nothing of leapp runs.
+    for name, ok, detail in repo_keys_install(leapp=True, fetch=True):
+        _ru_log(f"signing {name}: {'in place' if ok else 'missing'} ({detail})")
+        if not ok:
+            raise EfaError(f'Signing {name} of a repository of eFa-next is not in place: {detail}. Nothing of leapp ran.')
+    for name, text in lib.vendor_files(source, map_format).items():
         _write(f'{lib.VENDORS_DIR}/{name}', text)
     _ru_log('leapp preupgrade')
     code, removal = _ru_leapp('preupgrade')
@@ -18918,7 +19106,7 @@ def _spki_of(pem):
 
 def tlsa_show(args):
     """TLSA records to publish for the MX name of this server, from the certificate Postfix uses, and what DNS shows now."""
-    host = (args.host or '').strip().lower().rstrip('.') or _postconf('myhostname')
+    host = (args.host or '').strip().lower().rstrip('.') or _postconf('myhostname').lower()
     if not DOMAIN_RE.match(host):
         raise EfaError('Host: the MX name of this server.')
     with open(_postconf('smtpd_tls_cert_file'), 'rb') as f:
@@ -18963,7 +19151,7 @@ def letsencrypt_rollover(args):
     if step not in ('prepare', 'switch', 'keep'):
         raise EfaError("Step: 'prepare', 'switch' or 'keep'.")
     state = _json_read(ACME_FILE, {})
-    domain = state.get('domain') or _postconf('myhostname')
+    domain = (state.get('domain') or _postconf('myhostname')).lower()
     current = state.get('lineage') or domain
     if not os.path.isdir(f'{ETC}/letsencrypt/live/{current}'):
         raise EfaError("No Let's Encrypt certificate of this host yet (Network, DNS & certificate, Let's Encrypt).")
@@ -19215,7 +19403,7 @@ def web_cert_set(args):
     else:
         current = _certificates_in_use()['web']
         pem = open(current, 'rb').read() if current and os.path.exists(current) else b''
-        names = web_cert_names(pem, _postconf('myhostname'))
+        names = web_cert_names(pem, _postconf('myhostname').lower())
         # The account: the e-mail and the accepted terms given now (setup wizard), else those of letsencrypt-set before.
         given = (getattr(args, 'email', '') or '').strip().lower()
         if given and (getattr(args, 'accept_tos', '') or '').strip() != 'yes':
@@ -19294,7 +19482,8 @@ def _letsencrypt_problem(name, lineage, chain=True):
 def letsencrypt_takeover(args):
     """The Let's Encrypt certificate already on this host (after a migration from eFa 5) for nginx and Postfix, as it is: the
     same key and key type, no new request. Renewals keep the key, so a TLSA record stays right."""
-    name = (args.domain or '').strip().lower() or _postconf('myhostname')
+    # DNS names are case-insensitive: an eFa 5 host may carry its name in capitals (hostname -f, myhostname).
+    name = ((args.domain or '').strip() or _postconf('myhostname')).lower().rstrip('.')
     if not DOMAIN_RE.match(name):
         raise EfaError('Invalid domain.')
     lineage = _letsencrypt_lineage(name)
@@ -19327,7 +19516,7 @@ def letsencrypt_takeover_notices():
     """A migrated host with a valid Let's Encrypt certificate that eFa-next does not use yet: nothing switches by itself."""
     if os.path.exists(ACME_FILE) or not os.path.isdir(ETC + '/letsencrypt/live'):
         return []
-    name = _postconf('myhostname')
+    name = _postconf('myhostname').lower()
     lineage = _letsencrypt_lineage(name)
     if _letsencrypt_problem(name, lineage, chain=False):
         return []
@@ -19553,7 +19742,7 @@ def mta_sts_set(args):
     else:
         if mode not in MTA_STS_MODES:
             raise EfaError('Mode: testing, enforce, none or remove.')
-        mx = [item.strip().lower().rstrip('.') for item in (args.mx or '').replace(',', ' ').split()] or _dns_mx(domain) or [_postconf('myhostname')]
+        mx = [item.strip().lower().rstrip('.') for item in (args.mx or '').replace(',', ' ').split()] or _dns_mx(domain) or [_postconf('myhostname').lower()]
         if any(not re.fullmatch(r'(\*\.)?([a-z0-9-]+\.)+[a-z]{2,}', item) for item in mx):
             raise EfaError('MX names like mx.example.org, or *.example.org.')
         max_age = (args.max_age or '').strip() or '604800'
@@ -20719,7 +20908,43 @@ SECRET_FIELDS = {
                                                            'The API token of the sandbox')(item),
     ('rbl-set', 'key'): _dqs_remove,
     ('clam-source-set', 'id'): _clam_id_remove,
+    ('tenant-ldap-set', 'bind_password'): lambda item: _tenant_idp_secret('ldap', 'bind_password', item),
+    ('tenant-oidc-set', 'client_secret'): lambda item: _tenant_idp_secret('oidc', 'client_secret', item),
+    ('feed-set', 'api_key'): lambda item: _feed_key_remove(item),
+    ('retro-imap-set', 'password'): lambda item: _secret_in_file(RETRO_IMAP_SECRET, 'password', lambda: retro_settings()['imap']['enabled'],
+                                                                  'The password of the IMAP master login')(item),
 }
+
+
+def secret_cell(stored, target, in_use):
+    """A stored secret in a list row: stored or not, and the secret-remove target while it can go. Never the value."""
+    return {'stored': bool(stored), 'remove': target if stored and not in_use else ''}
+
+
+def _tenant_idp_secret(kind, key, item):
+    """The bind password or client secret of the login directory of one tenant (item: its id), inside the scope only."""
+    if not item.isdigit():
+        raise EfaError('Unknown tenant.')
+    tenant_id = int(item)
+    if identity_now and identity_now['tenant_ids'] is not None and tenant_id not in identity_now['tenant_ids']:
+        raise EfaError('Not allowed: this tenant is outside your scope.')
+    path = _idp_file(kind, tenant_id)
+    what = 'The password of the LDAP service account' if kind == 'ldap' else 'The client secret of single sign-on'
+    return _secret_in_file(path, key, lambda: bool(_json_read(path, {}).get(kind)), what)(item)
+
+
+def _feed_key_remove(item):
+    """The API key of a STIX or MISP feed: only while the feed is off."""
+    feed = _feeds()['feeds'].get(item)
+    if not feed or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,31}', item):
+        raise EfaError('No such feed.')
+    if feed.get('enabled'):
+        raise EfaError('The feed is on: switch it off first, or save a new key instead.')
+    path = f'{FEEDS_DIR}/{item}.key'
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    return True
 
 
 def secret_remove(args):
@@ -23343,6 +23568,11 @@ def _cluster_forward(args):
 # Whole families stay on their host, whatever the list above forgets: a firewall job run on another node with its own files would
 # take away rules there (it did, in the test of 9b: the guard of the master ran again on a node and removed the allowlist table).
 CLUSTER_LOCAL_PREFIXES = ('firewall-', 'interface-', 'network-', 'update-', 'backup-', 'cluster-', 'wazuh-', 'session-', 'token-', 'audit-')
+# 6.0.0.6.6: jobs of the timers that are of this host alone (its security floor, its packages, its queue, its rspamd built from
+# the synced settings, its systemd hardening): never refused on a client (efa-floor-guard failed there: "Managed by ...").
+CLUSTER_LOCAL |= {'floor-check', 'cve-watch-run', 'outbound-hold-run', 'rbl-apply', 'service-harden', 'mta-sts-unserve', 'tls-profile-upgrade'}
+# Jobs of a timer on every node that change shared settings: the master runs them, a client skips them (no failure).
+CLUSTER_MASTER_JOBS = {'rotation-run'}
 
 
 def cluster_replicated(command):
@@ -23499,11 +23729,50 @@ def cluster_snapshot(_args):
         if item['path'] == _etc_relative(SANE_FILE):
             item['data'] = base64.b64encode(json.dumps(sane_without_secrets(_sane_state()), indent=2, sort_keys=True).encode()).decode()
     return {'seq': journal[-1]['seq'] if journal else 0, 'hostname': _postconf('myhostname'), 'files': files, 'postconf': explicit, 'services': services, 'sql': sql,
-            'units': {unit: platform_now.service_is_active(unit) for unit in SNAP_UNITS}}
+            'units': {unit: platform_now.service_is_active(unit) for unit in SNAP_UNITS},
+            'version': _lib('efa_cluster').own_version(), 'platform': _lib('efa_cluster').own_platform()}
+
+
+def _postfix_map_types():
+    """The lookup table types this Postfix has (postconf -m)."""
+    return set(subprocess.run(['postconf', '-m'], capture_output=True, text=True).stdout.split())
+
+
+# Parameters of main.cf that only the submission service (port 587) of master.cf uses: port 587 is the decision of each node,
+# so they come from the master only where this node's master.cf uses them; else postconf warns "unused parameter".
+SNAP_SUBMISSION_ONLY = ('efa_submission_milters', 'efa_submission_restrictions')
+
+
+def snapshot_local(snapshot, local_type, supported, node_refs=None):
+    """6.0.0.6.6: the Postfix values of a snapshot of the master as this node can take them: (postconf, services, skipped).
+    Tables of the master's type (hash on EL9, lmdb on EL10) as the type of this node; a value naming a table type this Postfix
+    does not have is left out and named in skipped, never written as it is."""
+    cluster = _lib('efa_cluster')
+    postconf, services, skipped = {}, {}, []
+    for name, value in sorted(snapshot.get('postconf', {}).items()):
+        if node_refs is not None and name in SNAP_SUBMISSION_ONLY and name not in node_refs:
+            continue
+        local, why = cluster.snapshot_value_local(value, local_type, supported)
+        if why:
+            skipped.append(f'main.cf {name}: {why}')
+        else:
+            postconf[name] = local
+    for service, line in sorted(snapshot.get('services', {}).items()):
+        local, why = cluster.snapshot_value_local(line, local_type, supported)
+        if why:
+            skipped.append(f'master.cf {service}: {why}')
+        else:
+            services[service] = local
+    return postconf, services, skipped
 
 
 def snapshot_apply(snapshot, files_only=False):
-    """A snapshot of the master on this node. With files_only (a test on one host) the rest is only listed."""
+    """A snapshot of the master on this node. With files_only (a test on one host) the rest is only listed.
+    6.0.0.6.6: only from a master of the release series of this node; its Postfix values as this platform takes them."""
+    cluster = _lib('efa_cluster')
+    problem = cluster.version_problem(cluster.own_version(), snapshot.get('version', ''))
+    if problem:
+        raise EfaError(f'Not taken: {problem}.')
     written, maps = [], []
     for item in snapshot['files']:
         path = os.path.realpath(os.path.join(ETC, item['path']))
@@ -23521,15 +23790,20 @@ def snapshot_apply(snapshot, files_only=False):
         if item.get('hash'):
             maps.append(path)
     own_names([os.path.join(ETC, item['path']) for item in snapshot['files']], snapshot.get('hostname', ''), _postconf('myhostname'))
-    pending = {'postconf': sorted(snapshot['postconf']), 'services': sorted(snapshot['services']), 'sql_bytes': len(snapshot['sql']),
-               'units': snapshot['units'], 'postmap': [os.path.relpath(path, ETC) for path in maps]}
+    node_refs = set(re.findall(r'\$\{?([a-z_][a-z0-9_]*)', _ru_postconf('-P')))
+    postconf, services, skipped = snapshot_local(snapshot, _map_type(), _postfix_map_types(), node_refs)
+    pending = {'postconf': sorted(postconf), 'services': sorted(services), 'sql_bytes': len(snapshot['sql']),
+               'units': snapshot['units'], 'postmap': [os.path.relpath(path, ETC) for path in maps], 'skipped': skipped}
     if files_only:
         return {'files': len(written), 'not_applied_in_this_test': pending}
+    for item in skipped:
+        print(f'cluster sync: not taken: {item}', file=sys.stderr)
+        _audit(f"cluster sync from the master ({snapshot.get('platform') or 'unknown platform'}): not taken here: {item}")
     for path in maps:
         subprocess.run(['postmap', _map(path)], check=False, capture_output=True)
-    for name, value in snapshot['postconf'].items():
+    for name, value in postconf.items():
         subprocess.run(['postconf', '-e', f'{name} = {value}'], check=False, capture_output=True)
-    for service, line in snapshot['services'].items():
+    for service, line in services.items():
         subprocess.run(['postconf', '-M', f'{service}={line}'], check=False, capture_output=True)
     if snapshot['sql']:
         subprocess.run(MYSQL_RESTORE + ['efa'], input=snapshot['sql'], text=True, env=_mysql_env(), check=False, capture_output=True)
@@ -23549,7 +23823,9 @@ def snapshot_apply(snapshot, files_only=False):
             _platform().service_reload_if_active(unit)
         except Exception:  # noqa: S110 - a service that is not there here
             pass
-    return {'files': len(written), 'postconf': len(snapshot['postconf']), 'services': len(snapshot['services']), 'tables': len(SNAP_TABLES)}
+    return {'files': len(written), 'postconf': len(postconf), 'services': len(services), 'tables': len(SNAP_TABLES), 'skipped': skipped,
+            'master': {'version': snapshot.get('version', ''), 'platform': snapshot.get('platform', '')},
+            'node': {'version': cluster.own_version(), 'platform': cluster.own_platform()}}
 
 
 # 9e: failover works through several MX records of equal priority, one per node; no shared storage.
@@ -23570,14 +23846,15 @@ def _own_address(family, probe):
         return None
 
 
-def mx_findings(domain, records, addresses_of, nodes):
-    """What the MX records of one domain mean for the failover. records: [(priority, host)], nodes: {address: node name}."""
-    findings = []
+def mx_findings(domain, records, addresses_of, nodes, names=None):
+    """What the MX records of one domain mean for the failover. records: [(priority, host)], nodes: {address: node name},
+    names: {host name: node name} (6.0.0.6.6: behind NAT or split DNS the MX names a node by its name, not its address here)."""
+    findings, names = [], {key.lower().rstrip('.'): value for key, value in (names or {}).items()}
     if not records:
         return [{'level': 'problem', 'domain': domain, 'text': 'No MX record: other servers deliver to the A record of the domain, or not at all.'}]
     covered, foreign = set(), []
     for priority, host in records:
-        found = [nodes[address] for address in addresses_of(host) if address in nodes]
+        found = [nodes[address] for address in addresses_of(host) if address in nodes] + ([names[host.lower()]] if host.lower() in names else [])
         if found:
             covered.update(found)
         else:
@@ -23595,6 +23872,14 @@ def mx_findings(domain, records, addresses_of, nodes):
     return findings
 
 
+def _own_names():
+    """The names of this host: myhostname and the names of its certificate of Postfix (no wildcards), small letters."""
+    found = {(_postconf('myhostname') or '').lower()}
+    path = _postconf('smtpd_tls_cert_file')
+    found |= {item.lower() for item in _safe(lambda: certificate_names(open(path, 'rb').read()), []) or []}
+    return sorted(item for item in found if item and '*' not in item)
+
+
 def cluster_mx_check(_args):
     """The master: do the MX records of the local domains point to the nodes, so that one can fail without loss of mail?"""
     _cluster, _base, state = _cluster_parts()
@@ -23604,9 +23889,13 @@ def cluster_mx_check(_args):
     for address in (_own_address(socket.AF_INET, '192.0.2.1'), _own_address(socket.AF_INET6, '2001:db8::1')):
         if address:
             nodes[address] = state['name']
+    names = {item: state['name'] for item in _own_names()}
     for name, node in state.get('nodes', {}).items():
         for address in _addresses_of(node['host']) or [node['host']]:
             nodes[address] = name
+        for item in [node['host']] + list(node.get('names', [])):
+            if item and not _safe(lambda item=item: ipaddress.ip_address(item), None):
+                names[str(item).lower()] = name
     findings, domains = [], _local_domains()
     for domain in domains:
         lines = subprocess.run(['dig', '+time=4', '+tries=1', '+short', 'MX', domain], capture_output=True, text=True, timeout=15).stdout.split('\n')
@@ -23615,7 +23904,7 @@ def cluster_mx_check(_args):
             parts = line.split()
             if len(parts) == 2 and parts[0].isdigit():
                 records.append((int(parts[0]), parts[1].rstrip('.').lower()))
-        findings += mx_findings(domain, sorted(records), _addresses_of, nodes)
+        findings += mx_findings(domain, sorted(records), _addresses_of, nodes, names)
     return {'domains': len(domains), 'nodes': sorted(set(nodes.values())), 'findings': findings,
             'ok': not any(item['level'] in ('problem', 'warning') for item in findings)}
 
@@ -23874,7 +24163,8 @@ def cluster_join(args):
     os.makedirs(base, mode=0o700, exist_ok=True)
     try:
         csr = cluster.make_request(base, name)
-        result = cluster.join_request(host, port, ca, {'token': token, 'name': name, 'host': address, 'port': own_port, 'csr': csr})
+        result = cluster.join_request(host, port, ca, {'token': token, 'name': name, 'host': address, 'port': own_port, 'csr': csr,
+                                                       'version': cluster.own_version(), 'platform': cluster.own_platform(), 'names': _own_names()})
     except urllib.error.HTTPError as err:
         shutil.rmtree(base, ignore_errors=True)
         raise EfaError(f'The master refused: {err.read().decode("utf-8", "replace")[:200]}')
@@ -23884,10 +24174,17 @@ def cluster_join(args):
     if result.get('ca') != ca:
         shutil.rmtree(base, ignore_errors=True)
         raise EfaError('The master answered with another CA: not joined.')
+    problem = cluster.version_problem(cluster.own_version(), result.get('version', ''))
+    if problem:
+        shutil.rmtree(base, ignore_errors=True)
+        raise EfaError(f'Not joined: {problem}.')
     _write(os.path.join(base, 'ca.crt'), ca)
     _write(os.path.join(base, 'node.crt'), result['cert'])
-    cluster.write_state({'role': 'client', 'name': name, 'port': own_port,
-                         'master': {'name': result.get('master'), 'host': host, 'port': port, 'fingerprint': result['master_fingerprint']}}, ETC)
+    # The mode of the master from its answer at once (until the first poll of the journal the node showed master-client).
+    mode = result.get('mode') if result.get('mode') in ('master-client', 'ha') else 'master-client'
+    cluster.write_state({'role': 'client', 'name': name, 'port': own_port, 'mode': mode,
+                         'master': {'name': result.get('master'), 'host': host, 'port': port, 'fingerprint': result['master_fingerprint'],
+                                    'version': result.get('version', ''), 'platform': result.get('platform', '')}}, ETC)
     _cluster_service(True)
     try:
         synced = cluster_resync(None)
@@ -23940,6 +24237,8 @@ def cluster_leave(args):
         raise EfaError('Not in a cluster.')
     _cluster_service(False)
     shutil.rmtree(base, ignore_errors=True)
+    _safe(lambda: os.remove(_lib('efa_cluster').view_file(ETC)), None)  # the line on every page goes too
+    _safe(lambda: os.remove(_lib('efa_cluster').health_file(ETC)), None)
     _safe(lambda: freshclam_follow('single'), '')  # 6.0.0.6: a single host fetches its official ClamAV databases again
     return {'role': 'none', 'left': state.get('name')}
 
@@ -25906,7 +26205,9 @@ def feed_status(_args):
     """The threat feeds: on or off, kind, last fetch and how many indicators each gave."""
     state, run = _feeds(), _json_read(FEEDS_STATE, {})
     rows = [{'name': name, 'kind': item['kind'], 'url': item['url'], 'enabled': item.get('enabled', False), 'terms_confirmed': item.get('accepted', ''),
-             'last': run.get(name, {}).get('last', ''), 'result': run.get(name, {}).get('result', ''), 'indicators': run.get(name, {}).get('count', 0)}
+             'last': run.get(name, {}).get('last', ''), 'result': run.get(name, {}).get('result', ''), 'indicators': run.get(name, {}).get('count', 0),
+             'api_key': secret_cell(os.path.exists(f'{FEEDS_DIR}/{name}.key'), f'feed-set api_key {name}', item.get('enabled'))
+             if item['kind'] in ('stix', 'misp') else None}
             for name, item in sorted(state['feeds'].items())]
     presets = [{'name': name, **preset} for name, preset in FEED_PRESETS.items() if name not in state['feeds']]
     return {'feeds': rows, 'presets': presets, 'totals': {kind: len(_read_lines(path)) for kind, path in FEED_MAPS.items()}, **sync_card('maps')}
@@ -25920,6 +26221,9 @@ def feed_set(args):
     state = _feeds()
     if action == 'remove':
         state['feeds'].pop(name, None)
+        # The key goes with its feed: a feed added again later under the name must not find the old one.
+        if os.path.exists(f'{FEEDS_DIR}/{name}.key'):
+            os.remove(f'{FEEDS_DIR}/{name}.key')
     elif action == 'off':
         if name not in state['feeds']:
             raise EfaError('No such feed.')
@@ -28476,6 +28780,8 @@ def retro_status(_args):
     """5v (j) and N6: the check after delivery, and the pull-back over IMAP (never the password)."""
     settings_now = retro_settings()
     count = _safe(lambda: _admin_query('SELECT COUNT(DISTINCT maillog_id) AS n FROM delivered_iocs')[0]['n'], None)
+    settings_now['imap']['password'] = secret_cell(_json_read(RETRO_IMAP_SECRET, {}).get('password'), 'retro-imap-set password',
+                                                   settings_now['imap']['enabled'])
     return {**settings_now, 'mails_indexed': count, 'hours': RETRO_HOURS, 'told': len(_json_read(RETRO_STATE, {'told': []})['told'])}
 
 
@@ -32431,9 +32737,9 @@ COMMANDS = {
                       'args': [{'name': 'device', 'label': 'Interface, for example ens224', 'required': True},
                                {'name': 'role', 'label': 'Role', 'required': True},
                                {'name': 'method', 'label': 'IPv4 method', 'required': False},
-                               {'name': 'address', 'label': 'Address with prefix, for example 192.0.2.10/24', 'required': False},
-                               {'name': 'gateway', 'label': 'Gateway, only for an uplink', 'required': False},
-                               {'name': 'dns', 'label': 'DNS servers, empty for none', 'required': False},
+                               {'name': 'address', 'label': 'Address with prefix, for example 192.0.2.10/24', 'required': False, 'when': 'method=manual'},
+                               {'name': 'gateway', 'label': 'Gateway, only for an uplink', 'required': False, 'when': 'method=manual'},
+                               {'name': 'dns', 'label': 'DNS servers, empty for none', 'required': False, 'when': 'method=manual'},
                                {'name': 'vlan', 'label': 'VLAN ID, empty for none', 'required': False},
                                {'name': 'confirm', 'label': 'Type yes to confirm', 'required': True}]},
     'network-harden': {'func': network_harden, 'title': 'Network: no automatic profiles for new interfaces', 'args': [], 'writes': True},
@@ -32758,15 +33064,15 @@ COMMANDS = {
                           'args': [{'name': 'name', 'label': 'Name of the target', 'required': True}, {'name': 'action', 'label': 'add or remove', 'required': True},
                                    {'name': 'kind', 'label': 'Kind', 'required': False},
                                    {'name': 'provider', 'label': 'Provider (only in European hands)', 'required': False},
-                                   {'name': 'eu_confirm', 'label': 'Own server: type yes, it stands in the EU and its operator is in European hands', 'required': False},
-                                   {'name': 'endpoint', 'label': 'S3: https endpoint, such as https://fsn1.your-objectstorage.com', 'required': False},
-                                   {'name': 'bucket', 'label': 'S3: bucket', 'required': False}, {'name': 'region', 'label': 'S3: region', 'required': False},
-                                   {'name': 'access_key', 'label': 'S3: access key', 'required': False},
-                                   {'name': 'secret_key', 'label': 'S3: secret key', 'required': False, 'secret': True},
-                                   {'name': 'secret_key2', 'label': 'Repeat the secret key', 'required': False, 'secret': True},
-                                   {'name': 'host', 'label': 'SFTP: host', 'required': False}, {'name': 'port', 'label': 'SFTP: port, default 22', 'required': False},
-                                   {'name': 'user', 'label': 'SFTP: user', 'required': False},
-                                   {'name': 'key_file', 'label': 'SFTP: private key on this server, readable by root only', 'required': False},
+                                   {'name': 'eu_confirm', 'label': 'Own server: type yes, it stands in the EU and its operator is in European hands', 'required': False, 'when': 'provider=own'},
+                                   {'name': 'endpoint', 'label': 'S3: https endpoint, such as https://fsn1.your-objectstorage.com', 'required': False, 'when': 'kind=s3'},
+                                   {'name': 'bucket', 'label': 'S3: bucket', 'required': False, 'when': 'kind=s3'}, {'name': 'region', 'label': 'S3: region', 'required': False, 'when': 'kind=s3'},
+                                   {'name': 'access_key', 'label': 'S3: access key', 'required': False, 'when': 'kind=s3'},
+                                   {'name': 'secret_key', 'label': 'S3: secret key', 'required': False, 'secret': True, 'when': 'kind=s3'},
+                                   {'name': 'secret_key2', 'label': 'Repeat the secret key', 'required': False, 'secret': True, 'when': 'kind=s3'},
+                                   {'name': 'host', 'label': 'SFTP: host', 'required': False, 'when': 'kind=sftp'}, {'name': 'port', 'label': 'SFTP: port, default 22', 'required': False, 'when': 'kind=sftp'},
+                                   {'name': 'user', 'label': 'SFTP: user', 'required': False, 'when': 'kind=sftp'},
+                                   {'name': 'key_file', 'label': 'SFTP: private key on this server, readable by root only', 'required': False, 'when': 'kind=sftp'},
                                    {'name': 'path', 'label': 'Folder on the target (S3: prefix)', 'required': False},
                                    {'name': 'keep_days', 'label': 'Keep backups there for days, default 30', 'required': False},
                                    {'name': 'limit_kbps', 'label': 'Bandwidth limit in kbit/s, 0 for none', 'required': False}]},
@@ -33925,6 +34231,7 @@ CLI_ONLY = {
     'admin-password': {'func': admin_password, 'args': []},
     'release-upgrade-run': {'func': release_upgrade_run, 'args': []},
     'postfix-submission-heal': {'func': postfix_submission_heal, 'args': []},
+    'repo-keys-heal': {'func': repo_keys_heal, 'args': []},
     'av-apply': {'func': av_apply, 'args': []},
     'dns-share-apply': {'func': dns_share_apply, 'args': []},
     'sender-skip-heal': {'func': sender_skip_heal, 'args': []},
@@ -35216,7 +35523,8 @@ def self_test():
         assert web_cert_names(b'', 'mx.own.example') == ['mx.own.example']
         acme_test()
         # Hans 2026-11-17: remove a stored secret: refused while in use, removed and audited when off, the setter's rights apply.
-        saved_secret = tuple(globals()[name] for name in ('LDAP_FILE', 'RBL_FILE', '_audit', '_rbl_apply', 'identity_now'))
+        saved_secret = tuple(globals()[name] for name in ('LDAP_FILE', 'RBL_FILE', '_audit', '_rbl_apply', 'identity_now', 'IDP_DIR', 'FEEDS_DIR',
+                                                          'FEEDS_FILE', 'RETRO_FILE', 'RETRO_IMAP_SECRET', 'sync_card'))
         applied, audit_lines = [], []
         try:
             ldap_file, rbl_file = tmp + '/ldap-secret.json', tmp + '/rbl-secret.json'
@@ -35236,9 +35544,57 @@ def self_test():
             globals()['identity_now'] = {'username': 'h', 'role': 'helpdesk', 'grants': set()}
             rejected(lambda item: secret_remove(item), ns(target='ldap-set bind_password'))
             assert _json_read(ldap_file, {})['bind_password'] == 'pw-1', 'refused: nothing removed'
+            # Secrets of list rows: a yes/no and the remove target in the row, never the value; tenant scope, in use, audit.
+            idp_dir, feeds_dir = tmp + '/idp-secret', tmp + '/feeds-secret'
+            os.makedirs(idp_dir, exist_ok=True)
+            os.makedirs(feeds_dir, exist_ok=True)
+            globals().update(IDP_DIR=idp_dir, FEEDS_DIR=feeds_dir, FEEDS_FILE=tmp + '/feeds-secret.json', RETRO_FILE=tmp + '/retro-secret.json',
+                             RETRO_IMAP_SECRET=tmp + '/retro-imap-secret.json', identity_now=None, sync_card=lambda _kind: {})
+            assert secret_cell('x', 'feed-set api_key a', False) == {'stored': True, 'remove': 'feed-set api_key a'}
+            assert secret_cell('x', 'feed-set api_key a', True)['remove'] == '' and secret_cell('', 't', False) == {'stored': False, 'remove': ''}
+            _json_write(_idp_file('ldap', 7), {'ldap': True, 'bind_password': 'tpw-1'}, mode=0o600)
+            rejected(lambda item: secret_remove(item), ns(target='tenant-ldap-set bind_password 7'), ns(target='tenant-ldap-set bind_password x7'))
+            _json_write(_idp_file('ldap', 7), {'ldap': False, 'bind_password': 'tpw-1'}, mode=0o600)
+            globals()['identity_now'] = {'username': 't', 'role': 'admin', 'grants': set(), 'tenant_ids': [8]}
+            rejected(lambda item: _tenant_idp_secret('ldap', 'bind_password', item), '7')
+            globals()['identity_now'] = None
+            assert secret_remove(ns(target='tenant-ldap-set bind_password 7'))['removed'] and 'bind_password' not in _json_read(_idp_file('ldap', 7), {})
+            _json_write(_idp_file('oidc', 7), {'oidc': False, 'client_secret': 'cs-1'}, mode=0o600)
+            assert secret_remove(ns(target='tenant-oidc-set client_secret 7'))['removed'] and not oidc_status(None, _idp_file('oidc', 7))['client_secret_stored']
+            _json_write(FEEDS_FILE, {'feeds': {'intel': {'kind': 'misp', 'url': 'https://misp.example/', 'enabled': True}}})
+            _write_secret(feeds_dir + '/intel.key', 'k-123')
+            row = feed_status(None)['feeds'][0]
+            assert row['api_key'] == {'stored': True, 'remove': ''} and 'k-123' not in json.dumps(row), row
+            rejected(lambda item: secret_remove(item), ns(target='feed-set api_key intel'), ns(target='feed-set api_key nofeed'))
+            _json_write(FEEDS_FILE, {'feeds': {'intel': {'kind': 'misp', 'url': 'https://misp.example/', 'enabled': False}}})
+            assert feed_status(None)['feeds'][0]['api_key']['remove'] == 'feed-set api_key intel'
+            assert secret_remove(ns(target='feed-set api_key intel'))['removed'] and not os.path.exists(feeds_dir + '/intel.key')
+            _json_write(RETRO_FILE, {'imap': {**retro_settings()['imap'], 'enabled': True}})
+            _json_write(RETRO_IMAP_SECRET, {'password': 'imap-pw'}, mode=0o600)
+            rejected(lambda item: secret_remove(item), ns(target='retro-imap-set password'))
+            _json_write(RETRO_FILE, {'imap': {**retro_settings()['imap'], 'enabled': False}})
+            assert secret_remove(ns(target='retro-imap-set password'))['removed'] and not _json_read(RETRO_IMAP_SECRET, {}).get('password')
+            assert [line.split(' by')[0] for line in audit_lines[2:]] == [
+                'stored secret removed: tenant-ldap-set bind_password 7', 'stored secret removed: tenant-oidc-set client_secret 7',
+                'stored secret removed: feed-set api_key intel', 'stored secret removed: retro-imap-set password'], audit_lines
         finally:
             globals().update(LDAP_FILE=saved_secret[0], RBL_FILE=saved_secret[1], _audit=saved_secret[2], _rbl_apply=saved_secret[3],
-                             identity_now=saved_secret[4])
+                             identity_now=saved_secret[4], IDP_DIR=saved_secret[5], FEEDS_DIR=saved_secret[6], FEEDS_FILE=saved_secret[7],
+                             RETRO_FILE=saved_secret[8], RETRO_IMAP_SECRET=saved_secret[9], sync_card=saved_secret[10])
+        # 2026-11-18 (EL10): the policy packages of ClamAV and fail2ban, and clamd/freshclam in antivirus_t.
+        for pid, comm, context in (('11', 'clamd', 'system_u:system_r:antivirus_t:s0'), ('12', 'freshclam', 'system_u:system_r:unconfined_service_t:s0'),
+                                   ('13', 'nginx', 'system_u:system_r:httpd_t:s0')):
+            os.makedirs(f'{tmp}/proc-se/{pid}/attr', exist_ok=True)
+            for name, text in (('comm', comm + '\n'), ('attr/current', context + '\x00')):
+                with open(f'{tmp}/proc-se/{pid}/{name}', 'w') as f:
+                    f.write(text)
+        assert clam_domains(tmp + '/proc-se') == {'clamd': ['antivirus_t'], 'freshclam': ['unconfined_service_t']}
+        assert selinux_domain_findings({'selinux-policy-targeted-extra': True, 'fail2ban-selinux': True}, {'clamd': ['antivirus_t']}, {}) == []
+        missing = selinux_domain_findings({'selinux-policy-targeted-extra': False, 'fail2ban-selinux': False}, {},
+                                          {'selinux-policy-targeted-extra': 'install --enablerepo=crb install selinux-policy-targeted-extra'})
+        assert [item['title'] for item in missing] == ['clamd/freshclam run without their own SELinux domain', 'fail2ban runs without its own SELinux domain']
+        assert '--enablerepo=crb install selinux-policy-targeted-extra' in missing[0]['fix']
+        assert 'freshclam (unconfined_service_t)' in selinux_domain_findings({'selinux-policy-targeted-extra': True}, clam_domains(tmp + '/proc-se'), {})[0]['detail']
         # Without an IPv6 route the IPv6 resolvers drop out of the run; with it, or with IPv4 only, the list stays.
         both = {'ipv4_1': '192.0.2.53', 'ipv6_1': '2001:db8::53'}
         assert domain_check_reachable(both, lambda resolver: False) == {'ipv4_1': '192.0.2.53'}
@@ -35386,6 +35742,11 @@ def self_test():
         assert arg_choice_problem(otlp, ns(signals='events,metrics', auth='bearer'), 'otlp-set') is None
         assert arg_choice_problem(otlp, ns(signals='events,bogus', auth='bearer'), 'otlp-set')
         assert 'verify' not in [arg['name'] for arg in otlp['args']]
+        # 2026-11-17 (UI review): the fields of the other method stay hidden: interface (static), backup target (S3 or SFTP).
+        assert {arg['name']: arg.get('when') for arg in COMMANDS['interface-set']['args'] if arg.get('when')} == {
+            'address': 'method=manual', 'gateway': 'method=manual', 'dns': 'method=manual'}
+        target = {arg['name']: arg.get('when') for arg in COMMANDS['backup-target-set']['args']}
+        assert target['bucket'] == 'kind=s3' and target['host'] == 'kind=sftp' and target['eu_confirm'] == 'provider=own' and target['path'] is None
         assert {arg['name']: arg.get('when') for arg in otlp['args'] if arg.get('when')} == {
             'header_name': 'auth=apikey', 'token': 'auth!=none', 'token_again': 'auth!=none'}
         # A failed step of the package setup: its file names mode, time and steps; the audit line and the notice come from it.
@@ -36749,13 +37110,13 @@ def self_test():
         rejected(lambda item: prefs_check(defaults, '', '', '', '', '', item), 'archive', 'Archive:on', 'a/b:on', 'archive:yes')
         # G7-7: the dashboard layout of a login; a reset drops it, unknown blocks and actions are refused.
         moved = prefs_check(defaults, '', '', '', '', '', '', 'load:up')
-        assert moved['dashboard'] == {'order': ['board', 'flow', 'tiles', 'load', 'chart'], 'hidden': [], 'half': []}
+        assert moved['dashboard'] == {'order': ['board', 'flow', 'tiles', 'load', 'chart', 'cluster'], 'hidden': [], 'half': []}
         moved = prefs_check(prefs_check(prefs_check(moved, '', '', '', '', '', '', 'chart:hide'), '', '', '', '', '', '', 'flow:half'), '', '', '', '', '', '', 'board:to=9')
-        assert moved['dashboard'] == {'order': ['flow', 'tiles', 'load', 'chart', 'board'], 'hidden': ['chart'], 'half': ['flow']}
-        assert prefs_check(moved, '', '', '', '', '', '', 'board:up')['dashboard']['order'][-2:] == ['board', 'chart']
+        assert moved['dashboard'] == {'order': ['flow', 'tiles', 'load', 'chart', 'cluster', 'board'], 'hidden': ['chart'], 'half': ['flow']}
+        assert prefs_check(moved, '', '', '', '', '', '', 'board:up')['dashboard']['order'][-2:] == ['board', 'cluster']
         assert prefs_check(moved, '', '', '', '', '', '', 'chart:show')['dashboard']['hidden'] == [] and 'dashboard' not in prefs_check(moved, '', '', '', '', '', '', 'reset')
         assert dash_layout({'dashboard': {'order': ['load', 'x', 'load'], 'hidden': 'tiles', 'half': ['x', 'chart']}}) == {
-            'order': ['load', 'board', 'flow', 'tiles', 'chart'], 'hidden': [], 'half': ['chart']}
+            'order': ['load', 'board', 'flow', 'tiles', 'chart', 'cluster'], 'hidden': [], 'half': ['chart']}
         rejected(lambda item: prefs_check(defaults, '', '', '', '', '', '', item), 'attention:hide', 'load', 'load:left', 'load:to=-1', 'load:to=x', 'Load:up')
         rejected(lambda item: archive_test(ns(host=item, port='25')), '', 'bad host', 'a.example:25', '-x')
         rejected(lambda item: archive_test(ns(host='a.example', port=item)), '0', '70000', 'x')
@@ -37169,15 +37530,21 @@ def self_test():
         globals().update(_totp_row=lambda user: {'secret': totp_seal(rfc, user), 'active': 1, 'last_step': 0, 'recovery': json.dumps([recovery_hash('aaaa-bbbb-cccc')])}
                          if user == 'anna' else None, totp_policy=lambda: {'user': 'required'}, _admin_query=lambda *a: written.append(a) or [])
         assert totp_check('nobody', None) is True
-        saved_dev = DEV_NO_SETUP_CODE
+        saved_dev = DEV_NO_SETUP_CODE, environment_status
         try:
-            globals()['DEV_NO_SETUP_CODE'] = tmp + '/dev-no-setup-code'
+            # Isolated from the host: its own flag and its environment (a dev host has a real flag that counts).
+            globals().update(DEV_NO_SETUP_CODE=tmp + '/dev-no-setup-code', environment_status=lambda *a: {'set': 'dev'})
             assert dev_flag_banner() == [], 'no flag, no warning'
             os.symlink(tmp + '/nowhere', tmp + '/dev-no-setup-code')
             assert len(dev_flag_banner()) == 1 and 'not for production' in dev_flag_banner()[0], 'any flag warns, even one efa-init ignores'
             os.unlink(tmp + '/dev-no-setup-code')
+            globals()['environment_status'] = lambda *a: {'set': 'production'}
+            with open(tmp + '/dev-no-setup-code', 'w') as f:
+                f.write('')
+            assert len(dev_flag_banner()) == 1, 'a flag on a host set to production warns'
+            os.unlink(tmp + '/dev-no-setup-code')
         finally:
-            globals()['DEV_NO_SETUP_CODE'] = saved_dev
+            globals().update(DEV_NO_SETUP_CODE=saved_dev[0], environment_status=saved_dev[1])
         saved_banner = {name: globals()[name] for name in ('setup_guided', '_totp_row', '_console_row', '_cli_user', 'AUDIT_LOG')}
         try:
             globals().update(setup_guided=lambda: True, _totp_row=lambda user: {'active': 1}, _console_row=lambda user: None, _cli_user=lambda: 'ops',
@@ -37224,7 +37591,7 @@ def self_test():
 
         def acc_query(sql, params=()):
             acc_sql.append((sql, params))
-            if sql.startswith(('SELECT password, source FROM users', 'SELECT email, email_pending')):
+            if sql.startswith(('SELECT password, source FROM users', 'SELECT email, email_pending', 'SELECT source FROM users')):
                 return [dict(acc_db[params[0]])] if params[0] in acc_db else []
             if sql.startswith('UPDATE users SET email_pending'):
                 acc_db[params[1]]['email_pending'] = params[0]
@@ -37274,6 +37641,23 @@ def self_test():
         globals()['identity_now'] = None
         acc_given[:] = ['untouched']
         assert _reauth('@admin') is False and acc_given == ['untouched'], 'the console asks nothing more'
+        # 6.0.0.6.6: the first app too only with the password (web, API): without it refused and nothing stored; with it the QR code.
+        globals()['identity_now'] = {'username': 'anna', 'role': 'domain'}
+        acc_sql.clear()
+        acc_given[:] = ['', '']
+        acc_refused(lambda: totp_setup(ns(qr=False)))
+        acc_given[:] = ['wrong', '']
+        acc_refused(lambda: totp_setup(ns(qr=False)))
+        assert not [sql for sql, _p in acc_sql if sql.startswith('INSERT INTO user_totp')], 'refused: no secret stored'
+        acc_given[:] = ['Better-Pass-2027-long!', '']
+        first = totp_setup(ns(qr=False))
+        assert first['qr_svg'] and first['secret'] and [sql for sql, _p in acc_sql if sql.startswith('INSERT INTO user_totp')]
+        assert acc_given == [], 'password and code were asked'
+        globals()['identity_now'] = {'username': 'carl', 'role': 'domain'}
+        acc_given[:] = ['untouched']
+        assert totp_setup(ns(qr=False))['secret'] and acc_given == ['untouched'], 'a provider login has no password to ask'
+        globals()['identity_now'] = None
+        assert totp_setup(ns(qr=False))['secret'] and acc_given == ['untouched'], 'the console (main admin) asks nothing'
         # A new app while 2FA is on: after the re-auth with the current code; the old app counts until the new one is confirmed.
         acc_row = {'secret': totp_seal(rfc, 'anna'), 'active': 1, 'last_step': 0, 'recovery': '[]'}
         acc_pending = []
@@ -37567,7 +37951,18 @@ def self_test():
             return builder.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.PEM)
         assert certificate_for('mx.example.org', certificate('R11', ['mx.example.org'])) == ''
         assert certificate_for('mx.example.org', certificate('R11', ['*.example.org'])) == ''
+        assert certificate_for('MX.Example.ORG', certificate('R11', ['mx.example.org'])) == '', 'a host name in capitals'
         assert 'self-signed' in certificate_for('mx.example.org', certificate('mx.example.org', ['mx.example.org']))
+        import warnings
+        assert 'not valid now' in certificate_for('mx.example.org', certificate('R11', ['mx.example.org'], days=0))
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            dated = x509.load_pem_x509_certificate(certificate('R11', ['mx.example.org']))
+            assert cert_valid_from(dated).tzinfo and cert_valid_from(dated) < cert_valid_until(dated), 'no deprecation warning'
+
+        class OldCert:
+            not_valid_before, not_valid_after = datetime.datetime(2026, 1, 1), datetime.datetime(2026, 4, 1)
+        assert cert_valid_until(OldCert()) == datetime.datetime(2026, 4, 1, tzinfo=datetime.timezone.utc), 'cryptography before 42 (EL9)'
         assert 'does not name' in certificate_for('mx.example.org', certificate('R11', ['other.example.org']))
         # MIG-LE: a lineage of eFa 5 (RSA) is taken as it is: no new key, the key type stays, renewals keep the key.
         from cryptography.hazmat.primitives.asymmetric import rsa
@@ -37623,7 +38018,8 @@ def self_test():
         def le_run(cmd, **kw):
             calls.append(list(cmd))
             return subprocess.CompletedProcess(cmd, 0, '', '')
-        globals().update(ACME_FILE=tmp + '/le/acme.json', _postconf=lambda name: 'mx.example.org' if name == 'myhostname' else '',
+        # An eFa 5 host may carry its name in capitals (hostname -f, myhostname); DNS is case-insensitive.
+        globals().update(ACME_FILE=tmp + '/le/acme.json', _postconf=lambda name: 'MX.Example.ORG' if name == 'myhostname' else '',
                          _postconf_set=lambda name, value: postfix_set.update({name: value}), _platform=LePlatform, _audit=lambda text: None)
         subprocess.run = le_run
         try:
@@ -39069,11 +39465,44 @@ def self_test():
                 os.remove(PAM_OFF_FILE)
                 _write(DOVECOT_AUTH, pam_toggled(auth, False))
                 kept_auth, auth_now = globals()['_submission_auth'], ['no']
+                kept_587 = {name: globals()[name] for name in ('_submission_effective', '_submission_units')}
                 globals()['_submission_auth'] = lambda: auth_now[0]
                 try:
-                    recorded = submission_record()
-                    assert recorded == {'auth': 'no', 'pam_on': False} and os.path.exists(PAM_OFF_FILE), recorded
-                    assert submission_restore(recorded) == (False, 'AUTH no, system accounts off'), 'nothing changed: nothing done'
+                    # 2026-11-18: the record has what 587 uses and its login services; port 587 of a host where AUTH came from
+                    # main.cf with Dovecot, after leapp with an -o for efa-sasl and efa-sasl on: back exactly to before.
+                    before_587 = {'smtpd_sasl_auth_enable': 'yes', 'smtpd_sasl_type': 'dovecot', 'smtpd_sasl_path': 'private/auth',
+                                  'smtpd_tls_auth_only': 'yes', 'smtpd_sasl_security_options': 'noanonymous'}
+                    now_587 = [({**before_587, 'smtpd_sasl_path': '/run/efa-sasl/auth'}, {'smtpd_sasl_path': '/run/efa-sasl/auth'}), (before_587, {})]
+                    units_now = [{'efa-sasl.socket': True, 'dovecot': False}]
+                    globals().update(_submission_effective=lambda: now_587.pop(0) if len(now_587) > 1 else now_587[0],
+                                     _submission_units=lambda: units_now[0])
+                    record_new = {'auth': 'yes', 'pam_on': False, 'effective': before_587, 'overrides': {},
+                                  'units': {'efa-sasl.socket': False, 'dovecot': True}}
+                    done_calls.clear()
+                    changed_587, what_587 = submission_restore(record_new)
+                    assert changed_587 and 'dovecot private/auth' in what_587, what_587
+                    assert ('run', ('postconf', '-PX', 'submission/inet/smtpd_sasl_path'), {}) in done_calls, 'the -o of eFa-next goes'
+                    assert ('service_disable', ('efa-sasl.socket',), {'stop': True}) in done_calls and ('service_enable', ('dovecot',), {'start': True}) in done_calls
+                    assert not [call for call in done_calls if call[1][:3] == ('postconf', '-P', 'submission/inet/smtpd_sasl_auth_enable=yes')]
+                    # AUTH off before: never on again, and nothing at all when 587 is as before.
+                    off_587 = {**before_587, 'smtpd_sasl_auth_enable': 'no'}
+                    now_587[:] = [({**off_587, 'smtpd_sasl_auth_enable': 'yes'}, {'smtpd_sasl_auth_enable': 'yes'}), (off_587, {'smtpd_sasl_auth_enable': 'no'})]
+                    units_now[0] = {'efa-sasl.socket': False, 'dovecot': False}
+                    done_calls.clear()
+                    assert submission_restore({'auth': 'no', 'pam_on': False, 'effective': off_587, 'overrides': {'smtpd_sasl_auth_enable': 'no'},
+                                               'units': {'efa-sasl.socket': False, 'dovecot': False}})[0]
+                    assert ('run', ('postconf', '-P', 'submission/inet/smtpd_sasl_auth_enable=no'), {}) in done_calls
+                    assert not [call for call in done_calls if call[0] == 'service_enable'], 'no login service enabled'
+                    now_587[:] = [(off_587, {'smtpd_sasl_auth_enable': 'no'})]
+                    done_calls.clear()
+                    assert not submission_restore({'auth': 'no', 'pam_on': False, 'effective': off_587, 'overrides': {'smtpd_sasl_auth_enable': 'no'},
+                                                   'units': {'efa-sasl.socket': False, 'dovecot': False}})[0] and not done_calls
+                    globals().update(kept_587)
+                    recorded = {'auth': 'no', 'pam_on': False}
+                    _pam_keep()
+                    assert os.path.exists(PAM_OFF_FILE)
+                    # A record of 6.0.0.6.5 (AUTH and the system accounts only).
+                    assert submission_restore(recorded) == (False, 'AUTH no as before (the login service of 587 left as it is)'), 'nothing changed: nothing done'
                     os.remove(PAM_OFF_FILE)  # even without the mark after leapp
                     _write(DOVECOT_AUTH, auth)
                     auth_now[0] = 'yes'
@@ -39084,6 +39513,7 @@ def self_test():
                     assert submission_restore(None) == (False, 'nothing recorded before the upgrade')
                 finally:
                     globals()['_submission_auth'] = kept_auth
+                    globals().update(kept_587)
                 os.remove(PAM_OFF_FILE)
                 _write(DOVECOT_AUTH, auth)
                 done_calls.clear()
@@ -39710,6 +40140,8 @@ def main():
         if role == 'client' and not os.environ.get('EFA_CLUSTER_REPLAY'):
             if cluster_mode() == 'ha':
                 args.func, role = _cluster_forward, 'forwarded'
+            elif args.command in CLUSTER_MASTER_JOBS:
+                args.func, role = (lambda _args: {'skipped': 'a client in master/client mode: the master runs this job'}), 'none'
             elif cluster_replicated(args.command):
                 master = _lib('efa_cluster').read_state(ETC).get('master', {}).get('name', 'the master')
                 raise EfaError(f'Managed by {master}: this node is a client in master/client mode. Change it on {master}.')

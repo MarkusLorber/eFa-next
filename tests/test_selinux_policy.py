@@ -17,7 +17,10 @@ class SelinuxPolicyTests(unittest.TestCase):
     def setUp(self):
         with open(TE, encoding='utf-8') as f:
             self.text = re.sub(r'#.*', '', f.read())
-        self.required = set(re.findall(r'\btype\s+(\w+)\s*;', self.text.split('require', 1)[1].split('}', 1)[0]))
+        blocks = re.findall(r'require\s*\{([^}]*)\}', self.text)
+        # The require of the whole module (the first), and those of the optional blocks (1.4.1).
+        self.core = set(re.findall(r'\btype\s+(\w+)\s*;', blocks[0]))
+        self.required = {name for block in blocks for name in re.findall(r'\btype\s+(\w+)\s*;', block)}
         self.rules = re.findall(r'^\s*(allow|dontaudit)\s+(\w+)\s+(\w+):(\w+)\s+([\w{} ]+);', self.text, flags=re.M)
 
     def test_version(self):
@@ -34,6 +37,14 @@ class SelinuxPolicyTests(unittest.TestCase):
         self.assertEqual(found, {'unconfined_service_t', 'unconfined_t'})
         for name in ('unconfined_service_t', 'unconfined_t', 'var_run_t', 'httpd_var_run_t'):
             self.assertIn(name, self.required, name)
+
+    def test_types_outside_the_core_policy_are_optional(self):
+        """EL10.3 (2026-11-18): a type of a module a host may lack is required only in an optional block, never for the whole
+        module (antivirus_t: selinux-policy-targeted-extra; fail2ban_t: fail2ban-selinux)."""
+        self.assertEqual(self.core, {'kernel_t', 'var_run_t', 'unconfined_service_t', 'unconfined_t', 'init_t'})
+        optional = re.findall(r'optional\s*\{\s*require\s*\{([^}]*)\}', self.text)
+        self.assertEqual({name for block in optional for name in re.findall(r'\btype\s+(\w+)\s*;', block)},
+                         {'antivirus_t', 'fail2ban_t', 'postfix_smtpd_t', 'httpd_var_run_t'})
 
     def test_module_request_only_quiet(self):
         quiet = {source for kind, source, _t, cls, perm in self.rules if cls == 'system' and 'module_request' in perm and kind == 'dontaudit'}

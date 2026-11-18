@@ -1,6 +1,126 @@
 # Changelog
 
-## 6.0.0.6.5 (release date: pending)
+## 6.0.0.6.6 (2026-11-18)
+
+### Web interface: long pages read as a menu
+- From four sections on (or three with eight cards and more) a page opens only its first, most important section; every
+  closed section lists the cards it holds, so the page is its own menu. A section opens by itself when it carries a warning,
+  holds the card just used or a linked card; *Open all* opens every section. *My account* keeps its groups open.
+- Small cards stand two side by side on a wide screen; cards with tables, text areas or wide forms take the whole row. A card
+  title drops the part its section already names ("Users: lock" under *Users* reads *Lock*).
+- A card that only acts on the card before it ("Users: lock" after "Users") is a button inside that card and opens its form
+  below; a link to it and the card just used open it by themselves. Same forms, same checks (CSRF, password confirmation,
+  confirmations) as before.
+- No fixed line of text under each card title any more; the help stays behind the (i) of the card and of each field.
+- Backup & restore in sections (backups, restore, external targets, settings to another host; the hardware signature key in the
+  expert view). Tenant logo and backup upload as buttons in their card; the backup list, the update status and both uploads
+  are translated.
+- Mail pages page by page: the queue-ID forms of quarantine, held mail and queue are buttons in their list card; a section
+  that only repeats the page title shows no heading; cards that read the same status show it once; the mail log has Live log
+  and Advanced search in its search card and *Results* as a choice from 50 to 1000; empty lists say so.
+- *Monitoring* by task: Standard shows one card per way to send data, each with its state in the head (SIEM switches there):
+  OpenTelemetry (receiver, last sent, dropped data in red), SIEM over syslog (target, protocol), the Wazuh agent (version,
+  connection to its manager, or the way to install it), then where metrics and reports are (API tokens for Prometheus, mail
+  report, DMARC and TLS reports). The full cards are in Expert.
+- *Cluster & offline* by task: the page no longer looks empty in Standard. It shows the state of the cluster (this node,
+  master or client, mode, nodes with the ones not reachable in red and the ones behind, the node certificate), the staged
+  updates, operation without internet (where updates come from, the trusted key of signed bundles, the age of the virus
+  signatures) and, on a master, mail log, quarantine and queue of all nodes. The full cards are in Expert.
+- *Domain settings* by task: Standard shows every own domain in one table (the light of its domain check, role addresses,
+  job applications) with *Check all now* and buttons to the values of a domain, the role addresses and the job applications;
+  then the EU relation and the domain check. The cards per domain are in Expert (13 cards in Standard before).
+
+### Cluster: super admins only
+- Making, joining, changing and ending a cluster (`cluster-init`, `cluster-token`, `cluster-join`, `cluster-mode-set`,
+  `cluster-leave`, `cluster-promote`, `cluster-node-remove`) is for super admins only, decided by efactl: the permission
+  *settings.edit* of another group is no longer enough. The web interface asks for the password and the 2FA code again for each
+  of them, joining included. Reading the cluster is unchanged.
+### Cluster: which role this host has, on every page
+- Every admin page says, in both views, whether this host is the cluster master or a client of which master and in which mode.
+  A client adds that shared settings are changed on the master (in HA: that its changes go to the master) and has a button
+  that opens the dashboard of the master (only https to a host name or an IP address). The line comes from the local state
+  only, no call per page; when the master has not answered for 15 minutes or the state cannot be read, it says so.
+- On the master the dashboard has a *Cluster* block (it can be hidden and moved like the others): each node with version and
+  platform, last contact, how far it is behind, its sync state, and the result of the MX check, from the poll the cluster
+  service makes once a minute; an old poll shows in amber, a problem with a button to the Cluster page. A client shows only
+  the line.
+
+### Stored secrets of list rows: stored or not, and Remove
+- The secrets of one row of a list show *stored* or *not set*, as the single secret fields do since 6.0.0.6.4: the bind
+  password and client secret of the login directory of each tenant, the API key of each STIX/MISP threat feed, the secret
+  key of each S3 backup target and the password of the IMAP master login of the pull-back. The value never reaches the
+  browser; the read commands give only a yes/no.
+- *Remove* next to it while the setting that needs it is off (`efactl secret-remove --target "feed-set api_key NAME"`,
+  `"tenant-ldap-set bind_password TENANT-ID"`, `"tenant-oidc-set client_secret TENANT-ID"`, `"retro-imap-set password"`):
+  with the rights of the setter and inside the tenant scope, every removal in the audit log. An S3 target needs its key: it
+  goes with the target.
+- Removing a threat feed now also deletes its API key file.
+
+### Migration: a host name in capitals
+- A migrated eFa 5 host whose name is written in capitals no longer fails at the Let's Encrypt takeover ("Invalid domain."):
+  DNS names are case-insensitive, so efa-apply sets the host name, `myhostname`, `mydomain` and the certificate in small
+  letters, efa-migrate writes them so into eFa-Config, and the Let's Encrypt, TLSA, MTA-STS and passkey checks read the name
+  of Postfix in small letters. On a host already migrated: `efactl letsencrypt-takeover` (or with `--domain` in small letters).
+- `efactl status` no longer writes a CryptographyDeprecationWarning to stderr: certificate dates are read timezone-aware.
+### 2FA: a guided first setup
+- Without 2FA, *My account* shows one card: two steps, the password and *Show the QR code*. The page of the QR code asks for
+  the first code of the app right there; the recovery codes follow once. No 2FA code field while 2FA is off, no second card
+  to switch it on (it is folded into the setup card, for a QR code scanned before).
+- The first app now needs the password too (web interface and API; the console unchanged): a taken-over session can no
+  longer bind an authenticator of its own and lock the login out. Logins of a login provider have no password here.
+
+### Release upgrade to EL10: leapp vendor maps in the format of the installed leapp
+- The current ELevate/leapp (leapp-upgrade-el9toel10 0.25) takes vendor maps only in format 2.0.0 (data stream 5.0, the
+  targets per distribution under "default"); eFa-next wrote 1.3.0, so leapp rejected the map of eFa-next, did not take its
+  repository and would have removed eFa-next. The preupgrade stopped safely. The maps now follow the format that the
+  installed leapp names in its repository map (`/etc/leapp/files/repomap.json`): 1.3.0 for leapp 0.24, 2.0.0 for 0.25. A
+  format eFa-next does not know stops the preupgrade with the reason.
+- After the preupgrade, a vendor map that leapp rejected (in its log or report) is a stop with the reason, besides the
+  checks that eFa-next stays in the upgrade and nothing it needs is removed.
+- The signing keys of the eFa-next and rspamd repositories go where leapp 0.25 trusts them before it runs: each only with its
+  pinned fingerprint, to `/etc/pki/rpm-gpg`, into the package database and into leapp's trusted folder
+  (`/etc/leapp/files/vendors.d/rpm-gpg`); the repositories of the upgrade name the local key files. A host migrated from
+  eFa 5 lacked the key of eFa-next and stopped at "Detected unknown GPG keys for target system repositories".
+  `efactl repo-keys-heal` (run by every install, update and migration) puts the keys in place; the security check names the
+  signing key of eFa 5 when it is still trusted (it is not removed).
+- With CRB enabled the upgrade takes `selinux-policy-targeted-extra` along, and always `fail2ban-selinux`, so ClamAV and
+  fail2ban keep their SELinux domains on EL10; without CRB the preflight says so.
+
+### Release upgrade to EL10: the checks after the first EL10 boot
+- Port 587 comes back exactly as it was before the upgrade: AUTH, the SASL backend and its socket (from master.cf or
+  main.cf) and the login services as they were enabled. The finish no longer chooses efa-sasl itself and never turns on AUTH
+  that was off; the settings compare looks at what port 587 uses, not at where it is written.
+- The other nft tables (the mail block of the blocklists) are compared by their chains, rules and set definitions, not by the
+  addresses in their sets, which the feeds change while the upgrade runs; a table not recorded before is a note.
+- The guided upgrade card (Maintenance & update): prepare and check, the reasons when it cannot run, the start with the VM
+  snapshot and the host name, a progress bar; a second click or tab never queues a step twice, also in efactl.
+
+### Cluster: EL9 and EL10 nodes, one node updated at a time
+- A node takes the Postfix values of the master as its own platform takes them: lookup tables as its table type (hash on
+  EL9, lmdb on EL10), caches as btree beside hash; a value naming a table type its Postfix lacks is not written, it is named
+  in the result and the audit log.
+- Nodes of one release series only (6.0.0.6): join, snapshot and journal are refused with the reason for another series;
+  a node of 6.0.0.6.5 and one of 6.0.0.6.6 follow each other, so a cluster can be updated one node at a time. A new node
+  names its version, platform and host names at the join; the master answers with its mode, which the node keeps at once.
+- The parameters of port 587 come from the master only where the node's master.cf uses them (no "unused parameter" any
+  more); the MX check also knows a node by its host names behind NAT or split DNS; the security floor check, the CVE watch,
+  the hold of outbound mail and the other jobs of each host are never refused on a client, DKIM rotation is the master's.
+
+### Mail log: a mail in a popup
+- A mail of the mail log opens over the page. Where a reason is asked for before its content shows, the form is in the
+  same popup; the reason is still checked by efactl and kept in the audit log, and the downloads post it along.
+
+### SELinux module 1.4.1: loads where a policy module is missing (AlmaLinux 10.3)
+- On a host upgraded to AlmaLinux 10.3 the module of eFa-next did not load ("Failed to resolve typeattributeset
+  statement"): the type of ClamAV (`antivirus_t`) is in EL10 in the extra modules of the policy
+  (`selinux-policy-targeted-extra`, repository CRB), which the host did not have. Every rule for a type outside the core
+  policy (ClamAV, fail2ban, Postfix smtpd, nginx) is now in an optional block: without that type only its rule is left out,
+  the rest of the module loads.
+- eFa-next-base recommends `selinux-policy-targeted-extra` on EL10 (without it ClamAV runs unconfined); the release upgrade
+  to EL10 brings `fail2ban-selinux` along. The CI loads the module into copies of the SELinux store of the EL9 and EL10 hosts,
+  also without the ClamAV and fail2ban modules; the live policy is not touched.
+
+## 6.0.0.6.5 (2026-11-18)
 
 ### 2FA: a reset means a new 2FA at the next login
 - `user-2fa-reset` (web interface, API, console) no longer only deletes the 2FA: the login has to set up a new app at its
@@ -136,10 +256,38 @@
 - Setup wizard: *Start over* on every page and on the error page (with a question first) forgets every entry of this run and
   goes back to the start; after a failed setup the next run no longer comes with the choices of the failed one ticked.
   What the setup already set on the system stays, the next run sets it again; the setup code stays valid.
+- Setup wizard: *Start over* is a quiet link in the step row, no longer under Back like a second way back.
 - The self-test of the setup wizard no longer writes into the state of a wizard that waits on the same host.
 - A manual setup after a failed guided one no longer sends the frameworks of the guided run: efa-apply keeps the answers of
   an earlier run and the wizard left empty keys out, so they stayed. The wizard now always sends the frameworks, their note,
   the standards and the typed confirmation, empty too; frameworks and note only with guided.
+- *Security* page by task (Hans 2026-11-17): Standard shows four tasks: state of this server (self check, security minimum,
+  CVE watch, attack alert), admin access (root login through SSH, web allowlist), logins (lockout) and TLS (the profile in
+  effect). Every other switch and tool moved to Expert, grouped. Address harvesting moved to *Spam filter* (Expert); its old
+  link still lands there. Every setting on the pages Security, Security standards, Firewall and Privacy keeps the page where
+  it is; only the ones whose answer is a page of their own (firewall rules, SSH profile, standards, web lockdown, password
+  step-up) load the page.
+- Every setting on every page keeps the page where it is (stay.js), not only on the Security pages: the card is swapped in
+  place with a short note (the command's own, else "Saved."). Excepted, as before, the ones whose answer is a page of its
+  own or that change more than the card: password step-up, firewall rules, SSH profile, standards, web lockdown, language,
+  environment, network, interface, host name, uplink route, cluster mode, Let's Encrypt and the web certificate.
+- *Maintenance & update* by task (Hans 2026-11-17): Standard shows the Update card (versions, pending updates, automatic updates,
+  restart), then maintenance mode (its switch in the card head) and power (reboot, shut down); every other card in Expert.
+- *Viruses, attachments & links* by task: Standard shows four cards, each with its state and its switch in the head: Virus
+  signatures (Sanesecurity, signature count, last check, the extra sources in use, update now), Attachments (what happens to
+  dangerous endings, encrypted archives and Office macros), Link check with the warning banner, Content disarm (originals
+  kept, a stopped service shows). Every other card is in Expert. The task cards keep their two-column layout on every page
+  (the style was only on the Security page).
+- *Spam filter* by task: Standard shows four cards: when mail counts as spam (the three limits and the subject marking),
+  greylisting (its switch in the head, the wait and the exceptions), how the filter learns (Bayes, own model, neural
+  network) and the extra checks (newsletters, outbreak filter, Pyzor, fuzzy stores), each on or off. Every other card is in
+  Expert. The task cards keep their two-column layout on every page (the style was only on the Security page).
+- *Network, DNS & certificate* by task: Standard shows four cards: this server (host name, IPv4, gateway, IPv6), DNS (the
+  resolver, where names go, with Fix when they go to public resolvers, internal domains), certificate (Let's Encrypt or own)
+  and the resolver for other networks. The cards that change the network, which ask first, are in Expert. The task cards keep
+  their two-column layout on every page (the style was only on the Security page).
+- More forms show only the fields of the chosen method: *Interfaces* (address, gateway and DNS only for static) and *Backup
+  targets* (the S3 fields for S3, the SFTP fields for SFTP, the EU confirmation only for an own server).
 - A new install keeps Pyzor off: the setup no longer starts its service, which failed without its settings every 5 seconds
   and made the status *down*.
 

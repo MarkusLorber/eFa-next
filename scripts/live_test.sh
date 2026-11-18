@@ -47,10 +47,13 @@ restore() {
     sh -c "$RESTORE" >> "$OUT/restore.log" 2>&1
     RESTORE=""
 }
-# A signal puts back and ends the run: after its trap sh would go on with the next step.
-trap 'restore' EXIT
-trap 'restore; exit 130' INT
-trap 'restore; exit 143' TERM
+# A signal puts back and ends the run: after its trap sh would go on with the next step. While it runs, the main.cf of before
+# is a marker (scripts/ci_guard.py): killed outright, the next run of ci.sh puts it back.
+GUARD=/var/tmp/efa-ci-restore/live-test-$$.main.cf
+mkdir -p -m 0700 /var/tmp/efa-ci-restore && cp -p /etc/postfix/main.cf "$GUARD"
+trap 'restore; rm -f "$GUARD"' EXIT
+trap 'restore; rm -f "$GUARD"; exit 130' INT
+trap 'restore; rm -f "$GUARD"; exit 143' TERM
 
 step_ui() {
     if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c 'import playwright' 2>/dev/null; then

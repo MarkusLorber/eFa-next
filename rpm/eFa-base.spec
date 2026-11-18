@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.5
+Version:        6.0.0.6.6
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -37,6 +37,9 @@ Requires:       valkey
 # The Postfix tables of EL10 are lmdb (no Berkeley DB): only a weak dependency of postfix, so without it (install_weak_deps
 # off, or after a dnf remove with autoremove) every postmap of the setup failed.
 Requires:       postfix-lmdb
+# The domain of clamd and freshclam (antivirus_t) is in the extra modules of the policy (CRB) in EL10: without them ClamAV runs
+# unconfined. Weak: a host without CRB still installs and updates, the module of eFa-next loads either way (1.4.1).
+Recommends:     selinux-policy-targeted-extra
 %else
 Requires:       redis
 %endif
@@ -167,6 +170,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Wed Nov 18 2026 Markus Lorber - 6.0.0.6.6-1
+- 6.0.0.6.6: release upgrade to EL10 with leapp 0.25 (vendor maps 2.0.0, signing keys), SELinux module 1.4.1 for AlmaLinux 10.3, port 587 and checks after the upgrade, clusters of EL9 and EL10 nodes updated one at a time, guided 2FA setup and pages by task; see CHANGELOG.md.
+
 * Wed Nov 18 2026 Markus Lorber - 6.0.0.6.5-1
 - 6.0.0.6.5: 2FA set up again after a reset, Let's Encrypt behind split-horizon DNS, migration checks first; see CHANGELOG.md.
 

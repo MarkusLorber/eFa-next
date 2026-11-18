@@ -48,6 +48,87 @@ def write_state(state, etc='/etc'):
     with os.fdopen(fd, 'w') as f:
         json.dump(state, f, indent=1, sort_keys=True)
     os.replace(path + '.new', path)
+    try:
+        write_view(state, etc)
+    except OSError:  # the line of the web interface only; the state is written
+        pass
+
+
+def public_dir(etc='/etc'):
+    """The two files of the cluster for the web interface: state, not configuration, so not under /etc (no noise in config
+    backups, rpm -V, the tamper guard and the export). /var/lib/eFa is root only (0750): a folder of their own, 0755. A second
+    node on one host (EFA_ETC) has its own."""
+    return '/var/lib/efa-cluster' if os.path.abspath(etc) == '/etc' else os.path.join(etc, 'var-lib-efa-cluster')
+
+
+def health_file(etc='/etc'):
+    return os.path.join(public_dir(etc), 'health.json')
+
+
+def drop_old_files(etc='/etc'):
+    """Builds of 2026-11-18 kept both files under /etc/eFa for a few hours: they go."""
+    for name in ('cluster-view.json', 'cluster-health.json'):
+        try:
+            os.remove(os.path.join(etc, 'eFa', name))
+        except OSError:
+            pass
+
+
+def write_public(path, data):
+    """A file for the web interface: readable, written whole (a temp file renamed), no secrets in it."""
+    os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
+    fd = os.open(path + '.new', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    with os.fdopen(fd, 'w') as f:
+        json.dump(data, f, sort_keys=True)
+    os.chmod(path + '.new', 0o644)
+    os.replace(path + '.new', path)
+
+
+def health_rows(state, answers, before, seq, now):
+    """The nodes of a master for its dashboard (2026-11-18): from the last poll, one row each; the last contact stays from
+    before when a node does not answer now. answers: name -> the /v1/status answer, or an Exception."""
+    last = {row.get('name'): row for row in before.get('nodes', [])} if isinstance(before.get('nodes'), list) else {}
+    rows = []
+    for name, node in sorted(state.get('nodes', {}).items()):
+        row = {'name': name, 'role': 'node', 'joined': node.get('joined', '')}
+        answer = answers.get(name)
+        if node.get('pending'):
+            rows.append({**row, 'sync': 'pending'})
+            continue
+        if isinstance(answer, dict):
+            failed = answer.get('failed') if isinstance(answer.get('failed'), list) else []
+            behind = max(0, int(seq) - int(answer.get('applied', 0) or 0)) if str(answer.get('applied', 0)).isdigit() else None
+            rows.append({**row, 'version': str(answer.get('version', ''))[:40], 'platform': str(answer.get('platform', ''))[:8],
+                         'status': str(answer.get('status', ''))[:20], 'contact': int(now), 'behind': behind,
+                         'sync': 'error' if failed else 'ok', 'failed': len(failed)})
+        else:
+            old = last.get(name, {})
+            rows.append({**row, 'version': old.get('version', ''), 'platform': old.get('platform', ''), 'contact': old.get('contact'),
+                         'behind': old.get('behind'), 'sync': 'error', 'error': str(answer or 'no answer')[:160]})
+    return rows
+
+
+def view_file(etc='/etc'):
+    return os.path.join(public_dir(etc), 'view.json')
+
+
+def read_view(etc='/etc'):
+    try:
+        with open(view_file(etc)) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_view(state, etc='/etc', contact=None):
+    """What every page of the web interface shows of the cluster (2026-11-18): the role, the mode and, on a client, the name
+    and address of its master and when it last answered. No secrets: readable by efa-web, which makes no call for it."""
+    view = {'role': state.get('role'), 'name': state.get('name', ''), 'mode': state.get('mode', 'master-client'), 'written': int(time.time())}
+    if state.get('role') == 'client':
+        master = state.get('master', {})
+        view.update(master={'name': master.get('name', ''), 'host': master.get('host', '')},
+                    contact=int(contact) if contact else read_view(etc).get('contact'), down_since=state.get('master_down_since'))
+    write_public(view_file(etc), view)
 
 
 def valid_name(name):
@@ -506,6 +587,80 @@ def rate_apply(call, hour, peers):
     if commands:
         call(commands)
     return len(commands)
+
+
+# 6.0.0.6.6: mixed platforms in one cluster (EL9 and EL10 while the nodes are upgraded one at a time, as the release upgrade
+# says). Nodes of one release series only; what a node takes from the master as raw Postfix values is made fit for its Postfix.
+VERSION_FILES = ('/etc/eFa-next-Version', '/etc/eFa-Version')  # the old name: nodes of 6.0.0.5.x
+
+
+def own_version(files=None):
+    """The installed eFa-next version (6.0.0.6.6), '' when none is recorded."""
+    for path in files or VERSION_FILES:
+        try:
+            with open(path) as f:
+                found = re.search(r'\d+(?:\.\d+)+', f.read())
+            return found.group(0) if found else ''
+        except OSError:
+            continue
+    return ''
+
+
+def own_platform(os_release='/etc/os-release'):
+    """el9, el10, ...: the major version of the operating system, '' when unknown."""
+    try:
+        with open(os_release) as f:
+            found = re.search(r'^VERSION_ID="?(\d+)', f.read(), flags=re.M)
+    except OSError:
+        return ''
+    return f'el{found.group(1)}' if found else ''
+
+
+def version_series(version):
+    """The release series: the first four numbers (6.0.0.6 of 6.0.0.6.6), '' for none."""
+    parts = re.findall(r'\d+', str(version or ''))
+    return '.'.join(parts[:4]) if len(parts) >= 4 else ''
+
+
+def version_problem(own, other, who='the master', strict=False):
+    """'' when both are of one release series, else why not (for join and every sync). A peer that names no version is a
+    build from before this check (6.0.0.6.5 and older): for a rolling update of a cluster one node at a time it is taken,
+    except with strict (a new node joining: it has to name its version)."""
+    if not str(other or '').strip() and not strict:
+        return ''
+    if not version_series(other):
+        return f'{who} names no eFa-next version: update it to the release series {version_series(own)} first'
+    if version_series(own) != version_series(other):
+        return (f'{who} runs eFa-next {other}, this node {own}: nodes of a cluster need one release series '
+                f'({version_series(own)} here); update the older one first')
+    return ''
+
+
+# Indexed lookup tables of Postfix: written as the table type of the receiving node. Everything else a node lacks is refused.
+INDEXED_MAP_TYPES = ('hash', 'btree', 'lmdb', 'cdb', 'dbm', 'sdbm')
+MAP_REF = re.compile(r'\b([a-z][a-z0-9_]*):(?=[/$.{]|[a-z0-9_]+:)')
+
+
+def snapshot_value_local(value, local_type, supported):
+    """A Postfix value of the master for this node: (value, '') with the tables of an indexed type as local_type (a btree
+    cache as btree beside hash, else local_type), or (None, why) when it names a table type this Postfix does not have
+    (supported: the types of postconf -m). Never the value of the master raw where it would break the mail here."""
+    missing = []
+
+    def local(found):
+        kind = found.group(1)
+        if kind in INDEXED_MAP_TYPES:
+            # The node compiles every table of the snapshot as its own type (postmap): its references name that type. A
+            # cache (postscreen, TLS sessions, verify) is btree beside hash, as efactl _cache_map writes it.
+            cache = 'cache' in value[found.end():].split(',')[0].split()[0] if value[found.end():].strip() else False
+            kind = 'btree' if cache and local_type == 'hash' else local_type
+        if kind not in supported:
+            missing.append(found.group(1))
+        return kind + ':'
+    changed = MAP_REF.sub(local, value or '')
+    if missing:
+        return None, f"table type {', '.join(sorted(set(missing)))} is not in this Postfix (postconf -m)"
+    return changed, ''
 
 
 def self_test():

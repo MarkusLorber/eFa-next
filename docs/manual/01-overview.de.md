@@ -60,10 +60,17 @@ Das Menü links hat acht Gruppen, oben die Seiten für jeden Tag. *Mein Konto* s
 | Überwachung & Berichte | Mail-Bericht, Überwachung |
 | System | Wartung & Update, Sicherung & Wiederherstellung, Netzwerk, DNS & Zertifikat, Cluster & offline |
 
-Jede Anmeldung sieht nur die Seiten und Karten, die ihre Gruppen erlauben (Kapitel 8). Jede Karte erklärt unter ihrem Titel in
-einem Satz, was sie tut; ein (i) öffnet die ganze Hilfe, ebenso bei jedem Feld. Die Oberfläche gibt es auf Englisch und Deutsch
+Jede Anmeldung sieht nur die Seiten und Karten, die ihre Gruppen erlauben (Kapitel 8). Das (i) neben dem Titel einer Karte und neben
+jedem Feld öffnet die Hilfe; die Karten selbst tragen keinen festen Text. Die Oberfläche gibt es auf Englisch und Deutsch
 (Umschalter auf der Anmeldeseite, und je Anmeldung unter *Mein Konto › Meine Einstellungen*, mit Zeitzone, Zeilen je Seite und
 Standardansicht).
+
+Eine lange Seite liest sich wie ein Menü: Nur ihr erster, wichtigster Abschnitt ist offen, jeder andere nennt unter seinem Titel
+die Karten, die er enthält. Ein Klick öffnet ihn; *Alle aufklappen* oben öffnet alle Abschnitte. Ein Abschnitt mit einer Warnung
+und der mit der gerade benutzten Karte öffnen sich von selbst, ebenso bei einem Link auf eine Karte. Auf einem breiten Bildschirm
+stehen kleine Karten nebeneinander. Die Aktionen einer Karte (etwa Ändern, Sperren oder Entfernen bei
+*Benutzer*) sind Knöpfe in dieser Karte; jeder öffnet sein Formular darunter. Wo mehrere Karten dieselbe Einstellung lesen (etwa
+*Schutz vor Datenabfluss*), steht sie einmal, die anderen sind Knöpfe darunter. *Live-Log* und *Erweiterte Suche* sitzen in der Suchkarte des *Mail-Logs*.
 
 Alle Funktionen, gruppiert, mit Link zu jeder Referenzseite: [FEATURES.de.md](../FEATURES.de.md).
 

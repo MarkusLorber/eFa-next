@@ -60,9 +60,15 @@ The menu on the left has eight groups, the pages used every day on top. *My acco
 | Monitoring & reports | Mail report, Monitoring |
 | System | Maintenance & update, Backup & restore, Network, DNS & certificate, Cluster & offline |
 
-Each login sees only the pages and cards its groups allow (chapter 8). Every card has a one-line explanation under its title
-and an (i) with the full help, as has every field. The interface is in English and German (switch on the login page, and per
+Each login sees only the pages and cards its groups allow (chapter 8). The (i) next to the title of a card, and next to every
+field, opens its help; the cards themselves carry no fixed text. The interface is in English and German (switch on the login page, and per
 login under *My account › My settings*, with time zone, rows per page and the default view).
+
+A long page reads like a menu: only its first, most important section is open, every other section lists the cards it holds
+under its title. A click opens it; *Open all* at the top opens every section. A section with a warning, and the one with the card
+you just used, open by themselves, and so does a link to a card. On a wide screen small cards stand side by side. The actions of a card (such as change, lock or
+remove for *Users*) are buttons in that card; each opens its form below. Where several cards read the same setting (such as
+*Data loss prevention*), it shows once, and the others are buttons under it. *Live log* and *Advanced search* sit in the search card of the *Mail log*.
 
 All features, grouped, with a link to each reference page: [FEATURES.md](../FEATURES.md) ([Deutsch](../FEATURES.de.md)).
 

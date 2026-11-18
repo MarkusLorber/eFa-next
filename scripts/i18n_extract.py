@@ -73,6 +73,7 @@ def command_texts():
         for arg in command.get('args', []):
             label = arg.get('label', '')
             found.append(label)
+            found.append(arg.get('hint', ''))
             shown = efa_help.web_label(label, arg.get('kind'))
             found += [shown['label'], shown['placeholder']]
             if label.endswith(': on or off'):

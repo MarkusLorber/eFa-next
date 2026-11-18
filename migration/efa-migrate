@@ -765,6 +765,8 @@ def self_test():
     lines = apply_answers(plan, 'secret').splitlines()
     assert 'ISUTC:YES' in lines and 'IPV6DNS:NO' in lines and 'WEBADMINPASSWORD:secret' in lines and 'RECURSION:YES' in lines
     assert 'CONFIGURED:YES' in new_config(plan).splitlines() and 'secret' not in new_config(plan)
+    upper = {**plan, 'config': {**plan['config'], 'HOSTNAME': 'MAIL-GW1', 'DOMAINNAME': 'Example.ORG'}}
+    assert {'HOSTNAME:mail-gw1', 'DOMAINNAME:example.org'} <= set(new_config(upper).splitlines()), new_config(upper)
     print('self-test ok')
 
 
@@ -1017,6 +1019,8 @@ def answers_refusal(problem):
 def new_config(plan):
     """The settings file of the new system: the old values, as the new setup writes them."""
     values = dict(plan['config'])
+    # DNS is case-insensitive; efa-apply sets host name, myhostname and certificate in small letters, the settings file too.
+    values.update({key: values[key].lower() for key in ('HOSTNAME', 'DOMAINNAME') if key in values})
     values.update(CONFIGURED='YES', RECURSION='YES', IPV6DNS='YES' if plan['ipv6dns'] else 'NO', DNSIP1='', DNSIP2='',
                   ISUTC='YES' if values.get('ISUTC') in ('true', '1', 'YES') else 'NO')
     return ''.join(f'{key}:{value}\n' for key, value in values.items())
@@ -1064,6 +1068,11 @@ def restore_settings(plan, target, warnings, disable=False):
         f.write(master)
     warnings.extend(f'Postfix master.cf line dropped, it belongs to the removed filters: {line}' for line in dropped)
     # The submission service of eFa 5 (dovecot SASL, its own checks) gives way to the one of eFa-next; the old one is in the backup.
+    # VMAP-4: the signing keys of the repositories of eFa-next and rspamd, checked by fingerprint, as files and in the package
+    # database (eFa 5 had only its own key): the release upgrade to EL10 needs them.
+    keys = subprocess.run(['/usr/sbin/efactl', 'repo-keys-heal'], capture_output=True, text=True)
+    if keys.returncode != 0 or '"ok": false' in keys.stdout:
+        warnings.append(f'Repository signing keys: {(keys.stdout + keys.stderr)[-300:].strip()}')
     done = subprocess.run(['/usr/sbin/efactl', 'postfix-submission-heal'], capture_output=True, text=True)
     if done.returncode != 0:
         warnings.append(f'Postfix submission (587): {(done.stdout + done.stderr)[-300:].strip()}')

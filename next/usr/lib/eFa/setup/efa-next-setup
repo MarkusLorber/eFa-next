@@ -82,6 +82,8 @@ first-install)
     [ -f /etc/eFa/rbl.json ] || step /usr/sbin/efactl rbl-apply --keep ''
     # 6.0.0.5: the security minimum of postfix, nginx and dovecot set once, its guard watches it from then on.
     step /usr/sbin/efactl floor-check --mode apply
+    # VMAP-4: the signing keys of the repositories (checked by fingerprint) as files and in the package database.
+    step /usr/sbin/efactl repo-keys-heal
     ;;
 upgrade)
     # 6.0.0.6: efa-web reaches efactl only through efactl-runner; the sudo rule of 6.0.0.5 and older goes.
@@ -94,6 +96,8 @@ upgrade)
     [ ! -f /etc/efa-web/maillog.pw ] || step /usr/sbin/efactl maillog-setup
     # MIG-587: a host migrated from eFa 5 gets the submission service of eFa-next (587) in place of the old one; audited, with a .bak.
     step /usr/sbin/efactl postfix-submission-heal
+    # VMAP-4: a host migrated from eFa 5 lacked the key of eFa-next as a file and in the package database (leapp 0.25 stops then).
+    step /usr/sbin/efactl repo-keys-heal
     # DNS-SHARE: the networks that may ask this unbound, in unbound and in the firewall as the list says (release upgrade, restore).
     step /usr/sbin/efactl dns-share-apply
     # MIG-ALLOW: a table efa-sender-skip-domaincheck made by hand becomes marked allow entries, in the order of eFa-next.

@@ -199,6 +199,14 @@ class ApplyTests(RootTestCase):
             self.assertEqual(code, 2, bad)
         self.assertNotIn("evil", c.read_text("/etc/hosts", ""))
 
+    def test_upper_case_host_name_in_small_letters(self):
+        # An eFa 5 host may carry its name in capitals; DNS is case-insensitive, Let's Encrypt and the checks want it small.
+        code, out = self.apply(["--hostname"], answer_text({"HOSTNAME": "MAIL-GW1", "DOMAINNAME": "Example.ORG"}))
+        self.assertEqual(code, 0, out + self.all_logs())
+        self.assertIn("mail-gw1.example.org", c.read_text("/etc/hosts", ""))
+        self.assertNotIn("MAIL-GW1", c.read_text("/etc/hosts", "") + repr(self.runner.calls))
+        self.assertEqual(c.current_fqdn(), "mail-gw1.example.org")
+
     def test_short_password_refused(self):
         # The minimum matches the wizard (12); a shorter password is refused on the passwords step.
         self.assertEqual(efa_apply.MIN_PASSWORD, 12)

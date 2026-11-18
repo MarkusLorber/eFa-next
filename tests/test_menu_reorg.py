@@ -86,7 +86,7 @@ class Menu(unittest.TestCase):
         self.assertEqual(efa_nav.MOVED_CARDS[('users', 'audit-search')], 'privacy')
 
     def test_important_cards_first(self):
-        self.assertEqual(efa_nav.PAGES['sec']['sections'][0][0], 'Security self check')
+        self.assertEqual(efa_nav.PAGES['sec']['sections'][0][0], 'State of this server')
         self.assertEqual(efa_nav.PAGES['users']['sections'][0][0], 'Users')
         self.assertEqual(efa_nav.PAGES['net']['sections'][-1][0], 'DNS resolver for other networks')
 
@@ -173,9 +173,14 @@ class Pages(unittest.TestCase):
         _client, reply = self.page('account')
         html = reply.get_data(as_text=True)
         self.assertIn('Your role needs 2FA: set it up now.', html)
-        self.assertIn('<div class="card" id="totp-setup">', html)
+        self.assertIn('<div class="card totpfirst" id="totp-setup">', html)
+        first = html[html.index('id="totp-setup"'):html.index('</details>', html.index('id="totp-setup"'))]
+        self.assertIn('name="reauth"', first, 'a first setup asks the password once')
+        self.assertNotIn('name="reauth_code"', first, 'no 2FA code field while 2FA is off')
         self.assertNotIn('id="totp-fold"', html)
         self.assertNotIn('action="/run/totp-disable"', html, 'nothing to switch off')
+        self.assertIn('>Show the QR code</button>', html)
+        self.assertEqual(html.count('id="totp-confirm"'), 1, 'the first code only once, folded in the setup card')
 
     def test_end_session_sends_its_id(self):
         client, _reply = self.page('account')

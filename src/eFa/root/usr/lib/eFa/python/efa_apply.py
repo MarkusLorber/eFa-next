@@ -64,7 +64,9 @@ def _check_value(key, value):
         return upper
     ok = True
     if key == "HOSTNAME":
+        # DNS is case-insensitive: hostname, myhostname and the certificate get the name in small letters.
         ok = c.valid_label(value)
+        value = value.lower()
     elif key == "DOMAINNAME":
         ok = c.valid_domain(value)
         value = value.lower()

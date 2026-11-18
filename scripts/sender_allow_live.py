@@ -10,6 +10,7 @@ blocklist (an inline table stands in for the RBL):
 - a mail of the allowed sender with the test virus EICAR is taken, without the attachment (note, X-eFa-next-Removed), the
   original is kept by efa-cdr; the same mail of another sender is rejected.
 Everything is put back afterwards; the outbound block of the host is never touched."""
+import os
 import email.message
 import json
 import re
@@ -17,6 +18,12 @@ import smtplib
 import subprocess
 import sys
 import time
+
+# The main.cf of before as a marker while this step runs, SIGTERM through finally (scripts/ci_guard.py).
+import importlib.util  # noqa: E402
+_guard_spec = importlib.util.spec_from_file_location('ci_guard', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ci_guard.py'))
+guard = importlib.util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(guard)
 
 LISTED = '203.0.113.25'  # TEST-NET-3: outside mynetworks
 ALLOWED, OTHER = 'arnold-it@ai.local', 'another@ai.local'
@@ -77,6 +84,7 @@ def main():
     local = f'postmaster@{domains[0]}'
     saved = {name: run('postconf', '-h', name) for name in SAVED_LISTS}
     queued = []
+    guard.begin('sender-allow-live')
     try:
         run('postconf', '-e', 'smtpd_authorized_xclient_hosts = 127.0.0.1')
         run('postconf', '-e', 'smtpd_client_restrictions = ' + ', '.join(item for item in (f'check_client_access inline:{{{LISTED}=REJECT}}',
@@ -120,6 +128,7 @@ def main():
         run('postfix', 'reload', check=False)
         for qid in queued:
             run('postsuper', '-d', qid, check=False)
+        guard.end('sender-allow-live')
 
 
 if __name__ == '__main__':

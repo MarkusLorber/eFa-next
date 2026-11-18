@@ -42,6 +42,11 @@ if [ $? -ne 0 ]; then
 fi
 : > "$LOCK"
 echo "pid $$ since $(date '+%F %T') in $(pwd)" >&9
+# A live step of a run that was stopped from outside may have left main.cf changed: its marker holds the main.cf of before
+# (scripts/ci_guard.py). Put back, checked by postfix check, before anything else runs; a failed check stops the run.
+if [ -d /var/tmp/efa-ci-restore ] && ls /var/tmp/efa-ci-restore/*.main.cf > /dev/null 2>&1; then
+    python3 -I scripts/ci_guard.py || exit 2
+fi
 # The folders of the two runs before stay (the logs of a failed run are still there for the next one to read), older ones go.
 ls -dt /var/tmp/efa-ci.?????? 2>/dev/null | tail -n +3 | xargs -r rm -rf
 OUT=$(mktemp -d /var/tmp/efa-ci.XXXXXX)
@@ -852,6 +857,72 @@ step self-tests self_tests
 # CVE-2026-109786: the sshd filter fix of efactl against the fail2ban of this host (skipped where fail2ban-regex is missing).
 step fail2ban-sshd python3 -I scripts/fail2ban_sshd_check.py
 step i18n python3 -B scripts/i18n_extract.py --check
+# EL10.3 (2026-11-18): the SELinux module of the tree against the policy of this host, in copies of its store only (semodule -p,
+# -n: the policy of the host is not touched): as it is, without the fail2ban module (EL10: only fail2ban-selinux has fail2ban_t)
+# and also without antivirus. Module 1.4.0 failed there ("Failed to resolve typeattributeset statement") on a host without it.
+selinux_module_load() {
+    if ! command -v semodule > /dev/null || ! command -v checkmodule > /dev/null || [ "$(getenforce 2>/dev/null)" = Disabled ]; then
+        echo "selinux-module-load: no SELinux tools or SELinux off, skipped"; return 0
+    fi
+    se=$(mktemp -d /var/tmp/efa-ci-se.XXXXXX)
+    checkmodule -M -m -o "$se/efa.mod" src/eFa-base/selinux/efa.te && semodule_package -o "$se/efa.pp" -m "$se/efa.mod" || { rm -rf "$se"; return 1; }
+    se_failed=0
+    for drop in "" "fail2ban" "fail2ban antivirus"; do
+        rm -rf "$se/root"
+        mkdir -p "$se/root/etc/selinux" "$se/root/var/lib/selinux"
+        cp -a /etc/selinux/targeted /etc/selinux/config /etc/selinux/semanage.conf "$se/root/etc/selinux/"
+        cp -a /var/lib/selinux/targeted "$se/root/var/lib/selinux/"
+        # The module the host has loaded goes first: 1.4.0 itself requires fail2ban_t, so fail2ban could not go before it.
+        for module in efa $drop; do
+            priority=$(semodule -p "$se/root" -lfull | awk -v m="$module" '$2 == m {print $1; exit}')
+            [ -z "$priority" ] && continue
+            if ! semodule -p "$se/root" -n -X "$priority" -r "$module" > "$se/drop.log" 2>&1; then
+                echo "selinux-module-load: FAILED (could not take $module out of the copy: $(tail -2 "$se/drop.log" | tr '\n' ' '))"; se_failed=1; continue 2
+            fi
+        done
+        if semodule -p "$se/root" -n -X 400 -i "$se/efa.pp" > "$se/load.log" 2>&1; then
+            echo "selinux-module-load: ok (store of this host${drop:+ without $drop})"
+        else
+            echo "selinux-module-load: FAILED (store of this host${drop:+ without $drop}): $(head -3 "$se/load.log" | tr '\n' ' ')"; se_failed=1
+        fi
+    done
+    # EL10: also the policies of 10.2 and 10.3 (the version on the hosts after the release upgrade), built from their signed
+    # packages (repo.almalinux.org while current, else the vault; cached, rpm -K), without and with the extra modules (ClamAV):
+    # the module has to load on every EL10 a host may run.
+    if [ "$(rpm -E %rhel)" = 10 ]; then
+        for policy in 10.2:42.1.18-4.el10_2.4 10.3:42.1.27-2.el10_3.2; do
+            release=${policy%%:*} version=${policy#*:}
+            cache=/var/cache/efa-ci/selinux-$release
+            mkdir -p "$cache"
+            for pkg in BaseOS/x86_64/os/Packages/selinux-policy-targeted-$version.noarch.rpm \
+                       CRB/x86_64/os/Packages/selinux-policy-targeted-extra-$version.noarch.rpm; do
+                file="$cache/${pkg##*/}"
+                for base in "https://repo.almalinux.org/almalinux/$release" "https://vault.almalinux.org/$release"; do
+                    [ -s "$file" ] || curl -sSf -o "$file" "$base/$pkg" 2>/dev/null || rm -f "$file"
+                done
+                [ -s "$file" ] || { echo "selinux-module-load: FAILED (download of ${pkg##*/})"; se_failed=1; continue; }
+                rpm -K "$file" 2>/dev/null | grep -q 'digests signatures OK' || { echo "selinux-module-load: FAILED (${pkg##*/} not signed by a trusted key)"; rm -f "$file"; se_failed=1; }
+            done
+            for extra in yes no; do
+                ls "$cache"/selinux-policy-targeted-$version.noarch.rpm > /dev/null 2>&1 || break
+                rm -rf "$se/root"
+                mkdir -p "$se/root/etc/selinux"
+                cp /etc/selinux/config /etc/selinux/semanage.conf "$se/root/etc/selinux/"
+                for file in "$cache/selinux-policy-targeted-$version.noarch.rpm" $([ $extra = yes ] && echo "$cache/selinux-policy-targeted-extra-$version.noarch.rpm"); do
+                    (cd "$se/root" && rpm2cpio "$file" | cpio -idm --quiet)
+                done
+                if semodule -p "$se/root" -n -B > "$se/load.log" 2>&1 && semodule -p "$se/root" -n -X 400 -i "$se/efa.pp" > "$se/load.log" 2>&1; then
+                    echo "selinux-module-load: ok (policy $version of AlmaLinux $release$([ $extra = no ] && echo ', without the extra modules'))"
+                else
+                    echo "selinux-module-load: FAILED (policy $version of AlmaLinux $release): $(head -3 "$se/load.log" | tr '\n' ' ')"; se_failed=1
+                fi
+            done
+        done
+    fi
+    rm -rf "$se"
+    return $se_failed
+}
+step selinux-module-load selinux_module_load
 full && step fuzz python3 -B scripts/fuzz.py --seconds 60
 step rpm-build python3 -I build/build-rpms.py --next-dir next --out "$OUT/rpms"
 # The publish script of every release, offline with the packages just built: no network, no gpg, no upload.

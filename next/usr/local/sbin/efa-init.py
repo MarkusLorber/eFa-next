@@ -442,9 +442,9 @@ PAGE = """<!doctype html><html lang="{{ lang }}"><head><meta charset="utf-8"><ti
 <style>{{ css|safe }}{{ chips|safe }}</style><script src="/wizard.js" defer></script></head><body>
 <main class="solo"><header class="brand bar">{{ logo|safe }}
 {{ langpill|safe }}</header>
-<div class="card">{% if number %}<p class="step">{{ step_text }}</p><div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="{{ total }}" aria-valuenow="{{ number }}" aria-label="{{ step_text }}"><i style="width:{{ (100 * number / total)|round }}%"></i></div>
+<div class="card">{% if number %}<div class="steprow"><p class="step">{{ step_text }}</p>{{ start_over|safe }}</div><div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="{{ total }}" aria-valuenow="{{ number }}" aria-label="{{ step_text }}"><i style="width:{{ (100 * number / total)|round }}%"></i></div>
 <ol class="groups">{% for name, state in groups %}<li class="{{ state }}"{% if state == 'cur' %} aria-current="step"{% endif %}>{{ name }}</li>{% endfor %}</ol>{% endif %}
-{% if dev %}<p class="err" role="note">{{ dev }}</p>{% endif %}{% if note %}<p class="ok" role="status">{{ note }}</p>{% endif %}{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{{ body|safe }}{{ start_over|safe }}</div></main></body></html>"""
+{% if dev %}<p class="err" role="note">{{ dev }}</p>{% endif %}{% if note %}<p class="ok" role="status">{{ note }}</p>{% endif %}{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{{ body|safe }}{% if not number %}{{ start_over|safe }}{% endif %}</div></main></body></html>"""
 
 
 def page(body, error=None, refresh=False, where=None, refresh_to=None):
@@ -1232,8 +1232,10 @@ def start_over_form(confirm_page=False):
     if session.get('setup') not in setup['unlocked'] or commit['state'] not in ('idle', 'failed'):
         return ''
     sure = '<input type="hidden" name="sure" value="yes">' if confirm_page else '<input type="hidden" name="sure" value="">'
+    # On the steps a quiet link in the step row (Hans 2026-11-17: not next to Back and Next); on its own page the button.
+    button = f'<button class="btn s">{te("Start over")}</button>' if confirm_page else f'<button class="linkbtn">&#8634; {te("Start over")}</button>'
     return (f'<form method="post" action="{url_for("start_over")}" class="startover" data-confirm="{te(START_OVER_CONFIRM)}">'
-            f'<input type="hidden" name="csrf" value="{csrf_token()}">{sure}<button class="btn s sm">{te("Start over")}</button></form>')
+            f'<input type="hidden" name="csrf" value="{csrf_token()}">{sure}{button}</form>')
 
 
 @app.route('/start-over', methods=['POST'])
@@ -1708,7 +1710,10 @@ def start_over_test():
         commit.update(state='failed', log='certbot failed')
         shown = client.get('/progress').get_data(as_text=True)
         assert 'action="/start-over"' in shown and 'data-confirm=' in shown and 'stay as they are' in shown, 'on the error page'
-        assert 'action="/start-over"' in client.get('/first/notice').get_data(as_text=True), 'on the pages of the steps'
+        step_page = client.get('/first/notice').get_data(as_text=True)
+        assert 'action="/start-over"' in step_page, 'on the pages of the steps'
+        # Hans 2026-11-17: in the step row as a quiet link, not among Back and Next at the bottom.
+        assert step_page.index('action="/start-over"') < step_page.index('class="actions"') and 'class="linkbtn"' in step_page, 'in the step row'
         asked = client.post('/start-over', data={'csrf': 'token', 'sure': ''})
         assert asked.status_code == 200 and 'name="sure" value="yes"' in asked.get_data(as_text=True) and answers['hostname'] == 'mx1', \
             'without the confirmation only the question, nothing gone'

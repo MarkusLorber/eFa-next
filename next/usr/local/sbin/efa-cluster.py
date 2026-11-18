@@ -35,6 +35,9 @@ BASE = efa_cluster.folder(ETC)
 MAX_BODY = 64 * 1024
 RATES_BODY = 4 * 1024 * 1024
 JOIN_TRIES = 10  # per address and minute
+CONTACT_SECONDS = 300  # how often a client notes that its master answered, for the line on every page
+HEALTH_SECONDS = 60  # how often the master asks its nodes, for its dashboard (the page itself never calls a node)
+MX_SECONDS = 900  # how often the master checks the MX records of the domains for that card
 FETCH_SECONDS = 30
 # Handshake and request of one connection: snapshots and journals of the master are larger.
 CONNECTION_SECONDS = 120
@@ -77,16 +80,25 @@ def join(state, body, now=None):
         raise PermissionError('unknown or expired token')
     if not efa_cluster.valid_name(name) or name in state.get('nodes', {}) or name == state.get('name'):
         raise ValueError('name: small letters, digits and dashes, not taken yet')
+    # 6.0.0.6.6: nodes of one release series only; EL9 and EL10 may mix (the node makes the Postfix values fit its platform).
+    problem = efa_cluster.version_problem(efa_cluster.own_version(), str(body.get('version', '')), 'the node', strict=True)
+    if problem:
+        raise ValueError(problem)
     cert = efa_cluster.sign(BASE, str(body.get('csr', '')), name)
     del tokens[key]
     nodes = dict(state.get('nodes', {}))
     nodes[name] = {'host': str(body.get('host', ''))[:255], 'port': int(body.get('port', efa_cluster.PORT)),
-                   'fingerprint': efa_cluster.fingerprint_pem(cert), 'joined': time.strftime('%Y-%m-%d %H:%M:%S')}
+                   'fingerprint': efa_cluster.fingerprint_pem(cert), 'joined': time.strftime('%Y-%m-%d %H:%M:%S'),
+                   'version': str(body.get('version', ''))[:40], 'platform': str(body.get('platform', ''))[:20],
+                   # Its host names (myhostname, certificate): the MX check knows the node by them behind NAT or split DNS.
+                   'names': [item for item in (str(entry).lower()[:253] for entry in (body.get('names') or [])[:20])
+                             if re.fullmatch(r'[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+', item)]}
     with open(os.path.join(BASE, 'ca.crt')) as f:
         ca = f.read()
     with open(os.path.join(BASE, 'node.crt')) as f:
         master_fingerprint = efa_cluster.fingerprint_pem(f.read())
-    return {'cert': cert, 'ca': ca, 'master': state.get('name'), 'master_fingerprint': master_fingerprint}, {**state, 'tokens': tokens, 'nodes': nodes}
+    return ({'cert': cert, 'ca': ca, 'master': state.get('name'), 'master_fingerprint': master_fingerprint, 'mode': state.get('mode', 'master-client'),
+             'version': efa_cluster.own_version(), 'platform': efa_cluster.own_platform()}, {**state, 'tokens': tokens, 'nodes': nodes})
 
 
 def journal_after(seq, entries=None):
@@ -254,10 +266,16 @@ def sync_signature(dirs=None):
 def follow():
     """Every half minute: the bans of the cluster; on a client the new entries of the master, applied in order. A failed one is
     noted and skipped."""
-    pulled, retry_at, seen = False, 0, None
+    pulled, retry_at, seen, polled = False, 0, None, 0
     while True:
         time.sleep(FETCH_SECONDS)
         state = efa_cluster.read_state(ETC)
+        if state.get('role') == 'master' and time.time() - polled > HEALTH_SECONDS:
+            polled = time.time()
+            try:
+                poll_health(state)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
+                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster health of the nodes not written: {err}')
         if state.get('role') == 'master':
             # A change in a folder of the kinds (freshclam, a job): the manifest anew and, if it changed, a journal entry.
             now_seen = sync_signature()
@@ -289,7 +307,18 @@ def follow():
         if state.get('master_down_since'):
             state.pop('master_down_since')
             efa_cluster.write_state(state, ETC)
+        # 6.0.0.6.6: entries of a master of another release series are not applied (they may name what this node lacks).
+        problem = efa_cluster.version_problem(efa_cluster.own_version(), reply.get('version', ''))
+        if problem != state.get('version_problem', ''):
+            state['version_problem'] = problem
+            efa_cluster.write_state(state, ETC)
+            if problem:
+                syslog.syslog(syslog.LOG_ERR, f'efa-cluster: journal not followed: {problem}')
+        if problem:
+            continue
             pulled = False  # 6.0.0.6: the master is back: its files replace what the node fetched itself meanwhile
+        if time.time() - (efa_cluster.read_view(ETC).get('contact') or 0) > CONTACT_SECONDS:
+            efa_cluster.write_view(state, ETC, contact=time.time())  # the line on every page: the master answers
         if not pulled or (time.time() > retry_at and sync_failed()):
             pulled, retry_at = True, time.time() + SYNC_RETRY_SECONDS
             sync_pull()
@@ -379,6 +408,46 @@ def run_forwarded(body, who, run=subprocess.run):
         return {'error': (done.stderr or done.stdout).strip()[-300:] or 'no answer'}
 
 
+def poll_health(state, call=None, mx=None, now=None):
+    """The master: every node asked once (5 s each), the MX check now and then; the result for the dashboard card."""
+    now = time.time() if now is None else now
+    call = call or (lambda node: efa_cluster.call(BASE, node['host'], node['port'], '/v1/status', timeout=5))
+    answers = {}
+    for name, node in state.get('nodes', {}).items():
+        if node.get('pending'):  # a node that joined and waits for its admin (6.0.0.6.7): not asked
+            continue
+        try:
+            answers[name] = call(node)
+        except (OSError, ValueError) as err:
+            answers[name] = err
+    before = {}
+    try:
+        with open(efa_cluster.health_file(ETC)) as f:
+            before = json.load(f)
+    except (OSError, ValueError):
+        pass
+    journal = efa_cluster.journal_read(BASE)
+    seq = journal[-1]['seq'] if journal else 0
+    mx_check = before.get('mx') if isinstance(before.get('mx'), dict) else {}
+    if now - (mx_check.get('checked') or 0) > MX_SECONDS:
+        found = (mx or run_mx_check)()
+        if found is not None:
+            mx_check = {'checked': int(now), 'ok': bool(found.get('ok')), 'problems': [str(item.get('text', ''))[:160] for item in found.get('findings', [])
+                                                                                    if item.get('level') in ('problem', 'warning')][:5]}
+    health = {'written': int(now), 'mode': state.get('mode', 'master-client'), 'name': state.get('name', ''), 'seq': seq,
+              'nodes': efa_cluster.health_rows(state, answers, before, seq, now), 'mx': mx_check}
+    efa_cluster.write_public(efa_cluster.health_file(ETC), health)
+    return health
+
+
+def run_mx_check():
+    done = subprocess.run([EFACTL, 'cluster-mx-check'], capture_output=True, text=True, timeout=300, env={**os.environ, 'EFA_ETC': ETC})
+    try:
+        return json.loads(done.stdout)
+    except ValueError:
+        return None
+
+
 def node_status():
     done = subprocess.run([EFACTL, 'status'], capture_output=True, text=True, timeout=30, env={**os.environ, 'EFA_ETC': ETC})
     try:
@@ -394,7 +463,7 @@ def node_status():
         except OSError:
             continue
     state = efa_cluster.read_state(ETC)
-    return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'time': int(time.time()),
+    return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.release_of(), 'time': int(time.time()),
             'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:]}
 
 
@@ -440,7 +509,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith('/v1/journal?after=') and efa_cluster.read_state(ETC).get('role') == 'master':
             after = self.path.split('=', 1)[1]
             return self.answer(200, {'entries': journal_after(int(after) if after.isdigit() else 0),
-                                     'mode': efa_cluster.read_state(ETC).get('mode', 'master-client')})
+                                     'mode': efa_cluster.read_state(ETC).get('mode', 'master-client'),
+                                     'version': efa_cluster.own_version(), 'platform': efa_cluster.own_platform()})
         return self.answer(404, {'error': 'unknown'})
 
     def sync_answer(self, who):
@@ -569,6 +639,8 @@ def main(port):
     syslog.openlog('efa-cluster', 0, syslog.LOG_DAEMON)
     server = TLSServer(('0.0.0.0', port), Handler)
     server.ssl_context = efa_cluster.context(BASE, server=True)
+    efa_cluster.drop_old_files(ETC)
+    efa_cluster.write_view(efa_cluster.read_state(ETC), ETC)  # a cluster of before this line exists: it shows at once
     threading.Thread(target=follow, daemon=True).start()
     server.serve_forever()
 
@@ -580,7 +652,9 @@ def self_test():
     assert member(state, 'AA') == 'mx-2' and member(state, 'BB') is None
     assert member({'role': 'client', 'master': {'fingerprint': 'CC'}}, 'CC') == 'master'
     for body, error in (({'token': 'nope', 'name': 'mx-3'}, PermissionError), ({'token': 't1', 'name': 'mx-2'}, ValueError),
-                        ({'token': 't1', 'name': 'BAD NAME'}, ValueError)):
+                        ({'token': 't1', 'name': 'BAD NAME'}, ValueError),
+                        # 6.0.0.6.6: a node of another release series (or naming none) does not join.
+                        ({'token': 't1', 'name': 'mx-3', 'version': '5.0.0.1'}, ValueError), ({'token': 't1', 'name': 'mx-3'}, ValueError)):
         try:
             join(state, body, now=10)
             raise AssertionError(body)

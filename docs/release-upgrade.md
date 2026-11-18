@@ -32,7 +32,9 @@ Each step is one fixed action of `efactl release-upgrade --action=<step>`; nothi
    the release package only with a valid signature of the ELevate key that ships with eFa-next, fingerprint
    `74E7 F249 EE69 8A4D ACFB 48C8 4297 85E1 81B9 61A5`),
    writes the leapp vendor files for the eFa-next and the rspamd repository to `/etc/leapp/files/vendors.d/`
-   (`efa-next.repo`, `efa-next_map.json`, `efa-next.sigs`, and the same for `rspamd`) and runs `leapp preupgrade`. Every
+   (`efa-next.repo`, `efa-next_map.json`, `efa-next.sigs`, and the same for `rspamd`; the maps in the format the installed leapp
+   takes, read from its `/etc/leapp/files/repomap.json`: 1.3.0 for leapp-upgrade 0.24, 2.0.0 for 0.25, an unknown format stops
+   the preupgrade) and runs `leapp preupgrade`. Every
    inhibitor in `leapp-report.json` stops the upgrade; the high risks are shown.
    leapp takes the eFa-next repository only while `/etc/yum.repos.d/efa-next.repo` is enabled: it is switched on for the leapp
    run and off again after (a host without the file gets it as in [install.md](install.md)). The upgrade also stops when the
