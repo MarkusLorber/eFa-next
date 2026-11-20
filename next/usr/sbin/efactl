@@ -770,7 +770,7 @@ COMMAND_PERMISSIONS = {
     'reports-in-set': 'settings.edit', 'queue-list': 'settings.view', 'queue-show': 'settings.view', 'queue-action': 'settings.edit',
     'queue-flush': 'settings.edit', 'queue-alarm-set': 'settings.edit', 'spool-status': 'settings.view', 'spool-set': 'settings.edit', 'phish-set': 'domain.settings.edit', 'phish-status': 'settings.view',
     'banner-set': 'settings.edit', 'banner-status': 'settings.view', 'privacy-evidence': 'audit.view', 'incident-list': 'audit.view', 'incident-open': 'settings.edit', 'incident-report': 'audit.view', 'eu-relation-status': 'domain.settings.view', 'eu-relation-set': 'domain.settings.edit', 'uq-encrypt-set': 'settings.edit', 'gdpr-export': 'mail.view_headers', 'gdpr-delete': 'users.manage', 'pseudonymise-status': 'settings.view', 'pseudonymise-set': 'settings.edit', 'letsencrypt-rollover': 'settings.edit', 'web-http2': 'settings.edit', 'web-http2-status': 'settings.view', 'web-cert-set': 'settings.edit', 'own-block-status': 'security.rules', 'own-hash-set': 'security.rules', 'own-yara-set': 'security.rules', 'header-privacy-status': 'settings.view', 'header-privacy-set': 'settings.edit', 'tls-partner-list': 'settings.view', 'tls-partner-set': 'settings.edit', 'login-lockout-status': 'settings.view', 'login-lockout-set': 'settings.edit', 'scan-status': 'settings.view', 'scan-limits-set': 'settings.edit', 'scan-fail-set': 'settings.edit', 'milter-health-set': 'settings.edit', 'milter-health-status': 'settings.view', 'mta-sts-show': 'domain.settings.view', 'mta-sts-set': 'domain.routing', 'mta-sts-check': 'domain.routing', 'mta-sts-text': 'domain.settings.view', 'mta-sts-unserve': 'settings.edit', 'dane-status': 'settings.view', 'dane-set': 'settings.edit', 'tlsa-show': 'settings.view', 'dmarc-report-show': 'domain.settings.view', 'tls-report-show': 'domain.settings.view',
-    'disclaimer-status': 'domain.settings.view', 'disclaimer-set': 'domain.settings.edit', 'disclaimer-template-set': 'domain.settings.edit', 'disclaimer-template-remove': 'domain.settings.edit', 'disclaimer-restore': 'domain.settings.edit', 'disclaimer-import': 'domain.settings.edit', 'disclaimer-export': 'domain.settings.view', 'disclaimer-which': 'domain.settings.view', 'legal-status': None, 'legal-accept': None, 'disclaimer-sync': 'settings.edit', 'dlp-status': 'settings.view', 'dlp-set': 'settings.edit', 'dlp-rule-set': 'settings.edit', 'submitter-list': 'settings.view', 'submitter-set': 'settings.edit', 'submitter-remove': 'settings.edit', 'submission-pam-set': 'settings.edit', 'tls-min-set': 'settings.edit', 'tls-profile-status': 'settings.view', 'uplink-route-set': 'settings.edit', 'network-harden': 'settings.edit', 'tls-profile-set': 'settings.edit', 'tls-port25-set': 'settings.edit', 'tls-profile-upgrade': 'settings.edit', 'ssh-profile-status': 'settings.view', 'ssh-profile-set': 'settings.edit', 'ssh-profile-confirm': 'settings.edit', 'ssh-profile-revert': 'settings.edit', 'pwned-check-set': 'settings.edit', 'security-oval-set': 'settings.edit', 'retention-status': 'settings.view', 'cluster-status': 'settings.view', 'cluster-init': 'settings.edit', 'cluster-token': 'settings.edit', 'cluster-join': 'settings.edit', 'cluster-node-remove': 'settings.edit', 'cluster-leave': 'settings.edit', 'cluster-dkim-apply': 'settings.edit', 'cluster-maillog': 'search', 'cluster-quarantine': 'quarantine.view', 'cluster-queue': 'settings.view', 'cluster-mail-action': 'quarantine.release', 'cluster-unban': 'settings.edit', 'cluster-resync': 'settings.edit', 'cluster-2fa-apply': 'settings.edit', 'cluster-2fa-pull': 'settings.edit', 'cluster-2fa-publish': 'settings.edit', 'cluster-mx-check': 'settings.view', 'hostname-set': 'settings.edit', 'sasl-apply': 'settings.edit', 'web-allowlist-show': 'settings.view', 'web-allowlist-set': 'settings.edit', 'switches-status': 'settings.view', 'form-check': 'settings.view', 'cluster-snapshot': 'settings.edit', 'cluster-content-apply': 'settings.edit', 'retention-set': 'settings.edit', 'content-reason-set': 'settings.edit', 'kernel-hardening-set': 'settings.edit', 'hardening-report': 'settings.view', 'archive-status': 'settings.view', 'bulk-status': 'settings.view', 'bulk-set': 'settings.edit', 'archive-set': 'settings.edit', 'archive-test': 'settings.edit', 'archive-remove': 'settings.edit', 'outbound-limits-set': 'settings.edit', 'pdf-status': 'settings.view', 'pdf-set': 'settings.edit', 'pdf-password-set': 'settings.edit', 'cdr-list': 'quarantine.view', 'links-status': 'settings.view', 'links-set': 'settings.edit', 'cdr-release': 'quarantine.release_malware', 'audit-note': None, 'refusal-note': None,
+    'disclaimer-status': 'domain.settings.view', 'disclaimer-set': 'domain.settings.edit', 'disclaimer-template-set': 'domain.settings.edit', 'disclaimer-template-remove': 'domain.settings.edit', 'disclaimer-restore': 'domain.settings.edit', 'disclaimer-import': 'domain.settings.edit', 'disclaimer-export': 'domain.settings.view', 'disclaimer-which': 'domain.settings.view', 'legal-status': None, 'legal-accept': None, 'disclaimer-sync': 'settings.edit', 'dlp-status': 'settings.view', 'dlp-set': 'settings.edit', 'dlp-rule-set': 'settings.edit', 'submitter-list': 'settings.view', 'submitter-set': 'settings.edit', 'submitter-remove': 'settings.edit', 'submission-pam-set': 'settings.edit', 'tls-min-set': 'settings.edit', 'tls-profile-status': 'settings.view', 'uplink-route-set': 'settings.edit', 'network-harden': 'settings.edit', 'tls-profile-set': 'settings.edit', 'tls-port25-set': 'settings.edit', 'tls-profile-upgrade': 'settings.edit', 'ssh-profile-status': 'settings.view', 'ssh-profile-set': 'settings.edit', 'ssh-profile-confirm': 'settings.edit', 'ssh-profile-revert': 'settings.edit', 'pwned-check-set': 'settings.edit', 'security-oval-set': 'settings.edit', 'retention-status': 'settings.view', 'cluster-status': 'settings.view', 'cluster-init': 'settings.edit', 'cluster-token': 'settings.edit', 'cluster-join': 'settings.edit', 'cluster-node-remove': 'settings.edit', 'cluster-leave': 'settings.edit', 'cluster-dkim-apply': 'settings.edit', 'cluster-maillog': 'search', 'cluster-quarantine': 'quarantine.view', 'cluster-queue': 'settings.view', 'cluster-mail-action': 'quarantine.release', 'cluster-unban': 'settings.edit', 'cluster-resync': 'settings.edit', 'cluster-alarm': 'settings.edit', 'cluster-2fa-apply': 'settings.edit', 'cluster-2fa-pull': 'settings.edit', 'cluster-2fa-publish': 'settings.edit', 'cluster-mx-check': 'settings.view', 'hostname-set': 'settings.edit', 'sasl-apply': 'settings.edit', 'web-allowlist-show': 'settings.view', 'web-allowlist-set': 'settings.edit', 'switches-status': 'settings.view', 'form-check': 'settings.view', 'cluster-snapshot': 'settings.edit', 'cluster-content-apply': 'settings.edit', 'retention-set': 'settings.edit', 'content-reason-set': 'settings.edit', 'kernel-hardening-set': 'settings.edit', 'hardening-report': 'settings.view', 'archive-status': 'settings.view', 'bulk-status': 'settings.view', 'bulk-set': 'settings.edit', 'archive-set': 'settings.edit', 'archive-test': 'settings.edit', 'archive-remove': 'settings.edit', 'outbound-limits-set': 'settings.edit', 'pdf-status': 'settings.view', 'pdf-set': 'settings.edit', 'pdf-password-set': 'settings.edit', 'cdr-list': 'quarantine.view', 'links-status': 'settings.view', 'links-set': 'settings.edit', 'cdr-release': 'quarantine.release_malware', 'audit-note': None, 'refusal-note': None,
     'audit-strict-status': 'audit.view', 'audit-verify': 'audit.view', 'audit-anchor-verify': 'audit.view', 'audit-mode': 'settings.edit', 'audit-rules-set': 'settings.edit',
     'quarantine-list': 'quarantine.view', 'quarantine-show': 'mail.view_content', 'quarantine-content': 'mail.view_content', 'uq-content': 'mail.view_content', 'quarantine-release': 'quarantine.release', 'quarantine-delete': 'quarantine.release',
     'uq-list': 'quarantine.self', 'uq-show': 'quarantine.self', 'uq-release': 'quarantine.self', 'uq-request': 'quarantine.self',
@@ -3034,6 +3034,9 @@ def arc_show(_args):
 
 def _dmarc_who():
     user = os.environ.get('SUDO_USER')
+    if os.environ.get('EFA_CLUSTER_FORWARDED'):
+        # HA: a change a node handed on runs here as root; the audit names the node and its login (efa-cluster --client).
+        return acting_client or f"cluster node {os.environ['EFA_CLUSTER_FORWARDED']}"
     if user == 'efa-web':
         return f'web interface ({acting_user})' if acting_user else 'web interface'
     # The portal acts for its logged-in user (--as): the audit and the quarantine have to name that user.
@@ -23649,6 +23652,10 @@ def _cluster_forward(args):
                        'Mail filtering goes on with the last settings.')
     if isinstance(answer, dict) and set(answer) == {'error'}:
         raise EfaError(answer['error'])
+    if isinstance(answer, dict) and 'note' not in answer:
+        # 2026-11-19: the answer is the state of the master; the page of this node reads its own state, which
+        # follows only with the journal (half a minute). Said so, instead of a switch that seems to jump back.
+        answer = {**answer, 'note': _text('Changed on the master {master}: this node takes it over within a minute.', master=master.get('name', ''))}
     return answer
 
 
@@ -24171,12 +24178,28 @@ def cluster_status(_args):
             except (OSError, ValueError) as err:
                 row.update(reachable=False, error=str(err)[:120])
             rows.append(row)
+        # The alarms of the last poll of efa-cluster (lag behind the journal, a follow loop without rounds).
+        health = _json_read(cluster.health_file(ETC), {})
+        alarms = {item.get('name'): item.get('alarm') for item in health.get('nodes', []) if isinstance(item, dict) and item.get('alarm')}
+        for row in rows:
+            if alarms.get(row['node']):
+                row['alarm'] = alarms[row['node']]
         result['nodes'] = rows
     else:
         result['master'] = state['master']
         if state.get('mode', 'master-client') == 'master-client':
             result['managed_by'] = state['master'].get('name', '')
     return result
+
+
+def cluster_alarm(args):
+    """efa-cluster on the master: a node lags behind the journal or its follow loop stopped (an event, the admin, the audit)."""
+    node, text = (args.node or '').strip()[:60], (args.text or '').strip()[:300]
+    _audit(f'cluster ALARM node {node}: {text}')
+    _event('cluster_node_lagging', 'critical', node=node, detail=text)
+    _admin_notify(f'eFa-next cluster: node {node} does not follow the master', f'Node {node}: {text}.\nThe node has to be checked: '
+                  f'efactl cluster-status on the master, the log of the cluster service (efa-cluster) on the node.')
+    return {'alarm': node}
 
 
 def _cluster_each(command, args, key):
@@ -32880,6 +32903,8 @@ COMMANDS = {
                       'args': [{'name': 'address', 'label': 'IP address', 'required': True}]},
     'sasl-apply': {'func': sasl_apply, 'title': 'Logins of port 587: apply', 'args': [], 'writes': True},
     'cluster-mx-check': {'func': cluster_mx_check, 'title': 'Cluster: MX records and failover', 'args': [], 'writes': False},
+    'cluster-alarm': {'func': cluster_alarm, 'title': 'Cluster: alarm of a node (efa-cluster)', 'writes': False,
+                      'args': [{'name': 'node', 'label': 'Node', 'required': True}, {'name': 'text', 'label': 'Text', 'required': True}]},
     'cluster-resync': {'func': cluster_resync, 'title': 'Cluster: take all settings of the master anew', 'args': [], 'writes': True},
     'cluster-2fa-apply': {'func': cluster_2fa_apply, 'title': 'Cluster: the second factors of the master (journal)', 'writes': True,
                           'args': [{'name': 'rows', 'label': 'Rows', 'secret': True, 'required': True}]},
@@ -38637,7 +38662,7 @@ def self_test():
             assert not advisory_items(tree_entries, {'eFa-next': [(newest[0], newest[1], newest[2] + '.el10')]}, tree_older, set(), {}, {})
             # EFA-2026-006/007: a host on 6.0.0.6.6 gets both, and neither locks the web interface (no web hole of eFa-next).
             on_666 = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.6', '1.el9')]}, tree_older, set(), {}, {})
-            assert {item['advisory'] for item in on_666} == {'EFA-2026-006', 'EFA-2026-007'} and not lockdown_trigger(on_666), on_666
+            assert {item['advisory'] for item in on_666} == {'EFA-2026-006', 'EFA-2026-007', 'EFA-2026-008'} and not lockdown_trigger(on_666), on_666
             # S38 (EFA-2026-004): a host on 6.0.0.6 gets exactly that one.
             assert [item for item in advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6', '2.el10')]}, tree_older, set(), {}, {})], 'EFA-2026-004 for 6.0.0.6'
         # 9o-b: lock once, open after the patch, no lock again after a release by hand for the same items.

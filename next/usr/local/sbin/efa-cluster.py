@@ -39,6 +39,7 @@ CONTACT_SECONDS = 300  # how often a client notes that its master answered, for 
 HEALTH_SECONDS = 60  # how often the master asks its nodes, for its dashboard (the page itself never calls a node)
 MX_SECONDS = 900  # how often the master checks the MX records of the domains for that card
 FETCH_SECONDS = 30
+STATUS_SECONDS = 4  # efactl status for /v1/status: below the 5 s of the master's poll and of efactl cluster-status
 # Handshake and request of one connection: snapshots and journals of the master are larger.
 CONNECTION_SECONDS = 120
 # What the master may run on a node, for the view over all nodes (9c): mail log, quarantine, queue, and their actions.
@@ -273,86 +274,103 @@ def sync_signature(dirs=None):
     return found
 
 
+FOLLOW_ROUND = {'at': 0}  # the heartbeat of the follow loop: when it finished its last round (in /v1/status)
+
+
 def follow():
     """Every half minute: the bans of the cluster; on a client the new entries of the master, applied in order. A failed one is
-    noted and skipped."""
-    pulled, retry_at, seen, polled = False, 0, None, 0
+    noted and skipped. A fault of one round never ends the loop (2026-11-19: on a node the loop ended without a word at entry 86
+    and the node took no change of the master for a day while the service still ran): it goes to the log, the next round
+    tries again."""
+    memo = {'pulled': False, 'retry_at': 0, 'seen': None, 'polled': 0}
     while True:
         time.sleep(FETCH_SECONDS)
-        state = efa_cluster.read_state(ETC)
-        if state.get('role') == 'master' and time.time() - polled > HEALTH_SECONDS:
-            polled = time.time()
-            try:
-                poll_health(state)
-            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
-                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster health of the nodes not written: {err}')
-        if state.get('role') == 'master':
-            # A change in a folder of the kinds (freshclam, a job): the manifest anew and, if it changed, a journal entry.
-            now_seen = sync_signature()
-            if seen is not None and now_seen != seen:
-                subprocess.run([EFACTL, 'cluster-sync-publish'], capture_output=True, text=True, timeout=600, env={**os.environ, 'EFA_ETC': ETC})
-            seen = now_seen
         try:
-            share_bans(state)
-        except (OSError, ValueError, KeyError) as err:
-            syslog.syslog(syslog.LOG_WARNING, f'efa-cluster bans not shared: {err}')
+            follow_step(memo)
+        except Exception as err:  # noqa: BLE001  any fault: logged, the loop goes on
+            syslog.syslog(syslog.LOG_ERR, f'efa-cluster follow round failed, next try in {FETCH_SECONDS} s: {type(err).__name__}: {str(err)[:300]}')
+        FOLLOW_ROUND['at'] = int(time.time())
+
+
+def follow_step(memo):
+    """One round of follow()."""
+    state = efa_cluster.read_state(ETC)
+    if state.get('role') == 'master' and time.time() - memo['polled'] > HEALTH_SECONDS:
+        memo['polled'] = time.time()
         try:
-            share_rates(state)
-        except (OSError, ValueError, KeyError, TypeError) as err:
-            # Each node then counts its own mail only, as without a cluster.
-            syslog.syslog(syslog.LOG_WARNING, f'efa-cluster send counts not shared: {err}')
-        if state.get('role') != 'client':
-            continue
-        master = state['master']
-        try:
-            reply = efa_cluster.call(BASE, master['host'], master['port'], f"/v1/journal?after={state.get('applied', 0)}", timeout=30)
-            entries = reply['entries']
-        except (OSError, ValueError, KeyError) as err:
-            syslog.syslog(syslog.LOG_WARNING, f'efa-cluster master not reached: {err}')
-            # 9g-b: since when, for the dashboard; a node never takes over by itself (two nodes would both become master).
-            if not state.get('master_down_since'):
-                state['master_down_since'] = int(time.time())
-                efa_cluster.write_state(state, ETC)
-            continue
-        if state.get('master_down_since'):
-            state.pop('master_down_since')
+            poll_health(state)
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
+            syslog.syslog(syslog.LOG_WARNING, f'efa-cluster health of the nodes not written: {err}')
+    if state.get('role') == 'master':
+        # A change in a folder of the kinds (freshclam, a job): the manifest anew and, if it changed, a journal entry.
+        now_seen = sync_signature()
+        if memo['seen'] is not None and now_seen != memo['seen']:
+            subprocess.run([EFACTL, 'cluster-sync-publish'], capture_output=True, text=True, timeout=600, env={**os.environ, 'EFA_ETC': ETC})
+        memo['seen'] = now_seen
+    try:
+        share_bans(state)
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as err:
+        syslog.syslog(syslog.LOG_WARNING, f'efa-cluster bans not shared: {err}')
+    try:
+        share_rates(state)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
+        # Each node then counts its own mail only, as without a cluster.
+        syslog.syslog(syslog.LOG_WARNING, f'efa-cluster send counts not shared: {err}')
+    if state.get('role') != 'client':
+        return
+    master = state['master']
+    try:
+        reply = efa_cluster.call(BASE, master['host'], master['port'], f"/v1/journal?after={state.get('applied', 0)}", timeout=30)
+        entries = reply['entries']
+    except (OSError, ValueError, KeyError) as err:
+        syslog.syslog(syslog.LOG_WARNING, f'efa-cluster master not reached: {err}')
+        # 9g-b: since when, for the dashboard; a node never takes over by itself (two nodes would both become master).
+        if not state.get('master_down_since'):
+            state['master_down_since'] = int(time.time())
             efa_cluster.write_state(state, ETC)
-        # 6.0.0.6.6: entries of a master of another release series are not applied (they may name what this node lacks).
-        problem = efa_cluster.version_problem(efa_cluster.own_version(), reply.get('version', ''))
-        if problem != state.get('version_problem', ''):
-            state['version_problem'] = problem
-            efa_cluster.write_state(state, ETC)
-            if problem:
-                syslog.syslog(syslog.LOG_ERR, f'efa-cluster: journal not followed: {problem}')
+        return
+    if state.get('master_down_since'):
+        state.pop('master_down_since')
+        efa_cluster.write_state(state, ETC)
+        memo['pulled'] = False  # 6.0.0.6: the master is back: its files replace what the node fetched itself meanwhile
+    # 6.0.0.6.6: entries of a master of another release series are not applied (they may name what this node lacks).
+    problem = efa_cluster.version_problem(efa_cluster.own_version(), reply.get('version', ''))
+    if problem != state.get('version_problem', ''):
+        state['version_problem'] = problem
+        efa_cluster.write_state(state, ETC)
         if problem:
-            continue
-            pulled = False  # 6.0.0.6: the master is back: its files replace what the node fetched itself meanwhile
-        if time.time() - (efa_cluster.read_view(ETC).get('contact') or 0) > CONTACT_SECONDS:
-            efa_cluster.write_view(state, ETC, contact=time.time())  # the line on every page: the master answers
-        if not pulled or (time.time() > retry_at and sync_failed()):
-            pulled, retry_at = True, time.time() + SYNC_RETRY_SECONDS
-            sync_pull()
-        # 9g: a new mode of the master: all settings anew, then the journal from there.
-        if reply.get('mode') in ('master-client', 'ha') and reply['mode'] != state.get('mode', 'master-client'):
-            state['mode'] = reply['mode']
-            efa_cluster.write_state(state, ETC)
-            done = subprocess.run([EFACTL, 'cluster-resync'], capture_output=True, text=True, timeout=600, env={**os.environ, 'EFA_ETC': ETC})
-            syslog.syslog(syslog.LOG_NOTICE, f"efa-cluster mode {reply['mode']}: resync {'done' if done.returncode == 0 else 'failed'}")
-            continue
-        for entry in entries:
+            syslog.syslog(syslog.LOG_ERR, f'efa-cluster: journal not followed: {problem}')
+    if problem:
+        return
+    if time.time() - (efa_cluster.read_view(ETC).get('contact') or 0) > CONTACT_SECONDS:
+        efa_cluster.write_view(state, ETC, contact=time.time())  # the line on every page: the master answers
+    if not memo['pulled'] or (time.time() > memo['retry_at'] and sync_failed()):
+        memo['pulled'], memo['retry_at'] = True, time.time() + SYNC_RETRY_SECONDS
+        sync_pull()
+    # 9g: a new mode of the master: all settings anew, then the journal from there.
+    if reply.get('mode') in ('master-client', 'ha') and reply['mode'] != state.get('mode', 'master-client'):
+        state['mode'] = reply['mode']
+        efa_cluster.write_state(state, ETC)
+        done = subprocess.run([EFACTL, 'cluster-resync'], capture_output=True, text=True, timeout=600, env={**os.environ, 'EFA_ETC': ETC})
+        syslog.syslog(syslog.LOG_NOTICE, f"efa-cluster mode {reply['mode']}: resync {'done' if done.returncode == 0 else 'failed'}")
+        return
+    for entry in entries:
+        try:
             error = apply(entry)
-            state = efa_cluster.read_state(ETC)
-            state['applied'] = entry['seq']
-            if error:
-                state.setdefault('failed', []).append({'seq': entry['seq'], 'command': entry.get('command') or entry.get('then'), 'error': error})
-                state['failed'] = state['failed'][-20:]
-                syslog.syslog(syslog.LOG_ERR, f"efa-cluster entry {entry['seq']} failed: {error}")
-            efa_cluster.write_state(state, ETC)
-        if entries:
-            try:
-                efa_cluster.call(BASE, master['host'], master['port'], '/v1/ack', {'seq': entries[-1]['seq']}, timeout=30)
-            except (OSError, ValueError) as err:
-                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster confirm failed: {err}')
+        except Exception as err:  # noqa: BLE001  a time limit, a bad path or file of one entry: noted and skipped like a failed command
+            error = f'{type(err).__name__}: {str(err)[:250]}'
+        state = efa_cluster.read_state(ETC)
+        state['applied'] = entry['seq']
+        if error:
+            state.setdefault('failed', []).append({'seq': entry['seq'], 'command': entry.get('command') or entry.get('then'), 'error': error})
+            state['failed'] = state['failed'][-20:]
+            syslog.syslog(syslog.LOG_ERR, f"efa-cluster entry {entry['seq']} failed: {error}")
+        efa_cluster.write_state(state, ETC)
+    if entries:
+        try:
+            efa_cluster.call(BASE, master['host'], master['port'], '/v1/ack', {'seq': entries[-1]['seq']}, timeout=30)
+        except (OSError, ValueError) as err:
+            syslog.syslog(syslog.LOG_WARNING, f'efa-cluster confirm failed: {err}')
 
 
 def read_manifest():
@@ -447,6 +465,13 @@ def poll_health(state, call=None, mx=None, now=None):
     health = {'written': int(now), 'mode': state.get('mode', 'master-client'), 'name': state.get('name', ''), 'seq': seq,
               'nodes': efa_cluster.health_rows(state, answers, before, seq, now), 'mx': mx_check}
     efa_cluster.write_public(efa_cluster.health_file(ETC), health)
+    # A new alarm once (an event, a mail to the admin, the audit log); it ends by itself when the node is back in step.
+    was = {row.get('name'): row.get('alarm') for row in before.get('nodes', [])} if isinstance(before.get('nodes'), list) else {}
+    for row in health['nodes']:
+        if row.get('alarm') and not was.get(row['name']):
+            syslog.syslog(syslog.LOG_ERR, f"efa-cluster ALARM node {row['name']}: {row['alarm']}")
+            subprocess.run([EFACTL, 'cluster-alarm', '--node', row['name'], '--text', row['alarm']], capture_output=True, text=True, timeout=60,
+                           env={**os.environ, 'EFA_ETC': ETC})
     return health
 
 
@@ -459,9 +484,14 @@ def run_mx_check():
 
 
 def node_status():
-    done = subprocess.run([EFACTL, 'status'], capture_output=True, text=True, timeout=30, env={**os.environ, 'EFA_ETC': ETC})
     try:
+        # Below the 5 s the master waits for this answer (efactl status takes well under a second).
+        done = subprocess.run([EFACTL, 'status'], capture_output=True, text=True, timeout=STATUS_SECONDS, env={**os.environ, 'EFA_ETC': ETC})
         status = json.loads(done.stdout)
+    except (OSError, subprocess.SubprocessError) as err:
+        # 2026-11-19: a busy Fail2Ban held efactl status, and the master's request ended without an answer; the node still
+        # answers in time (its heartbeat and its journal place), with the state of its services unknown.
+        status = {'status': 'unknown', 'error': f'efactl status: {type(err).__name__}'}
     except ValueError:
         status = {'status': 'unknown', 'error': (done.stderr or done.stdout)[-200:]}
     version = ''
@@ -474,6 +504,7 @@ def node_status():
             continue
     state = efa_cluster.read_state(ETC)
     return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.own_platform(), 'time': int(time.time()),
+            'round': FOLLOW_ROUND['at'],
             'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:]}
 
 
@@ -784,6 +815,8 @@ def sync_self_test():
     global ETC, BASE
     kept = (ETC, BASE, dict(efa_cluster.SYNC_DIRS), efa_cluster.SYNC_MANIFEST)
     with tempfile.TemporaryDirectory() as temp:
+        # Hermetic: never the cluster of this host (2026-11-19: a CI host left in a two-node test made the answer name its nodes).
+        ETC, BASE = os.path.join(temp, 'no-cluster-etc'), os.path.join(temp, 'no-cluster-base')
         served = os.path.join(temp, 'served')
         os.makedirs(served)
         data = b'EFA-TEST-SIGNATURE:0:*:414243\n' * 1000

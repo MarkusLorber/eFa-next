@@ -84,6 +84,26 @@ def write_public(path, data):
     os.replace(path + '.new', path)
 
 
+# 2026-11-19: a node whose follow loop stopped took no journal entry for a day and nothing said so. The master's health
+# names it: behind the journal for more than LAG_ALARM_SECONDS, or no finished round of its follow loop for more than
+# ROUND_ALARM_SECONDS (the heartbeat of /v1/status, a node of 6.0.0.6.6.2 on).
+LAG_ALARM_SECONDS = 300
+ROUND_ALARM_SECONDS = 120
+
+
+def health_alarm(row, old, answer, now):
+    """(lag_since, alarm text) of one node from its answer now and its row of the last poll."""
+    behind = row.get('behind')
+    lag_since = (old.get('lag_since') or int(now)) if behind else None
+    alarms = []
+    if behind and now - lag_since > LAG_ALARM_SECONDS:
+        alarms.append(f'{behind} journal entries behind for {int(now - lag_since) // 60} min')
+    round_at = answer.get('round') if isinstance(answer.get('round'), int) else 0
+    if round_at and now - round_at > ROUND_ALARM_SECONDS:
+        alarms.append(f'its follow loop finished no round for {int(now - round_at)} s')
+    return lag_since, '; '.join(alarms)
+
+
 def health_rows(state, answers, before, seq, now):
     """The nodes of a master for its dashboard (2026-11-18): from the last poll, one row each; the last contact stays from
     before when a node does not answer now. answers: name -> the /v1/status answer, or an Exception."""
@@ -98,9 +118,11 @@ def health_rows(state, answers, before, seq, now):
         if isinstance(answer, dict):
             failed = answer.get('failed') if isinstance(answer.get('failed'), list) else []
             behind = max(0, int(seq) - int(answer.get('applied', 0) or 0)) if str(answer.get('applied', 0)).isdigit() else None
-            rows.append({**row, 'version': str(answer.get('version', ''))[:40], 'platform': str(answer.get('platform', ''))[:8],
-                         'status': str(answer.get('status', ''))[:20], 'contact': int(now), 'behind': behind,
-                         'sync': 'error' if failed else 'ok', 'failed': len(failed)})
+            row = {**row, 'version': str(answer.get('version', ''))[:40], 'platform': str(answer.get('platform', ''))[:8],
+                   'status': str(answer.get('status', ''))[:20], 'contact': int(now), 'behind': behind,
+                   'sync': 'error' if failed else 'ok', 'failed': len(failed)}
+            row['lag_since'], row['alarm'] = health_alarm(row, last.get(name, {}), answer, now)
+            rows.append(row)
         else:
             old = last.get(name, {})
             rows.append({**row, 'version': old.get('version', ''), 'platform': old.get('platform', ''), 'contact': old.get('contact'),
@@ -466,7 +488,11 @@ SHARED_JAIL = 'efa-cluster'
 
 def f2b_banned(run=subprocess.run):
     """The banned addresses per jail: {(jail, address)}. Empty when Fail2Ban does not answer."""
-    done = run(['fail2ban-client', 'banned'], capture_output=True, text=True, timeout=30)
+    try:
+        done = run(['fail2ban-client', 'banned'], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        # 2026-11-19: a Fail2Ban busy for more than 30 s ended the follow loop of efa-cluster; no answer = no bans now.
+        return set()
     if done.returncode != 0:
         return set()
     try:

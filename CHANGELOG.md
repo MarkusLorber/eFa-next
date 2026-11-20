@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.0.0.6.6.2 (2026-11-19)
+
+### Cluster: a node never stops following its master without a word
+- A Fail2Ban that did not answer within 30 seconds ended the loop with which a node follows the journal of its master. The
+  service kept running, the node took no change of the master any more (settings, bans, users and their second factors)
+  and nothing said so; only a restart helped. Now a fault of one round is logged and the next round runs, and an entry
+  whose apply fails is noted and skipped like a failed command instead of holding up every later one.
+- The master raises an alarm (event, mail to the admin, audit log, red on its Cluster card) when a node is behind its
+  journal for more than 5 minutes or its follow loop has finished no round for more than 2 minutes; it ends by itself
+  when the node is in step again.
+- In HA mode the answer of a change handed on to the master says that this node takes it over within a minute, and the
+  audit log of the master names the node and its login.
+- Update every node of a cluster; a node behind its master catches up after the update by itself.
+
 ## 6.0.0.6.6.1 (2026-11-18)
 
 ### Web interface: HTTP/2 off by default

@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.6.1
+Version:        6.0.0.6.6.2
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -170,6 +170,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Thu Nov 19 2026 Markus Lorber - 6.0.0.6.6.2-1
+- 6.0.0.6.6.2: a cluster node keeps following its master when Fail2Ban or one journal entry fails, and the master raises an alarm when a node lags or stops; see CHANGELOG.md.
+
 * Wed Nov 18 2026 Markus Lorber - 6.0.0.6.6.1-1
 - 6.0.0.6.6.1: the status answer of a cluster node works again (the master saw every node as not reachable); settings files sent by the master get the owner of the settings table, not root:root; the second factors of the logins go to the nodes; web HTTP/2 off by default (nginx CVE-2026-123007, -123633, -121810, -113425); see CHANGELOG.md.
 

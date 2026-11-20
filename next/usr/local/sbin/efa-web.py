@@ -2641,6 +2641,7 @@ staged updates, operation without internet, the views over all nodes. One line o
 {% if role != 'none' %}{{ sec_line(_('Mode'), {'master-client': _('settings only on the master'), 'ha': _('settings on every node (HA)')}.get(cs.mode, cs.mode or '–')) }}{% endif %}
 {% if role == 'master' %}{{ sec_line(_('Nodes'), nodes|length ~ ((', ' ~ _('{} not reachable').format(away|length)) if away else ''), 'b' if away else '') }}
 {% set behind = nodes|selectattr('reachable')|selectattr('behind')|list %}{% if behind %}{{ sec_line(_('Behind'), behind|map(attribute='node')|join(', '), 'w') }}{% endif %}
+{% for item in nodes|selectattr('alarm') %}{{ sec_line(_('Alarm') ~ ' ' ~ item.node, item.alarm, 'b') }}{% endfor %}
 {%- elif role == 'client' %}{{ sec_line(_('Master'), (cs.master or {}).get('name') or (cs.master or {}).get('host') or '–') }}{% endif %}
 {% if cs.certificate_until %}{{ sec_line(_('Node certificate until'), cs.certificate_until) }}{% endif %}
 <p>{% if role == 'none' %}{{ go('cluster-init', _('Start a cluster')) }}{{ go('cluster-join', _('Join a cluster')) }}{% elif role == 'master' %}{{ go('cluster-token', _('Add a node')) }}{{ go('cluster-status', _('Nodes')) }}{% else %}{{ go('cluster-status', _('Details')) }}{% endif %}</p></div>
@@ -5626,7 +5627,9 @@ def call_command(command, values):
 
 
 # Binary streams with their own route and password check. The others are for the web interface itself.
-NOT_CALLABLE = ('audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check')
+NOT_CALLABLE = ('cluster-alarm', 'audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check')
+# A command the web interface refuses is never shown as a card either (6.0.0.6.7: the jobs and hooks of break-glass and the cluster).
+HIDDEN_CARDS |= set(NOT_CALLABLE)
 
 
 # Results of actions, until the page after the redirect shows them: a reload then shows the page, it does not run the action again.

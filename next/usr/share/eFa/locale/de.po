@@ -1231,6 +1231,12 @@ msgstr "Anmeldungen auf Port 587: anwenden"
 msgid "Cluster: MX records and failover"
 msgstr "Cluster: MX-Einträge und Ausfallsicherheit"
 
+msgid "Cluster: alarm of a node (efa-cluster)"
+msgstr "Cluster: Alarm eines Knotens (efa-cluster)"
+
+msgid "Text"
+msgstr "Text"
+
 msgid "Cluster: take all settings of the master anew"
 msgstr "Cluster: alle Einstellungen des Masters neu übernehmen"
 
@@ -4144,9 +4150,6 @@ msgstr "Angriffswarnung: Prüfung im Hintergrund"
 msgid "Mail a load warning"
 msgstr "Eine Lastwarnung mailen"
 
-msgid "Text"
-msgstr "Text"
-
 msgid "Firewall guard"
 msgstr "Firewall-Wächter"
 
@@ -5106,6 +5109,9 @@ msgstr "alle Mails"
 
 msgid "spam"
 msgstr "Spam"
+
+msgid "Changed on the master {master}: this node takes it over within a minute."
+msgstr "Auf dem Master {master} geändert: dieser Knoten übernimmt es innerhalb einer Minute."
 
 msgid "CVE watch: no source of security advisories answered for 6 hours ({status})."
 msgstr "CVE-Wache: seit 6 Stunden antwortet keine Quelle für Sicherheitshinweise ({status})."

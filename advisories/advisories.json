@@ -91,6 +91,19 @@
       "web_rce": false,
       "summary": "nginx flaws in HTTP/2, HTTP/3 and the mail proxy (CVSS 9.2). Mitigation only: 6.0.0.6.6.1 switches HTTP/2 of the web interface off; the fix is the nginx update of the OS vendor.",
       "link": "https://www.cert.at/de/warnungen/2026/11/kritische-sicherheitslucken-in-nginx-plus-und-nginx-open-source-updates-verfugbar"
+    },
+    {
+      "id": "EFA-2026-008",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.6.2", "1"],
+      "cves": [],
+      "severity": "Moderate",
+      "vector": "",
+      "cwe": "CWE-755",
+      "remote": false,
+      "web_rce": false,
+      "summary": "A cluster node could silently stop following its master (Fail2Ban busy): it then missed new bans, settings and 2FA changes. 6.0.0.6.6.2 keeps it following and alarms.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.6.2"
     }
   ]
 }
