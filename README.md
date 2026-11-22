@@ -1,16 +1,11 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="eFa-next" title="eFa-next" width="400">
-</p>
-
 # eFa-next
 
-eFa-next is an open-source email filter appliance for RHEL-compatible systems such as AlmaLinux, Rocky Linux, CentOS Stream and
-RHEL, built with data privacy and sovereignty first. It continues the idea of the [eFa project](https://efa-project.org) as a free
-open source project on a modern stack and is not affiliated with it (but inspired).
+eFa-next is a self-hosted, open source email security gateway for RHEL-compatible systems (AlmaLinux, Rocky Linux, RHEL; EL9
+and EL10). It sits in front of your mail server, filters incoming and outgoing mail with rspamd and ClamAV, and hands the
+clean, sealed and signed mail on. It continues the idea of the [eFa project](https://efa-project.org) on a modern stack and is
+not affiliated with it (but inspired by it).
 
-It is built as an autonomous security fortress, designed with sovereignty, compliance and especially EU regulations in mind.
-
-It sits in front of your mail server, filters incoming and/or outgoing mail and hands the clean, sealed, signed mail on.
+Deutsch: [README.de.md](README.de.md)
 
 **Intended use:** eFa-next is a mail filter server for qualified administrators in businesses and organisations and needs
 technical knowledge of Linux, DNS, SMTP and TLS. It is not intended for consumers or private persons and is not released for
@@ -18,6 +13,60 @@ that use ([DISCLAIMER.md](DISCLAIMER.md)); the rights under the AGPL are not aff
 
 **Manual:** the complete manual with screenshots, from the install to daily operation:
 [docs/manual](docs/manual/README.md) (Deutsch: [Handbuch](docs/manual/README.de.md)).
+
+## Security, privacy, sovereignty and EU compliance first
+
+These four come before every other feature: in the design, in the defaults and in every release. What follows describes what
+eFa-next is designed to do. It is no legal advice and no promise of a result; see [Legal notice](#legal-notice-and-license).
+
+### Security
+
+- Secure defaults: TLS 1.2 and 1.3 only with forward secrecy, SELinux enforcing, a hardened system, two-factor login for the
+  administrators, passkeys, and only modern encryption ([TLS profiles](docs/tls-profiles.md)).
+- A security minimum guard, a CVE watch of the installed packages, a hardening report and a signed audit log anchor help the
+  operator see the state of the server at any time.
+- Coordinated vulnerability disclosure with a fixed contact, advisories and CVEs: [SECURITY.md](SECURITY.md).
+- Every release is signed: the packages, the repository index, the release checksums (`SHA256SUMS`) and the release tags,
+  with the eFa-next key `1823 D6D3 BB7D 5AEA 286E 836D CFE7 E079 16CC 8046`. The installer, the migration and the update check
+  take only releases with a valid signature.
+
+### Privacy and data protection (GDPR)
+
+- Mail, quarantine, mail log and settings stay on your server. eFa-next has no telemetry: it does not report usage or mail to
+  the project. It connects out only for what its functions need (DNS, signed updates, and feeds or services you switch on).
+- Privacy-friendly defaults, pseudonyms in reports, header privacy and tracking protection; a reason can be required before
+  anyone reads the content of a mail ([privacy defaults](docs/privacy-and-reason.md)).
+- Functions that help the operator with GDPR requests (access, erasure) and with records and templates
+  ([GDPR requests](docs/gdpr-requests.md), [data protection templates, German](docs/datenschutz/README.md)).
+
+### Digital sovereignty
+
+- Self-hosted on your own server or VM: no cloud account, no subscription, no external service needed for the core filtering.
+- Operation without internet access is possible ([offline operation](docs/offline.md)).
+- With the *EU relation* setting, transfers to services outside the EU need an explicit, logged confirmation, and backups can
+  be kept to targets in the EU ([EU relation](docs/eu-relation.md), [backup targets in the EU](docs/backup-eu.md)).
+- Open source under the AGPL-3.0-or-later: the code can be reviewed, built and run by anyone.
+
+### EU compliance support
+
+eFa-next is designed to help operators with their duties under EU law. It does not make an organisation compliant, and it is
+not certified.
+
+- **Cyber Resilience Act (CRA):** a contact for vulnerability reports ([SECURITY.md](SECURITY.md)), security updates as signed
+  releases, published advisories, and a software bill of materials (SBOM, CycloneDX) with every release.
+- **Compliance file per release** (from 6.0.0.6.7 on): for each standard eFa-next looks at, which controls the release covers,
+  covers in part or does not cover, each with its evidence; as JSON, Markdown (English and German) and OSCAL, in the signed
+  checksums of the release. It is no legally binding statement.
+- **GDPR and NIS2:** functions for GDPR requests, NIS2 incident reports ([NIS2 incidents](docs/nis2-incident.md)), and a map of
+  EU requirements to the functions of eFa-next ([EU conformity](docs/compliance/EU.md)).
+
+The operator remains responsible for the operation of eFa-next and for meeting the legal duties of their organisation.
+
+## Current state
+
+The current release line is **6.0.0.6** for EL9 and EL10 (AlmaLinux 9 and 10; Rocky Linux and RHEL); the newest release and
+its notes are on the [releases page](https://github.com/MarkusLorber/eFa-next/releases). Changes per release:
+[CHANGELOG.md](CHANGELOG.md). eFa-next is a young project: test it before you rely on it.
 
 ## Requirements
 
@@ -55,10 +104,8 @@ bash build.bash
 Then open the setup wizard in a browser at `https://<host name or IP>/` with the setup code from
 `sudo cat /run/efa-init/setup-code`. Details, the wizard and updates: [docs/install.md](docs/install.md).
 
-Releases, the repository index and `SHA256SUMS` are signed with the eFa-next repository key
-`1823 D6D3 BB7D 5AEA 286E 836D CFE7 E079 16CC 8046`. https://repo.efa-next.eu is the source; the
-[GitHub releases](https://github.com/MarkusLorber/eFa-next/releases) are a mirror. The installer, `efa-migrate` and the update
-check take only releases with a valid signature.
+https://repo.efa-next.eu is the source of the releases; the [GitHub releases](https://github.com/MarkusLorber/eFa-next/releases)
+are a mirror.
 
 ## Migrate from eFa 5.0
 
@@ -106,11 +153,6 @@ Data at rest: backups are encrypted with OpenPGP (AES-256) when a backup passwor
 AES-256-GCM; passwords of the web interface are stored as PBKDF2-HMAC-SHA256 with
 600 000 rounds, logins of mail systems as SHA512-CRYPT. DKIM keys are RSA with at least 2048 bits, or Ed25519.
 
-## Status
-
-Early release: test it before you rely on it. Known limits: [docs/STATUS-6.0.0.6.md](docs/STATUS-6.0.0.6.md). Changes per
-release: [CHANGELOG.md](CHANGELOG.md).
-
 ## Build from source
 
 On an EL9 system with `rpm-build` and `checkpolicy`:
@@ -131,11 +173,15 @@ python3 -B -m unittest discover -s tests
 
 Report vulnerabilities as described in [SECURITY.md](SECURITY.md), never in a public issue. Help: [SUPPORT.md](SUPPORT.md).
 
-## License
+## Legal notice and license
 
 eFa-next is written by Markus Lorber and Lukasz Galusinski; IT-World ITW GmbH sponsors the project and holds no rights to the code ([AUTHORS.md](AUTHORS.md)).
 
-eFa-next comes without any warranty. To the maximum extent permitted by applicable law, Markus Lorber, all authors and contributors of eFa-next and its sponsors, including IT-World ITW GmbH, are not liable for any damage from its use; you use it at your own risk. See [DISCLAIMER.md](DISCLAIMER.md).
+eFa-next comes without any warranty. To the maximum extent permitted by applicable law, Markus Lorber, all authors and contributors of eFa-next and its sponsors, including IT-World ITW GmbH, are not liable for any damage from its use; you use it at your own risk. See [DISCLAIMER.md](DISCLAIMER.md) and sections 15 and 16 of the [license](LICENSE).
+
+The descriptions of security, privacy, sovereignty and EU law on this page and in the documentation say what eFa-next is
+designed to support. They are no legal advice, no certification and no guarantee that an organisation meets its legal duties.
+The operator decides how eFa-next is set up and used and remains responsible for it.
 
 Everything that comes from eFa-next is under the GNU Affero General Public License, version 3 or later
 (AGPL-3.0-or-later, [LICENSE](LICENSE)). The programs eFa-next uses and does not change, such as Postfix, rspamd, ClamAV, MariaDB,

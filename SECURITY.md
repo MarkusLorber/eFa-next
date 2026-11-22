@@ -44,6 +44,19 @@ platform or through MITRE. The advisory names the CVE, the affected and the fixe
   repositories through the system updates of eFa-next.
 - An update never changes your settings; new functions are off after an upgrade.
 
+## Signed releases, SBOM and compliance file
+
+These help operators check what they install and support the duties of the Cyber Resilience Act; they are no certification.
+
+- Every release is signed with the eFa-next key `1823 D6D3 BB7D 5AEA 286E 836D CFE7 E079 16CC 8046`: the packages, the
+  repository index of https://repo.efa-next.eu, the release checksums (`SHA256SUMS`, signed as `SHA256SUMS.asc`) and the release
+  tag. The installer, `efa-migrate` and the update check take only releases with a valid signature.
+- Every release ships a software bill of materials (SBOM, CycloneDX JSON) for EL9 and EL10, listed in the signed `SHA256SUMS`.
+- From 6.0.0.6.7 on, every release ships its compliance file (`eFa-next-<version>.compliance.json`, `.md`, `.de.md` and the
+  OSCAL export `.compliance.oscal.json`), listed in the signed `SHA256SUMS`. It says which controls of a standard a release
+  covers, covers in part or does not cover, each with its evidence. It is no legally binding statement and no certification.
+- Published advisories are also available as a signed feed: `https://repo.efa-next.eu/advisories/advisories.json`.
+
 ## Supported versions
 
 | Version | Security fixes |
@@ -71,3 +84,17 @@ third-party software.
 
 Out of scope: vulnerabilities in third-party software itself (report them to that project, we update as soon as they ship a
 fix), systems changed by hand outside `efactl`, and findings that need root on the appliance already.
+
+## No warranty
+
+This policy describes how the project handles reports; it is not a contract and no guarantee of a response or a fix. eFa-next
+comes without any warranty ([DISCLAIMER.md](DISCLAIMER.md), sections 15 and 16 of the [license](LICENSE)). The operator remains
+responsible for the operation and the updates of their installation.
+
+## Kurzfassung (Deutsch)
+
+Schwachstellen bitte nie in einem öffentlichen Issue melden, sondern per Mail an
+**security-cra-report.efa-next.eu@it-status.org** (auch Kontakt nach Art. 13 des Cyber Resilience Act, siehe
+`/.well-known/security.txt` von efa-next.eu). Jedes Release ist mit dem eFa-next-Schlüssel signiert und enthält eine SBOM, ab
+6.0.0.6.7 auch die Compliance-Datei. Die Zeiten oben sind Richtwerte eines privaten Open-Source-Projekts, keine verbindlichen
+Zusagen; eFa-next wird ohne Gewährleistung bereitgestellt ([DISCLAIMER.md](DISCLAIMER.md)).

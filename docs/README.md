@@ -4,6 +4,17 @@ eFa-next is a mail filter appliance: it takes mail for your domains, checks it w
 
 ![Dashboard](images/dash.png)
 
+## Security, privacy, sovereignty and EU compliance
+
+- [Security policy](../SECURITY.md): reports, advisories, signed releases, SBOM and the compliance file.
+- [Security model](security-model.md), [encryption and TLS profiles](tls-profiles.md), [two-factor login](two-factor.md).
+- [Privacy defaults](privacy-and-reason.md), [GDPR requests](gdpr-requests.md), [data protection templates (German)](datenschutz/README.md).
+- [EU relation](eu-relation.md), [backup targets in the EU](backup-eu.md), [operation without internet](offline.md).
+- [EU conformity](compliance/EU.md), [NIS2 incidents](nis2-incident.md).
+
+These pages describe what eFa-next is designed to support. They are no legal advice and no certification; the operator remains
+responsible ([DISCLAIMER](../DISCLAIMER.md)).
+
 ## Start here
 
 - **[Manual](manual/README.md)** ([Handbuch, Deutsch](manual/README.de.md)): the whole of eFa-next, chapter by chapter, with screenshots.
@@ -61,4 +72,3 @@ How the pages look and behave, for those who change them: [UI guidelines](ui-gui
 - [DKIM provisioning API](api-dkim-provisioning.md): DKIM keys and rotation from another signing system
 - [Data protection templates (German)](datenschutz/README.md): VVT, TOMs, AVV outline: templates, adapt them to your organisation
 - [Wazuh](WAZUH.md)
-- [Release checklist](RELEASE-CHECKLIST.md)

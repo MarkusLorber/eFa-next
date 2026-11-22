@@ -174,4 +174,4 @@ system. It never stops or removes them.
 - PDF files (reports, hardening report) show only Western European letters; others become `?`.
 - Perl comes at runtime only with MariaDB and rspamd, which need it themselves.
 
-All limits of this release: [STATUS-6.0.0.6.md](STATUS-6.0.0.6.md).
+Changes and known limits per release: [CHANGELOG.md](../CHANGELOG.md).

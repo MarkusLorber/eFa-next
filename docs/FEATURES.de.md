@@ -174,4 +174,4 @@ eFa-next oder zum Betriebssystem gehören. Er stoppt oder entfernt sie nie.
 - PDF-Dateien (Berichte, Härtungsbericht) zeigen nur westeuropäische Buchstaben; andere werden zu `?`.
 - Perl kommt zur Laufzeit nur mit MariaDB und rspamd, die es selbst brauchen.
 
-Alle Grenzen dieses Releases: [STATUS-6.0.0.6.md](STATUS-6.0.0.6.md).
+Änderungen und bekannte Grenzen je Release: [CHANGELOG.md](../CHANGELOG.md).
