@@ -38,13 +38,15 @@ JOIN_TRIES = 10  # per address and minute
 CONTACT_SECONDS = 300  # how often a client notes that its master answered, for the line on every page
 HEALTH_SECONDS = 60  # how often the master asks its nodes, for its dashboard (the page itself never calls a node)
 MX_SECONDS = 900  # how often the master checks the MX records of the domains for that card
+PRECHECK_TOTAL = 30  # checks before a join per minute from all addresses together
 FETCH_SECONDS = 30
 STATUS_SECONDS = 4  # efactl status for /v1/status: below the 5 s of the master's poll and of efactl cluster-status
 # Handshake and request of one connection: snapshots and journals of the master are larger.
 CONNECTION_SECONDS = 120
 # What the master may run on a node, for the view over all nodes (9c): mail log, quarantine, queue, and their actions.
 MASTER_RUNS = {'maillog-search', 'quarantine-list', 'quarantine-show', 'quarantine-release', 'quarantine-delete',
-               'queue-list', 'queue-show', 'queue-action', 'status', 'cve-watch-status', 'update-install', 'update-staged-set'}
+               'queue-list', 'queue-show', 'queue-action', 'status', 'cve-watch-status', 'update-install', 'update-staged-set', 'update-staged-run',
+               'ssh-profile-status'}  # read only: whether a node confirmed its SSH profile after the hardening of the cluster
 ARG_CHARS = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@._-:+ ')
 JOURNAL_PAGE = 200
 EFACTL = os.environ.get('EFA_EFACTL', '/usr/sbin/efactl')
@@ -54,13 +56,13 @@ class Throttle:
     def __init__(self):
         self.lock, self.seen = threading.Lock(), {}
 
-    def allow(self, who, now=None):
+    def allow(self, who, now=None, most=JOIN_TRIES):
         now = time.time() if now is None else now
         with self.lock:
             recent = [moment for moment in self.seen.get(who, []) if now - moment < 60]
             recent.append(now)
             self.seen[who] = recent
-            return len(recent) <= JOIN_TRIES
+            return len(recent) <= most
 
 
 def member(state, fingerprint):
@@ -88,18 +90,75 @@ def join(state, body, now=None):
     cert = efa_cluster.sign(BASE, str(body.get('csr', '')), name)
     del tokens[key]
     nodes = dict(state.get('nodes', {}))
+    # Pending until the admin of the node saw what it takes over and confirmed (/v1/activate): no traffic to it before.
     nodes[name] = {'host': str(body.get('host', ''))[:255], 'port': int(body.get('port', efa_cluster.PORT)),
                    'fingerprint': efa_cluster.fingerprint_pem(cert), 'joined': time.strftime('%Y-%m-%d %H:%M:%S'),
                    'version': str(body.get('version', ''))[:40], 'platform': str(body.get('platform', ''))[:20],
                    # Its host names (myhostname, certificate): the MX check knows the node by them behind NAT or split DNS.
                    'names': [item for item in (str(entry).lower()[:253] for entry in (body.get('names') or [])[:20])
-                             if re.fullmatch(r'[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+', item)]}
+                             if re.fullmatch(r'[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+', item)], 'pending': True}
     with open(os.path.join(BASE, 'ca.crt')) as f:
         ca = f.read()
     with open(os.path.join(BASE, 'node.crt')) as f:
         master_fingerprint = efa_cluster.fingerprint_pem(f.read())
     return ({'cert': cert, 'ca': ca, 'master': state.get('name'), 'master_fingerprint': master_fingerprint, 'mode': state.get('mode', 'master-client'),
              'version': efa_cluster.own_version(), 'platform': efa_cluster.own_platform()}, {**state, 'tokens': tokens, 'nodes': nodes})
+
+
+BREAKGLASS_NODE_EVENTS = ('login-ok', 'login-failed', 'refused-network', 'locked-out', 'web-ok', 'web-failed')
+
+
+def node_alarm_text(who, body):
+    """The line the master notes for a node's alarm: only known events, the source and service cleaned."""
+    if body.get('event') not in BREAKGLASS_NODE_EVENTS:
+        return None
+    source = re.sub(r'[^A-Za-z0-9.:/_-]', '', str(body.get('source', '')))[:64] or 'unknown'
+    service = re.sub(r'[^a-z-]', '', str(body.get('service', '')))[:16]
+    return f"node {who}: break-glass admin {body['event']} ({service} from {source})"
+
+
+def take_job(body, kind, now=None):
+    """A job of the cluster (a step of a node, later the master's), checked and noted in the store of seen ids on disk."""
+    with Handler.lock:
+        try:
+            with open(efa_cluster.seen_jobs_file(ETC)) as f:
+                seen = json.load(f)
+        except (OSError, ValueError):
+            seen = {}
+        problem = efa_cluster.job_problem(body, kind, seen, now=now)
+        if problem is None:
+            path = efa_cluster.seen_jobs_file(ETC)
+            fd = os.open(path + '.new', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f:
+                json.dump(seen, f)
+            os.replace(path + '.new', path)
+    return problem
+
+
+def precheck(state, body, now=None, run=subprocess.run):
+    """Before a join (cluster wizard): is the token valid? It is not used up. Then only what the node compares: the
+    eFa-next version, the platform and the time; no host names, no settings. With one login name (user): whether it exists
+    here, yes or no; one name per call, under the limits of this check."""
+    now = time.time() if now is None else now
+    if state.get('tokens', {}).get(efa_cluster.token_hash(str(body.get('token', ''))), 0) <= now:
+        raise PermissionError('unknown or expired token')
+    answer = {'version': efa_cluster.efa_version(), 'platform': efa_cluster.own_platform(), 'time': int(now)}
+    user = body.get('user')
+    if isinstance(user, str) and re.fullmatch(r'@admin|[A-Za-z0-9._@+-]{1,64}', user):
+        done = run([EFACTL, '--client', 'cluster-node', 'cluster-user-exists', '--name', user], capture_output=True, text=True, timeout=30,
+                   env={**os.environ, 'EFA_ETC': ETC})
+        try:
+            answer['user_exists'] = json.loads(done.stdout).get('exists') is True
+        except (ValueError, AttributeError):
+            answer['user_exists'] = False
+    return answer
+
+
+def audit_refusal(source, reason, run=subprocess.run):
+    """A refused check before a join into the audit log of eFa-next, with its source; in the background."""
+    line = [EFACTL, 'audit-note', '--action', 'cluster_precheck_refused', '--object', f'{source}: {reason}'[:200], '--result', 'refused']
+    threading.Thread(target=run, args=(line,), kwargs={'capture_output': True, 'timeout': 30, 'env': {**os.environ, 'EFA_ETC': ETC}},
+                     daemon=True).start()
 
 
 def journal_after(seq, entries=None):
@@ -112,7 +171,9 @@ def confirm(state, name, seq):
     """A node confirms what it applied; returns the changed state and the number all nodes have, for the scrub."""
     nodes = dict(state.get('nodes', {}))
     nodes[name] = {**nodes[name], 'applied': max(int(nodes[name].get('applied', 0)), int(seq))}
-    return {**state, 'nodes': nodes}, min(int(node.get('applied', 0)) for node in nodes.values())
+    # A pending node takes the snapshot when it is confirmed: it does not hold the scrub of the journal back.
+    taking_part = [int(node.get('applied', 0)) for node in nodes.values() if not node.get('pending')]
+    return {**state, 'nodes': nodes}, min(taking_part, default=int(seq))
 
 
 def below(relative, etc=None):
@@ -174,7 +235,7 @@ def apply(entry, run=subprocess.run):
 
 
 def protected_networks(state):
-    """Relay networks, the allowlist and the nodes of the cluster: never banned through it."""
+    """Relay networks, the firewall allowlist, the admin networks of the web allowlist and the nodes: never banned through it."""
     networks = []
     for path, key in ((os.path.join(ETC, 'eFa', 'outbound.json'), 'networks'), (os.path.join(ETC, 'eFa', 'firewall.json'), 'allowlist')):
         try:
@@ -182,6 +243,12 @@ def protected_networks(state):
                 networks += json.load(f).get(key, [])
         except (OSError, ValueError):
             pass
+    try:
+        # Hans 2026-11-18: the admin networks of the web allowlist (while it is on) are never banned, here neither.
+        with open(os.path.join(ETC, 'eFa', 'web-allowlist.json')) as f:
+            networks += efa_cluster.admin_exempt_networks(json.load(f))
+    except (OSError, ValueError):
+        pass
     networks += [node.get('host', '') for node in state.get('nodes', {}).values()] + [state.get('master', {}).get('host', '')]
     return [item for item in networks if item]
 
@@ -387,7 +454,11 @@ def sync_file(role, who, path):
         raise PermissionError('only a node of this master fetches its files')
     if path == '/v1/manifest':
         # The names of the nodes too: after a day without the master the first of them alone sends the lookalike alerts.
-        return None, {'kinds': read_manifest().get('kinds', {}), 'nodes': sorted(efa_cluster.read_state(ETC).get('nodes', {}))}
+        nodes = efa_cluster.read_state(ETC).get('nodes', {})
+        # 6.0.0.6.7: their addresses and certificates too, so a node without its master asks the others whether they update.
+        peers = {name: {'host': node.get('host'), 'port': node.get('port'), 'fingerprint': node.get('fingerprint')}
+                 for name, node in nodes.items() if not node.get('pending')}
+        return None, {'kinds': read_manifest().get('kinds', {}), 'nodes': sorted(nodes), 'peers': peers}
     query = urllib.parse.parse_qs(path.split('?', 1)[1], keep_blank_values=True)
     kind, name = query.get('kind', [''])[0], query.get('name', [''])[0]
     if len(query.get('kind', [])) != 1 or len(query.get('name', [])) != 1 or kind not in efa_cluster.SYNC_DIRS:
@@ -483,6 +554,12 @@ def run_mx_check():
         return None
 
 
+def snapshot_of_master():
+    done = subprocess.run([EFACTL, '--client', 'cluster-node', 'cluster-snapshot'], capture_output=True, text=True, timeout=300,
+                          env={**os.environ, 'EFA_ETC': ETC})
+    return json.loads(done.stdout)
+
+
 def node_status():
     try:
         # Below the 5 s the master waits for this answer (efactl status takes well under a second).
@@ -503,14 +580,51 @@ def node_status():
         except OSError:
             continue
     state = efa_cluster.read_state(ETC)
-    return {'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.own_platform(), 'time': int(time.time()),
+    try:  # whether this node has its own break-glass admin (6.0.0.6.7), for the master's view
+        with open('/var/lib/efa-breakglass/state.json') as f:
+            breakglass = bool(json.load(f).get('user'))
+    except (OSError, ValueError):
+        breakglass = False
+    system = read_json(os.path.join(ETC, 'eFa', 'update-system.json'))
+    return {'breakglass': breakglass, 'status': status.get('status'), 'down': status.get('down', []), 'version': version, 'platform': efa_cluster.own_platform(), 'time': int(time.time()),
             'round': FOLLOW_ROUND['at'],
-            'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:]}
+            'applied': state.get('applied', 0), 'failed': state.get('failed', [])[-5:],
+            # 6.0.0.6.7: the step of the staged rollout on this node, and what the update policy would install here
+            'update': {'job': system.get('job'), 'state': system.get('state'), 'result': str(system.get('result') or '')[:200]},
+            'os_pending': read_json(UPDATE_PENDING).get('policy_count'), 'busy': update_busy()}
+
+
+UPDATE_PENDING = '/var/lib/eFa/update-pending.json'
+UPDATE_LEASE = '/var/lib/eFa/update-lease.json'
+RECEIVED = '/var/lib/eFa/cluster-received.json'
+
+
+def read_json(path):
+    try:
+        with open(path) as f:
+            value = json.load(f)
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def update_busy(now=None):
+    """Whether this node updates now: a system update runs or reboots, or a lease of the rollout holds it."""
+    now = time.time() if now is None else now
+    return read_json(os.path.join(ETC, 'eFa', 'update-system.json')).get('state') in ('running', 'rebooting') or \
+        read_json(UPDATE_LEASE).get('until', 0) > now
+
+
+def peer_node(fingerprint):
+    """A node of the same cluster as the manifest of the master listed it (for /v1/busy alone), or None."""
+    peers = read_json(RECEIVED).get('peers', {})
+    return next((name for name, peer in peers.items() if isinstance(peer, dict) and fingerprint and peer.get('fingerprint') == fingerprint), None)
 
 
 class Handler(BaseHTTPRequestHandler):
     throttle = Throttle()
     lock = threading.Lock()
+    precheck_refused = 0
     rates = {}
     server_version = 'efa-cluster'
 
@@ -534,17 +648,28 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(BASE, 'ca.crt')) as f:
                 return self.answer(200, {'ca': f.read()})
         who = self.peer()
+        if self.path == '/v1/busy':
+            # 6.0.0.6.7: whether this node updates now, for a peer without its master; only that one answer, nothing else.
+            der = self.connection.getpeercert(binary_form=True)
+            if who is None and not (der and peer_node(efa_cluster.fingerprint_der(der))):
+                return self.answer(403, {'error': 'a certificate of a cluster member is needed'})
+            return self.answer(200, {'busy': update_busy()})
         if who is None:
             return self.answer(403, {'error': 'a certificate of a cluster member is needed'})
         if self.path == '/v1/status':
             return self.answer(200, {**node_status(), 'name': efa_cluster.read_state(ETC).get('name')})
-        if self.path == '/v1/snapshot' and efa_cluster.read_state(ETC).get('role') == 'master':
+        if self.path in ('/v1/snapshot', '/v1/preview') and efa_cluster.read_state(ETC).get('role') == 'master':
+            # A node that waits for its admin gets only the preview manifest: no secret, no content (efa_cluster.PREVIEW_NEVER).
+            pending = bool(efa_cluster.read_state(ETC).get('nodes', {}).get(who, {}).get('pending'))
+            if self.path == '/v1/snapshot' and pending:
+                return self.answer(403, {'error': 'a waiting node gets the preview only, the settings after its confirmation'})
             done = subprocess.run([EFACTL, '--client', 'cluster-node', 'cluster-snapshot'], capture_output=True, text=True, timeout=300,
                                   env={**os.environ, 'EFA_ETC': ETC})
             try:
-                return self.answer(200, json.loads(done.stdout))
+                snapshot = json.loads(done.stdout)
             except ValueError:
                 return self.answer(500, {'error': (done.stderr or done.stdout)[-200:]})
+            return self.answer(200, efa_cluster.preview_manifest(snapshot) if self.path == '/v1/preview' else snapshot)
         if self.path == '/v1/manifest' or self.path.startswith('/v1/file?'):
             return self.sync_answer(who)
         if self.path.startswith('/v1/journal?after=') and efa_cluster.read_state(ETC).get('role') == 'master':
@@ -639,6 +764,102 @@ class Handler(BaseHTTPRequestHandler):
                 efa_cluster.write_state(state, ETC)
                 efa_cluster.journal_scrub(BASE, everyone)
             return self.answer(200, {'confirmed': int(body['seq'])})
+        if self.path == '/v1/preview':
+            # A node, pending or not: the hashes of its own files and settings; the master answers changed or not, no hash back.
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master'):
+                return self.answer(403, {'error': 'only a node of this master'})
+            try:
+                return self.answer(200, efa_cluster.preview_compare(snapshot_of_master(), body))
+            except ValueError:
+                return self.answer(500, {'error': 'no snapshot'})
+        if self.path == '/v1/precheck':
+            source = self.client_address[0]
+            if not self.throttle.allow('precheck ' + source) or not self.throttle.allow('precheck', most=PRECHECK_TOTAL):
+                return self.answer(429, {'error': 'too many tries'})
+            state = efa_cluster.read_state(ETC)
+            if state.get('role') != 'master':
+                return self.answer(404, {'error': 'not a master'})
+            try:
+                return self.answer(200, precheck(state, body))
+            except PermissionError as err:
+                with self.lock:
+                    Handler.precheck_refused += 1
+                    count = Handler.precheck_refused
+                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster check before a join refused from {source}: {err} ({count} since the start)')
+                audit_refusal(source, str(err))
+                return self.answer(403, {'error': str(err)})
+        if self.path == '/v1/harden':
+            # The CURRENT master only (its fingerprint in the state of this node), a job never seen before; the node checks the
+            # values against its own lists (efactl cluster-harden-apply) and applies them itself.
+            state = efa_cluster.read_state(ETC)
+            if self.peer() != 'master' or state.get('role') != 'client' or state.get('pending') or state.get('mode', 'master-client') not in ('ha', 'master-client'):
+                return self.answer(403, {'error': 'only the master of this node, which takes part'})
+            problem = take_job(body, 'harden')
+            if problem:
+                if not self.throttle.allow('job ' + self.client_address[0]):
+                    return self.answer(429, {'error': 'too many tries'})
+                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster /v1/harden refused: {problem}')
+                audit_refusal(self.client_address[0], f'/v1/harden: {problem}')
+                return self.answer(409, {'error': problem})
+            if not isinstance(body.get('values'), dict):
+                return self.answer(400, {'error': 'no values'})
+            done = subprocess.run([EFACTL, 'cluster-harden-apply'], input=json.dumps({key: body.get(key) for key in ('values', 'preview', 'ssh')}),
+                                  capture_output=True, text=True, timeout=600, env={**os.environ, 'EFA_ETC': ETC})
+            try:
+                return self.answer(200, json.loads(done.stdout))
+            except ValueError:
+                return self.answer(200, {'error': (done.stderr or done.stdout)[-300:]})
+        if self.path == '/v1/alarm':
+            # A node of this master: a try of its break-glass admin, for the dashboard here. Its cert, a job not seen before.
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master'):
+                return self.answer(403, {'error': 'only a node of this master'})
+            problem = take_job(body, 'alarm')
+            if problem:
+                return self.answer(409, {'error': problem})
+            text = node_alarm_text(who, body)
+            if text is None:
+                return self.answer(400, {'error': 'not an alarm of a break-glass admin'})
+            subprocess.run([EFACTL, 'breakglass-node-alarm'], input=text, capture_output=True, text=True, timeout=30, env={**os.environ, 'EFA_ETC': ETC})
+            return self.answer(200, {'noted': True})
+        if self.path in ('/v1/activate', '/v1/leave'):
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master'):
+                return self.answer(403, {'error': 'only a node of this master'})
+            problem = take_job(body, self.path[4:])
+            if problem:
+                if not self.throttle.allow('job ' + self.client_address[0]):
+                    return self.answer(429, {'error': 'too many tries'})
+                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster {self.path} of {who} refused: {problem}')
+                audit_refusal(self.client_address[0], f'{self.path} of {who}: {problem}')
+                return self.answer(409, {'error': problem})
+        if self.path == '/v1/activate':
+            # The pending node, after its admin confirmed: the master reaches it on its port, then it takes part. Again: no change.
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            node = state['nodes'][who]
+            if node.get('pending'):
+                try:
+                    efa_cluster.call(BASE, node['host'], node['port'], '/v1/status', timeout=10)
+                except (OSError, ValueError) as err:
+                    return self.answer(409, {'error': f"the master does not reach this node on {node['host']}:{node['port']}: {err}"[:240]})
+                with self.lock:
+                    state = efa_cluster.read_state(ETC)
+                    state['nodes'][who].pop('pending', None)
+                    efa_cluster.write_state(state, ETC)
+                syslog.syslog(syslog.LOG_INFO, f'efa-cluster node {who} takes part now')
+            return self.answer(200, {'active': who})
+        if self.path == '/v1/leave':
+            # A pending node whose admin stopped at the preview: the master forgets it (the join used the token up).
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master') or not state['nodes'][who].get('pending'):
+                return self.answer(403, {'error': 'only a pending node of this master leaves this way'})
+            with self.lock:
+                state = efa_cluster.read_state(ETC)
+                state['nodes'].pop(who, None)
+                efa_cluster.write_state(state, ETC)
+            syslog.syslog(syslog.LOG_INFO, f'efa-cluster pending node {who} left')
+            return self.answer(200, {'removed': who})
         if self.path == '/v1/join':
             if not self.throttle.allow(self.client_address[0]):
                 return self.answer(429, {'error': 'too many tries'})
@@ -833,7 +1054,7 @@ def sync_self_test():
             json.dump(manifest, f)
         fd, size = sync_file('master', 'mx-2', '/v1/file?kind=clamav&name=efa-securiteinfo-test.hdb')
         os.close(fd)
-        assert size == len(data) and sync_file('master', 'mx-2', '/v1/manifest')[1] == {**manifest, 'nodes': []}
+        assert size == len(data) and sync_file('master', 'mx-2', '/v1/manifest')[1] == {**manifest, 'nodes': [], 'peers': {}}
         for role, who, path in (('master', None, '/v1/manifest'), ('master', 'master', '/v1/manifest'), ('client', 'master', '/v1/manifest'),
                                 ('master', 'mx-2', '/v1/file?kind=clamav&name=../secret.txt'), ('master', 'mx-2', '/v1/file?kind=clamav&name=%2e%2e%2fsecret.txt'),
                                 ('master', 'mx-2', '/v1/file?kind=clamav&name=/etc/passwd'), ('master', 'mx-2', '/v1/file?kind=clamav&name=%2Fetc%2Fpasswd'),
@@ -878,7 +1099,8 @@ def sync_self_test():
         port = server.server_address[1]
         try:
             got = os.path.join(temp, 'got.hdb')
-            assert efa_cluster.call(nbase, '127.0.0.1', port, '/v1/manifest', expected=expected) == {**manifest, 'nodes': ['mx-2']}
+            answer = efa_cluster.call(nbase, '127.0.0.1', port, '/v1/manifest', expected=expected)
+            assert {key: value for key, value in answer.items() if key != 'peers'} == {**manifest, 'nodes': ['mx-2']} and sorted(answer['peers']) == ['mx-2']
             assert efa_cluster.fetch_file(nbase, '127.0.0.1', port, '/v1/file?kind=clamav&name=efa-securiteinfo-test.hdb', got, len(data),
                                           expected=expected) == (len(data), hashlib.sha256(data).hexdigest())
             for path in ('/v1/file?kind=clamav&name=%2e%2e%2fsecret.txt', '/v1/file?kind=clamav&name=efa-securiteinfo-link.hdb'):

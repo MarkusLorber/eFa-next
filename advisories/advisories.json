@@ -83,13 +83,13 @@
       "id": "EFA-2026-007",
       "package": "eFa-next",
       "fixed": ["0", "6.0.0.6.6.1", "1"],
-      "cves": ["CVE-2026-123007", "CVE-2026-123633", "CVE-2026-121810", "CVE-2026-113425"],
+      "cves": ["CVE-2026-123007", "CVE-2026-123633", "CVE-2026-123634", "CVE-2026-121810", "CVE-2026-113425"],
       "severity": "Critical",
       "vector": "",
       "cwe": "CWE-122",
       "remote": true,
       "web_rce": false,
-      "summary": "nginx flaws in HTTP/2, HTTP/3 and the mail proxy (CVSS 9.2). Mitigation only: 6.0.0.6.6.1 switches HTTP/2 of the web interface off; the fix is the nginx update of the OS vendor.",
+      "summary": "nginx flaws (CVSS 9.2). Fixed by nginx 2:1.26.3-16.el10_3.1.alma.3 (EL10), -10.module_el9.9.0+357+ccfac862.1.alma.2 (EL9), then a restart. 6.0.0.6.6.1: HTTP/2 off.",
       "link": "https://www.cert.at/de/warnungen/2026/11/kritische-sicherheitslucken-in-nginx-plus-und-nginx-open-source-updates-verfugbar"
     },
     {

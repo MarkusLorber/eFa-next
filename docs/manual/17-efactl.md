@@ -40,6 +40,7 @@ Commands marked *writes* change the system; the others only read.
 | `header-privacy-set` | Header privacy: for whom *(writes)* |
 | `message-size-set` | Maximum message size *(writes)* |
 | `recipient-verification-set` | Recipient verification *(writes)* |
+| `tls-partner-suggest` | TLS with partners: suggestions (DANE, MTA-STS) |
 | `tls-partner-list` | TLS with partner domains |
 | `tls-partner-set` | TLS with partner domains: require or remove *(writes)* |
 
@@ -123,6 +124,7 @@ Commands marked *writes* change the system; the others only read.
 | `sender-action` | Sender of a mail: allow or block *(writes)* |
 | `gdpr-export` | GDPR: everything about one mail address (Art. 15) |
 | `gdpr-delete` | GDPR: erase the data of one mail address (Art. 17) *(writes)* |
+| `gdpr-reapply` | GDPR: erase again after a restore |
 | `headers-export` | Export headers *(writes)* |
 | `retention-status` | Retention of the data |
 | `retention-set` | Retention: days to keep *(writes)* |
@@ -218,8 +220,8 @@ Commands marked *writes* change the system; the others only read.
 | Command | Title |
 |---|---|
 | `rbl-show` | Blocklists |
-| `rbl-set` | Change a blocklist *(writes)* |
-| `rbl-custom-set` | Your own blocklist *(writes)* |
+| `rbl-set` | Blocklists: change one *(writes)* |
+| `rbl-custom-set` | Blocklists: your own list *(writes)* |
 | `postscreen-status` | postscreen on port 25 |
 | `postscreen-set` | postscreen on port 25: switch *(writes)* |
 | `feed-status` | Threat feeds |
@@ -386,7 +388,7 @@ Commands marked *writes* change the system; the others only read.
 | `domain-onboard` | Tenants: add a domain *(writes)* |
 | `domain-verify` | Tenants: check the TXT record of a domain *(writes)* |
 | `tenant-usage` | Tenant usage |
-| `tenant-limits-set` | Tenant limits *(writes)* |
+| `tenant-limits-set` | Tenant usage: limits *(writes)* |
 | `tenant-brand-show` | Tenant look |
 | `tenant-brand-set` | Tenant look: name, colour, logo *(writes)* |
 | `tenant-idp-status` | Tenant login directory |
@@ -430,7 +432,7 @@ Commands marked *writes* change the system; the others only read.
 | `audit-search` | Audit log |
 | `incident-list` | NIS2 incidents |
 | `incident-open` | NIS2 incident: open a record *(writes)* |
-| `incident-report` | NIS2 incident: report for 24 h, 72 h or the final report |
+| `incident-report` | Incident: report for NIS2, GDPR or DORA |
 | `privacy-evidence` | Privacy evidence: record of processing and TOM |
 | `audit-strict-status` | Strict audit mode |
 | `audit-mode` | Strict audit mode: switch *(writes)* |
@@ -472,6 +474,10 @@ Commands marked *writes* change the system; the others only read.
 | `harvest-set` | Address harvesting: ban senders that try many unknown recipients *(writes)* |
 | `login-lockout-status` | Failed logins: lockout |
 | `login-lockout-set` | Failed logins: lockout of web, portal, API and port 587 *(writes)* |
+| `login-banner-status` | Login banner |
+| `login-banner-set` | Login banner: the text before the admin login *(writes)* |
+| `admin-idle-status` | Admin sessions: idle timeout |
+| `admin-idle-set` | Admin sessions: idle timeout in minutes *(writes)* |
 | `ssh-root-status` | Root login through SSH |
 | `ssh-root-set` | Root login through SSH: switch *(writes)* |
 | `web-allowlist-show` | Admin web access |
@@ -501,6 +507,9 @@ Commands marked *writes* change the system; the others only read.
 | `cve-mute` | CVE watch: mute one warning *(writes)* |
 | `web-lockdown` | Self-lockdown of the web services: state or release *(writes)* |
 | `cluster-cve` | CVE warnings of all nodes |
+| `fim-accept` | File check: accept changed files |
+| `fim-set` | File check: on or off |
+| `fim-status` | File check: status |
 | `history-list` | Configuration history |
 | `history-show` | Configuration history: the diff of a change |
 | `history-undo` | Configuration history: take a change back *(writes)* |
@@ -520,6 +529,8 @@ Commands marked *writes* change the system; the others only read.
 | `ssh-profile-status` | SSH profile |
 | `ssh-profile-set` | SSH profile: BSI TR-02102-4 or the system setting *(writes)* |
 | `ssh-profile-confirm` | SSH profile: keep it (after a new login worked) *(writes)* |
+| `compliance-verify` | Compliance file: check its claims on this host |
+| `compliance-verify-check` | Compliance file: check a signed result (console) |
 | `hardening-report` | Hardening report (CIS AlmaLinux 9, BSI TR-03108) |
 | `switches-status` | Switches: what is set now |
 | `tls-min-set` | SMTP: TLS 1.2 or newer only *(writes)* |
@@ -577,6 +588,7 @@ Commands marked *writes* change the system; the others only read.
 |---|---|
 | `dns-share-list` | DNS for other networks |
 | `dns-share-add` | DNS for other networks: allow *(writes)* |
+| `dns-share-edit` | DNS for other networks: nodes of an entry *(writes)* |
 | `dns-share-del` | DNS for other networks: remove *(writes)* |
 | `dns-share-secondary-set` | Second DNS resolver of this host (the other MX) *(writes)* |
 
@@ -600,6 +612,7 @@ Commands marked *writes* change the system; the others only read.
 | `dns-forward-fix` | Internal DNS: resolve on this host (the forwarder for all names goes) *(writes)* |
 | `letsencrypt-set` | Let's Encrypt certificate *(writes)* |
 | `letsencrypt-takeover` | Let's Encrypt: take over the certificate on this host *(writes)* |
+| `letsencrypt-heal` | Let's Encrypt: renewal settings of eFa 5 to the webroot of nginx *(writes)* |
 | `dane-status` | DANE for outgoing mail |
 | `dane-set` | DANE for outgoing mail: switch *(writes)* |
 | `tlsa-show` | TLSA records of this server |
@@ -614,10 +627,13 @@ Commands marked *writes* change the system; the others only read.
 | Command | Title |
 |---|---|
 | `backup-list` | Backup: list |
+| `backup-restore-test` | Restore test now (background) |
+| `backup-restore-test-set` | Restore test: monthly |
+| `backup-restore-test-status` | Restore test: status |
 | `backup-now` | Back up now *(writes)* |
 | `backup-set` | Automatic backup *(writes)* |
-| `backup-password-set` | Password for automatic backups *(writes)* |
-| `backup-key-show` | Backups: fingerprint of the signing key |
+| `backup-password-set` | Automatic backup: password *(writes)* |
+| `backup-key-show` | Backup: fingerprint of the signing key |
 | `restore` | Restore a backup *(writes)* |
 | `settings-export` | Settings: export parts for another host *(writes)* |
 | `settings-import` | Settings: take over parts from another host *(writes)* |

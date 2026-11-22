@@ -18,10 +18,13 @@ Einrichten:
 
 ```bash
 # auf dem Master
-sudo efactl cluster-init --name mx-01 --mode ha
+sudo efactl cluster-init --name mx-01 --mode ha --confirm yes
 sudo efactl cluster-token
 # auf jedem Knoten, mit Token und CA-Fingerabdruck aus cluster-token
+sudo efactl cluster-join-check --master mx-01.example.com:8460   # zuerst die Prüfungen, der Token bleibt gültig
 sudo efactl cluster-join --master mx-01.example.com:8460 --name mx-02 --address 192.0.2.12 --ca_fingerprint <Fingerabdruck>
+sudo efactl cluster-join-preview        # was die Einstellungen des Masters hier ersetzen
+sudo efactl cluster-activate --understood yes --confirm yes   # Sicherung, dann die Einstellungen des Masters
 ```
 
 Die Knoten folgen dem Journal des Masters über gegenseitiges TLS (Port 8460), jeder mit eigenem Schlüssel. Gemeinsam: die
@@ -38,9 +41,10 @@ Clusters.
 
 Der zweite MX kann diesen Host als DNS-Resolver nutzen (Kapitel 10).
 
-**Gestaffelte Updates:** `efactl cluster-update-set --mode on --window 2` lässt den Master einen Knoten nach dem anderen
-aktualisieren: Der erste Knoten installiert im Wartungsfenster, der Master wartet ein Gesundheitsfenster, dann folgt der nächste;
-ein ungesunder Knoten stoppt die Verteilung. Details: [cluster.md](../cluster.md).
+**Gestaffelte Updates:** Im Cluster ist jede Installation gestaffelt (6.0.0.6.7): Der Master aktualisiert einen Knoten nach dem
+anderen, der erste Knoten installiert im Wartungsfenster, der Master wartet ein Gesundheitsfenster (`efactl cluster-update-set
+--mode on --window 2`), dann folgt der nächste, der Master zuletzt; ein ungesunder Knoten stoppt die Verteilung. Die
+Update-Einstellungen sind die des Masters, auch für das Betriebssystem; Kapitel 14, *Updates im Cluster*. Details: [cluster.md](../cluster.md).
 
 ## Betrieb ohne Internet
 

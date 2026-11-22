@@ -69,6 +69,12 @@ active_sessions = {}
 # When each session was last checked with efactl: ended or locked elsewhere means out within this time.
 session_checked = {}
 SESSION_CHECK_SECONDS = 15
+# The last request of each session: a shorter idle timeout (efactl admin-idle-set) counts at once for sessions already open.
+session_seen = {}
+# PCI DSS 8.2.8, NIST AC-11: idle timeout of the admin interface, 5 to 60 minutes (efactl admin-idle-set), read again when the
+# file changed. The user portal keeps 60 minutes.
+ADMIN_IDLE_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/admin-idle.json'
+admin_idle_cache = {'mtime': None, 'seconds': SESSION_MAX_AGE}
 
 REPO_URL = 'https://github.com/MarkusLorber/eFa-next'
 # Hans 2026-11-17: the logo opens the website of the project; the footer pill "Source code" keeps the repository.
@@ -88,6 +94,8 @@ CLUSTER_DIR, CLUSTER_VIEW = '/etc/eFa/cluster', '/var/lib/efa-cluster/view.json'
 CLUSTER_STALE = 900  # a master that has not answered for 15 minutes: the line says so
 CLUSTER_HEALTH = '/var/lib/efa-cluster/health.json'  # the master's last poll of its nodes (efa-cluster, every minute)
 HEALTH_STALE = 300
+BREAKGLASS_NAME = re.compile(r'efa-bg-[a-z0-9]{8}')
+LOGIN_FAIL_SECONDS = 1.0
 # Colours of the tokens that the contrast test of the self-test checks 4.5:1, light and dark.
 ENVIRONMENT_STYLE = {'test': 'background:var(--note);color:var(--note-ink)', 'dev': 'background:var(--card);color:var(--bad)'}
 FLAG_AT = """<svg viewBox="0 0 30 20" role="img" aria-label="Austria"><rect width="30" height="20" fill="#fff"/>
@@ -161,7 +169,7 @@ PREFILL = {
     'load-set': {'percent': 'load_percent', 'minutes': 'load_minutes'},
     'firewall-probe-set': {'url': 'firewall_probe_url'},
     'arc-all-set': {'mode': 'arc_all', 'key': 'arc_all_key', 'bits': 'arc_all_bits'},
-    'autoupdate-set': {'mode': 'mode', 'days': 'days', 'time': 'time'},
+    'autoupdate-set': {'mode': 'mode', 'days': 'days', 'time': 'time', 'os': 'os'},
     'network-set': {'hostname': 'hostname', 'method': 'ipv4.method', 'address': 'ipv4.addresses',
                     'gateway': 'ipv4.gateway', 'ipv6_method': 'ipv6.method'},
 }
@@ -172,6 +180,8 @@ CURRENT = {
     'sender_allow': ('Allowed senders', 'sender-list-set', 'address', {'list': 'allow'}),
     'sender_block': ('Blocked senders', 'sender-list-set', 'address', {'list': 'block'}),
     'dns_zones': ('Current internal DNS zones', 'dns-zone-set', 'zone', {}),
+    'own_hosts': ('Own host names', 'hosts-set', 'name', {}),
+    'own_hosts_local': ('Own host names of this host only', 'hosts-local-set', 'name', {}),
     'extra_services': ('Watched extra services', 'extra-service-set', 'name', {}),
     'smtpd_milters': ('Current milter order',),
 }
@@ -268,6 +278,7 @@ table.rbl th.n,table.rbl td.n{white-space:nowrap;width:1%}form.dqs{margin-top:4p
 .card p.h{margin:0 0 14px;color:var(--gray);font-size:13px}
 .card.done{border-color:var(--lime);border-width:2px}
 .err{color:var(--bad);font-weight:500;overflow-wrap:anywhere}
+.login-banner{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0 0 12px;font-size:14px;overflow-wrap:anywhere}
 .row{display:grid;grid-template-columns:230px 1fr;gap:6px 18px;align-items:center;margin:10px 0}.row[hidden]{display:none}.secretrm{display:inline}.secret{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.secret input{flex:1;min-width:12em}
 /* 6.0.0.6: Mail log: the quick search and Check a mail side by side; the filters of the advanced search in two columns. */
 .duo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:0 18px;align-items:start}.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:0 24px}#adv-form>.btns{position:static;margin:14px 0 0;padding:0;border:0;background:none}
@@ -1446,6 +1457,35 @@ document.addEventListener('DOMContentLoaded', function () {
 // 6.0.0.6.6: the guided EL10 card while a step runs: every 4 seconds while the page is seen. During the restarts the host does
 // not answer: a note, and after 30 minutes without an answer the next steps; never a "failed" only because nothing answered.
 document.addEventListener('DOMContentLoaded', function () {
+  // 2026-11-18: "Confirm the join" of the cluster wizard while it runs: every 3 seconds while the page is seen; when it ended,
+  // the page loads again with the result.
+  var live = document.getElementById('cluster-live');
+  if (!live) return;
+  var misses = 0;
+  function tick() {
+    if (document.hidden) return;
+    fetch(live.getAttribute('data-url'), {credentials: 'same-origin'}).then(function (reply) {
+      if (reply.redirected || reply.status === 401 || reply.status === 403) { location.reload(); return; }
+      if (!reply.ok) throw new Error(reply.status);
+      return reply.text().then(function (html) {
+        misses = 0;
+        var box = document.createElement('div');
+        box.innerHTML = html;
+        var fresh = box.querySelector('.cl-live');
+        if (!fresh) return;
+        if (['queued', 'running'].indexOf(fresh.getAttribute('data-state')) < 0) { location.hash = 'cluster-wizard'; location.reload(); return; }
+        live.innerHTML = box.innerHTML;
+      });
+    }).catch(function () {
+      misses += 1;
+      var off = live.querySelector('.cl-off');
+      if (off) off.hidden = misses < 2;
+    });
+  }
+  setInterval(tick, 3000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+});
+document.addEventListener('DOMContentLoaded', function () {
   var live = document.getElementById('ru-live');
   if (!live) return;
   var misses = 0, since = 0;
@@ -1551,6 +1591,7 @@ SOLO = '<main class="solo">' + BRAND
 FAILED = PAGE.replace(BLOCK, SOLO + """<div class="card"><p class="err" role="alert">{{ error }}</p></div></main>""")
 LOGIN = PAGE.replace(BLOCK, SOLO + """<div class="card">{{ lang_pill(ui_lang(), _('Language'))|safe }}<h1>{{ _('Log in') }}</h1>
 {% if portal %}<p class="err" role="alert">{{ _('This account logs in at the user portal.') }} <a class="btn s" href="/portal/login">{{ _('To the user portal') }}</a></p>{% endif %}
+{% if login_banner and not portal_mode %}<div class="note login-banner" role="note">{% for line in login_banner.splitlines() %}{{ line }}<br>{% endfor %}</div>{% endif %}
 {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}<form method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}"><div class="row"><label for="username">{{ _('Mail address') if portal_mode else _('User name, empty for the main admin') }}</label>
 <input type="text" id="username" name="username" autocomplete="username" value="{{ username or '' }}"></div><div class="row"><label for="password">{{ _('Password') }}</label>
@@ -1663,7 +1704,7 @@ FLOW_VIEW = """{%- macro flow_text(cname, argname, value) -%}{% set found = [] %
 {% if page.notes and cname in page.notes %}<p class="h">{{ page.notes[cname]|t }}</p>{% endif %}
 {% for arg in commands[cname].args if arg.web is not sameas false and arg.name not in fixed and arg.name not in skip %}{{ field(cname, arg) }}{% endfor %}
 {% if cname in reauth_commands and reauth_left() < 60 %}<div class="row"><label for="{{ cname }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ cname }}-reauth" name="reauth" autocomplete="current-password"></div>
-<div class="row"><label for="{{ cname }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ cname }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
+<div class="row"><label for="{{ cname }}-reauth-code">{{ _('2FA code') }}</label><input type="text" id="{{ cname }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
 <div class="btns"><button class="p">{{ _('Apply') }}</button></div></form></details>{% endif %}{%- endmacro -%}
 {%- macro flow_x(cname, label, fields) -%}<form method="post" action="{{ url_for('run', name=cname) }}" class="fx"><input type="hidden" name="csrf" value="{{ csrf }}">{% for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
 <button class="x" data-confirm="{{ label }}?" aria-label="{{ label }}" title="{{ label }}">&times;</button></form>{%- endmacro -%}
@@ -1944,7 +1985,8 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
     {%- else %}<input type="password" id="{{ id }}" name="{{ arg.name }}" autocomplete="new-password">{% endif %}
   {%- elif arg.kind == 'confirm' -%}
     <label for="{{ id }}">{{ _('Confirm') }}</label>
-    <div><label><input type="checkbox" id="{{ id }}" name="{{ arg.name }}" value="yes"{% if arg.required %} required{% endif %}> {{ wl.label|t }}</label></div>
+    {#- 2026-11-20: the tick of an EU transfer sends the sentence efactl checks (eu_transfer_check); yes was always refused. -#}
+    <div><label><input type="checkbox" id="{{ id }}" name="{{ arg.name }}" value="{{ eu_confirm if eu_confirm in arg.label else 'yes' }}"{% if arg.required %} required{% endif %}> {{ wl.label|t }}</label></div>
   {%- elif wl.yes and not arg.choices -%}
     {#- M5: the console asks to type yes; here it is a tick box that sends yes. -#}
     <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
@@ -1970,6 +2012,14 @@ MAIN = PAGE.replace(BLOCK, FLOW_VIEW + """
   {%- elif arg.name == 'domain' and name in pick_domain_commands and pick.domains -%}
     <span class="lb"><label for="{{ id }}">{{ _('Domain') }}</label>{{ info(id, fh) }}</span>
     <select id="{{ id }}" name="domain">{% if not arg.required %}<option value="">{{ _('None') }}</option>{% endif %}{% for item in pick.domains %}<option{% if item == value %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  {%- elif arg.name == 'nodes' and name in dns_node_forms -%}
+    {#- The nodes of the cluster to tick; none ticked is all of them, a node that joins later too. -#}
+    {%- set picked = (value if value is string else value|join(',')).replace(' ', ',').split(',') -%}
+    <span class="lb"><span id="{{ id }}-l">{{ _('Nodes (none ticked: all)') }}</span>{{ info(id, fh) }}</span><span class="chips" role="group" aria-labelledby="{{ id }}-l">
+    {%- for item in pick.nodes %}<label><input type="checkbox" name="nodes" value="{{ item }}"{% if item in picked %} checked{% endif %}> {{ item }}</label>{% endfor %}</span>
+  {%- elif arg.name == 'net' and name == 'dns-share-edit' and pick.dns_nets -%}
+    <span class="lb"><label for="{{ id }}">{{ wl.label|t }}</label>{{ info(id, fh) }}</span>
+    <select id="{{ id }}" name="net">{% for item in pick.dns_nets %}<option{% if item == value %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
   {%- elif arg.name == 'groups' and name == 'user-set' and pick.groups -%}
     <span class="lb"><label for="{{ id }}">{{ _('Groups') }}</label>{{ info(id, fh) }}</span>
     <select id="{{ id }}" name="groups" multiple size="{{ [pick.groups|length, 8]|min }}">{% for item in pick.groups %}<option{% if item in value.split(',') %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
@@ -2002,6 +2052,8 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 </details>
 </aside><main{% if page.slug in ('log', 'quar', 'held') %} class="wide"{% endif %}>{% if moved %}<span hidden data-moved='{{ moved|tojson }}'></span>{% endif %}<div class="viewbar">{% if not portal_mode %}{{ viewform(none) }}{% endif %}{% set me = account_view() %}<details class="usermenu"><summary><span class="sr">{{ _('Logged in as') }} </span><b>{{ me.login }}</b> <span class="role">{{ me.role }}</span></summary><div class="menu"><div class="langrow"><span>{{ _('Language') }}</span>{{ lang_pill(ui_lang(), _('Language'), url_for('set_lang'), csrf)|safe }}</div><a class="account" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}{{ '#account-show' if portal_mode else '' }}">{{ _('My account') }}</a><a class="feature" target="_blank" rel="noopener noreferrer" href=\"""" + FEATURE_URL + """\">{{ _('Request or improve a feature') }}</a><form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button>{{ _('Log out') }}</button></form></div></details></div>
 {% if not portal_mode %}""" + THREAT_BANNER + """{% endif %}
+{% if session.breakglass %}<div class="pending" role="alert" id="breakglass-banner"><span><b>{{ _('Break-glass admin {}').format(session.breakglass) }}</b>: {{ _('every login raises an alarm on every channel. One-time codes left: {}.').format(session.breakglass_left) }}</span>
+<span class="pending-buttons"><a class="btn p" href="{{ url_for('show_page', slug='sec', view='expert') }}#breakglass-issue">{{ _('New codes') }}</a></span></div>{% endif %}
 {% if session.no_2fa and page.slug in ('dash', 'held') and not dev_2fa_confirmed %}<div class="pending" role="status" id="no-2fa"><span>{% if session.no_2fa_code %}{{ _('The 2FA code you typed was not checked: this login has no active 2FA.') }} {% endif %}{{ _('Your login has no 2FA: a stolen password alone is enough to log in. Set it up under My account.') }}</span>
 <span class="pending-buttons"><a class="btn p" href="{{ url_for('show_page', slug='held' if portal_mode else 'account') }}#totp-setup">{{ _('Set up 2FA') }}</a>{% if environment_mark and 'env-dev' in environment_mark and not portal_mode %}<form method="post" action="{{ url_for('run', name='dev-2fa-hint-confirm') }}" data-stay="no-2fa" data-done="{{ _('Confirmed for this development host.') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s">{{ _('Confirm') }}</button></form>{% endif %}</span></div>{% endif %}{% if values.get('firewall_pending_seconds') is not none and 'firewall-confirm' in commands %}<div class="pending" role="alert">
 <span><b>Firewall change not confirmed.</b> Check that you still have access. It is taken back in <span data-countdown="{{ values.firewall_pending_seconds }}">{{ values.firewall_pending_seconds // 60 }} min</span>.</span>
@@ -2078,7 +2130,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {% for f in w.fields if f.kind == 'tick' %}{% set id = 'wz-' ~ f.name %}<div class="row"><label><input type="checkbox" id="{{ id }}" name="{{ f.name }}" value="yes"{% if f.value == 'yes' %} checked{% endif %} required> {{ f.label|t }}</label>{{ info(id, f.help) }}</div>{% endfor %}
 {% if w.last and w.reauth %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
 {% else %}<div class="row"><label for="wz-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="wz-reauth" name="reauth" autocomplete="current-password"></div>
-<div class="row"><label for="wz-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="wz-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endif %}
+<div class="row"><label for="wz-reauth-code">{{ _('2FA code') }}</label><input type="text" id="wz-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endif %}
 {% if w.step.preview is sameas true %}<div class="row"><span class="lb">{{ _('Text version') }}</span><pre class="wizpre">{{ w.draft.text }}</pre></div>
 {% if w.draft.format == 'html' %}<div class="row"><span class="lb">{{ _('HTML version') }}</span><iframe sandbox="" srcdoc="{{ w.draft.html }}" title="{{ _('HTML version') }}"></iframe></div>{% endif %}
 <p class="h">{{ _('The preview shows no pictures and runs no scripts.') }}</p>{% endif %}
@@ -2104,6 +2156,31 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 <td class="nw" data-label="{{ _('Score') }}">{{ '%.1f'|format(mail.score) if mail.score is number else '' }}</td><td class="nw" data-label="{{ _('IP address') }}">{{ chip(mail.ip, 'ip', mail.qid, mail.rcpt) }}{% if mail.origin %}<div class="h origin">{{ mail.origin }}</div>{% endif %}</td>
 <td class="nw mono opt" data-label="{{ _('Queue ID') }}">{{ mail.qid or '' }}</td></tr>{% endfor %}</tbody></table></div>{% if result.geo_credit %}<p class="h">{{ result.geo_credit }}</p>{% endif %}
 {% else %}<p class="empty">{{ _('No mail matches. Fewer filters or a shorter text find more.') }}</p>{% endif %}</div>
+{#- Cluster wizard (2026-11-18): the checks before a join and the preview of a pending node; every value from the master escaped. -#}
+{% elif result is not none and result_name == 'cluster-join-check' %}<div class="card" id="join-check-result"><h2>{{ _('Checks before the join') }}</h2>
+<table class="data"><tr><th>{{ _('Check') }}</th><th>{{ _('Result') }}</th></tr>{% for item in result.checks or [] %}<tr><td>{{ item.check|t }}</td>
+<td><span class="{{ '' if item.ok else ('w' if item.warning else 'b') }}">{{ _('ok') if item.ok else (_('warning') if item.warning else _('failed')) }}</span> <span class="h">{{ item.detail }}</span></td></tr>{% endfor %}</table>
+<p class="warnbox" role="alert">{{ _('The master sets the admin logins, users, passwords and 2FA for all nodes. On joining, the users, passwords and 2FA of a node are replaced by those of the master: whoever has an account only on the node loses that access. The way back in stays: root on the console of the node (efactl admin-password).') }}</p>
+{% if result.ca_fingerprint %}<p>{{ _('Fingerprint of the master') }}: <code>{{ result.ca_fingerprint }}</code></p>
+<p class="h">{{ _('Compare it with the fingerprint the master showed with its token. Join only when they are the same.') }}</p>{% endif %}
+{% if result.ok %}<p><a class="btn p" href="{{ url_for('show_page', slug='cluster', view='expert') }}#cluster-join">{{ _('Join') }} &rsaquo;</a></p>
+{%- else %}<p class="err">{{ _('Not every check passed: no join until they do.') }}</p>{% endif %}</div>
+{% elif result is not none and result_name == 'cluster-harden' and result.preview %}<div class="card" id="harden-preview-result"><h2>{{ _('Hardening: what would change') }}</h2>
+<table class="data"><tr><th>{{ _('Host') }}</th><th>{{ _('Step') }}</th><th>{{ _('Result') }}</th></tr>{% for host in result.preview %}
+{% if host.error %}<tr><td>{{ host.host }}</td><td>&ndash;</td><td><span class="b">{{ host.error }}</span></td></tr>{% endif %}
+{% for row in host.results or [] %}<tr><td>{{ host.host if loop.first else '' }}</td><td>{{ row.step|t }}</td><td><span class="{{ 'b' if row.state == 'failed' else '' }}">{{ {'kept': _('kept'), 'preview': _('would change'), 'failed': _('failed')}.get(row.state, row.state) }}</span> <span class="h">{{ row.detail }}</span></td></tr>{% endfor %}{% endfor %}</table></div>
+{% elif result is not none and result_name == 'cluster-join-preview' %}<div class="card" id="join-preview-result"><h2>{{ _('What the settings of the master replace here') }}</h2>
+<p class="warnbox" role="alert">{{ _('The master sets the admin logins, users, passwords and 2FA for all nodes. On joining, the users, passwords and 2FA of a node are replaced by those of the master: whoever has an account only on the node loses that access. The way back in stays: root on the console of the node (efactl admin-password).') }}</p>
+{% if result.you %}<p class="{{ '' if result.you.on_master else 'err' }}">{{ _('Your login {} exists on the master.').format(result.you.login) if result.you.on_master else _('Your login {} does not exist on the master: after the join you cannot log in here with it.').format(result.you.login) }}</p>{% endif %}
+{% if result.accounts_replaced %}<table class="data"><tr><th>{{ _('Login of this node that is replaced') }}</th><th>{{ _('Role') }}</th></tr>{% for item in result.accounts_replaced %}<tr><td>{{ item.name }}</td><td>{{ item.role|t }}</td></tr>{% endfor %}</table>{% endif %}
+{% if result.postconf %}<table class="data"><tr><th>{{ _('Mail setting') }}</th><th>{{ _('Now') }}</th><th>{{ _('From the master') }}</th></tr>{% for item in result.postconf %}
+<tr><td>{{ item.name }}</td><td>{{ item.now or '–' }}</td><td>{{ item.then or '–' }}</td></tr>{% endfor %}</table>{% endif %}
+{% if result.files %}<p>{{ _('Files replaced or new') }}: {% for item in result.files %}<code>{{ item.path }}</code>{{ ' (' ~ _('new') ~ ')' if item.change == 'new' }}{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+{% if result.units %}<p>{{ _('Services') }}: {% for item in result.units %}{{ item.unit }} {{ _('on') if item.then else _('off') }}{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+{% if result.database %}<p>{{ _('Database') }}: {{ result.database|t }}</p>{% endif %}
+{% if result.updates %}{% set up = result.updates %}<p id="join-preview-updates">{{ _('Updates') }}: {{ _('the update policy of the master replaces this one (now: eFa-next {}, {} {}, operating system {}).').format(up.now.mode|t, up.now.days|join(' '), up.now.time, up.now.os|t) if up.replaced else _('the update policy stays as it is.') }}
+{{ _('Every install then goes through the staged rollout of the master, one node after the other.') }}{% if up.dnf_automatic_off %} <b>{{ _('dnf-automatic on this host goes off.') }}</b>{% endif %}</p>{% endif %}
+<p class="h">{{ _('{} files stay as they are.').format(result.unchanged_files or 0) }}</p></div>
 {% elif result is not none and result_name == 'sender-action' %}<div class="card done" role="status"><p>{{ result.entry }}: {{ _('added to') if result.action == 'add' else _('taken out again') }} {{ result.target_text|rt }}</p>
 {% if result.action == 'add' %}<div class="btns">{{ post('sender-action', _('Undo'), {'value': result.entry, 'list': result.list, 'action': 'remove', 'recipients': result.recipients, 'qid': result.qid}) }}</div>{% endif %}</div>
 {% elif result is not none and not result.tests %}<div class="card done"><h2>Result: {{ result_title }}</h2><p class="h">Done.</p>
@@ -2141,7 +2218,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 <h2>{{ _('Cluster') }}</h2><p>{{ _('This host is the master') }}{% if ch.mode == 'ha' %} ({{ _('mode') }} ha){% endif %}.
 <span class="h{{ ' w' if ch.stale }}">{{ _('As of {} s ago').format(ch.age) if ch.age is not none else _('No poll of the nodes yet.') }}</span></p>
 {% if ch.nodes %}<table class="data"><tr><th>{{ _('Node') }}</th><th>{{ _('Version') }}</th><th>{{ _('Last contact') }}</th><th>{{ _('Behind') }}</th><th>{{ _('Sync') }}</th></tr>
-{% for row in ch.nodes %}<tr><td data-label="{{ _('Node') }}">{{ row.name }}</td><td data-label="{{ _('Version') }}">{{ row.version or '–' }}{% if row.platform %} ({{ row.platform }}){% endif %}</td>
+{% for row in ch.nodes %}<tr><td data-label="{{ _('Node') }}">{{ row.name }}{% if row.breakglass is sameas false %} <span class="b">{{ _('Break-glass admin missing') }}</span>{% endif %}</td><td data-label="{{ _('Version') }}">{{ row.version or '–' }}{% if row.platform %} ({{ row.platform }}){% endif %}</td>
 <td data-label="{{ _('Last contact') }}">{{ _('{} s ago').format(row.ago) if row.ago is not none else '–' }}</td><td data-label="{{ _('Behind') }}"><span class="{{ 'w' if row.behind }}">{{ row.behind if row.behind is not none else '–' }}</span></td>
 <td data-label="{{ _('Sync') }}"><span class="{{ {'error': 'b', 'pending': 'w'}.get(row.sync, '') }}">{{ {'ok': _('ok'), 'pending': _('pending'), 'error': _('error')}.get(row.sync, row.sync) }}</span>{% if row.error %} <span class="h">{{ row.error }}</span>{% endif %}</td></tr>{% endfor %}</table>
 {%- else %}<p class="empty">{{ _('No node yet.') }}</p>{% endif %}
@@ -2195,7 +2272,7 @@ time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is 
     checks them again), and a bar follows the steps, over the restarts. Every form asks for the password like the command. -#}
 {% macro ru_reauth(id) %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
 {% else %}<div class="row"><label for="{{ id }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ id }}-reauth" name="reauth" autocomplete="current-password" required></div>
-<div class="row"><label for="{{ id }}-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ id }}-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endmacro %}
+<div class="row"><label for="{{ id }}-code">{{ _('2FA code') }}</label><input type="text" id="{{ id }}-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endmacro %}
 {% macro ru_form(id, action, label, cls='p', confirm='') %}<form method="post" action="{{ url_for('run', name='release-upgrade') }}" class="ruform"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ action }}">
 {{ caller() if caller else '' }}{{ ru_reauth(id) }}<div class="btns"><button class="{{ cls }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>{{ label }}</button></div></form>{% endmacro %}
 {% macro ru_card() %}{% set rok, rout = loaded['release-upgrade-status'] %}{% set v = ru_view(rout if rok else {}) %}
@@ -2378,7 +2455,7 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     {%- if row.urls %}<label class="tick"><input type="checkbox" name="delete_urls" value="yes"> {{ _('Delete the stored URLs') }}</label>{% endif %}
     {%- if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
     {%- else %}<label>{{ _('Your password, to confirm') }} <input type="password" name="reauth" autocomplete="current-password"></label>
-    <label>{{ _('2FA code, if you set one up') }} <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>{% endif %}
+    <label>{{ _('2FA code') }} <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>{% endif %}
     <button>{{ _('Save') }}</button></form>{% endif %}{% endif %}</td>
     <td data-label="{{ _('Files') }}"><small>{% for file in ([row.files] if row.files is string else row.files) %}<span class="file">{{ file }}</span>{% endfor %}</small></td><td data-label="{{ _('Accepted') }}">{% if row.accepted %}<small>{{ row.accepted.at }}<br>{{ row.accepted.by }}</small>{% else %}<span class="pill">{{ _('not yet') }}</span>{% endif %}</td></tr>{% endfor %}</table>
   {% elif name == 'rbl-show' %}{% for warning in output.warnings %}<p class="warnbox">{{ warning }}</p>{% endfor %}
@@ -2436,13 +2513,14 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
 <p class="err" role="alert">{{ _('Started with the sentence "without backup, snapshot only", no backup is made and nothing of this host is kept anywhere else: the VM snapshot is then the only way back.') }}</p>{% endif %}
 <form method="post" action="{{ url_for('run', name=name) }}"{% if stayable(name) %} data-stay="@card" data-saved="{{ _('Saved.') }}"{% endif %}><input type="hidden" name="csrf" value="{{ csrf }}">
   {% if name == 'dkim-create' %}{{ keytable() }}{% endif %}
-  {% for arg in cmd.args if arg.web is not sameas false %}{{ field(name, arg) }}{% endfor %}
+  {#- Hans 2026-11-20: the nodes of an entry of DNS for other networks only in a cluster; outside one nothing changes. -#}
+  {% for arg in cmd.args if arg.web is not sameas false and not (arg.name == 'nodes' and name in dns_node_forms and not pick.nodes) %}{{ field(name, arg) }}{% endfor %}
   {% if name == 'passkey-register' %}<div class="btns"><button type="button" id="passkey-add" hidden>{{ _('Make the passkey now') }}</button></div>
   <p class="err" id="passkey-error" hidden>{{ _('The passkey did not work. Log in with password and code.') }}</p><script src="/passkey.js"></script>{% endif %}
   {% if name in reauth_commands and reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
   {% elif name in reauth_commands %}<div class="row"><label for="{{ name }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ name }}-reauth" name="reauth" autocomplete="current-password"></div>
-  <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
-  <div class="btns"><button class="{{ 'd' if name in danger else 'p' }}"{% if name in danger %} data-confirm="{{ cmd.title|t }}?"{% endif %}>{{ (_('Run') if not cmd.args else _('Apply')) if cmd.writes else _('Show') }}</button>{% if name == 'hardening-report' %} <button class="p" formaction="{{ url_for('hardening_pdf') }}">{{ _('Download PDF') }}</button>{% endif %}</div></form>
+  <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
+  <div class="btns"><button class="{{ 'd' if name in danger else 'p' }}"{% if name in danger %} data-confirm="{{ cmd.title|t }}?"{% endif %}>{{ (_('Run') if not cmd.args else _('Apply')) if cmd.writes else _('Show') }}</button>{% if name == 'hardening-report' %} <button class="p" formaction="{{ url_for('hardening_pdf') }}">{{ _('Download PDF') }}</button>{% endif %}{% if name == 'compliance-verify' %} <button class="p" formaction="{{ url_for('compliance_zip') }}">{{ _('Download verification result') }}</button>{% endif %}</div></form>
 {% endif %}{% endif %}</div>{% endif %}{% endmacro %}
 {% macro mail_check_card() %}<div class="card" id="mail-check"><h2>{{ _('Check a mail') }}{{ info('mail-check', _('The verdict of rspamd for one .eml file: action, score and every rule that counted. Nothing is stored or learned.')) }}</h2>
 <form method="post" enctype="multipart/form-data" action="{{ url_for('mail_check') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
@@ -2603,6 +2681,11 @@ other networks. One line of state each; the full cards (they ask before a change
 <div class="card task" id="net-cert"><h2>{{ _('Certificate') }}</h2>
 <p class="h">{{ _("The certificate of the web interface and of mail: Let's Encrypt for a public name, or your own.") }}</p>
 <p>{% if 'letsencrypt-set' in commands %}<a class="btn s" href="{{ expert_url }}#letsencrypt-set">Let's Encrypt &rsaquo;</a> {% endif %}{% if 'web-cert-set' in commands %}<a class="btn s" href="{{ expert_url }}#web-cert-set">{{ _('Own certificate') }} &rsaquo;</a>{% endif %}</p></div>
+{% set hl = loaded['hosts-list'][1] if loaded.get('hosts-list', [false])[0] else {} %}<div class="card task" id="net-hosts"><h2>{{ _('Own host names') }}</h2>
+<p class="h">{{ _('Names and addresses like in /etc/hosts, for Postfix, rspamd and the web interface.') }}</p>
+{{ sec_line(_('Names'), (hl.entries or {})|length) }}
+{% if hl.also_by_hand %}{{ sec_line(_('Also in /etc/hosts by hand'), hl.also_by_hand|join(', '), 'w') }}{% endif %}
+<p><a class="btn s" href="{{ expert_url }}#hosts-set">{{ _('Settings') }} &rsaquo;</a></p></div>
 <div class="card task" id="net-share"><h2>{{ _('DNS resolver for other networks') }}</h2>
 {{ sec_line(_('Networks'), (sh.entries or [])|map(attribute='net')|join(', ') or _('none')) }}
 {% if sh.listens_on %}{{ sec_line(_('Answers on'), sh.listens_on|join(', ')) }}{% endif %}
@@ -2631,6 +2714,20 @@ its state and switch, then where metrics and reports are. The full cards (receiv
 <p>{% for slug, label in [('users', _('API tokens')), ('report', _('Mail report')), ('dkim', _('DMARC and TLS reports'))] if slug in allowed %}<a class="btn s" href="{{ url_for('show_page', slug=slug) }}{{ '#token-create' if slug == 'users' else '' }}">{{ label }} &rsaquo;</a> {% endfor %}</p></div></div>{% endmacro %}
 {#- Cluster & offline by task (Hans 2026-11-18, UI review: "Cluster has 0 cards in Standard"): the state of the cluster, its
 staged updates, operation without internet, the views over all nodes. One line of state each; the full cards in Expert. -#}
+{#- The moving part of "Confirm the join" (2026-11-18): the page and /cluster-join-live draw it the same way. -#}
+{% macro cluster_live(js) %}{% set steps = {'backup': _('Backup'), 'activate': _('The master reaches this node'), 'settings': _('Settings of the master')} %}
+{% set at = (js.steps or []).index(js.step) if js.step in (js.steps or []) else 0 %}<div class="cl-live" data-state="{{ js.state }}">
+<div class="bar" role="progressbar" aria-label="{{ _('Progress of the join') }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (100 * at / 3)|int }}"><i style="width:{{ (100 * at / 3)|int }}%"></i></div>
+<p>{{ steps.get(js.step, _('Waiting to start')) }} &hellip;</p><p class="h cl-off" hidden>{{ _('No answer from this host at the moment, it tries again.') }}</p></div>{% endmacro %}
+{#- Hardening of the cluster (2026-11-18): each host with each step; the page and /cluster-harden-live draw it the same way. -#}
+{% macro harden_table(hosts) %}{% set word = {'ok': _('done'), 'kept': _('kept'), 'failed': _('failed'), 'waiting': _('waiting for SSH confirmation'),
+  'confirmed': _('confirmed'), 'reverted': _('back (not confirmed)'), 'preview': _('would change')} %}
+<table class="data"><tr><th>{{ _('Host') }}</th><th>{{ _('Step') }}</th><th>{{ _('Result') }}</th></tr>{% for host in hosts %}
+{% if host.error %}<tr><td>{{ host.host }}</td><td>&ndash;</td><td><span class="b">{{ host.error }}</span></td></tr>{% endif %}
+{% for row in host.results or [] %}<tr><td>{{ host.host if loop.first else '' }}</td><td>{{ row.step|t }}</td>
+<td><span class="{{ {'failed': 'b', 'waiting': 'w', 'reverted': 'w'}.get(row.state, '') }}">{{ word.get(row.state, row.state) }}</span> <span class="h">{{ row.detail }}</span></td></tr>{% endfor %}{% endfor %}</table>{% endmacro %}
+{% macro harden_live(job) %}<div class="cl-live" data-state="{{ job.state }}"><p>{{ _('Hardening the hosts, one after another') }} &hellip;</p>{{ harden_table(job.hosts or []) }}
+<p class="h cl-off" hidden>{{ _('No answer from this host at the moment, it tries again.') }}</p></div>{% endmacro %}
 {% macro cluster_view() %}{% set expert_url = url_for('show_page', slug='cluster', view='expert') %}
 {% set cs, cu, off = (loaded['cluster-status'][1] if loaded.get('cluster-status', [false])[0] else {}), (loaded['cluster-update-status'][1] if loaded.get('cluster-update-status', [false])[0] else {}), (loaded['offline-status'][1] if loaded.get('offline-status', [false])[0] else {}) %}
 {% set role = cs.role or 'none' %}{% set nodes = cs.nodes or [] %}{% set away = nodes|rejectattr('reachable')|list %}
@@ -2639,12 +2736,48 @@ staged updates, operation without internet, the views over all nodes. One line o
 <div class="card task" id="cluster-state"><h2>{{ _('Cluster') }}</h2>
 {{ sec_line(_('This node'), {'none': _('not in a cluster'), 'master': _('master'), 'client': _('client')}.get(role, role) ~ (' (' ~ cs.name ~ ')' if cs.name else '')) }}
 {% if role != 'none' %}{{ sec_line(_('Mode'), {'master-client': _('settings only on the master'), 'ha': _('settings on every node (HA)')}.get(cs.mode, cs.mode or '–')) }}{% endif %}
-{% if role == 'master' %}{{ sec_line(_('Nodes'), nodes|length ~ ((', ' ~ _('{} not reachable').format(away|length)) if away else ''), 'b' if away else '') }}
+{% if role != 'none' and cs.breakglass is sameas false %}<p class="err">{{ _('Break-glass admin missing on this host.') }} <a class="btn s" href="{{ url_for('show_page', slug='sec', view='expert', next='cluster') }}#breakglass-issue">{{ _('Make it now') }} &rsaquo;</a></p>{% endif %}
+{% if role == 'master' %}{% set nobg = nodes|selectattr('reachable')|selectattr('breakglass', 'sameas', false)|map(attribute='node')|list %}{% if nobg %}{{ sec_line(_('Break-glass admin missing on'), nobg|join(', '), 'b') }}{% endif %}
+{{ sec_line(_('Nodes'), nodes|length ~ ((', ' ~ _('{} not reachable').format(away|length)) if away else ''), 'b' if away else '') }}
 {% set behind = nodes|selectattr('reachable')|selectattr('behind')|list %}{% if behind %}{{ sec_line(_('Behind'), behind|map(attribute='node')|join(', '), 'w') }}{% endif %}
 {% for item in nodes|selectattr('alarm') %}{{ sec_line(_('Alarm') ~ ' ' ~ item.node, item.alarm, 'b') }}{% endfor %}
 {%- elif role == 'client' %}{{ sec_line(_('Master'), (cs.master or {}).get('name') or (cs.master or {}).get('host') or '–') }}{% endif %}
 {% if cs.certificate_until %}{{ sec_line(_('Node certificate until'), cs.certificate_until) }}{% endif %}
 <p>{% if role == 'none' %}{{ go('cluster-init', _('Start a cluster')) }}{{ go('cluster-join', _('Join a cluster')) }}{% elif role == 'master' %}{{ go('cluster-token', _('Add a node')) }}{{ go('cluster-status', _('Nodes')) }}{% else %}{{ go('cluster-status', _('Details')) }}{% endif %}</p></div>
+{% set js = (loaded['cluster-join-status'][1] if loaded.get('cluster-join-status', [false])[0] else {}) %}
+{% if role == 'none' and ('cluster-init' in commands or 'cluster-join-check' in commands) %}<div class="card task" id="cluster-wizard"><h2>{{ _('Set up a cluster') }}</h2>
+<p><b>{{ _('Which host is the first master?') }}</b> {{ _('Choose it yourself: there is no default. Make it the master on that host, with the confirmation there.') }}</p>
+<p class="warnbox" role="alert">{{ _('The master sets the admin logins, users, passwords and 2FA for all nodes. On joining, the users, passwords and 2FA of a node are replaced by those of the master: whoever has an account only on the node loses that access. The way back in stays: root on the console of the node (efactl admin-password).') }}</p>
+<ol class="wsteps"><li>{{ _('On the server that becomes the master: make it the master, then a token for a node. The token is shown once and valid for 30 minutes, with the fingerprint of the master.') }}</li>
+<li>{{ _('On each other server: the checks before the join, with the address of the master and the token (port, version, platform, time, maintenance mode). Compare the fingerprint it shows with the one of the master.') }}</li>
+<li>{{ _('Join with that fingerprint. The node waits: no settings of the master yet.') }}</li>
+<li>{{ _('Look at what the settings of the master replace here and confirm: a backup first, then the settings. Each step asks for your password and 2FA code.') }}</li></ol>
+{% if 'breakglass-issue' in commands %}<p>{{ _('First on each host: its break-glass admin (the PDF with its codes). The logins of the master replace the others; it stays.') }}
+<a class="btn s" href="{{ url_for('show_page', slug='sec', view='expert', next='cluster') }}#breakglass-issue">{{ _('Break-glass admin') }} &rsaquo;</a></p>{% endif %}
+<p>{{ go('cluster-init', _('This server becomes the master')) }}{{ go('cluster-join-check', _('Checks before the join')) }}</p></div>
+{%- elif role == 'master' and 'cluster-token' in commands %}<div class="card task" id="cluster-wizard"><h2>{{ _('Add a node') }}</h2>
+<p class="h">{{ _('A token for each new node: shown once, valid for 30 minutes. On the node: the checks before the join, then join, then confirm.') }}</p>
+<p>{{ go('cluster-token', _('Token for a node')) }}</p></div>
+{%- elif cs.pending and 'cluster-activate' in commands %}<div class="card task" id="cluster-wizard"><h2>{{ _('Confirm the join') }}</h2>
+{% set steps = {'backup': _('Backup'), 'activate': _('The master reaches this node'), 'settings': _('Settings of the master')} %}
+{% if js.state in ('queued', 'running') %}<div id="cluster-live" data-url="{{ url_for('cluster_join_live') }}">{{ cluster_live(js) }}</div>
+{%- else %}{% if js.state == 'failed' %}<p class="err">{{ _('Stopped at {}: {}').format(steps.get(js.step, js.step or '–'), js.error or '') }}</p>{% endif %}
+<p class="h">{{ _('This node joined and waits. Look at what the settings of the master replace here, then confirm.') }}</p>
+<form method="post" action="{{ url_for('run', name='cluster-join-preview') }}" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="s">{{ _('Show what changes') }}</button></form>
+<p class="warnbox" role="alert">{{ _('The master sets the admin logins, users, passwords and 2FA for all nodes. On joining, the users, passwords and 2FA of a node are replaced by those of the master: whoever has an account only on the node loses that access. The way back in stays: root on the console of the node (efactl admin-password).') }}</p>
+<form method="post" action="{{ url_for('run', name='cluster-activate') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="row"><label><input type="checkbox" name="understood" value="yes" required> {{ _('I understand that logins are taken over from the master') }}</label></div>
+<div class="row"><label for="wiz-confirm">{{ _('Type yes to confirm') }}</label><input type="text" id="wiz-confirm" name="confirm" value="" required></div>
+<div class="btns"><button class="p">{{ _('Back up and take the settings of the master') }}</button></div></form>
+<p>{{ go('cluster-leave', _('Stop and leave the cluster')) }}</p>{% endif %}</div>
+{%- elif js.state == 'done' and not cs.pending and role == 'client' %}<div class="card task" id="cluster-wizard"><h2>{{ _('Joined') }}</h2>
+<p>{{ _('This node takes part in the cluster now.') }}{% if js.backup %} <span class="h">{{ _('Backup before: {}').format(js.backup) }}</span>{% endif %}</p><p>{{ go('cluster-status', _('Details')) }}</p></div>{% endif %}
+{% if role == 'master' and 'cluster-harden' in commands %}{% set hj = (loaded['cluster-harden-status'][1] if loaded.get('cluster-harden-status', [false])[0] else {}) %}
+<div class="card task" id="cluster-hardening"><h2>{{ _('Harden the cluster') }}</h2>
+<p class="h">{{ _('Every host the same way: standards, operating system, kernel, sandbox; the SSH profile only on the hosts you tick, each confirms it with a new login. The firewall stays per host; nothing is ever lowered.') }}</p>
+{% if hj.state in ('queued', 'running') %}<div id="cluster-live" data-url="{{ url_for('cluster_harden_live') }}">{{ harden_live(hj) }}</div>
+{%- elif hj.hosts %}{{ harden_table(hj.hosts) }}{% endif %}
+<p>{{ go('cluster-harden', _('Preview and harden')) }}</p></div>{% endif %}
 <div class="card task" id="cluster-upd"><h2>{{ _('Staged updates') }}<span class="badge{{ ' on' if cu.enabled }}">{{ _('On') if cu.enabled else _('Off') }}</span></h2>
 {% if cu.enabled %}{{ sec_line(_('Health window'), (cu.window or 1) ~ ' h') }}{{ sec_line(_('First node'), cu.first or _('the first by name')) }}
 {%- else %}<p class="h">{{ _('Off: every node installs an update by itself.') }}</p>{% endif %}
@@ -2706,11 +2839,12 @@ check light, role addresses, job applications), the EU relation, the domain chec
 <div class="card task" id="sec-logins"><h2>{{ _('Logins') }}{% if 'login-lockout-set' in commands %}{{ toggle('login-lockout-set', commands['login-lockout-set'], lock.mode == 'on') }}{% endif %}</h2>
 {{ sec_line(_('Lockout'), _('after {} failed logins in {} minutes, for {} hours').format(lock.tries, lock.minutes, lock.hours) if lock.mode == 'on' else _('off'), '' if lock.mode == 'on' else 'b') }}
 {{ sec_line(_('Banned now'), (lock.banned_now or {}).values()|map('length')|sum) }}
+{% set idle = (loaded['admin-idle-status'][1] if loaded.get('admin-idle-status', [false])[0] else {}) %}{% if idle %}{{ sec_line(_('Admin sessions end after'), _('{} minutes idle').format(idle.minutes), '' if idle.at_most_15 else 'b') }}{% endif %}
 <p><a class="btn s" href="{{ url_for('show_page', slug='users') }}">{{ _('2FA of the users') }} &rsaquo;</a></p></div>
 {% set tls = (loaded['tls-profile-status'][1] if loaded.get('tls-profile-status', [false])[0] else {}) %}
 <div class="card task" id="sec-tls"><h2>{{ _('TLS') }}</h2>
 {{ sec_line(_('Profile in effect'), tls.profile or '–') }}{{ sec_line(_('Web interface'), tls.web_protocols or '–') }}
-<p>{% if 'tls-profile-set' in commands %}<a class="btn s" href="{{ expert_url }}#tls-profile-set">{{ _('Settings') }} &rsaquo;</a> {% endif %}<a class="btn s" href="{{ url_for('show_page', slug='standards') }}">{{ _('Security standards') }} &rsaquo;</a></p></div></div>{% endmacro %}
+<p>{% if 'tls-profile-set' in commands %}<a class="btn s" href="{{ expert_url }}#tls-profile-set">{{ _('Settings') }} &rsaquo;</a> {% endif %}{% if 'standards-show' in commands %}<a class="btn s" href="{{ url_for('show_page', slug='standards') }}">{{ _('Security standards') }} &rsaquo;</a>{% endif %}</p></div></div>{% endmacro %}
 {% if page.slug == 'sec' %}{{ sec_view() }}{% endif %}
 {% if page.slug == 'domset' and not expert %}{{ domset_view() }}{% endif %}
 {% if page.slug == 'cluster' and not expert %}{{ cluster_view() }}{% endif %}
@@ -2753,7 +2887,7 @@ maintenance mode and power; the full cards in Expert. -#}
 {#- Values are for the expert view, but what asks for an action shows in the standard view too, as a short message. -#}
 {% for name in warned %}<div class="card warncard" id="{{ name }}">{% for text in warnings_of(loaded.get(name)) %}<p class="warnbox" role="alert">{{ text }}</p>{% endfor %}</div>{% endfor %}
 {% set grouped = {} %}{% set followers = [] %}{% if page.slug not in ('account', 'log', 'dash') %}{% for head, rest in card_groups(shown, commands) if rest %}{% set ignored = grouped.update({head: rest}) %}{% set ignored = followers.extend(rest) %}{% endfor %}{% endif %}
-{% for name in shown %}{% if page.slug == 'account' and name in ('password-change', 'passkey-status', 'totp-disable', 'account-email-set', 'session-list') or (t_on and name == 'totp-setup') %}
+{% for name in shown %}{% if page.slug == 'account' and name in ('password-change', 'passkey-status', 'totp-disable', 'account-email-set', 'session-list', 'account-set', 'my-settings-set') or (t_on and name == 'totp-setup') %}
 {%- if name == 'session-list' %}{{ account_sessions() }}{% elif name == 'passkey-status' %}{{ account_fold(_('Passkeys'), ['passkey-status', 'passkey-register', 'passkey-remove'], 'passkeys-fold') }}
 {%- elif name == 'totp-setup' %}{{ account_fold(_('2FA: new app or new recovery codes'), ['totp-setup', 'totp-confirm', 'totp-recovery-new'], 'totp-fold') }}
 {%- else %}{{ account_fold(short_title(commands[name].title)|t, [name], name ~ '-fold') }}{% endif %}
@@ -3134,7 +3268,8 @@ def stream_reply(sock):
 
 
 # Jobs and checks that work or take seconds: they run from their button, never just by opening a page.
-ON_BUTTON = {'security-check', 'standards-check', 'form-check', 'cluster-dkim-apply', 'cluster-content-apply'}
+ON_BUTTON = {'security-check', 'standards-check', 'form-check', 'cluster-dkim-apply', 'cluster-content-apply',
+             'cluster-join-preview'}  # asks the master for its snapshot: only on the button of the cluster wizard
 
 
 def on_button_only(name):
@@ -3164,7 +3299,7 @@ READ_CACHE_SECONDS = {'schema': 300, 'bayes-status': 600, 'ssh-root-status': 300
                       'uq-status': 30, 'graymail-status': 30, 'user-spam-status': 30, 'recall-list': 30,
                       # Network, DNS & certificate (6.0.0.6.4, with the resolver for other networks on it): nmcli, unbound-control, the
                       # TLSA and MTA-STS reads, 80 to 140 ms each; read in parallel the page took 93 to 118 ms (budget 100 ms).
-                      'network-show': 30, 'interfaces-list': 30, 'dns-zone-list': 30, 'dns-forward-status': 30, 'dns-share-list': 30,
+                      'network-show': 30, 'interfaces-list': 30, 'dns-zone-list': 30, 'dns-forward-status': 30, 'dns-share-list': 30, 'hosts-list': 30,
                       'tlsa-show': 60, 'mta-sts-show': 60}
 read_cache = {}
 read_cache_lock = threading.Lock()
@@ -3399,11 +3534,30 @@ def session_sha(sid):
     return hashlib.sha256(sid.encode()).hexdigest()
 
 
+def session_idle():
+    """Seconds a session may stay idle: the admin interface after admin-idle.json (5 to 60 minutes), the portal 60."""
+    if PORTAL:
+        return SESSION_MAX_AGE
+    try:
+        mtime = os.stat(ADMIN_IDLE_FILE).st_mtime
+    except OSError:
+        return SESSION_MAX_AGE
+    if mtime != admin_idle_cache['mtime']:
+        try:
+            with open(ADMIN_IDLE_FILE) as f:
+                minutes = int(json.load(f)['minutes'])
+            admin_idle_cache.update(mtime=mtime, seconds=min(60, max(5, minutes)) * 60)
+        except (OSError, ValueError, TypeError, KeyError):
+            pass  # unreadable for a moment: the last value read stays
+    return admin_idle_cache['seconds']
+
+
 def session_active():
     sid = session.get('sid')
     expiry = active_sessions.get(sid)
     now = time.time()
-    if not session.get('admin') or expiry is None or expiry < now:
+    idle = session_idle()
+    if not session.get('admin') or expiry is None or expiry < now or now - session_seen.get(sid, now) > idle:
         if session.get('admin') and expiry is not None and strict_on():
             g.audit_action = 'session_timeout'
         return False
@@ -3417,7 +3571,8 @@ def session_active():
         session_checked[sid] = now
         if ok and state.get('role'):
             session['role'] = state['role']
-    active_sessions[sid] = now + SESSION_MAX_AGE
+    active_sessions[sid] = now + idle
+    session_seen[sid] = now
     return True
 
 
@@ -3433,10 +3588,12 @@ def session_start(user=None, role='super', sid=None):
         session['user'] = user
     # In the portal the helper gives the id: it binds the login to it.
     session['sid'] = sid or secrets.token_urlsafe(32)
-    active_sessions[session['sid']] = now + SESSION_MAX_AGE
-    session_checked[session['sid']] = now
+    active_sessions[session['sid']] = now + session_idle()
+    session_checked[session['sid']] = session_seen[session['sid']] = now
     for sid in [sid for sid in session_checked if sid not in active_sessions]:
         session_checked.pop(sid, None)
+    for sid in [sid for sid in session_seen if sid not in active_sessions]:
+        session_seen.pop(sid, None)
     if has_request_context():
         efactl('session-open', f'--session={session_sha(session["sid"])}', f"--agent={request.headers.get('User-Agent', '')[:200]}")
         if user:
@@ -3453,8 +3610,8 @@ ROUTE_RIGHTS = {
     'login': 'open', 'logout': 'efactl', 'post_only': 'open', 'oidc_login': 'open', 'oidc_callback': 'open', 'quarantine_link': 'open',
     'passkey_js': 'open', 'passkey_options': 'open', 'passkey_register_options': 'efactl',
     'link_check': 'open', 'api': 'open', 'api_schema': 'open', 'metrics': 'open', 'copy_js': 'open', 'stay_js': 'open', 'favicon': 'open', 'live_js': 'open', 'senders_js': 'open', 'mailui_js': 'open', 'advanced_js': 'open', 'senders_check': 'efactl',
-    'index': 'efactl', 'show_page': 'efactl', 'search': 'efactl', 'search_suggest': 'efactl', 'set_view': 'efactl', 'set_lang': 'efactl', 'mail_check': 'efactl', 'disclaimer_import': 'efactl', 'disclaimer_export': 'efactl', 'legal': 'open', 'legal_file': 'open', 'legal_accept': 'efactl', 'hardening_pdf': 'efactl', 'run': 'efactl', 'mail_page': 'efactl', 'mail_headers': 'efactl', 'mail_evidence': 'efactl',
-    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'ru_live': 'super', 'threat_banner': 'efactl', 'status_board': 'efactl',
+    'index': 'efactl', 'show_page': 'efactl', 'search': 'efactl', 'search_suggest': 'efactl', 'set_view': 'efactl', 'set_lang': 'efactl', 'mail_check': 'efactl', 'disclaimer_import': 'efactl', 'disclaimer_export': 'efactl', 'legal': 'open', 'legal_file': 'open', 'legal_accept': 'efactl', 'hardening_pdf': 'efactl', 'compliance_zip': 'efactl', 'run': 'efactl', 'mail_page': 'efactl', 'mail_headers': 'efactl', 'mail_evidence': 'efactl',
+    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'ru_live': 'super', 'cluster_join_live': 'super', 'cluster_harden_live': 'super', 'threat_banner': 'efactl', 'status_board': 'efactl',
     'backup_download': 'super', 'backup_upload': 'super', 'rspamd_auth': 'super', 'rspamd_open': 'super', 'export_dkim': 'super',
     'senders_data': 'super', 'resetup_view': 'super', 'static': 'open',
     'wizard_step': 'efactl', 'wizard_test': 'efactl', 'wizard_mode': 'efactl', 'wizard_js': 'open', 'dialog_js': 'open',
@@ -3464,15 +3621,25 @@ SUPER_ONLY = {name for name, right in ROUTE_RIGHTS.items() if right == 'super'}
 REAUTH_COMMANDS = {'user-set', 'user-2fa-reset', 'user-state', 'group-set', 'group-map-set', 'tenant-group-map-set', 'token-create', 'firewall-set', 'firewall-guard-set',
                    'ssh-root-set', 'web-allowlist-set', 'restore', 'dkim-remove', 'dkim-import', 'backup-password-set', 'admin-password', 'audit-mode',
                    'cluster-init', 'cluster-token', 'cluster-leave', 'oidc-set', 'ldap-set', 'api-set', 'resetup', 'console-2fa-set', 'release-upgrade',
-                   'dns-share-add', 'dns-share-del', 'dns-share-secondary-set', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-securiteinfo-set'}
+                   'dns-share-add', 'dns-share-edit', 'dns-share-del', 'dns-share-secondary-set', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-securiteinfo-set'}
 REAUTH_SECONDS = 300
 REAUTH_FAILED = 'Password or 2FA code wrong, nothing changed.'
+# The two answers of efactl when an admin confirms without the code of its 2FA app (Hans 2026-11-22), as efactl words them.
+CONFIRM_SETUP = 'Set up your 2FA app first (My account, Two-factor login): every confirmation of an admin asks for its code.'
+CONFIRM_CODE = 'Enter the code of your 2FA app: every confirmation of an admin asks for it.'
 # What ends a control or a record: four eyes, the audit rules and the days of the logs, a whole tenant, a file taken back.
 REAUTH_COMMANDS |= {'four-eyes-set', 'audit-rules-set', 'retention-set', 'tenant-delete', 'history-undo'}
 # G7-9: settings into or out of this host only with the password and 2FA again.
 REAUTH_COMMANDS |= {'settings-export', 'settings-import', 'pyzor-set'}
 # 2026-11-18 (cluster wizard): every change of the cluster with the password and 2FA again, joining too.
-REAUTH_COMMANDS |= {'cluster-join', 'cluster-mode-set', 'cluster-promote', 'cluster-node-remove'}
+REAUTH_COMMANDS |= {'cluster-join', 'cluster-mode-set', 'cluster-promote', 'cluster-node-remove', 'cluster-activate'}
+# 2026-11-19: an own host name sends the mail of Postfix and the checks of rspamd to the address it names: password and 2FA again.
+REAUTH_COMMANDS |= {'hosts-set', 'hosts-local-set'}
+REAUTH_COMMANDS |= {'breakglass-issue', 'breakglass-remove'}  # the break-glass admin (2026-11-18)
+REAUTH_COMMANDS |= {'cluster-harden'}  # hardening of the cluster
+# Hans 2026-11-22 (step-up as recommended): what weakens TLS, removes passkeys of another login, sends backups elsewhere,
+# erases a person's data or takes an update back: password and 2FA code too (login-lockout-set and admin-idle-set ask in efactl).
+REAUTH_COMMANDS |= {'passkey-reset', 'tls-profile-set', 'tls-min-set', 'backup-target-set', 'gdpr-delete', 'update-rollback'}
 def account_view():
     """6.0.0.6: who works, for the menu at the top right: the login name and its role. The main admin has no user entry."""
     user = session.get('user')
@@ -3497,6 +3664,9 @@ app.jinja_env.globals['my_session_id'] = my_session_id
 # there); other logins and tokens get 403, not 404.
 SUPER_COMMANDS = {'release-upgrade', 'release-upgrade-status', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-source-set', 'clam-securiteinfo-set', 'threat-set', 'environment-set'}
 SUPER_COMMANDS |= {'cluster-init', 'cluster-token', 'cluster-join', 'cluster-mode-set', 'cluster-leave', 'cluster-promote', 'cluster-node-remove'}  # the cluster, as in efactl (2026-11-18)
+SUPER_COMMANDS |= {'cluster-join-check', 'cluster-join-preview', 'cluster-join-status', 'cluster-activate', 'cluster-activate-run'}
+SUPER_COMMANDS |= {'breakglass-status', 'breakglass-issue', 'breakglass-remove'}
+SUPER_COMMANDS |= {'cluster-harden', 'cluster-harden-status'}
 
 
 def reauth_left():
@@ -3519,14 +3689,21 @@ def reauth_ok(form):
     count, since = login_failures.get(client, (0, 0))
     if count >= MAX_LOGIN_FAILURES and time.time() - since < LOCKOUT_SECONDS:
         return False
+    answer = {}
     if session.get('user'):
-        ok, _who = efactl('user-verify', f"--username={session['user']}", secrets_in=[password, form.get('reauth_code', '').strip()[:20]])
+        # Hans 2026-11-22: --strict: efactl asks an admin for the code of its 2FA app, never "if set up".
+        ok, answer = efactl('user-verify', f"--username={session['user']}", '--strict=yes', secrets_in=[password, form.get('reauth_code', '').strip()[:20]])
     else:
         try:
             with open(PASSWORD_FILE) as f:
-                ok = password_ok(f.read().strip(), password) and admin_second_factor(form.get('reauth_code', '').strip()[:20])
+                ok = password_ok(f.read().strip(), password)
+            if ok:
+                ok, answer = efactl('admin-2fa-verify', '--strict=yes', secrets_in=[form.get('reauth_code', '').strip()[:20]])
         except OSError:
             ok = False
+    if not ok and isinstance(answer, dict) and answer.get('error') in (CONFIRM_SETUP, CONFIRM_CODE):
+        g.reauth_error = answer['error']  # the code is missing or no 2FA app: not a failed login
+        return False
     if ok:
         session['reauth'] = time.time()
         login_failures.pop(client, None)
@@ -3537,7 +3714,7 @@ def reauth_ok(form):
 
 
 WEB_ALLOW_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/web-allowlist.json'
-web_allow_cache = {'mtime': None, 'networks': None}
+web_allow_cache = {'mtime': None, 'networks': None, 'broken': ''}
 
 
 def admin_address_ok(client):
@@ -3546,14 +3723,17 @@ def admin_address_ok(client):
         mtime = os.stat(WEB_ALLOW_FILE).st_mtime
     except OSError:
         return True
-    if mtime != web_allow_cache['mtime']:
+    if mtime != web_allow_cache['mtime'] or web_allow_cache['broken']:
+        broken = ''
         try:
             with open(WEB_ALLOW_FILE) as f:
                 state = json.load(f)
             networks = [ipaddress.ip_network(item['network']) for item in state.get('entries', [])] if state.get('mode') == 'allowed' else None
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            networks = []  # a broken file refuses: the console switches it off (efactl web-allowlist-set --mode off)
-        web_allow_cache.update(mtime=mtime, networks=networks)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as err:
+            # A broken or unreadable file refuses: the console switches it off (efactl web-allowlist-set --mode off). Read
+            # again on every request until it is good: a fixed owner does not change the time stamp.
+            networks, broken = [], f'{type(err).__name__}: {err}'[:200]
+        web_allow_cache.update(mtime=mtime, networks=networks, broken=broken)
     networks = web_allow_cache['networks']
     if networks is None:
         return True
@@ -3591,6 +3771,11 @@ def body_limits():
 @app.before_request
 def protect():
     if not PORTAL and not admin_address_ok(client_address()):
+        if web_allow_cache['broken']:
+            # 2026-11-18: a fault of this host, not of the browser: Fail2Ban must not count it (no "refused from" line).
+            app.logger.error('efa-web admin allowlist unreadable, every admin address refused (%s): efactl conf-modes-heal',
+                             web_allow_cache['broken'])
+            abort(503)
         # Fail2Ban reads this line.
         app.logger.warning('efa-web admin address refused from %s', client_address())
         abort(403)
@@ -3762,16 +3947,37 @@ def cluster_health(now=None):
     mx = data.get('mx') if isinstance(data.get('mx'), dict) else {}
     age = int(now - written) if written else None
     wrong = [row for row in nodes if row.get('sync') == 'error' or (row.get('behind') or 0) > 0]
-    level = 'b' if any(row.get('sync') == 'error' for row in nodes) else ('w' if wrong or mx.get('ok') is False or age is None or age > HEALTH_STALE
+    level = 'b' if any(row.get('sync') == 'error' or row.get('breakglass') is False for row in nodes) else ('w' if wrong or mx.get('ok') is False or age is None or age > HEALTH_STALE
                                                                          or any(row.get('sync') == 'pending' for row in nodes) else '')
     return {'mode': line['mode'], 'nodes': nodes, 'mx': mx, 'age': age, 'stale': age is None or age > HEALTH_STALE, 'level': level}
+
+
+# NIST SP 800-53 AC-8: the text of the operator before the admin login (efactl login-banner-set), read again when it changed.
+LOGIN_BANNER_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/login-banner.json'
+login_banner_cache = {'mtime': None, 'text': ''}
+
+
+def login_banner():
+    if PORTAL:
+        return ''
+    try:
+        mtime = os.stat(LOGIN_BANNER_FILE).st_mtime
+    except OSError:
+        return ''
+    if mtime != login_banner_cache['mtime']:
+        try:
+            with open(LOGIN_BANNER_FILE) as f:
+                login_banner_cache.update(mtime=mtime, text=str(json.load(f).get('text', ''))[:1000])
+        except (OSError, ValueError, AttributeError):
+            pass  # unreadable for a moment: the last text stays
+    return login_banner_cache['text']
 
 
 @app.context_processor
 def environment_mark():
     env = environment_now()
     return {'environment_mark': environment_mark_html(socket.getfqdn(), env), 'dev_2fa_confirmed': dev_2fa_confirmed(env),
-            'cluster_line': cluster_line()}
+            'cluster_line': cluster_line(), 'login_banner': login_banner()}
 
 
 @app.after_request
@@ -3826,6 +4032,7 @@ def login():
     if session.pop('login_note', None):
         error = _('The page was open too long. Please log in again.')
     if request.method == 'POST':
+        started = time.monotonic()
         client = client_address()
         count, since = login_failures.get(client, (0, 0))
         if count >= MAX_LOGIN_FAILURES and time.time() - since < LOCKOUT_SECONDS:
@@ -3846,6 +4053,17 @@ def login():
                     login_failures.pop(client, None)
                     session_start(who['username'], who['role'], sid=who.get('sid'))
                     app.logger.warning('efa-web login ok user %s from %s', who['username'], client)
+                    g.audit_action = 'login_ok'
+                    return redirect(url_for('index'))
+            elif username and not PORTAL and BREAKGLASS_NAME.fullmatch(username):
+                # The break-glass admin (2026-11-18): its one-time code in the password field, no TOTP for this user only;
+                # efactl checks the code, raises the alarm and counts wrong codes. The rights of the main admin.
+                ok, who = efactl('breakglass-login', f'--user={username}', f'--source={client}', secrets_in=[request.form.get('password', '')])
+                if ok and who.get('ok'):
+                    login_failures.pop(client, None)
+                    session_start()
+                    session['breakglass'], session['breakglass_left'] = username, int(who.get('codes_left', 0))
+                    app.logger.warning('efa-web login ok break-glass admin %s from %s', username, client)
                     g.audit_action = 'login_ok'
                     return redirect(url_for('index'))
             elif username:
@@ -3885,6 +4103,9 @@ def login():
             app.logger.warning('efa-web login failed from %s', client)
             g.audit_action, g.audit_object = 'login_failed', 'user ' + (username or 'admin')
             error = _('Wrong password or 2FA code. With 2FA set up, enter the code of the app too.')
+            # Every failed login takes as long, whoever it was (a break-glass name with a wrong code or from outside, an
+            # unknown user, a wrong password): the answer tells nothing about the name (2026-11-18).
+            time.sleep(max(0.0, LOGIN_FAIL_SECONDS - (time.monotonic() - started)))
     # The portal has single sign-on only with its own redirect address at the provider (portal in oidc-status).
     ok, sso = efactl('oidc-status')
     return render_template_string(LOGIN, csrf=csrf_token(), error=error or session.pop('sso_error', None),
@@ -4539,6 +4760,10 @@ def minute_chart(minutes):
                    '<line x1="0" y1="61" x2="600" y2="61"/></svg>', 'summary': summary, 'first': minutes[0]['minute'], 'last': minutes[-1]['minute']}
 
 
+# The sentence of efactl that confirms a transfer outside the EU (eu_transfer_check); its tick box sends it.
+EU_CONFIRM = 'I accept the transfer outside the EU'
+# Hans 2026-11-20: the forms of DNS for other networks whose nodes are picked from the cluster.
+DNS_NODE_FORMS = {'dns-share-add', 'dns-share-edit'}
 # Commands whose domain field names one of the known domains; elsewhere a new domain is typed in.
 PICK_DOMAIN_COMMANDS = {'domain-settings-show', 'domain-spam-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-general-set', 'user-set',
                         'tenant-group-map-set', 'dkim-create', 'dkim-remove', 'dkim-export', 'rotation-set', 'rotation-pregenerate', 'arc-set', 'dmarc-record-history'}
@@ -4644,7 +4869,7 @@ def switch_arg(name, cmd):
 def form_picks(names, commands):
     """The tenants, domains and groups this login may choose in the forms of the page. Only read when a form needs them."""
     fields = {arg['name'] for name in names for arg in commands[name]['args']}
-    pick = {'tenants': [], 'domains': [], 'groups': []}
+    pick = {'tenants': [], 'domains': [], 'groups': [], 'nodes': [], 'dns_nets': []}
     if fields & {'tenant', 'domain'} and 'tenant-list' in commands:
         ok, found = efactl_read('tenant-list')
         if ok:
@@ -4654,6 +4879,11 @@ def form_picks(names, commands):
         ok, found = efactl_read('group-list')
         if ok:
             pick['groups'] = [item['name'] for item in found.get('groups', []) if not item.get('disabled')]
+    if set(names) & DNS_NODE_FORMS and 'dns-share-list' in commands:
+        ok, found = efactl_read('dns-share-list')
+        if ok:
+            pick['nodes'] = [str(name) for name in found.get('cluster_nodes') or []]
+            pick['dns_nets'] = [entry['net'] for entry in found.get('entries') or [] if isinstance(entry, dict) and entry.get('net')]
     return pick
 
 
@@ -4746,7 +4976,7 @@ def page_view(slug, result=None, result_title=None, error=None, result_name=None
     html = render_template_string(MAIN, cluster_health=health, wizard=wizard, wizard_name=wizard_name, dash=dash, load_html=load_html, load_open=load_open, board_html=board_html, nav=[(group, side) for group, side in ((group, [p for p in pages if p.get('menu') != 'user']) for group, pages in allowed) if side], page=page, names=names, commands=commands, loaded=loaded, values=values,
                                   hidden_cards=HIDDEN_CARDS, current=current, choices=CHOICES, option_text=OPTION_TEXT, ruf_warning=RUF_WARNING, current_info=CURRENT, danger=DANGER, tiles=tiles, update_live_html=update_live_html,
                                   attention=attention, notices_done=notices_done, cve_banner=cve_banner, chart=chart, flow_picture=flow_picture, pages_by_slug=PAGES, csrf=csrf_token(), result=result, result_name=result_name, dialog_results=DIALOG_RESULTS, merged=merged, status_of=STATUS_OF,
-                                  badge=status_badge, without_badge=without_badge, switch_arg=switch_arg, card_level=card_level, notice_href=notice_href, warnings_of=warnings_of, expert=PORTAL or reader_view() == 'expert', note_short=NOTE_SHORT, short_results=SHORT_RESULTS, pick=pick, pick_domain_commands=PICK_DOMAIN_COMMANDS,
+                                  dns_node_forms=DNS_NODE_FORMS, eu_confirm=EU_CONFIRM, badge=status_badge, without_badge=without_badge, switch_arg=switch_arg, card_level=card_level, notice_href=notice_href, warnings_of=warnings_of, expert=PORTAL or reader_view() == 'expert', note_short=NOTE_SHORT, short_results=SHORT_RESULTS, pick=pick, pick_domain_commands=PICK_DOMAIN_COMMANDS,
                                   result_title=result_title, error=error, shown_now=shown_now, reauth_commands=REAUTH_COMMANDS,
                                   hardening_link=slug == 'sec' and wizard_for('standards', commands) == 'hardening',
                                   moved={card: url_for('show_page', slug=to, **({'view': 'expert'} if request.args.get('view') == 'expert' else {})) + '#' + card
@@ -4767,6 +4997,31 @@ def left_text(seconds):
 
 def update_live_view(output):
     return render_template_string(UPDATE_LIVE, u=output, left=left_text(output.get('progress', {}).get('seconds_left')))
+
+
+# The same macro as on the page, taken from it: one drawing of the bar.
+CLUSTER_LIVE = MAIN[MAIN.index('{% macro cluster_live(js) %}'):MAIN.index('{% endmacro %}', MAIN.index('{% macro cluster_live(js) %}')) + 14] + '{{ cluster_live(js) }}'
+
+
+CLUSTER_HARDEN_LIVE = (MAIN[MAIN.index('{% macro harden_table(hosts) %}'):MAIN.index('{% macro cluster_view() %}')] + '{{ harden_live(job) }}')
+
+
+@app.route('/cluster-harden-live')
+def cluster_harden_live():
+    """The table of the hardening while it runs, for the page to renew while it is seen."""
+    ok, output = efactl('cluster-harden-status')
+    if not ok:
+        abort(403 if 'super' in str(output.get('error', '')).lower() else 502)
+    return render_template_string(CLUSTER_HARDEN_LIVE, job=output if isinstance(output, dict) else {})
+
+
+@app.route('/cluster-join-live')
+def cluster_join_live():
+    """The moving part of "Confirm the join", for the page to renew while the join runs and the page is seen."""
+    ok, output = efactl('cluster-join-status')
+    if not ok:
+        abort(403 if 'super' in str(output.get('error', '')).lower() else 502)
+    return render_template_string(CLUSTER_LIVE, js=output if isinstance(output, dict) else {})
 
 
 @app.route('/update-live')
@@ -5627,7 +5882,7 @@ def call_command(command, values):
 
 
 # Binary streams with their own route and password check. The others are for the web interface itself.
-NOT_CALLABLE = ('cluster-alarm', 'audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check')
+NOT_CALLABLE = ('cluster-alarm', 'cluster-activate-run', 'cluster-user-exists', 'breakglass-alarm', 'breakglass-login', 'cluster-harden-run', 'cluster-harden-apply', 'audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check')
 # A command the web interface refuses is never shown as a card either (6.0.0.6.7: the jobs and hooks of break-glass and the cluster).
 HIDDEN_CARDS |= set(NOT_CALLABLE)
 
@@ -5663,7 +5918,7 @@ def run(name):
         # A reload, a link or the back button: show the form with its button, never run the action.
         return redirect(url_for('show_page', slug=page_of(name)) + '#' + name, code=303)
     if name in REAUTH_COMMANDS and not reauth_ok(request.form):
-        return result_store(page_of(name), error='Confirm this change with your password.')
+        return result_store(page_of(name), error=g.get('reauth_error') or 'Confirm this change with your password and your 2FA code.')
     if name == 'release-upgrade' and request.form.get('action') in ('preflight', 'preupgrade', 'start', 'recheck'):
         # 6.0.0.6.6: a second tab or a second click while a step waits for its run never queues it again.
         ru_ok, ru_now = efactl('release-upgrade-status')
@@ -5728,7 +5983,9 @@ def run(name):
         return Response(base64.b64decode(output['file']), mimetype='application/octet-stream',
                         headers={'Content-Disposition': f'attachment; filename="{safe}"', 'X-Content-Type-Options': 'nosniff'})
     if isinstance(output.get('pdf'), str) and str(output.get('name', '')).endswith('.pdf') and name in PDF_COMMANDS:
-        return Response(base64.b64decode(output['pdf']), mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename="{output["name"]}"'})
+        # The break-glass codes are only in this answer: never cached, never kept (2026-11-18); the others alike.
+        return Response(base64.b64decode(output['pdf']), mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename="{output["name"]}"',
+                                                                                             'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
     if not commands[name]['writes'] and name in READ_CACHE_SECONDS and not strict_on():
         # Loaded by its button: the pages after this show it from the cache.
         _read_store(read_key(acting_as(), name), (True, output))
@@ -5757,7 +6014,7 @@ def stayable(name):
 app.jinja_env.globals['stayable'] = stayable
 assert not JSON_RUN & STAY_RUN, 'one way to stay per command'
 # Commands whose output can be a PDF to download.
-PDF_COMMANDS = {'incident-report', 'privacy-evidence', 'report-show'}
+PDF_COMMANDS = {'incident-report', 'privacy-evidence', 'report-show', 'breakglass-issue'}
 # Commands whose output is a file to save (5n): always as a download, never shown in the browser.
 FILE_COMMANDS = {'emergency-file'}
 # 6.0.0.6.6 (Hans 2026-11-18): the QR code with what to do, and the first code asked right here; no going back to another card.
@@ -5838,7 +6095,7 @@ def resetup_view():
         body += (f'<h2>{html_escape(_("Old and new"))}</h2><table>{resetup_rows(result.get("compare", []))}{resetup_rows(result.get("raised", []))}</table>'
                  + ''.join(f'<p>{html_escape(text)}</p>' for text in result.get('notes', []))
                  + f'<label>{html_escape(_("Your password, to confirm"))} <input type="password" name="reauth" autocomplete="current-password"></label>'
-                 f'<label>{html_escape(_("2FA code, if you set one up"))} <input name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>'
+                 f'<label>{html_escape(_("2FA code"))} <input name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>'
                  f'<button name="apply" value="yes">{html_escape(_("Apply"))}</button>')
     return resetup_page(body + f'<button>{html_escape(_("Compare"))}</button></form>', error)
 
@@ -5851,6 +6108,20 @@ def hardening_pdf():
         return result_store(page_of('hardening-report'), error=output.get('error') or 'No PDF.')
     return Response(base64.b64decode(output['pdf']), mimetype='application/pdf',
                     headers={'Content-Disposition': f'attachment; filename="{output.get("name") or "hardening-report.pdf"}"'})
+
+
+@app.route('/compliance-result.zip', methods=['POST'])
+def compliance_zip():
+    """The compliance check of this host as a signed zip, made on the click: efactl checks the right (audit for the whole system)
+    and writes the audit entry."""
+    standard = request.form.get('standard', '').strip().lower()
+    if standard and not re.fullmatch(r'[a-z0-9-]{1,40}', standard):
+        return result_store(page_of('compliance-verify'), error='Standard: an id such as pci-dss.')
+    ok, output = efactl('compliance-verify', '--signed', *([f'--standard={standard}'] if standard else []))
+    if not ok or 'zip' not in output:
+        return result_store(page_of('compliance-verify'), error=output.get('error') or 'No result.')
+    return Response(base64.b64decode(output['zip']), mimetype='application/zip',
+                    headers={'Content-Disposition': f'attachment; filename="{output.get("name") or "efa-next-compliance-result.zip"}"'})
 
 
 @app.route('/view', methods=['POST'])
@@ -6193,7 +6464,7 @@ def wizard_step(name):
             return back(step)
         # The password and the 2FA code as on the manual card (same check, same five minutes); they never go into the draft.
         if wizard.get('reauth') and wizard['command'] in REAUTH_COMMANDS and not reauth_ok(request.form):
-            draft['problem'] = REAUTH_FAILED
+            draft['problem'] = g.get('reauth_error') or REAUTH_FAILED
             return back(step)
         ok, output = efactl(*efa_wizard.call(name, draft['values']))
         if not ok:
@@ -7960,7 +8231,7 @@ def self_test():
         calls_m4 = len(calls)
         page_m4 = client.post('/run/api-set', data={'csrf': 'token', 'mode': 'on'}, follow_redirects=True, **https).get_data(as_text=True)
         assert any(call[0] == 'api-set' for call in calls[calls_m4:]) == runs, (age, calls[calls_m4:])
-        assert runs or 'Confirm this change with your password.' in page_m4
+        assert runs or 'Confirm this change with your password and your 2FA code.' in page_m4
     with client.session_transaction(**https) as sess:
         sess.pop('reauth', None)
     outputs['schema'].pop('api-set')

@@ -12,7 +12,7 @@ from test_bec_page import SCHEMA, load_web
 
 import efa_nav  # noqa: E402  (path set by test_bec_page)
 
-TASKS = ['net-addr', 'net-dns', 'net-cert', 'net-share']
+TASKS = ['net-addr', 'net-dns', 'net-cert', 'net-hosts', 'net-share']
 
 
 class NetPage(unittest.TestCase):
@@ -29,7 +29,9 @@ class NetPage(unittest.TestCase):
                                         'ipv6.method': 'disabled', 'ipv6.addresses': '', 'hostname': 'mx1.example.org', 'connection': 'eth0'},
                        'dns-forward-status': {'forward_all': True, 'public': True, 'system_uses_unbound': True, 'files': {}},
                        'dns-zone-list': {'servers': [], 'tls': False, 'max': 50, 'zones': {'corp.example': {}}},
-                       'dns-share-list': {'entries': [{'net': '10.0.0.0/8'}], 'secondary': '', 'max': 20, 'listens_on': ['10.0.0.5']}}
+                       'dns-share-list': {'entries': [{'net': '10.0.0.0/8'}], 'secondary': '', 'max': 20, 'listens_on': ['10.0.0.5']},
+                       'hosts-list': {'entries': {'git.corp.example': {'addresses': ['10.0.0.7'], 'note': '', 'scope': 'cluster'}}, 'max': 256,
+                                      'cluster': False, 'also_by_hand': ['git.corp.example']}}
 
         def fake(*args, secrets_in=None, who=None):
             if args[0] == 'schema':
@@ -58,6 +60,9 @@ class NetPage(unittest.TestCase):
         for text in ('mx1.example.org', '192.0.2.10/24', '192.0.2.1', 'public resolvers', '10.0.0.0/8', '10.0.0.5'):
             self.assertIn(text, html)
         self.assertIn('#dns-forward-fix', html, 'names to public resolvers: the fix is offered')
+        hosts = html[html.index('id="net-hosts"'):html.index('id="net-share"')]
+        self.assertIn('Also in /etc/hosts by hand', hosts)
+        self.assertIn('#hosts-set', hosts, 'own host names: the card leads to the full card in Expert')
         grid = html[html.index('id="net-addr"'):html.index('</div></div>', html.index('id="net-share"'))]
         self.assertNotIn('<form', grid, 'the task cards change nothing by themselves: the network cards ask first in Expert')
 

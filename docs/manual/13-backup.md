@@ -15,7 +15,7 @@ signature and every file before anything changes ([backup-signature.md](../backu
 
 ## Set it up
 
-1. **Backup password:** *Password for automatic backups* (at least 12 characters). From then on the backups are encrypted
+1. **Backup password:** *Automatic backup: password* (a button in the card *Automatic backup*) (at least 12 characters). From then on the backups are encrypted
    (AES-256). Keep the password outside this host: without it no backup can be restored anywhere.
 2. **Automatic backup:** on or off. Updates and the release upgrade make their own backup first in any case.
 3. **Back up now** makes one at once; *Download* asks for your password again.
@@ -36,7 +36,7 @@ sudo efactl backup-target-list
 
 - an encrypted backup needs its password;
 - a backup of another host (for example after moving to new hardware) needs the fingerprint of the host that signed it,
-  shown on the old host by *Backups: fingerprint of the signing key* (`efactl backup-key-show`);
+  shown on the old host by *Backup: fingerprint of the signing key* (`efactl backup-key-show`);
 - a backup without signature (6.0.0.4 or older, or from `efa5-export`) is restored only with a typed yes, noted in the audit
   log.
 
@@ -46,6 +46,19 @@ sudo efactl restore --name <file> --confirm yes
 
 A restore that was cut off (power cut) is detected and does not block later updates. A backup that holds the settings of
 Postfix and nginx is restored only by the main admin (or root on the console).
+
+## Restore test
+
+*Restore test now* (`efactl backup-restore-test`) checks the newest backup of this host as a restore would, without changing
+anything here: the signature and the manifest of every file, then the database into a throwaway MariaDB with its own data
+folder and socket, no network and no events. Every table of the dump must be there afterwards. The test runs in the background
+at the lowest CPU and disk priority; it does not start under high load or without enough free disk space (twice the dump,
+plus 1 GB kept free). An encrypted backup needs the stored backup password.
+
+*Restore test: monthly* (`efactl backup-restore-test-set --monthly on`, off by default) runs it once a month from 04:00. The
+result shows under *Restore test: status*; a failed test raises the event `restore_test_failed` (Wazuh rule 108094) and the
+hardening report checks for a passed test in the last 35 days. The test proves that a backup can be read and imported; a
+recovery plan and tests on another host stay yours.
 
 ## Settings from another host
 

@@ -52,7 +52,7 @@ class ClusterPage(unittest.TestCase):
 
     def test_master(self):
         html = self.page()
-        self.assertEqual([c for c in self.cards(html) if c not in self.web.WARNING_CARDS], ['cluster-state', 'cluster-upd', 'cluster-offline', 'cluster-all'])
+        self.assertEqual([c for c in self.cards(html) if c not in self.web.WARNING_CARDS], ['cluster-state', 'cluster-wizard', 'cluster-hardening', 'cluster-upd', 'cluster-offline', 'cluster-all'])
         for text in ('master (mx-1)', '2, 1 not reachable', 'mx-2', '2 h', '3.5 days old', 'no key trusted', '#cluster-token', '#cluster-maillog'):
             self.assertIn(text, html)
         self.assertIn('<span class="b">2, 1 not reachable</span>', html)
@@ -60,7 +60,7 @@ class ClusterPage(unittest.TestCase):
     def test_not_in_a_cluster(self):
         self.status = {'cluster-status': {'role': 'none', 'mode': 'master-client'}}
         html = self.page()
-        self.assertEqual([c for c in self.cards(html) if c not in self.web.WARNING_CARDS], ['cluster-state', 'cluster-upd', 'cluster-offline'])
+        self.assertEqual([c for c in self.cards(html) if c not in self.web.WARNING_CARDS], ['cluster-state', 'cluster-wizard', 'cluster-upd', 'cluster-offline'])
         self.assertIn('not in a cluster', html)
         self.assertIn('#cluster-init', html)
         self.assertIn('Off: every node installs an update by itself.', html)

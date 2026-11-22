@@ -48,7 +48,7 @@ Limits per tenant, domain, recipient or sender are set under *Domain settings* (
 
 *Protection › Blocklists*: DNS blocklists (RBL), asked through the own resolver of eFa-next. One switch per list shows the
 state in effect. Lists that are free only for low volume or non-commercial use stay off until you switch them on and accept
-their terms. *Your own blocklist* adds one more; *postscreen* on port 25 drops clients by the weight of their listings;
+their terms. *Your own list*, a button in the table of the blocklists, adds one more; *postscreen* on port 25 drops clients by the weight of their listings;
 *Threat feeds* adds feeds such as URLhaus or ThreatFox, or an own TAXII or MISP feed.
 
 ![Blocklists](../images/manual/rbl.png)

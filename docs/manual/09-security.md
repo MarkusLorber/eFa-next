@@ -113,6 +113,7 @@ set; the **firewall test** checks the ports and SMTP, optionally through an outs
 | Attack alert | last result and sensitivity of the attack check (chapter 4) |
 | Address harvesting | bans senders that try many unknown recipients within some minutes |
 | Failed logins | lockout after failed logins at the web interface, the portal, the API and port 587 |
+| Admin idle timeout | admin sessions end after 5, 10, 15, 30 or 60 idle minutes (default 60; the user portal keeps 60). Longer asks your password again |
 | Security self check | checks the host daily; optionally new passwords against known data breaches (Have I Been Pwned, k-anonymity: only a hash prefix leaves the host) |
 | CVE watch | matches the installed packages against published vulnerabilities |
 | Configuration history | every change with old and new value; *Undo* takes one back |
@@ -124,6 +125,17 @@ set; the **firewall test** checks the ports and SMTP, optionally through an outs
 | Hardening report | the state of all hardening switches, also as PDF (`/hardening.pdf`) |
 
 All changes from the web and the console go into the audit log (*Users › Audit log*).
+
+## File check without Wazuh
+
+*File check: on or off* on the page Privacy & Compliance (`efactl fim-set --mode on`, off by default) keeps a baseline of
+/etc/eFa, /etc/postfix, /etc/rspamd/local.d and /etc/nginx: SHA-256, size and time of every file, signed with the backup key
+of this host. Before every change through efactl (web interface, console, timers) the files are compared with it, and after
+the change the baseline is renewed: only a change outside efactl counts, such as an editor or another program. The check
+before a change trusts size and time; once a day every file is hashed again. A change outside efactl raises the event
+`config_file_changed` (Wazuh rule 108200) and stays under *File check: status* until an admin accepts it
+(`efactl fim-accept --file <path>` or `all`). The package setup renews the baseline at the end of an update; an update through eFa-next (automatic or *Update system*) is checked before dnf runs, an update by hand with dnf is not. A new run of the setup wizard changes files outside efactl: accept them
+afterwards. With the Wazuh agent, its file integrity monitoring (rule 108050) watches the same folders as well.
 
 ## Security policy
 

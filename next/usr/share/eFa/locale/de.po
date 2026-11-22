@@ -613,6 +613,9 @@ msgstr "Milter-Gesundheit"
 msgid "Hardening report"
 msgstr "Härtungsbericht"
 
+msgid "Admin sessions end after this many idle minutes; PCI DSS 8.2.8 and NIST SP 800-53 AC-11 ask for 15 at most. Shorter needs nothing more, longer needs your password again and, while four eyes is on, a second admin. The user portal stays at 60 minutes."
+msgstr "Admin-Sitzungen enden nach so vielen Minuten ohne Aktivität; PCI DSS 8.2.8 und NIST SP 800-53 AC-11 verlangen höchstens 15. Kürzer braucht nichts weiter, länger braucht erneut Ihr Passwort und, solange das Vier-Augen-Prinzip an ist, einen zweiten Admin. Das Benutzerportal bleibt bei 60 Minuten."
+
 msgid "Counts the failed logins of the web interface, the user portal, the API and port 587 per address. Relay networks, the firewall allowlist and cluster nodes are never banned."
 msgstr "Zählt die Fehlanmeldungen an Weboberfläche, Benutzerportal, API und Port 587 je Adresse. Relay-Netze, Firewall-Allowlist und Cluster-Knoten werden nie gesperrt."
 
@@ -694,6 +697,9 @@ msgstr "Speicherung & Datenschutz"
 msgid "Audit log"
 msgstr "Audit-Log"
 
+msgid "Compliance file"
+msgstr "Compliance-Datei"
+
 msgid "Strict audit mode"
 msgstr "Strenger Audit-Modus"
 
@@ -705,6 +711,9 @@ msgstr "Datenschutz-Nachweis"
 
 msgid "Configuration history"
 msgstr "Konfigurationsverlauf"
+
+msgid "File check"
+msgstr "Dateiprüfung"
 
 msgid "Monitoring & reports"
 msgstr "Überwachung & Berichte"
@@ -856,6 +865,9 @@ msgstr "Externe Sicherungsziele"
 msgid "Settings to another host"
 msgstr "Einstellungen auf einen anderen Host"
 
+msgid "Restore test"
+msgstr "Wiederherstellungstest"
+
 msgid "Signature key in a hardware module"
 msgstr "Signaturschlüssel in einem Hardwaremodul"
 
@@ -889,17 +901,26 @@ msgstr "DANE"
 msgid "MTA-STS"
 msgstr "MTA-STS"
 
+msgid "Own host names"
+msgstr "Eigene Hostnamen"
+
 msgid "DNS resolver for other networks"
 msgstr "DNS-Resolver für weitere Netze"
 
 msgid "For internal mail servers or a second uplink. The interface of the default route is changed above, not here. Reverts after 5 minutes unless you keep the change; a firewall zone changes only between minute 20 and 50."
 msgstr "Für interne Mailserver oder einen zweiten Uplink. Die Schnittstelle der Default-Route wird oben geändert, nicht hier. Wird nach 5 Minuten zurückgenommen, wenn Sie die Änderung nicht behalten; eine Firewall-Zone ändert sich nur zwischen Minute 20 und 50."
 
-msgid "Only the networks listed may ask, everything else stays refused (never an open resolver): at most /8 for IPv4, /32 for IPv6. Each net also opens port 53 in the firewall, from that net only. A net outside the private ranges needs yes. The other MX of a cluster is one entry, its address."
-msgstr "Nur die genannten Netze dürfen fragen, alles andere bleibt abgewiesen (nie ein offener Resolver): höchstens /8 bei IPv4, /32 bei IPv6. Jedes Netz öffnet auch Port 53 in der Firewall, nur von diesem Netz. Ein Netz außerhalb der privaten Bereiche braucht yes. Der andere MX eines Clusters ist ein Eintrag, seine Adresse."
+msgid "Only the networks listed may ask, everything else stays refused (never an open resolver): at most /8 for IPv4, /32 for IPv6. Each net also opens port 53 in the firewall, from that net only. A net outside the private ranges needs the tick for it. The other MX of a cluster is one entry, its address. In a cluster each entry is for all nodes or for the nodes ticked; each node answers only its own."
+msgstr "Nur die genannten Netze dürfen fragen, alles andere bleibt abgewiesen (nie ein offener Resolver): höchstens /8 bei IPv4, /32 bei IPv6. Jedes Netz öffnet auch Port 53 in der Firewall, nur von diesem Netz. Ein Netz außerhalb der privaten Bereiche braucht den Haken dafür. Der andere MX eines Clusters ist ein Eintrag, seine Adresse. Im Cluster gilt jeder Eintrag für alle Knoten oder für die angehakten; jeder Knoten beantwortet nur seine eigenen."
 
 msgid "This host asks its own unbound first, then the other MX."
 msgstr "Dieser Host fragt zuerst sein eigenes unbound, dann den anderen MX."
+
+msgid "Like a line of /etc/hosts, for all of eFa-next: Postfix, rspamd and the web interface use it. In a cluster the master hands it to every node. Other record types of the name (MX, TXT) stay as DNS has them."
+msgstr "Wie eine Zeile in /etc/hosts, für ganz eFa-next: Postfix, rspamd und die Weboberfläche nutzen sie. Im Cluster gibt der Master sie an jeden Knoten weiter. Andere Eintragsarten des Namens (MX, TXT) bleiben, wie das DNS sie hat."
+
+msgid "Only in a cluster, for a node that reaches a server under another address: never handed on, and on this host it wins over the same name of the cluster."
+msgstr "Nur im Cluster, für einen Knoten, der einen Server unter einer anderen Adresse erreicht: wird nie weitergegeben und gilt auf diesem Host vor demselben Namen des Clusters."
 
 msgid "Cluster & offline"
 msgstr "Cluster & offline"
@@ -922,8 +943,8 @@ msgstr "Cluster: alle Knoten"
 msgid "Your password, to confirm"
 msgstr "Ihr Passwort zur Bestätigung"
 
-msgid "2FA code, if you set one up"
-msgstr "2FA-Code, falls eingerichtet"
+msgid "2FA code"
+msgstr "2FA-Code"
 
 msgid "BSI TR-02102-2 (default)"
 msgstr "BSI TR-02102-2 (Standard)"
@@ -964,8 +985,8 @@ msgstr "Signaturen jetzt aktualisieren"
 msgid "Sanesecurity: background job"
 msgstr "Sanesecurity: Hintergrundjob"
 
-msgid "Change a blocklist"
-msgstr "Eine Blockliste ändern"
+msgid "Blocklists: change one"
+msgstr "Blocklisten: eine ändern"
 
 msgid "List ID from the table"
 msgstr "Listen-ID aus der Tabelle"
@@ -979,8 +1000,8 @@ msgstr "Spamhaus-DQS-Schlüssel, optional"
 msgid "I have read and accept the terms of use of this list. eFa-next, everyone involved in the project and its sponsors, including IT-World ITW GmbH, have no influence on this list or its use and, to the maximum extent permitted by law, are not liable for it; DISCLAIMER.md applies, including its severability clause. For any problem with the list I contact its provider directly."
 msgstr "Ich habe die Nutzungsbedingungen dieser Liste gelesen und akzeptiere sie. eFa-next, alle am Projekt Beteiligten und seine Sponsoren, darunter die IT-World ITW GmbH, haben keinen Einfluss auf diese Liste und ihre Nutzung und haften, soweit gesetzlich zulässig, nicht dafür; es gilt DISCLAIMER.md, einschließlich seiner salvatorischen Klausel. Bei Problemen mit der Liste wende ich mich direkt an ihren Anbieter."
 
-msgid "Your own blocklist"
-msgstr "Eigene Blockliste"
+msgid "Blocklists: your own list"
+msgstr "Blocklisten: eigene Liste"
 
 msgid "add or remove"
 msgstr "hinzufügen oder entfernen"
@@ -1153,6 +1174,9 @@ msgstr "Name dieses Knotens, etwa mx-1"
 msgid "Mode: master-client (settings only here) or ha (settings on every node)"
 msgstr "Betriebsart: master-client (Einstellungen nur hier) oder ha (Einstellungen auf jedem Knoten)"
 
+msgid "Type yes: this host becomes the first master, its logins count for all nodes"
+msgstr "yes eingeben: dieser Host wird der erste Master, seine Logins gelten für alle Knoten"
+
 msgid "Cluster: master/client or HA"
 msgstr "Cluster: Master/Client oder HA"
 
@@ -1185,6 +1209,69 @@ msgstr "Cluster-Port dieses Knotens, Standard 8460"
 
 msgid "One-time token from the master"
 msgstr "Einmal-Token vom Master"
+
+msgid "Cluster: checks before a join"
+msgstr "Cluster: Prüfungen vor dem Beitritt"
+
+msgid "Cluster: what the settings of the master replace here"
+msgstr "Cluster: was die Einstellungen des Masters hier ersetzen"
+
+msgid "Cluster: confirmation of the join"
+msgstr "Cluster: Bestätigung des Beitritts"
+
+msgid "Cluster: confirm the join (backup, then the settings of the master)"
+msgstr "Cluster: Beitritt bestätigen (Sicherung, dann die Einstellungen des Masters)"
+
+msgid "I understand that logins are taken over from the master"
+msgstr "Ich habe verstanden, dass die Logins vom Master übernommen werden"
+
+msgid "Cluster: one login on the master, for the checks before a join"
+msgstr "Cluster: ein Login am Master, für die Prüfungen vor einem Beitritt"
+
+msgid "Login"
+msgstr "Anmeldung"
+
+msgid "Cluster: confirm the join, background job"
+msgstr "Cluster: Beitritt bestätigen, Hintergrundjob"
+
+msgid "Cluster: harden every host the same way"
+msgstr "Cluster: jeden Host gleich härten"
+
+msgid "Standards (ids, separated by spaces)"
+msgstr "Standards (IDs, durch Leerzeichen getrennt)"
+
+msgid "Items of the operating system, separated by spaces"
+msgstr "Punkte des Betriebssystems, durch Leerzeichen getrennt"
+
+msgid "Kernel settings"
+msgstr "Kernel-Einstellungen"
+
+msgid "Sandbox of the services"
+msgstr "Sandbox der Dienste"
+
+msgid "TLS required on port 25"
+msgstr "TLS auf Port 25 verlangt"
+
+msgid "SSH profile"
+msgstr "SSH-Profil"
+
+msgid "Hosts for the SSH profile (names, separated by spaces; each confirms with a new login)"
+msgstr "Hosts für das SSH-Profil (Namen, durch Leerzeichen getrennt; jeder bestätigt mit einer neuen Anmeldung)"
+
+msgid "Preview only"
+msgstr "Nur Vorschau"
+
+msgid "Type yes to apply"
+msgstr "yes eingeben zum Anwenden"
+
+msgid "Cluster: hardening, background job"
+msgstr "Cluster: Härtung, Hintergrundjob"
+
+msgid "Cluster: hardening of the hosts"
+msgstr "Cluster: Härtung der Hosts"
+
+msgid "Cluster: the hardening of the master on this node (cluster service)"
+msgstr "Cluster: die Härtung des Masters auf diesem Knoten (Cluster-Dienst)"
 
 msgid "Cluster: remove a node"
 msgstr "Cluster: Knoten entfernen"
@@ -1312,9 +1399,6 @@ msgstr "TLS auf Port 25 verlangen"
 msgid "I have read the warning and the senders without TLS of the last 7 days"
 msgstr "Ich habe die Warnung und die Absender ohne TLS der letzten 7 Tage gelesen"
 
-msgid "SSH profile"
-msgstr "SSH-Profil"
-
 msgid "SSH profile: BSI TR-02102-4 or the system setting"
 msgstr "SSH-Profil: BSI TR-02102-4 oder die Systemeinstellung"
 
@@ -1341,6 +1425,24 @@ msgstr "Kernel-Einstellungen des Härtungsberichts"
 
 msgid "No ICMP redirects, no core dumps of SUID programs: on or off"
 msgstr "Keine ICMP-Redirects, keine Core-Dumps von SUID-Programmen: an oder aus"
+
+msgid "Compliance file: check its claims on this host"
+msgstr "Compliance-Datei: ihre Angaben auf diesem Host prüfen"
+
+msgid "Standard (empty: all)"
+msgstr "Standard (leer: alle)"
+
+msgid "Signed zip to download"
+msgstr "Signiertes Zip zum Herunterladen"
+
+msgid "Compliance file: check a signed result (console)"
+msgstr "Compliance-Datei: ein signiertes Prüfergebnis prüfen (Konsole)"
+
+msgid "The zip of the result"
+msgstr "Das Zip des Prüfergebnisses"
+
+msgid "Expected fingerprint of the signing key"
+msgstr "Erwarteter Fingerabdruck des Signaturschlüssels"
 
 msgid "Hardening report (CIS AlmaLinux 9, BSI TR-03108)"
 msgstr "Härtungsbericht (CIS AlmaLinux 9, BSI TR-03108)"
@@ -1681,8 +1783,8 @@ msgstr "Nutzung des Mandanten"
 msgid "Month like 2026-11, empty for this one"
 msgstr "Monat wie 2026-11, leer für diesen"
 
-msgid "Tenant limits"
-msgstr "Limits des Mandanten"
+msgid "Tenant usage: limits"
+msgstr "Nutzung des Mandanten: Limits"
 
 msgid "Domains, none for no limit"
 msgstr "Domains, none für kein Limit"
@@ -1809,6 +1911,9 @@ msgstr "Eine Anmeldung prüfen"
 
 msgid "Password"
 msgstr "Passwort"
+
+msgid "A confirmation of the dashboard: yes"
+msgstr "Eine Bestätigung im Dashboard: yes"
 
 msgid "User name, empty for all or your own"
 msgstr "Benutzername, leer für alle oder Ihre eigenen"
@@ -2635,6 +2740,33 @@ msgstr "Sperre für Stunden"
 msgid "A week for three bans in a day: on or off"
 msgstr "Eine Woche bei drei Sperren an einem Tag: an oder aus"
 
+msgid "Login banner"
+msgstr "Anmeldehinweis"
+
+msgid "Login banner: the text before the admin login"
+msgstr "Anmeldehinweis: der Text vor der Admin-Anmeldung"
+
+msgid "Text (empty: no banner)"
+msgstr "Text (leer: kein Hinweis)"
+
+msgid "Also before the SSH login: on or off"
+msgstr "Auch vor der SSH-Anmeldung: on oder off"
+
+msgid "Admin sessions: idle timeout"
+msgstr "Admin-Sitzungen: Leerlaufzeit"
+
+msgid "Admin sessions: idle timeout in minutes"
+msgstr "Admin-Sitzungen: Leerlaufzeit in Minuten"
+
+msgid "Minutes idle until logout"
+msgstr "Minuten ohne Aktivität bis zur Abmeldung"
+
+msgid "TLS with partners: suggestions (DANE, MTA-STS)"
+msgstr "TLS mit Partnern: Vorschläge (DANE, MTA-STS)"
+
+msgid "Days of the mail log (1 to 30)"
+msgstr "Tage des Mail-Logs (1 bis 30)"
+
 msgid "TLS with partner domains"
 msgstr "TLS mit Partner-Domains"
 
@@ -2701,8 +2833,17 @@ msgstr "DSGVO: Daten einer Mailadresse löschen (Art. 17)"
 msgid "Reason, such as date and number of the request"
 msgstr "Grund, etwa Datum und Nummer der Anfrage"
 
+msgid "Also the accounts of the address: yes or empty"
+msgstr "Auch die Konten der Adresse: yes oder leer"
+
+msgid "Also its entries of the sender lists: yes or empty"
+msgstr "Auch ihre Einträge der Absenderlisten: yes oder leer"
+
 msgid "Type yes to confirm: gone for good"
 msgstr "yes eintippen: endgültig weg"
+
+msgid "GDPR: erase again after a restore"
+msgstr "DSGVO: nach einer Wiederherstellung erneut löschen"
 
 msgid "Own blocks: a YARA rule"
 msgstr "Eigene Sperren: eine YARA-Regel"
@@ -2749,8 +2890,14 @@ msgstr "Grenzüberschreitende Auswirkung"
 msgid "Impact on the service"
 msgstr "Auswirkung auf den Dienst"
 
-msgid "NIS2 incident: report for 24 h, 72 h or the final report"
-msgstr "NIS2-Vorfall: Meldung für 24 h, 72 h oder Abschlussbericht"
+msgid "Personal data concerned (GDPR)"
+msgstr "Personenbezogene Daten betroffen (DSGVO)"
+
+msgid "People and records concerned, approximately"
+msgstr "Betroffene Personen und Datensätze, ungefähr"
+
+msgid "Incident: report for NIS2, GDPR or DORA"
+msgstr "Vorfall: Meldung nach NIS2, DSGVO oder DORA"
 
 msgid "Incident"
 msgstr "Vorfall"
@@ -2824,9 +2971,6 @@ msgstr "2FA"
 msgid "Check the 2FA code of the main admin"
 msgstr "2FA-Code des Haupt-Admins prüfen"
 
-msgid "2FA code"
-msgstr "2FA-Code"
-
 msgid "Re-Setup: EU link, frameworks and 2FA"
 msgstr "Re-Setup: EU-Bezug, Regelwerke und 2FA"
 
@@ -2877,6 +3021,9 @@ msgstr "Eigene 2FA eines Konsolen-Admins (SSH): einrichten"
 
 msgid "First code of the app (empty: start)"
 msgstr "Erster Code der App (leer: beginnen)"
+
+msgid "yes: only while no 2FA is active (the login shell)"
+msgstr "yes: nur solange keine 2FA aktiv ist (die Login-Shell)"
 
 msgid "2FA of the console admin (SSH)"
 msgstr "2FA des Konsolen-Admins (SSH)"
@@ -3018,9 +3165,6 @@ msgstr "Entschärfung von Inhalten: aktives HTML"
 
 msgid "Remove scripts, forms and event handlers from HTML mail: on or off"
 msgstr "Skripte, Formulare und Event-Handler aus HTML-Mails entfernen: an oder aus"
-
-msgid "Sandbox of the services"
-msgstr "Sandbox der Dienste"
 
 msgid "Sandbox of the services: tested units only, untested sandbox files removed"
 msgstr "Sandbox der Dienste: nur getestete Units, ungetestete Sandbox-Dateien entfernt"
@@ -3393,6 +3537,18 @@ msgstr "Nummer des Anhangs, oder eml für die ganze Mail"
 
 msgid "A file that can run code: type yes"
 msgstr "Eine Datei, die Code ausführen kann: yes eingeben"
+
+msgid "File check: status"
+msgstr "Dateiprüfung: Status"
+
+msgid "File check: on or off"
+msgstr "Dateiprüfung: an oder aus"
+
+msgid "File check: accept changed files"
+msgstr "Dateiprüfung: geänderte Dateien annehmen"
+
+msgid "File as the status shows it, or all"
+msgstr "Datei, wie der Status sie zeigt, oder all"
 
 msgid "Configuration history: the diff of a change"
 msgstr "Konfigurationsverlauf: die Unterschiede einer Änderung"
@@ -3994,6 +4150,12 @@ msgstr "zone oder csv"
 msgid "Settings: show"
 msgstr "Einstellungen: zeigen"
 
+msgid "Service monitor: its cron file as maintenance mode says"
+msgstr "Dienstüberwachung: ihre Cron-Datei so, wie der Wartungsmodus es sagt"
+
+msgid "yes: the update (a missing cron file keeps maintenance mode on)"
+msgstr "yes: das Update (eine fehlende Cron-Datei lässt den Wartungsmodus an)"
+
 msgid "Maintenance mode"
 msgstr "Wartungsmodus"
 
@@ -4086,6 +4248,36 @@ msgstr "Härtung des Webservers anwenden"
 
 msgid "Admin web access"
 msgstr "Admin-Zugang zum Webinterface"
+
+msgid "Break-glass admin"
+msgstr "Notfall-Admin"
+
+msgid "Break-glass admin: new one-time codes (PDF, once)"
+msgstr "Notfall-Admin: neue Einmalcodes (PDF, einmalig)"
+
+msgid "Type yes: the old codes stop working, the PDF is shown only now"
+msgstr "yes eingeben: die alten Codes gelten nicht mehr, das PDF gibt es nur jetzt"
+
+msgid "Break-glass admin: remove it"
+msgstr "Notfall-Admin: entfernen"
+
+msgid "Break-glass admin: the alarm of a node (cluster service)"
+msgstr "Notfall-Admin: der Alarm eines Knotens (Cluster-Dienst)"
+
+msgid "Break-glass admin: put its files back (after a package update)"
+msgstr "Notfall-Admin: seine Dateien wiederherstellen (nach einem Paket-Update)"
+
+msgid "Break-glass admin: login with a code (efa-web)"
+msgstr "Notfall-Admin: Anmeldung mit einem Code (efa-web)"
+
+msgid "User"
+msgstr "Benutzer"
+
+msgid "Break-glass admin: alarm (its PAM check)"
+msgstr "Notfall-Admin: Alarm (seine PAM-Prüfung)"
+
+msgid "Event"
+msgstr "Ereignis"
 
 msgid "Admin web access: allowed addresses"
 msgstr "Admin-Zugang: erlaubte Adressen"
@@ -4198,8 +4390,17 @@ msgstr "Nur ausprobieren: yes oder leer"
 msgid "Update system: background job"
 msgstr "System aktualisieren: Hintergrundjob"
 
+msgid "on, off or auto"
+msgstr "an, aus oder auto"
+
 msgid "yes or no"
 msgstr "yes oder no"
+
+msgid "off, security or all"
+msgstr "off, security oder all"
+
+msgid "Job of the rollout"
+msgstr "Auftrag der Verteilung"
 
 msgid "Update system: check after reboot"
 msgstr "System aktualisieren: Prüfung nach dem Neustart"
@@ -4315,8 +4516,8 @@ msgstr "Jetzt sichern"
 msgid "Encrypt: on or off"
 msgstr "Verschlüsseln: an oder aus"
 
-msgid "Password for automatic backups"
-msgstr "Passwort für automatische Sicherungen"
+msgid "Automatic backup: password"
+msgstr "Automatische Sicherung: Passwort"
 
 msgid "Backup: where it is"
 msgstr "Sicherung: wo sie liegt"
@@ -4348,6 +4549,12 @@ msgstr "Wartungstage"
 msgid "Maintenance time"
 msgstr "Wartungszeit"
 
+msgid "Operating system updates: off, security or all"
+msgstr "Updates des Betriebssystems: off, security oder all"
+
+msgid "Staged update: one step on this node (from the master)"
+msgstr "Gestaffeltes Update: ein Schritt auf diesem Knoten (vom Master)"
+
 msgid "Update: back to the version before"
 msgstr "Update: zurück auf die Version davor"
 
@@ -4372,6 +4579,18 @@ msgstr "Jetzt installieren: yes oder leer"
 msgid "Backup: list"
 msgstr "Sicherung: Liste"
 
+msgid "Restore test: status"
+msgstr "Wiederherstellungstest: Status"
+
+msgid "Restore test now"
+msgstr "Wiederherstellungstest jetzt"
+
+msgid "Backup file name, empty for the newest of this host"
+msgstr "Dateiname der Sicherung, leer für die neueste dieses Hosts"
+
+msgid "Restore test: monthly"
+msgstr "Wiederherstellungstest: monatlich"
+
 msgid "Restore a backup"
 msgstr "Eine Sicherung wiederherstellen"
 
@@ -4387,8 +4606,8 @@ msgstr "Fingerabdruck des Hosts, der sie signiert hat, nur für eine Sicherung e
 msgid "Restore an unsigned backup (6.0.0.4 or older, efa5-export): type yes"
 msgstr "Unsignierte Sicherung wiederherstellen (6.0.0.4 oder älter, efa5-export): yes eintippen"
 
-msgid "Backups: fingerprint of the signing key"
-msgstr "Sicherungen: Fingerabdruck des Signierschlüssels"
+msgid "Backup: fingerprint of the signing key"
+msgstr "Sicherung: Fingerabdruck des Signierschlüssels"
 
 msgid "Repair databases"
 msgstr "Datenbanken reparieren"
@@ -4440,6 +4659,9 @@ msgstr "Let's Encrypt: das Zertifikat auf diesem Host übernehmen"
 
 msgid "Host name (empty: the one of Postfix)"
 msgstr "Hostname (leer: der von Postfix)"
+
+msgid "Let's Encrypt: renewal settings of eFa 5 to the webroot of nginx"
+msgstr "Let's Encrypt: Erneuerungseinstellungen von eFa 5 auf das Webroot von nginx umstellen"
 
 msgid "Mail log: search"
 msgstr "Mail-Log: suchen"
@@ -4507,9 +4729,6 @@ msgstr "Sicherheitsstandards: jetzt prüfen (alle Standards, die wirksamen Einst
 msgid "Security standards: choose, preview and apply"
 msgstr "Sicherheitsstandards: wählen, Vorschau und anwenden"
 
-msgid "Standards (ids, separated by spaces)"
-msgstr "Standards (IDs, durch Leerzeichen getrennt)"
-
 msgid "Require TLS on port 25 (only on purpose): on or off, empty keeps it"
 msgstr "TLS auf Port 25 verlangen (nur mit Absicht): on oder off, leer lässt es so"
 
@@ -4552,6 +4771,21 @@ msgstr "Interne DNS: SOA einer Domain über diesen Host abfragen"
 msgid "Zone"
 msgstr "Zone"
 
+msgid "Own host names: add or remove"
+msgstr "Eigene Hostnamen: hinzufügen oder entfernen"
+
+msgid "Host name, such as backup or git.corp.example"
+msgstr "Hostname, etwa backup oder git.corp.example"
+
+msgid "Addresses (IPv4 or IPv6, at most 4, separated by spaces), only to add"
+msgstr "Adressen (IPv4 oder IPv6, höchstens 4, durch Leerzeichen getrennt), nur zum Hinzufügen"
+
+msgid "Note, optional"
+msgstr "Notiz, optional"
+
+msgid "Own host names of this host only (cluster)"
+msgstr "Eigene Hostnamen nur dieses Hosts (Cluster)"
+
 msgid "Internal DNS: does unbound send all names to forwarders?"
 msgstr "Internes DNS: schickt unbound alle Namen an Forwarder?"
 
@@ -4570,11 +4804,20 @@ msgstr "DNS für weitere Netze: erlauben"
 msgid "Addresses or networks (IPv4 or IPv6), such as 192.0.2.11 or 10.0.0.0/16"
 msgstr "Adressen oder Netze (IPv4 oder IPv6), etwa 192.0.2.11 oder 10.0.0.0/16"
 
-msgid "Note, optional"
-msgstr "Notiz, optional"
-
 msgid "Outside the private ranges: type yes"
 msgstr "Außerhalb der privaten Bereiche: yes tippen"
+
+msgid "Nodes of the cluster: names separated by spaces, empty for all"
+msgstr "Knoten des Clusters: Namen durch Leerzeichen getrennt, leer für alle"
+
+msgid "DNS for other networks: nodes of an entry"
+msgstr "DNS für weitere Netze: Knoten eines Eintrags"
+
+msgid "Address or network of the list"
+msgstr "Adresse oder Netz der Liste"
+
+msgid "Note, empty keeps it"
+msgstr "Notiz, leer behält sie"
 
 msgid "DNS for other networks: remove"
 msgstr "DNS für weitere Netze: entfernen"
@@ -4738,6 +4981,9 @@ msgstr "Absenderadresse (wenn aktiv)"
 msgid "Organization (when active)"
 msgstr "Organisation (wenn aktiv)"
 
+msgid "first-install or upgrade"
+msgstr "first-install oder upgrade"
+
 msgid "Kind of download-only files"
 msgstr "Art der Dateien, die nur heruntergeladen werden"
 
@@ -4806,6 +5052,15 @@ msgstr "{key}: opendkim-Schlüssel ({bits} Bit), bitte neue Schlüssel erzeugen.
 
 msgid "{record}: the rotation is {days} days past, remove this DNS record."
 msgstr "{record}: die Rotation ist {days} Tage her, diesen DNS-Eintrag entfernen."
+
+msgid "Break-glass admin missing: this host of a cluster has no way in of its own when the logins of the master fail. Make it now (the PDF with its codes)."
+msgstr "Notfall-Admin fehlt: dieser Host eines Clusters hat keinen eigenen Zugang, wenn die Logins des Masters versagen. Jetzt anlegen (das PDF mit seinen Codes)."
+
+msgid "Break-glass admin: {count} tries in the last 24 hours, the last: {text}"
+msgstr "Notfall-Admin: {count} Versuche in den letzten 24 Stunden, zuletzt: {text}"
+
+msgid "SSH still uses the settings of the operating system: the hardening wizard sets the SSH profile of BSI TR-02102-4 and CIS (keep a second SSH session open, then log in again within 10 minutes to confirm it). Root login off is a choice of its own (Security, Admin access)."
+msgstr "SSH nutzt noch die Einstellungen des Betriebssystems: Der Härtungs-Assistent setzt das SSH-Profil nach BSI TR-02102-4 und CIS (eine zweite SSH-Sitzung offen lassen, dann innerhalb von 10 Minuten neu anmelden, um es zu bestätigen). Root-Anmeldung aus ist eine eigene Entscheidung (Sicherheit, Admin-Zugang)."
 
 msgid "eFa-next security update {version} is available, published {published}."
 msgstr "eFa-next-Sicherheitsupdate {version} ist verfügbar, veröffentlicht {published}."
@@ -4912,6 +5167,9 @@ msgstr "Neu in dieser Version: Re-Setup fragt nach EU-Bezug und Regelwerken und 
 msgid "{path} exists: the setup wizard opens without the setup code (dev mode, not for production). Remove the file on a production host."
 msgstr "{path} ist vorhanden: Der Einrichtungsassistent öffnet ohne Setup-Code (Dev-Modus, nicht für Produktion). Auf einem Produktivsystem die Datei löschen."
 
+msgid "From {date} every admin needs 2FA (TOTP or a passkey): an admin without one sets it up right after the password at the next login, the console admin at the next SSH login. Set it up now under My account."
+msgstr "Ab {date} braucht jeder Admin 2FA (TOTP oder einen Passkey): Ein Admin ohne 2FA richtet sie bei der nächsten Anmeldung direkt nach dem Passwort ein, der Konsolen-Admin bei der nächsten SSH-Anmeldung. Jetzt einrichten unter Mein Konto."
+
 msgid "The 2FA of the main admin (login admin) was switched on ({date}) and is gone without being switched off or reset: the login takes the password alone. Set it up again under My account and check the audit log."
 msgstr "Die 2FA des Hauptadmins (Login admin) wurde eingeschaltet ({date}) und fehlt, ohne dass sie ausgeschaltet oder zurückgesetzt wurde: der Login nimmt nur das Passwort. Richten Sie sie unter Mein Konto neu ein und prüfen Sie das Audit-Log."
 
@@ -4992,6 +5250,12 @@ msgstr "unbound schickt alle Namen an {servers}: Die freien Blocklisten antworte
 
 msgid "unbound sends all names to internal servers instead of resolving itself; if the blocklists do not filter: DNS and certificate, Internal DNS: resolve on this host (dns-forward-fix)."
 msgstr "unbound schickt alle Namen an interne Server, statt selbst aufzulösen; wenn die Blocklisten nicht filtern: DNS und Zertifikat, Internes DNS: auf diesem Host auflösen (dns-forward-fix)."
+
+msgid "unknown"
+msgstr "unbekannt"
+
+msgid "all nodes"
+msgstr "alle Knoten"
 
 msgid "Let's Encrypt is paused until {until} after a failed request ({reason}). The certificate stays as it was."
 msgstr "Let's Encrypt ist nach einer gescheiterten Anfrage bis {until} pausiert ({reason}). Das Zertifikat bleibt, wie es war."
@@ -5203,6 +5467,9 @@ msgstr "Zum Benutzerportal"
 msgid "User name, empty for the main admin"
 msgstr "Benutzername, leer für den Haupt-Admin"
 
+msgid "2FA code, if you set one up"
+msgstr "2FA-Code, falls eingerichtet"
+
 msgid "Use a passkey"
 msgstr "Passkey verwenden"
 
@@ -5286,9 +5553,6 @@ msgstr "Warnung"
 
 msgid "fault"
 msgstr "Störung"
-
-msgid "unknown"
-msgstr "unbekannt"
 
 msgid "Attack check at"
 msgstr "Angriffsprüfung um"
@@ -5767,6 +6031,9 @@ msgstr "Aktuell:"
 msgid "None"
 msgstr "Keine"
 
+msgid "Nodes (none ticked: all)"
+msgstr "Knoten (keiner angehakt: alle)"
+
 msgid "Search"
 msgstr "Suche"
 
@@ -5814,6 +6081,15 @@ msgstr "Funktion wünschen oder verbessern"
 
 msgid "Log out"
 msgstr "Abmelden"
+
+msgid "Break-glass admin {}"
+msgstr "Notfall-Admin {}"
+
+msgid "every login raises an alarm on every channel. One-time codes left: {}."
+msgstr "jede Anmeldung löst einen Alarm auf allen Kanälen aus. Übrige Einmalcodes: {}."
+
+msgid "New codes"
+msgstr "Neue Codes"
 
 msgid "The 2FA code you typed was not checked: this login has no active 2FA."
 msgstr "Der eingegebene 2FA-Code wurde nicht geprüft: diese Anmeldung hat keine aktive 2FA."
@@ -6025,6 +6301,81 @@ msgstr "Prüfungen"
 msgid "No mail matches. Fewer filters or a shorter text find more."
 msgstr "Keine Mail passt. Weniger Filter oder ein kürzerer Text finden mehr."
 
+msgid "Checks before the join"
+msgstr "Prüfungen vor dem Beitritt"
+
+msgid "The master sets the admin logins, users, passwords and 2FA for all nodes. On joining, the users, passwords and 2FA of a node are replaced by those of the master: whoever has an account only on the node loses that access. The way back in stays: root on the console of the node (efactl admin-password)."
+msgstr "Der Master legt Admin-Logins, Benutzer, Passwörter und 2FA für alle Knoten fest. Beim Beitritt werden Benutzer, Passwörter und 2FA eines Knotens durch die des Masters ersetzt: wer nur am Knoten ein Konto hat, verliert diesen Zugang. Der Weg zurück bleibt: root an der Konsole des Knotens (efactl admin-password)."
+
+msgid "Fingerprint of the master"
+msgstr "Fingerabdruck des Masters"
+
+msgid "Compare it with the fingerprint the master showed with its token. Join only when they are the same."
+msgstr "Vergleichen Sie ihn mit dem Fingerabdruck, den der Master mit seinem Token zeigte. Treten Sie nur bei Gleichheit bei."
+
+msgid "Join"
+msgstr "Beitreten"
+
+msgid "Not every check passed: no join until they do."
+msgstr "Nicht jede Prüfung ist bestanden: kein Beitritt, bis alle bestehen."
+
+msgid "Hardening: what would change"
+msgstr "Härtung: was sich ändern würde"
+
+msgid "Host"
+msgstr "Host"
+
+msgid "kept"
+msgstr "beibehalten"
+
+msgid "would change"
+msgstr "würde sich ändern"
+
+msgid "What the settings of the master replace here"
+msgstr "Was die Einstellungen des Masters hier ersetzen"
+
+msgid "Your login {} exists on the master."
+msgstr "Ihr Login {} gibt es am Master."
+
+msgid "Your login {} does not exist on the master: after the join you cannot log in here with it."
+msgstr "Ihr Login {} gibt es am Master nicht: nach dem Beitritt können Sie sich damit hier nicht anmelden."
+
+msgid "Login of this node that is replaced"
+msgstr "Login dieses Knotens, das ersetzt wird"
+
+msgid "Mail setting"
+msgstr "Mail-Einstellung"
+
+msgid "From the master"
+msgstr "Vom Master"
+
+msgid "Files replaced or new"
+msgstr "Ersetzte oder neue Dateien"
+
+msgid "new"
+msgstr "neu"
+
+msgid "Services"
+msgstr "Dienste"
+
+msgid "Database"
+msgstr "Datenbank"
+
+msgid "the update policy of the master replaces this one (now: eFa-next {}, {} {}, operating system {})."
+msgstr "die Update-Richtlinie des Masters ersetzt diese (jetzt: eFa-next {}, {} {}, Betriebssystem {})."
+
+msgid "the update policy stays as it is."
+msgstr "die Update-Richtlinie bleibt, wie sie ist."
+
+msgid "Every install then goes through the staged rollout of the master, one node after the other."
+msgstr "Jede Installation läuft dann über die gestaffelte Verteilung des Masters, ein Knoten nach dem anderen."
+
+msgid "dnf-automatic on this host goes off."
+msgstr "dnf-automatic geht auf diesem Host aus."
+
+msgid "{} files stay as they are."
+msgstr "{} Dateien bleiben unverändert."
+
 msgid "Needs attention"
 msgstr "Braucht Aufmerksamkeit"
 
@@ -6093,6 +6444,9 @@ msgstr "Im Rückstand"
 
 msgid "Sync"
 msgstr "Abgleich"
+
+msgid "Break-glass admin missing"
+msgstr "Notfall-Admin fehlt"
 
 msgid "{} s ago"
 msgstr "vor {} s"
@@ -6697,6 +7051,9 @@ msgstr "Ausführen"
 msgid "Download PDF"
 msgstr "PDF herunterladen"
 
+msgid "Download verification result"
+msgstr "Prüfergebnis herunterladen"
+
 msgid "Check a mail"
 msgstr "Mail prüfen"
 
@@ -6708,9 +7065,6 @@ msgstr "Mail (.eml, bis 10 MB)"
 
 msgid "Advanced search"
 msgstr "Erweiterte Suche"
-
-msgid "Login"
-msgstr "Anmeldung"
 
 msgid "waiting for the link"
 msgstr "wartet auf den Link"
@@ -6955,6 +7309,15 @@ msgstr "Das Zertifikat der Weboberfläche und der Mail: Let's Encrypt für einen
 msgid "Own certificate"
 msgstr "Eigenes Zertifikat"
 
+msgid "Names and addresses like in /etc/hosts, for Postfix, rspamd and the web interface."
+msgstr "Namen und Adressen wie in /etc/hosts, für Postfix, rspamd und die Weboberfläche."
+
+msgid "Names"
+msgstr "Namen"
+
+msgid "Also in /etc/hosts by hand"
+msgstr "Auch von Hand in /etc/hosts"
+
 msgid "Networks"
 msgstr "Netzwerke"
 
@@ -7009,6 +7372,33 @@ msgstr "Prometheus liest /metrics mit einem API-Token. Berichte zur Mail sowie z
 msgid "DMARC and TLS reports"
 msgstr "DMARC- und TLS-Berichte"
 
+msgid "The master reaches this node"
+msgstr "Der Master erreicht diesen Knoten"
+
+msgid "Settings of the master"
+msgstr "Einstellungen des Masters"
+
+msgid "Progress of the join"
+msgstr "Fortschritt des Beitritts"
+
+msgid "Waiting to start"
+msgstr "Wartet auf den Start"
+
+msgid "No answer from this host at the moment, it tries again."
+msgstr "Dieser Host antwortet gerade nicht, es wird erneut versucht."
+
+msgid "waiting for SSH confirmation"
+msgstr "wartet auf SSH-Bestätigung"
+
+msgid "confirmed"
+msgstr "bestätigt"
+
+msgid "back (not confirmed)"
+msgstr "zurück (nicht bestätigt)"
+
+msgid "Hardening the hosts, one after another"
+msgstr "Die Hosts werden nacheinander gehärtet"
+
 msgid "This node"
 msgstr "Dieser Knoten"
 
@@ -7026,6 +7416,15 @@ msgstr "Einstellungen nur am Master"
 
 msgid "settings on every node (HA)"
 msgstr "Einstellungen auf jedem Knoten (HA)"
+
+msgid "Break-glass admin missing on this host."
+msgstr "Notfall-Admin fehlt auf diesem Host."
+
+msgid "Make it now"
+msgstr "Jetzt anlegen"
+
+msgid "Break-glass admin missing on"
+msgstr "Notfall-Admin fehlt auf"
 
 msgid "Nodes"
 msgstr "Knoten"
@@ -7047,6 +7446,75 @@ msgstr "Einem Cluster beitreten"
 
 msgid "Add a node"
 msgstr "Knoten hinzufügen"
+
+msgid "Set up a cluster"
+msgstr "Cluster einrichten"
+
+msgid "Which host is the first master?"
+msgstr "Welcher Host ist der erste Master?"
+
+msgid "Choose it yourself: there is no default. Make it the master on that host, with the confirmation there."
+msgstr "Wählen Sie ihn selbst: es gibt keine Vorgabe. Machen Sie ihn auf diesem Host zum Master, mit der Bestätigung dort."
+
+msgid "On the server that becomes the master: make it the master, then a token for a node. The token is shown once and valid for 30 minutes, with the fingerprint of the master."
+msgstr "Auf dem Server, der Master wird: zum Master machen, dann ein Token für einen Knoten. Das Token wird einmal angezeigt und gilt 30 Minuten, mit dem Fingerabdruck des Masters."
+
+msgid "On each other server: the checks before the join, with the address of the master and the token (port, version, platform, time, maintenance mode). Compare the fingerprint it shows with the one of the master."
+msgstr "Auf jedem weiteren Server: die Prüfungen vor dem Beitritt, mit der Adresse des Masters und dem Token (Port, Version, Plattform, Zeit, Wartungsmodus). Vergleichen Sie den angezeigten Fingerabdruck mit dem des Masters."
+
+msgid "Join with that fingerprint. The node waits: no settings of the master yet."
+msgstr "Mit diesem Fingerabdruck beitreten. Der Knoten wartet: noch keine Einstellungen des Masters."
+
+msgid "Look at what the settings of the master replace here and confirm: a backup first, then the settings. Each step asks for your password and 2FA code."
+msgstr "Ansehen, was die Einstellungen des Masters hier ersetzen, und bestätigen: zuerst eine Sicherung, dann die Einstellungen. Jeder Schritt fragt nach Passwort und 2FA-Code."
+
+msgid "First on each host: its break-glass admin (the PDF with its codes). The logins of the master replace the others; it stays."
+msgstr "Zuerst auf jedem Host: sein Notfall-Admin (das PDF mit seinen Codes). Die Logins des Masters ersetzen die anderen; er bleibt."
+
+msgid "This server becomes the master"
+msgstr "Dieser Server wird Master"
+
+msgid "A token for each new node: shown once, valid for 30 minutes. On the node: the checks before the join, then join, then confirm."
+msgstr "Ein Token für jeden neuen Knoten: einmal angezeigt, 30 Minuten gültig. Am Knoten: die Prüfungen vor dem Beitritt, dann beitreten, dann bestätigen."
+
+msgid "Token for a node"
+msgstr "Token für einen Knoten"
+
+msgid "Confirm the join"
+msgstr "Beitritt bestätigen"
+
+msgid "Stopped at {}: {}"
+msgstr "Angehalten bei {}: {}"
+
+msgid "This node joined and waits. Look at what the settings of the master replace here, then confirm."
+msgstr "Dieser Knoten ist beigetreten und wartet. Sehen Sie sich an, was die Einstellungen des Masters hier ersetzen, dann bestätigen."
+
+msgid "Show what changes"
+msgstr "Änderungen anzeigen"
+
+msgid "Back up and take the settings of the master"
+msgstr "Sichern und die Einstellungen des Masters übernehmen"
+
+msgid "Stop and leave the cluster"
+msgstr "Abbrechen und den Cluster verlassen"
+
+msgid "Joined"
+msgstr "Beigetreten"
+
+msgid "This node takes part in the cluster now."
+msgstr "Dieser Knoten ist jetzt Teil des Clusters."
+
+msgid "Backup before: {}"
+msgstr "Sicherung vorher: {}"
+
+msgid "Harden the cluster"
+msgstr "Cluster härten"
+
+msgid "Every host the same way: standards, operating system, kernel, sandbox; the SSH profile only on the hosts you tick, each confirms it with a new login. The firewall stays per host; nothing is ever lowered."
+msgstr "Jeder Host gleich: Standards, Betriebssystem, Kernel, Sandbox; das SSH-Profil nur auf den angekreuzten Hosts, jeder bestätigt es mit einer neuen Anmeldung. Die Firewall bleibt je Host; nichts wird je abgeschwächt."
+
+msgid "Preview and harden"
+msgstr "Vorschau und härten"
 
 msgid "First node"
 msgstr "Erster Knoten"
@@ -7171,6 +7639,12 @@ msgstr "nach {} Fehlversuchen in {} Minuten, für {} Stunden"
 msgid "Banned now"
 msgstr "Jetzt gesperrt"
 
+msgid "Admin sessions end after"
+msgstr "Admin-Sitzungen enden nach"
+
+msgid "{} minutes idle"
+msgstr "{} Minuten ohne Aktivität"
+
 msgid "Profile in effect"
 msgstr "Aktives Profil"
 
@@ -7245,9 +7719,6 @@ msgstr "Domain-Verwalter"
 
 msgid "Helpdesk"
 msgstr "Helpdesk"
-
-msgid "User"
-msgstr "Benutzer"
 
 msgid "Read only"
 msgstr "Nur lesen"
@@ -7422,9 +7893,6 @@ msgstr "Mailserver"
 
 msgid "Virus scanner"
 msgstr "Virenscanner"
-
-msgid "Database"
-msgstr "Datenbank"
 
 msgid "Cache"
 msgstr "Cache"
@@ -7806,6 +8274,12 @@ msgstr "Verzeichnis der Verarbeitungstätigkeiten und TOM: Benutzer, Datenschutz
 
 msgid "eFa-next is not an archive that meets the legal retention rules; keep business mail in an archive (Archive handover). Do not set retention periods below the legal ones."
 msgstr "eFa-next ist kein revisionssicheres Archiv; bewahren Sie Geschäftspost in einem Archiv auf (Archiv-Übergabe). Löschfristen nicht unter die gesetzlichen Fristen setzen."
+
+msgid "Keeps the mail log at least 365 days (the framework asks 12 months of logs): personal data are kept longer (GDPR Art. 5(1)(e)); set the retention back only if this framework does not apply."
+msgstr "Hält das Mail-Log mindestens 365 Tage (das Framework verlangt 12 Monate Protokolle): personenbezogene Daten bleiben länger gespeichert (DSGVO Art. 5 Abs. 1 lit. e); die Aufbewahrung nur zurücksetzen, wenn dieses Framework nicht gilt."
+
+msgid "Moderate baseline, technical part only; a non-binding suggestion. FIPS 140 mode is not supported or tested by eFa-next."
+msgstr "Moderate Baseline, nur der technische Teil; ein unverbindlicher Vorschlag. Den FIPS-140-Modus unterstützt und testet eFa-next nicht."
 
 msgid "I am a qualified administrator and do not use eFa-next as a consumer; it is a mail filter server for businesses and organisations. I accept: it comes without any warranty. To the maximum extent permitted by applicable law, Markus Lorber, all authors and contributors of eFa-next and its sponsors, including IT-World ITW GmbH, are not liable for any damage from its use; I use it at my own risk."
 msgstr "Ich bin fachkundige Administratorin oder fachkundiger Administrator und nutze eFa-next nicht als Verbraucher; es ist ein Mailfilter-Server für Unternehmen und Organisationen. Ich akzeptiere: Es gibt keine Gewährleistung. Soweit gesetzlich zulässig haften Markus Lorber, alle Autoren und Mitwirkenden von eFa-next und seine Sponsoren, darunter IT-World ITW GmbH, nicht für Schäden aus der Nutzung; ich nutze es auf eigenes Risiko."
@@ -8284,9 +8758,6 @@ msgstr "2FA: App einrichten"
 msgid "Time on this server: {time} ({utc} UTC)"
 msgstr "Uhrzeit dieses Servers: {time} ({utc} UTC)"
 
-msgid "Host"
-msgstr "Host"
-
 msgid "Created"
 msgstr "Erstellt"
 
@@ -8415,6 +8886,21 @@ msgstr "Experte: alle Einstellungen und Werte"
 
 msgid "Yes, do it: every node takes all settings anew"
 msgstr "Ja, ausführen: jeder Knoten übernimmt alle Einstellungen neu"
+
+msgid "as they are"
+msgstr "wie sie sind"
+
+msgid "as it is"
+msgstr "wie es ist"
+
+msgid "default"
+msgstr "Standard"
+
+msgid "BSI TR-02102-4"
+msgstr "BSI TR-02102-4"
+
+msgid "no, apply"
+msgstr "nein, anwenden"
 
 msgid "Yes, do it: only when the master is gone for good"
 msgstr "Ja, ausführen: nur wenn der Master endgültig fehlt"
@@ -9175,6 +9661,15 @@ msgstr "eine Woche bei drei Sperren an einem Tag"
 msgid "no longer ban"
 msgstr "nicht länger sperren"
 
+msgid "Before the SSH login too"
+msgstr "Auch vor der SSH-Anmeldung"
+
+msgid "Idle until logout"
+msgstr "Leerlauf bis zur Abmeldung"
+
+msgid "15 minutes"
+msgstr "15 Minuten"
+
 msgid "as for all others"
 msgstr "wie für alle anderen"
 
@@ -9223,6 +9718,12 @@ msgstr "30 Tage"
 msgid "90 days"
 msgstr "90 Tage"
 
+msgid "Also the accounts of the address"
+msgstr "Auch die Konten der Adresse"
+
+msgid "Also its entries of the sender lists"
+msgstr "Auch ihre Einträge der Absenderlisten"
+
 msgid "Yes, do it: gone for good"
 msgstr "Ja, ausführen: endgültig weg"
 
@@ -9246,6 +9747,18 @@ msgstr "Meldung, binnen 72 Stunden"
 
 msgid "final report, within a month"
 msgstr "Abschlussbericht, binnen eines Monats"
+
+msgid "GDPR: personal data breach, within 72 hours"
+msgstr "DSGVO: Verletzung des Schutzes personenbezogener Daten, binnen 72 Stunden"
+
+msgid "DORA: initial notification"
+msgstr "DORA: Erstmeldung"
+
+msgid "DORA: intermediate report"
+msgstr "DORA: Zwischenbericht"
+
+msgid "DORA: final report"
+msgstr "DORA: Abschlussbericht"
 
 msgid "Markdown"
 msgstr "Markdown"
@@ -9282,6 +9795,9 @@ msgstr "Pflicht: bei der nächsten Anmeldung einrichten"
 
 msgid "Apply; without the tick only the comparison"
 msgstr "Anwenden; ohne Häkchen nur der Vergleich"
+
+msgid "Only while no 2fa is active (the login shell)"
+msgstr "Nur solange keine 2FA aktiv ist (die Login-Shell)"
 
 msgid "2FA for the console admin"
 msgstr "2FA für den Konsolen-Admin"
@@ -9456,9 +9972,6 @@ msgstr "security-cra@"
 
 msgid "nis2@"
 msgstr "nis2@"
-
-msgid "15 minutes"
-msgstr "15 Minuten"
 
 msgid "Senders or domains that always pass"
 msgstr "Absender oder Domains, die immer durchkommen"
@@ -9817,6 +10330,9 @@ msgstr "Zonendatei"
 msgid "CSV"
 msgstr "CSV"
 
+msgid "The update (a missing cron file keeps maintenance mode on)"
+msgstr "Das Update (eine fehlende Cron-Datei lässt den Wartungsmodus an)"
+
 msgid "Remove (undo)"
 msgstr "Entfernen (rückgängig)"
 
@@ -9928,6 +10444,12 @@ msgstr "Verschlüsseln"
 msgid "Empty reads stdin"
 msgstr "Leer: liest stdin"
 
+msgid "Security updates only"
+msgstr "Nur Sicherheitsupdates"
+
+msgid "All updates"
+msgstr "Alle Updates"
+
 msgid "Only show what would happen"
 msgstr "Nur zeigen, was geschehen würde"
 
@@ -9936,6 +10458,9 @@ msgstr "Die vor dem Update erstellte Sicherung wiederherstellen"
 
 msgid "Install now"
 msgstr "Jetzt installieren"
+
+msgid "Empty for the newest of this host"
+msgstr "Leer für die neueste dieses Hosts"
 
 msgid "Restore an unsigned backup (6.0.0.4 or older, efa5-export)"
 msgstr "Eine unsignierte Sicherung wiederherstellen (6.0.0.4 oder älter, efa5-export)"
@@ -10011,6 +10536,12 @@ msgstr "crypto-future"
 
 msgid "Outside the private ranges"
 msgstr "Außerhalb der privaten Bereiche"
+
+msgid "Nodes of the cluster: names separated by spaces"
+msgstr "Knoten des Clusters: Namen durch Leerzeichen getrennt"
+
+msgid "Note"
+msgstr "Notiz"
 
 msgid "IP address of the other MX"
 msgstr "IP-Adresse des anderen MX"
@@ -10144,11 +10675,29 @@ msgstr "Prüft das strenge Audit-Log: jeden Eintrag, die Kette dazwischen und di
 msgid "Whether eFa-next updates only notify you or install by themselves in the maintenance window, with backup, health check and rollback on failure."
 msgstr "Ob eFa-next-Updates nur melden oder sich im Wartungsfenster selbst installieren, mit Sicherung, Gesundheitsprüfung und Rücknahme bei Fehler."
 
-msgid "The state of eFa-next updates. Operating system updates are handled by dnf-automatic."
-msgstr "Der Zustand der eFa-next-Updates. Betriebssystem-Updates übernimmt dnf-automatic."
+msgid "The state of eFa-next updates and the update policy of the operating system (dnf-automatic on a host alone; in a cluster the staged rollout of the master)."
+msgstr "Der Zustand der eFa-next-Updates und die Update-Richtlinie des Betriebssystems (dnf-automatic auf einem Host allein; im Cluster die gestaffelte Verteilung des Masters)."
 
 msgid "Signs the backups with a key in a hardware security module (PKCS#11) instead of a software key."
 msgstr "Signiert die Sicherungen mit einem Schlüssel in einem Hardware-Sicherheitsmodul (PKCS#11) statt mit einem Software-Schlüssel."
+
+msgid "The file check: the files of the configuration changed outside efactl (an editor, another program) that no admin accepted yet."
+msgstr "Die Dateiprüfung: die Dateien der Konfiguration, die außerhalb von efactl geändert wurden (ein Editor, ein anderes Programm) und die noch kein Admin angenommen hat."
+
+msgid "On: a signed baseline of /etc/eFa, /etc/postfix, /etc/rspamd/local.d and /etc/nginx. Changes through efactl renew it; anything else raises an event and a Wazuh alert. Off by default."
+msgstr "An: eine signierte Basislinie von /etc/eFa, /etc/postfix, /etc/rspamd/local.d und /etc/nginx. Änderungen über efactl erneuern sie; alles andere löst ein Ereignis und einen Wazuh-Alarm aus. Ab Werk aus."
+
+msgid "Takes a changed file off the list once you know the change: one file, or all."
+msgstr "Nimmt eine geänderte Datei von der Liste, sobald Sie die Änderung kennen: eine Datei oder alle."
+
+msgid "The last restore test: when, which backup, the files and tables checked or what failed."
+msgstr "Der letzte Wiederherstellungstest: wann, welche Sicherung, die geprüften Dateien und Tabellen oder was fehlschlug."
+
+msgid "Checks a backup as a restore would, without changing this host: signature and manifest, then the database into a throwaway MariaDB. Runs in the background at the lowest priority; needs the stored password for encrypted backups."
+msgstr "Prüft eine Sicherung wie eine Wiederherstellung, ohne diesen Host zu ändern: Signatur und Manifest, dann die Datenbank in eine Wegwerf-MariaDB. Läuft im Hintergrund mit der niedrigsten Priorität; verschlüsselte Sicherungen brauchen das gespeicherte Passwort."
+
+msgid "Monthly restore test of the newest backup (off by default). A failed test raises an event and a Wazuh alert."
+msgstr "Monatlicher Wiederherstellungstest der neuesten Sicherung (ab Werk aus). Ein fehlgeschlagener Test löst ein Ereignis und einen Wazuh-Alarm aus."
 
 msgid "The fingerprint of the key this host signs its backups with. Another host restores them only with it."
 msgstr "Der Fingerabdruck des Schlüssels, mit dem dieser Host seine Sicherungen signiert. Ein anderer Host stellt sie nur damit wieder her."
@@ -10246,6 +10795,33 @@ msgstr "Macht diesen Knoten zum Master eines neuen Clusters, mit eigener Zertifi
 msgid "Joins this node to a cluster. The master is checked by its CA fingerprint before the token is sent."
 msgstr "Fügt diesen Knoten einem Cluster hinzu. Der Master wird über seinen CA-Fingerabdruck geprüft, bevor das Token gesendet wird."
 
+msgid "The break-glass admin of this host: its name, the codes left, the last use and from where SSH takes it."
+msgstr "Der Notfall-Admin dieses Hosts: sein Name, die übrigen Codes, die letzte Nutzung und von wo SSH ihn annimmt."
+
+msgid "Ten new one-time codes for the break-glass admin, in a PDF shown only now; the old codes stop working at once."
+msgstr "Zehn neue Einmalcodes für den Notfall-Admin, in einem PDF, das es nur jetzt gibt; die alten Codes gelten sofort nicht mehr."
+
+msgid "Removes the break-glass admin of this host: its user, its codes and its SSH and sudo rules."
+msgstr "Entfernt den Notfall-Admin dieses Hosts: seinen Benutzer, seine Codes und seine SSH- und sudo-Regeln."
+
+msgid "Hardens every host of the cluster the same way: preview first; each host applies it itself and never lowers anything."
+msgstr "Härtet jeden Host des Clusters gleich: zuerst eine Vorschau; jeder Host wendet es selbst an und schwächt nie etwas ab."
+
+msgid "The hardening of the cluster: each host with each step, and the SSH profile waiting for its confirmation on the host."
+msgstr "Die Härtung des Clusters: jeder Host mit jedem Schritt, und das SSH-Profil, das auf seine Bestätigung am Host wartet."
+
+msgid "Checks before a join: port, token, version, platform, time and maintenance mode. Changes nothing, the token stays valid."
+msgstr "Prüfungen vor einem Beitritt: Port, Token, Version, Plattform, Zeit und Wartungsmodus. Ändert nichts, das Token bleibt gültig."
+
+msgid "Shows which mail settings, files and services the settings of the master replace on this waiting node."
+msgstr "Zeigt, welche Mail-Einstellungen, Dateien und Dienste die Einstellungen des Masters auf diesem wartenden Knoten ersetzen."
+
+msgid "Confirms the join: a backup first, then the master reaches this node, then its settings. In the background."
+msgstr "Bestätigt den Beitritt: zuerst eine Sicherung, dann erreicht der Master diesen Knoten, dann seine Einstellungen. Im Hintergrund."
+
+msgid "The confirmation of the join: waiting, running with its step, done or stopped."
+msgstr "Die Bestätigung des Beitritts: wartend, laufend mit ihrem Schritt, fertig oder angehalten."
+
 msgid "This node leaves the cluster and its cluster keys are removed. On the master the whole cluster ends."
 msgstr "Dieser Knoten verlässt den Cluster, seine Cluster-Schlüssel werden entfernt. Auf dem Master endet der ganze Cluster."
 
@@ -10279,8 +10855,8 @@ msgstr "Übernimmt alle gemeinsamen Einstellungen des Masters neu."
 msgid "On the master each node with its state; on a client its master."
 msgstr "Auf dem Master jeder Knoten mit Zustand; auf einem Client sein Master."
 
-msgid "Makes a one-time token for one new node, valid for one hour, with the CA fingerprint to check on that node."
-msgstr "Erstellt ein Einmal-Token für einen neuen Knoten, eine Stunde gültig, mit dem CA-Fingerabdruck zur Prüfung auf diesem Knoten."
+msgid "Makes a one-time token for one new node, valid for 30 minutes, with the CA fingerprint to check on that node."
+msgstr "Erstellt ein Einmal-Token für einen neuen Knoten, 30 Minuten gültig, mit dem CA-Fingerabdruck zur Prüfung auf diesem Knoten."
 
 msgid "Lifts a Fail2Ban ban on all nodes and keeps the address out of the shared bans for an hour."
 msgstr "Hebt eine Fail2Ban-Sperre auf allen Knoten auf und hält die Adresse eine Stunde aus den gemeinsamen Sperren."
@@ -10426,8 +11002,20 @@ msgstr "Lässt andere Server Ihres Netzes, etwa ein zweites MX, den Resolver die
 msgid "Removes networks from the list and closes their port 53 again."
 msgstr "Entfernt Netze aus der Liste und schließt ihren Port 53 wieder."
 
+msgid "Changes which nodes of the cluster answer a network of the list; each node opens and closes its port 53 for it by itself."
+msgstr "Ändert, welche Knoten des Clusters ein Netz der Liste beantworten; jeder Knoten öffnet und schließt seinen Port 53 dafür selbst."
+
 msgid "The networks this host answers DNS queries for, besides itself."
 msgstr "Die Netze, für die dieser Host DNS-Anfragen beantwortet, außer sich selbst."
+
+msgid "Your own host names with their addresses, like lines of /etc/hosts, and where each one applies."
+msgstr "Ihre eigenen Hostnamen mit ihren Adressen, wie Zeilen in /etc/hosts, und wo jeder gilt."
+
+msgid "Adds or removes an own host name, like a line of /etc/hosts. Postfix, rspamd and the web interface use it; in a cluster every node gets it from the master."
+msgstr "Fügt einen eigenen Hostnamen hinzu oder entfernt ihn, wie eine Zeile in /etc/hosts. Postfix, rspamd und die Weboberfläche nutzen ihn; im Cluster bekommt jeder Knoten ihn vom Master."
+
+msgid "Adds or removes a host name for this host alone, for a cluster node that reaches a server under another address. It is never handed on and wins here over the same name of the cluster."
+msgstr "Fügt einen Hostnamen nur für diesen Host hinzu oder entfernt ihn, für einen Clusterknoten, der einen Server unter einer anderen Adresse erreicht. Er wird nie weitergegeben und gilt hier vor demselben Namen des Clusters."
 
 msgid "A second resolver for this host itself, usually the other MX. This host asks its own resolver first, then that one."
 msgstr "Ein zweiter Resolver für diesen Host selbst, meist das andere MX. Dieser Host fragt zuerst den eigenen Resolver, dann diesen."
@@ -10555,8 +11143,11 @@ msgstr "Speichert unscharfe Fingerabdrücke von Spam, den Admins bestätigt habe
 msgid "The own fuzzy store and how many fingerprints of approved spam it holds."
 msgstr "Der eigene Fuzzy-Speicher und wie viele Fingerabdrücke freigegebener Spam-Mails er enthält."
 
-msgid "Erases the mail log rows, stored headers, held mail and spam reports of one address under GDPR Article 17. This cannot be undone."
-msgstr "Löscht Mail-Log-Zeilen, gespeicherte Header, zurückgehaltene Mail und Spam-Meldungen einer Adresse nach DSGVO Artikel 17. Nicht rückgängig zu machen."
+msgid "Erases the mail log rows, stored headers, held mail and spam reports of one address under GDPR Article 17, and when asked its accounts and its entries of the sender lists. A restore of an older backup erases it again. This cannot be undone."
+msgstr "Löscht die Zeilen des Mail-Logs, gespeicherte Header, zurückgehaltene Mails und Spam-Meldungen einer Adresse nach DSGVO Artikel 17, auf Wunsch auch ihre Konten und ihre Einträge der Absenderlisten. Eine Wiederherstellung einer älteren Sicherung löscht sie erneut. Das lässt sich nicht rückgängig machen."
+
+msgid "Erases again every address erased before, as after a restore: the erasure list holds only pseudonyms. A restore does this by itself."
+msgstr "Löscht jede zuvor gelöschte Adresse erneut, wie nach einer Wiederherstellung: Die Löschliste enthält nur Pseudonyme. Eine Wiederherstellung macht das von selbst."
 
 msgid "Everything eFa-next keeps about one mail address, for a request for access under GDPR Article 15."
 msgstr "Alles, was eFa-next über eine Mailadresse speichert, für ein Auskunftsersuchen nach DSGVO Artikel 15."
@@ -10695,6 +11286,24 @@ msgstr "Ob Links beim Klick geprüft werden, über welche Adresse sie laufen und
 
 msgid "When the dashboard and the alerts warn about high load."
 msgstr "Ab wann Dashboard und Warnungen eine hohe Auslastung melden."
+
+msgid "Checks on this host what the compliance file of the release claims: hardening checks, security standards, settings and installed files. Read only. Not a legally binding statement and no certification."
+msgstr "Prüft auf diesem Host, was die Compliance-Datei des Release angibt: Härtungsprüfungen, Sicherheitsstandards, Einstellungen und installierte Dateien. Nur lesend. Keine rechtlich verbindliche Aussage und keine Zertifizierung."
+
+msgid "Suggests partner domains to require TLS for: the most frequent recipient domains of the mail log that publish DANE or MTA-STS, with the command to add each. Port 25 stays opportunistic for all others."
+msgstr "Schlägt Partner-Domains vor, für die TLS Pflicht werden soll: die häufigsten Empfänger-Domains des Mail-Logs, die DANE oder MTA-STS veröffentlichen, mit dem Befehl zum Hinzufügen. Port 25 bleibt für alle anderen opportunistisch."
+
+msgid "Your text before the admin login of the web interface, such as a notice on authorised use (NIST SP 800-53 AC-8); with SSH on also before the SSH login. Empty: no banner. Off by default."
+msgstr "Ihr Text vor der Admin-Anmeldung der Weboberfläche, etwa ein Hinweis zur berechtigten Nutzung (NIST SP 800-53 AC-8); mit SSH on auch vor der SSH-Anmeldung. Leer: kein Hinweis. Standardmäßig aus."
+
+msgid "The text shown before the admin login, and whether SSH shows it too."
+msgstr "Der Text vor der Admin-Anmeldung und ob SSH ihn auch zeigt."
+
+msgid "Ends admin sessions after 5, 10, 15, 30 or 60 idle minutes (default 60). PCI DSS 8.2.8 and NIST SP 800-53 AC-11 ask for 15 at most. The user portal stays at 60 minutes."
+msgstr "Beendet Admin-Sitzungen nach 5, 10, 15, 30 oder 60 Minuten ohne Aktivität (Standard 60). PCI DSS 8.2.8 und NIST SP 800-53 AC-11 verlangen höchstens 15. Das Benutzerportal bleibt bei 60 Minuten."
+
+msgid "Shows after how many idle minutes an admin session ends, and whether that is 15 minutes or less."
+msgstr "Zeigt, nach wie vielen Minuten ohne Aktivität eine Admin-Sitzung endet und ob das 15 Minuten oder weniger sind."
 
 msgid "Bans an address after too many failed logins at the web interface, the user portal, the API or port 587. Relay networks, the firewall allowlist and cluster nodes are never banned."
 msgstr "Sperrt eine Adresse nach zu vielen Fehlanmeldungen an Weboberfläche, Benutzerportal, API oder Port 587. Relay-Netze, die Firewall-Freigabeliste und Cluster-Knoten werden nie gesperrt."
@@ -11626,6 +12235,9 @@ msgstr "Die Tage des Wartungsfensters."
 msgid "Notify is the safe default."
 msgstr "Melden ist die sichere Vorgabe."
 
+msgid "Security updates only is the safe default. In a cluster every install goes through the staged rollout of the master."
+msgstr "Nur Sicherheitsupdates ist die sichere Vorgabe. Im Cluster läuft jede Installation über die gestaffelte Verteilung des Masters."
+
 msgid "The start time of the maintenance window."
 msgstr "Die Startzeit des Wartungsfensters."
 
@@ -11640,6 +12252,18 @@ msgstr "Verschlüsselt die Sicherung mit dem Sicherungspasswort."
 
 msgid "Set a new password or remove the stored one."
 msgstr "Neues Passwort setzen oder das gespeicherte entfernen."
+
+msgid "The path as the status shows it, or all."
+msgstr "Der Pfad, wie der Status ihn zeigt, oder all."
+
+msgid "on: a new baseline of the files as they are now; off: baseline and findings removed."
+msgstr "on: eine neue Basislinie der Dateien, wie sie jetzt sind; off: Basislinie und Funde werden entfernt."
+
+msgid "Empty tests the newest backup of this host; uploaded backups only by name."
+msgstr "Leer prüft die neueste Sicherung dieses Hosts; hochgeladene Sicherungen nur mit Namen."
+
+msgid "on: once a month from 04:00, when the load allows."
+msgstr "on: einmal im Monat ab 04:00, wenn die Last es zulässt."
 
 msgid "Switches the daily backup on or off."
 msgstr "Schaltet die tägliche Sicherung ein oder aus."
@@ -11656,8 +12280,8 @@ msgstr "Nur S3: der Bucket-Name."
 msgid "S3 only: the https address of the storage."
 msgstr "Nur S3: die https-Adresse des Speichers."
 
-msgid "For your own server: type yes to confirm it stands in the EU and its operator is European."
-msgstr "Für Ihren eigenen Server: yes tippen, um zu bestätigen, dass er in der EU steht und sein Betreiber europäisch ist."
+msgid "For your own server: tick this to confirm it stands in the EU and its operator is European."
+msgstr "Für Ihren eigenen Server: anhaken, um zu bestätigen, dass er in der EU steht und sein Betreiber europäisch ist."
 
 msgid "SFTP only: the server."
 msgstr "Nur SFTP: der Server."
@@ -11827,20 +12451,50 @@ msgstr "An holt und nutzt die Signaturen dieser Quelle."
 msgid "The provider of the signatures and its country."
 msgstr "Der Anbieter der Signaturen und sein Land."
 
+msgid "The users, passwords and 2FA of this node are replaced by those of the master."
+msgstr "Benutzer, Passwörter und 2FA dieses Knotens werden durch die des Masters ersetzt."
+
 msgid "Master/client: settings only on the master. HA: settings on every node."
 msgstr "Master/Client: Einstellungen nur auf dem Master. HA: Einstellungen auf jedem Knoten."
 
 msgid "Name of this node, such as mx-1."
 msgstr "Name dieses Knotens, etwa mx-1."
 
+msgid "The master host, and :port if not 8460."
+msgstr "Der Master-Host, und :Port, falls nicht 8460."
+
+msgid "Standards, added to what each host has chosen; none is taken away."
+msgstr "Standards, ergänzt zu dem, was jeder Host gewählt hat; keiner wird entfernt."
+
+msgid "Items of the operating system to switch on, such as auditd chronyd."
+msgstr "Punkte des Betriebssystems zum Einschalten, etwa auditd chronyd."
+
+msgid "The kernel settings of the hardening report on every host."
+msgstr "Die Kernel-Einstellungen des Härtungsberichts auf jedem Host."
+
+msgid "The sandbox of the services; a host that has more keeps it."
+msgstr "Die Sandbox der Dienste; ein Host mit mehr behält es."
+
+msgid "TLS required on port 25 on every host."
+msgstr "TLS auf Port 25 auf jedem Host verlangt."
+
+msgid "The SSH profile after BSI, only on the hosts named below."
+msgstr "Das SSH-Profil nach BSI, nur auf den unten genannten Hosts."
+
+msgid "Each host named here confirms the SSH profile with a new login; else it goes back after 10 minutes."
+msgstr "Jeder hier genannte Host bestätigt das SSH-Profil mit einer neuen Anmeldung; sonst geht es nach 10 Minuten zurück."
+
+msgid "Each host says what would change, nothing is written."
+msgstr "Jeder Host sagt, was sich ändern würde, nichts wird geschrieben."
+
+msgid "Tick this to apply it on every host; without the tick nothing changes (Preview shows what would)."
+msgstr "Anhaken, um es auf jedem Host anzuwenden; ohne Haken ändert sich nichts (die Vorschau zeigt, was sich ändern würde)."
+
 msgid "The address the master reaches this node at."
 msgstr "Die Adresse, unter der der Master diesen Knoten erreicht."
 
 msgid "The CA fingerprint the master showed with the token."
 msgstr "Der CA-Fingerabdruck, den der Master mit dem Token angezeigt hat."
-
-msgid "The master host, and :port if not 8460."
-msgstr "Der Master-Host, und :Port, falls nicht 8460."
 
 msgid "Name of this node, such as mx-2."
 msgstr "Name dieses Knotens, etwa mx-2."
@@ -12154,20 +12808,44 @@ msgstr "Ihr Organisationsname, wie er in den Berichten steht."
 msgid "Folder for the old file; empty for /var/lib/eFa."
 msgstr "Ordner für die alte Datei; leer für /var/lib/eFa."
 
+msgid "Add or remove the name."
+msgstr "Den Namen hinzufügen oder entfernen."
+
+msgid "One to four IPv4 or IPv6 addresses, separated by spaces; only to add. Loopback, link-local and multicast are refused."
+msgstr "Eine bis vier IPv4- oder IPv6-Adressen, durch Leerzeichen getrennt; nur zum Hinzufügen. Loopback, Link-Local und Multicast werden abgelehnt."
+
+msgid "A short name such as backup, or a full one such as git.corp.example. Names eFa-next needs for updates, certificates and blocklists are refused."
+msgstr "Ein kurzer Name wie backup oder ein voller wie git.corp.example. Namen, die eFa-next für Updates, Zertifikate und Blocklisten braucht, werden abgelehnt."
+
+msgid "What the name is for, such as the backup server; up to 100 characters."
+msgstr "Wofür der Name ist, etwa der Backup-Server; bis zu 100 Zeichen."
+
 msgid "IP, IP@port, or with TLS IP@853#name."
 msgstr "IP, IP@Port oder mit TLS IP@853#Name."
 
 msgid "Encrypts the queries and checks the certificate of the server."
 msgstr "Verschlüsselt die Anfragen und prüft das Zertifikat des Servers."
 
-msgid "A network outside the private ranges needs yes typed."
-msgstr "Ein Netz außerhalb der privaten Bereiche braucht ein getipptes yes."
+msgid "Tick this to allow addresses outside the private ranges (public addresses). Without the tick such entries are refused."
+msgstr "Anhaken, um Adressen außerhalb der privaten Bereiche (öffentliche Adressen) zu erlauben. Ohne Haken werden solche Einträge abgelehnt."
 
 msgid "IP addresses or networks, IPv4 or IPv6; at most /8 for IPv4."
 msgstr "IP-Adressen oder Netze, IPv4 oder IPv6; höchstens /8 bei IPv4."
 
 msgid "A note such as the server name."
 msgstr "Eine Notiz, etwa der Servername."
+
+msgid "In a cluster: the nodes that answer this network. None ticked: all nodes, also those that join later."
+msgstr "Im Cluster: die Knoten, die dieses Netz beantworten. Keiner angehakt: alle Knoten, auch später beitretende."
+
+msgid "The entry whose nodes change; the network itself stays."
+msgstr "Der Eintrag, dessen Knoten sich ändern; das Netz selbst bleibt."
+
+msgid "The nodes that answer this network from now on. None ticked: all nodes, also those that join later."
+msgstr "Die Knoten, die dieses Netz ab jetzt beantworten. Keiner angehakt: alle Knoten, auch später beitretende."
+
+msgid "A new note; empty keeps the one there."
+msgstr "Eine neue Notiz; leer behält die vorhandene."
 
 msgid "Addresses or networks to remove."
 msgstr "Zu entfernende Adressen oder Netze."
@@ -12349,6 +13027,12 @@ msgstr "Die Mailadresse, deren Daten gelöscht werden."
 msgid "Date and number of the request, as proof; it is kept in the audit log."
 msgstr "Datum und Nummer des Antrags, als Nachweis; wird im Audit-Log gespeichert."
 
+msgid "yes: also the logins of the address (user name or mail address) with their 2FA, passkeys, tokens and sessions."
+msgstr "yes: auch die Logins der Adresse (Benutzername oder Mailadresse) mit ihrer 2FA, ihren Passkeys, Tokens und Sitzungen."
+
+msgid "yes: also the entries of the allow and block lists and the rules with the address."
+msgstr "yes: auch die Einträge der Erlaubt- und Sperrlisten und die Regeln mit der Adresse."
+
 msgid "The mail address of the person who asked."
 msgstr "Die Mailadresse der Person, die angefragt hat."
 
@@ -12526,6 +13210,12 @@ msgstr "Wie der Dienst betroffen ist, etwa Mail zwei Stunden verzögert."
 msgid "Whether an unlawful or malicious act is suspected; the report asks for it."
 msgstr "Ob eine rechtswidrige oder böswillige Handlung vermutet wird; die Meldung fragt danach."
 
+msgid "yes, no or unknown: whether personal data is concerned; the GDPR Art. 33 notification (72 hours) asks for it."
+msgstr "yes, no oder unknown: ob personenbezogene Daten betroffen sind; die Meldung nach DSGVO Art. 33 (72 Stunden) fragt danach."
+
+msgid "About how many people and records are concerned; the GDPR notification asks for it."
+msgstr "Etwa wie viele Personen und Datensätze betroffen sind; die DSGVO-Meldung fragt danach."
+
 msgid "A short description of what is known."
 msgstr "Eine kurze Beschreibung des Bekannten."
 
@@ -12627,6 +13317,21 @@ msgstr "Erst wenn die Auslastung so lange anhält."
 
 msgid "Warn from this load in percent."
 msgstr "Ab dieser Auslastung in Prozent warnen."
+
+msgid "Only this standard, such as pci-dss or gdpr; empty checks all."
+msgstr "Nur dieser Standard, etwa pci-dss oder gdpr; leer prüft alle."
+
+msgid "How many days of the mail log count, 1 to 30."
+msgstr "Wie viele Tage des Mail-Logs zählen, 1 bis 30."
+
+msgid "Plain text, up to 1000 characters, with line breaks. Empty removes the banner."
+msgstr "Reiner Text, bis 1000 Zeichen, mit Zeilenumbrüchen. Leer entfernt den Hinweis."
+
+msgid "On: SSH shows the same text before the login (/etc/issue.net, the original is kept and comes back with off)."
+msgstr "On: SSH zeigt denselben Text vor der Anmeldung (/etc/issue.net; das Original bleibt erhalten und kommt mit off zurück)."
+
+msgid "Idle minutes until an admin session ends: 5, 10, 15, 30 or 60. Longer than now asks your password again."
+msgstr "Minuten ohne Aktivität, bis eine Admin-Sitzung endet: 5, 10, 15, 30 oder 60. Länger als jetzt fragt erneut Ihr Passwort."
 
 msgid "The failed logins must come within this time."
 msgstr "Die Fehlanmeldungen müssen in dieser Zeit kommen."
@@ -12970,8 +13675,8 @@ msgstr "Schaltet die Prüfung ein oder aus."
 msgid "Once per server: yes accepts that a checksum of every incoming mail goes to the Pyzor server."
 msgstr "Einmal je Server: yes bestätigt, dass eine Prüfsumme jeder eingehenden Mail an den Pyzor-Server geht."
 
-msgid "Only with EU relation and a server outside the own networks: type the sentence shown to allow the transfer."
-msgstr "Nur mit EU-Bezug und einem Server außerhalb der eigenen Netze: den angezeigten Satz eingeben, um die Übermittlung zu erlauben."
+msgid "Only with EU relation and a server outside the own networks: tick this to allow the transfer outside the EU; it goes into the audit log."
+msgstr "Nur mit EU-Bezug und einem Server außerhalb der eigenen Netze: anhaken, um die Übermittlung außerhalb der EU zu erlauben; das kommt ins Audit-Log."
 
 msgid "Off is the default. On asks the Pyzor server about each incoming mail."
 msgstr "Aus ist der Standard. Ein fragt den Pyzor-Server zu jeder eingehenden Mail."
@@ -13177,8 +13882,8 @@ msgstr "Eine Sicherung aus der Liste."
 msgid "Only for a backup of another host: its key fingerprint."
 msgstr "Nur für eine Sicherung eines anderen Hosts: dessen Schlüssel-Fingerabdruck."
 
-msgid "An unsigned backup (6.0.0.4 or older, efa5-export) needs yes typed; it goes into the audit."
-msgstr "Eine unsignierte Sicherung (6.0.0.4 oder älter, efa5-export) braucht ein getipptes yes; das kommt ins Audit."
+msgid "Tick this to restore an unsigned backup (6.0.0.4 or older, efa5-export); it goes into the audit."
+msgstr "Anhaken, um eine unsignierte Sicherung (6.0.0.4 oder älter, efa5-export) wiederherzustellen; das kommt ins Audit."
 
 msgid "Which data the days apply to; the allowed range is in brackets."
 msgstr "Für welche Daten die Tage gelten; der erlaubte Bereich steht in Klammern."

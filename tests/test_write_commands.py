@@ -160,7 +160,8 @@ class WriteCommandTests(unittest.TestCase):
         self.assertFalse(os.path.exists(efactl.BACKUP_DISABLED))
         self.assertEqual(self.run_cmd('maintenance-set', '--mode', 'off'), {'maintenance_mode': False})
         self.assertIn('efa-monitor', self.read('MONITOR_CRON'))
-        self.assertEqual(self.run_cmd('maintenance-set', '--mode', 'on'), {'maintenance_mode': True})
+        on = self.run_cmd('maintenance-set', '--mode', 'on')
+        self.assertTrue(on['maintenance_mode'] and on['maintenance_by'] and on['maintenance_since'], on)  # 6.0.0.6.7: who and since
 
     # Postfix settings.
     def test_postfix_values(self):
@@ -400,6 +401,7 @@ class WriteCommandTests(unittest.TestCase):
             cluster.fingerprint_pem.return_value = 'AB:CD'
             with open(os.path.join(self.tmp, 'ca.crt'), 'w') as f:
                 f.write('pem')
+            os.makedirs(os.path.dirname(efactl.TOTP_KEY), exist_ok=True)  # the token makes the 2FA key of the master first
             answer = self.run_cmd('cluster-token')
             self.assertEqual((answer['ca_fingerprint'], list(state['tokens'])), ('AB:CD', ['hash-' + answer['token']]), 'only the hash of the token is kept')
 

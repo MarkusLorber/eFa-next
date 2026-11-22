@@ -20,3 +20,6 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# git archive writes the commit into it (scripts/compliance_build.py, a tree without .git in CI)
+compliance/COMMIT export-subst

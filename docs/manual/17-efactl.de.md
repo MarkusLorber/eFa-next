@@ -40,6 +40,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `header-privacy-set` | Header-Datenschutz: für wen *(ändert)* |
 | `message-size-set` | Größte Mailgröße *(ändert)* |
 | `recipient-verification-set` | Empfängerprüfung *(ändert)* |
+| `tls-partner-suggest` | TLS mit Partnern: Vorschläge (DANE, MTA-STS) |
 | `tls-partner-list` | TLS mit Partner-Domains |
 | `tls-partner-set` | TLS mit Partner-Domains: verlangen oder entfernen *(ändert)* |
 
@@ -123,6 +124,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `sender-action` | Absender einer Mail: erlauben oder sperren *(ändert)* |
 | `gdpr-export` | DSGVO: alles zu einer Mailadresse (Art. 15) |
 | `gdpr-delete` | DSGVO: Daten einer Mailadresse löschen (Art. 17) *(ändert)* |
+| `gdpr-reapply` | DSGVO: nach einer Wiederherstellung erneut löschen |
 | `headers-export` | Header exportieren *(ändert)* |
 | `retention-status` | Aufbewahrung der Daten |
 | `retention-set` | Aufbewahrung: Tage *(ändert)* |
@@ -218,8 +220,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | Befehl | Titel |
 |---|---|
 | `rbl-show` | Blocklisten |
-| `rbl-set` | Eine Blockliste ändern *(ändert)* |
-| `rbl-custom-set` | Eigene Blockliste *(ändert)* |
+| `rbl-set` | Blocklisten: eine ändern *(ändert)* |
+| `rbl-custom-set` | Blocklisten: eigene Liste *(ändert)* |
 | `postscreen-status` | postscreen auf Port 25 |
 | `postscreen-set` | postscreen auf Port 25: schalten *(ändert)* |
 | `feed-status` | Bedrohungs-Feeds |
@@ -386,7 +388,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `domain-onboard` | Mandanten: eine Domain hinzufügen *(ändert)* |
 | `domain-verify` | Mandanten: den TXT-Eintrag einer Domain prüfen *(ändert)* |
 | `tenant-usage` | Nutzung des Mandanten |
-| `tenant-limits-set` | Limits des Mandanten *(ändert)* |
+| `tenant-limits-set` | Nutzung des Mandanten: Limits *(ändert)* |
 | `tenant-brand-show` | Aussehen des Mandanten |
 | `tenant-brand-set` | Aussehen des Mandanten: Name, Farbe, Logo *(ändert)* |
 | `tenant-idp-status` | Anmeldeverzeichnis des Mandanten |
@@ -430,7 +432,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `audit-search` | Audit-Log |
 | `incident-list` | NIS2-Vorfälle |
 | `incident-open` | NIS2-Vorfall: Eintrag anlegen *(ändert)* |
-| `incident-report` | NIS2-Vorfall: Meldung für 24 h, 72 h oder Abschlussbericht |
+| `incident-report` | Vorfall: Meldung nach NIS2, DSGVO oder DORA |
 | `privacy-evidence` | Datenschutz-Nachweis: Verarbeitungsverzeichnis und TOM |
 | `audit-strict-status` | Strenger Audit-Modus |
 | `audit-mode` | Strenger Audit-Modus: schalten *(ändert)* |
@@ -472,6 +474,10 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `harvest-set` | Adress-Ausspähung: Absender sperren, die viele unbekannte Empfänger probieren *(ändert)* |
 | `login-lockout-status` | Fehlanmeldungen: Sperre |
 | `login-lockout-set` | Fehlanmeldungen: Sperre für Web, Portal, API und Port 587 *(ändert)* |
+| `login-banner-status` | Anmeldehinweis |
+| `login-banner-set` | Anmeldehinweis: der Text vor der Admin-Anmeldung *(ändert)* |
+| `admin-idle-status` | Admin-Sitzungen: Leerlaufzeit |
+| `admin-idle-set` | Admin-Sitzungen: Leerlaufzeit in Minuten *(ändert)* |
 | `ssh-root-status` | Root-Login über SSH |
 | `ssh-root-set` | Root-Login über SSH: schalten *(ändert)* |
 | `web-allowlist-show` | Admin-Zugang zum Webinterface |
@@ -501,6 +507,9 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `cve-mute` | CVE-Wache: eine Warnung stummschalten *(ändert)* |
 | `web-lockdown` | Selbstsperre der Webdienste: Zustand oder Freigabe *(ändert)* |
 | `cluster-cve` | CVE-Warnungen aller Knoten |
+| `fim-accept` | Dateiprüfung: geänderte Dateien annehmen |
+| `fim-set` | Dateiprüfung: an oder aus |
+| `fim-status` | Dateiprüfung: Status |
 | `history-list` | Konfigurationsverlauf |
 | `history-show` | Konfigurationsverlauf: die Unterschiede einer Änderung |
 | `history-undo` | Konfigurationsverlauf: eine Änderung zurücknehmen *(ändert)* |
@@ -520,6 +529,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `ssh-profile-status` | SSH-Profil |
 | `ssh-profile-set` | SSH-Profil: BSI TR-02102-4 oder die Systemeinstellung *(ändert)* |
 | `ssh-profile-confirm` | SSH-Profil: behalten (nachdem eine neue Anmeldung geklappt hat) *(ändert)* |
+| `compliance-verify` | Compliance-Datei: ihre Angaben auf diesem Host prüfen |
+| `compliance-verify-check` | Compliance-Datei: ein signiertes Prüfergebnis prüfen (Konsole) |
 | `hardening-report` | Härtungsbericht (CIS AlmaLinux 9, BSI TR-03108) |
 | `switches-status` | Schalter: was gerade eingestellt ist |
 | `tls-min-set` | SMTP: nur TLS 1.2 oder neuer *(ändert)* |
@@ -577,6 +588,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 |---|---|
 | `dns-share-list` | DNS für weitere Netze |
 | `dns-share-add` | DNS für weitere Netze: erlauben *(ändert)* |
+| `dns-share-edit` | DNS für weitere Netze: Knoten eines Eintrags *(ändert)* |
 | `dns-share-del` | DNS für weitere Netze: entfernen *(ändert)* |
 | `dns-share-secondary-set` | Zweiter DNS-Resolver dieses Hosts (der andere MX) *(ändert)* |
 
@@ -600,6 +612,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `dns-forward-fix` | Internes DNS: auf diesem Host auflösen (der Forwarder für alle Namen entfällt) *(ändert)* |
 | `letsencrypt-set` | Let's-Encrypt-Zertifikat *(ändert)* |
 | `letsencrypt-takeover` | Let's Encrypt: das Zertifikat auf diesem Host übernehmen *(ändert)* |
+| `letsencrypt-heal` | Let's Encrypt: Erneuerungseinstellungen von eFa 5 auf das Webroot von nginx umstellen *(ändert)* |
 | `dane-status` | DANE für ausgehende Mail |
 | `dane-set` | DANE für ausgehende Mail: schalten *(ändert)* |
 | `tlsa-show` | TLSA-Einträge dieses Servers |
@@ -614,10 +627,13 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | Befehl | Titel |
 |---|---|
 | `backup-list` | Sicherung: Liste |
+| `backup-restore-test` | Wiederherstellungstest jetzt (im Hintergrund) |
+| `backup-restore-test-set` | Wiederherstellungstest: monatlich |
+| `backup-restore-test-status` | Wiederherstellungstest: Status |
 | `backup-now` | Jetzt sichern *(ändert)* |
 | `backup-set` | Automatische Sicherung *(ändert)* |
-| `backup-password-set` | Passwort für automatische Sicherungen *(ändert)* |
-| `backup-key-show` | Sicherungen: Fingerabdruck des Signierschlüssels |
+| `backup-password-set` | Automatische Sicherung: Passwort *(ändert)* |
+| `backup-key-show` | Sicherung: Fingerabdruck des Signierschlüssels |
 | `restore` | Eine Sicherung wiederherstellen *(ändert)* |
 | `settings-export` | Einstellungen: Bereiche für einen anderen Host exportieren *(ändert)* |
 | `settings-import` | Einstellungen: Bereiche von einem anderen Host übernehmen *(ändert)* |

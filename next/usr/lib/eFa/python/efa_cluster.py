@@ -13,6 +13,7 @@ import ipaddress
 import json
 import os
 import re
+import secrets
 import ssl
 import stat
 import subprocess
@@ -120,13 +121,15 @@ def health_rows(state, answers, before, seq, now):
             behind = max(0, int(seq) - int(answer.get('applied', 0) or 0)) if str(answer.get('applied', 0)).isdigit() else None
             row = {**row, 'version': str(answer.get('version', ''))[:40], 'platform': str(answer.get('platform', ''))[:8],
                    'status': str(answer.get('status', ''))[:20], 'contact': int(now), 'behind': behind,
-                   'sync': 'error' if failed else 'ok', 'failed': len(failed)}
+                   'sync': 'error' if failed else 'ok', 'failed': len(failed),
+                   # 6.0.0.6.7: whether the node has its own break-glass admin; None from a node of before (it does not say)
+                   'breakglass': answer['breakglass'] if isinstance(answer.get('breakglass'), bool) else None}
             row['lag_since'], row['alarm'] = health_alarm(row, last.get(name, {}), answer, now)
             rows.append(row)
         else:
             old = last.get(name, {})
             rows.append({**row, 'version': old.get('version', ''), 'platform': old.get('platform', ''), 'contact': old.get('contact'),
-                         'behind': old.get('behind'), 'sync': 'error', 'error': str(answer or 'no answer')[:160]})
+                         'behind': old.get('behind'), 'sync': 'error', 'error': str(answer or 'no answer')[:160], 'breakglass': old.get('breakglass')})
     return rows
 
 
@@ -328,13 +331,112 @@ def fetch_ca(host, port, timeout=10):
         return json.load(answer)['ca']
 
 
-def join_request(host, port, ca_pem, body, timeout=20):
-    """The join, already over TLS that trusts only the CA whose fingerprint was checked."""
+# What a node that joined and waits (pending) never receives, whatever it asks: until /v1/activate it gets only the preview
+# manifest of preview_manifest(), names, paths, hashes and sizes. The one list of these classes (2026-11-18).
+PREVIEW_NEVER = ('file contents (DKIM and ARC private keys, TLS and Let\'s Encrypt keys, passwords and their hashes, API and join '
+                 'tokens, TOTP and HMAC keys, the keys of threat feeds and backups)', 'the SQL rows of users, groups, tenants and '
+                 'scoped settings', 'the values of the mail settings (a relay password map or a key in a value)')
+PREVIEW_KEYS = ('seq', 'files', 'postconf', 'units', 'tables')
+# No hash of a value either (a short password or token in a plain hash can be guessed offline): the master sends names and
+# paths, the node sends the hashes of its own values back, the master answers changed or not.
+COMPARE_KEYS = ('files', 'unchanged_files', 'postconf', 'units', 'tables')
+JOB_SECONDS = 900  # a job of a master or a step of a node is valid this long (15 minutes)
+
+
+def preview_manifest(snapshot):
+    """The snapshot of a master reduced to what a pending node may see before its admin confirmed: the paths of the files,
+    the names of the mail settings, the units, whether tables come. No value, no content, no hash of either."""
+    return {'seq': int(snapshot.get('seq', 0)), 'files': [str(item.get('path', '')) for item in snapshot.get('files', [])],
+            'postconf': sorted(str(name) for name in snapshot.get('postconf', {})),
+            'units': {str(unit): bool(on) for unit, on in snapshot.get('units', {}).items()},
+            'tables': ['the shared tables'] if snapshot.get('sql') else []}
+
+
+def preview_compare(snapshot, local):
+    """The master: the hashes the node sent of its own files and settings against the snapshot; back only changed or not."""
+    mine = local.get('files') if isinstance(local.get('files'), dict) else {}
+    theirs = local.get('postconf') if isinstance(local.get('postconf'), dict) else {}
+    files, same = [], 0
+    for item in snapshot.get('files', []):
+        path = str(item.get('path', ''))
+        digest = hashlib.sha256(base64.b64decode(item.get('data', ''))).hexdigest()
+        if path not in mine:
+            files.append({'path': path, 'change': 'new'})
+        elif mine[path] != digest:
+            files.append({'path': path, 'change': 'replaced'})
+        else:
+            same += 1
+    postconf = [{'name': str(name)} for name, value in sorted(snapshot.get('postconf', {}).items())
+                if theirs.get(name) != hashlib.sha256(str(value).encode()).hexdigest()]
+    return {'files': files, 'unchanged_files': same, 'postconf': postconf,
+            'units': {str(unit): bool(on) for unit, on in snapshot.get('units', {}).items()},
+            'tables': ['the shared tables'] if snapshot.get('sql') else []}
+
+
+def job_envelope(kind, now=None, seconds=JOB_SECONDS, **values):
+    """A step of the cluster that changes something: its kind, an id never used before, when it was made and until when it
+    counts. The receiver refuses another kind, an old or future one, and one whose id it saw already (a replay)."""
+    now = int(time.time() if now is None else now)
+    return {'job': kind, 'id': secrets.token_hex(16), 'issued': now, 'expires': now + seconds, **values}
+
+
+def job_problem(body, kind, seen, now=None):
+    """Why a job is refused, or None; a job taken is noted in seen (id -> expiry, the expired ones dropped)."""
+    now = time.time() if now is None else now
+    for key in [key for key, until in seen.items() if until < now]:
+        del seen[key]
+    job_id = str(body.get('id', ''))
+    if body.get('job') != kind or not re.fullmatch(r'[0-9a-f]{32}', job_id):
+        return 'not a job of this kind'
+    issued, expires = body.get('issued'), body.get('expires')
+    if not isinstance(issued, int) or not isinstance(expires, int) or expires - issued > JOB_SECONDS or issued > now + 60:
+        return 'times of the job not valid'
+    if expires < now:
+        return 'job expired'
+    if job_id in seen:
+        return 'job seen already (a replay)'
+    seen[job_id] = expires
+    return None
+
+
+def seen_jobs_file(etc='/etc'):
+    return os.path.join(folder(etc), 'seen-jobs.json')
+
+
+def active_nodes(state):
+    """The nodes of a master that take part. A node that joined is pending until its admin saw what it takes over and
+    confirmed (cluster wizard, 2026-11-18): no traffic, no view over all nodes and no rollout goes to it before."""
+    return {name: node for name, node in state.get('nodes', {}).items() if not node.get('pending')}
+
+
+def release_of(path='/etc/os-release'):
+    """el9 or el10 of this host, '' when it cannot be read."""
+    try:
+        with open(path) as f:
+            found = re.search(r'^VERSION_ID="?(\d+)', f.read(), re.M)
+    except OSError:
+        return ''
+    return f'el{found.group(1)}' if found else ''
+
+
+def efa_version(paths=('/etc/eFa-next-Version', '/etc/eFa-Version')):
+    """The eFa-next version of this host (the old file name: hosts of 6.0.0.5.x)."""
+    for path in paths:
+        try:
+            with open(path) as f:
+                return f.readline().strip().replace('eFa-', '', 1)
+        except OSError:
+            continue
+    return ''
+
+
+def join_request(host, port, ca_pem, body, timeout=20, path='/v1/join'):
+    """The join (or its check before, /v1/precheck), already over TLS that trusts only the CA whose fingerprint was checked."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
     ctx.check_hostname = False
     ctx.load_verify_locations(cadata=ca_pem)
-    request = urllib.request.Request(f'https://{host}:{port}/v1/join', data=json.dumps(body).encode(), method='POST',
+    request = urllib.request.Request(f'https://{host}:{port}{path}', data=json.dumps(body).encode(), method='POST',
                                      headers={'Content-Type': 'application/json'})
     with urllib.request.urlopen(request, timeout=timeout, context=ctx) as answer:
         return json.load(answer)
@@ -506,8 +608,34 @@ def f2b_ban(jail, address, run=subprocess.run):
     run(['fail2ban-client', 'set', jail, 'banip', address], capture_output=True, text=True, timeout=30)
 
 
-def f2b_unban(address, run=subprocess.run):
-    run(['fail2ban-client', 'unban', address], capture_output=True, text=True, timeout=30)
+def f2b_unban(address, run=subprocess.run, jail=None):
+    """Lifts the bans of an address: in every jail, or with jail only in that one."""
+    command = ['fail2ban-client', 'set', jail, 'unbanip', address] if jail else ['fail2ban-client', 'unban', address]
+    run(command, capture_output=True, text=True, timeout=30)
+
+
+# Hans 2026-11-18: the admin networks of the web allowlist are never banned. Only networks an admin entered while the list is
+# on: with the list off ("all") or empty nothing is exempt, and an entry as wide as the internet is not exempt either
+# (IPv4 wider than /8, IPv6 wider than /32).
+ADMIN_EXEMPT_MIN_PREFIX = {4: 8, 6: 32}
+# The jails that guard an admin way in (web, SSH) and those that ban on every port (recidive, the bans of the cluster).
+# Never the mail jails (postfix-sasl, efa-harvest): a password guessed on port 587 from an admin network is still banned there.
+ADMIN_EXEMPT_JAILS = ('sshd', 'efa-web', 'recidive', SHARED_JAIL)
+
+
+def admin_exempt_networks(allow):
+    """The networks of the web allowlist (web-allowlist.json) that Fail2Ban never bans in ADMIN_EXEMPT_JAILS."""
+    if not isinstance(allow, dict) or allow.get('mode') != 'allowed':
+        return []
+    found = set()
+    for item in allow.get('entries') or []:
+        try:
+            network = ipaddress.ip_network(item.get('network', ''), strict=False)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if network.prefixlen >= ADMIN_EXEMPT_MIN_PREFIX[network.version]:
+            found.add(str(network))
+    return sorted(found)
 
 
 def protected(address, networks):

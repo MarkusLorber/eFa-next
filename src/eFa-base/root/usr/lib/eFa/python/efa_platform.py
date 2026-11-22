@@ -99,6 +99,14 @@ class Platform:
     def service_reload_if_active(self, name):
         raise NotImplementedError
 
+    def service_started_at(self, name):
+        """Epoch seconds when the main process of the unit started, 0 when unknown."""
+        raise NotImplementedError
+
+    def package_install_time(self, package):
+        """Epoch seconds when the package was installed (the newest, if several), 0 when it is not."""
+        raise NotImplementedError
+
     def service_manager_reload(self):
         """Make the service manager re-read its unit or rc files."""
         raise NotImplementedError
@@ -425,6 +433,15 @@ class Platform:
         raise NotImplementedError
 
     def service_start_background(self, name):
+        raise NotImplementedError
+
+    def job_start(self, unit, argv):
+        """Runs argv as a one-off background job named unit, at the lowest CPU and disk priority. False if it did not start
+        (one of that name runs already)."""
+        raise NotImplementedError
+
+    def database_folder(self, path):
+        """Labels an empty folder as a data folder of the database server, so a second, throwaway instance may write there."""
         raise NotImplementedError
 
     # ------------------------------------------------ time

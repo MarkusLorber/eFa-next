@@ -34,6 +34,30 @@ Alle Namen (`.`) weiterzuleiten wird abgelehnt. Eine interne Domain unter einer 
 `--dnssec off` nur für diese Domain brauchen. Jede Änderung prüft `unbound-checkconf`; bleibt Unbound nicht oben, kommen die
 Einstellungen von vorher zurück. Details: [dns-forwarding.md](../dns-forwarding.md).
 
+### Eigene Hostnamen
+
+Namen und Adressen wie Zeilen in `/etc/hosts`, für ganz eFa-next. Eine reine Zeile in `/etc/hosts` reicht nicht: Postfix und
+rspamd fragen das eigene Unbound, nie diese Datei. eFa-next schreibt jeden Namen in Unbound (A und AAAA; andere Eintragsarten
+des Namens wie MX und jeder Name darunter werden wie bisher aufgelöst) und in einen Block von `/etc/hosts`. Einen PTR gibt es
+nur für private Adressen, damit der echte Rückwärtsname einer öffentlichen Adresse bleibt.
+
+```
+sudo efactl hosts-set --name git.corp.example --action add --addresses "10.0.0.5 2001:db8::5" --note "Git-Server"
+sudo efactl hosts-set --name git.corp.example --action remove
+sudo efactl hosts-list
+```
+
+Höchstens 4 Adressen pro Name und 256 Namen. Abgelehnt: Loopback-, Link-Local-, Multicast- und reservierte Adressen, der Name
+dieses Hosts (`hostname-set`) und Namen, für die eFa-next die echte Antwort braucht: localhost, `.arpa`, seine Update- und
+Zertifikatsserver, die Paketquellen des Betriebssystems und die Zonen der Blocklisten. Jede Änderung prüft
+`unbound-checkconf`; bleibt Unbound nicht oben, bleibt alles wie vorher. In der Weboberfläche fragt eine Änderung Passwort und
+2FA erneut ab.
+
+Im Cluster gibt der Master `hosts-set` an jeden Knoten weiter (auch an einen, der neu beitritt). Ein Knoten, der einen Server
+unter einer anderen Adresse erreicht, bekommt mit `hosts-local-set` (gleiche Argumente) einen eigenen Namen: Er wird nie
+weitergegeben und gilt auf diesem Knoten vor demselben Namen des Clusters. Eine von Hand geschriebene Zeile in `/etc/hosts`
+gilt dort für Programme, die die Datei lesen; `hosts-list` nennt solche Namen unter `also_by_hand`.
+
 ### DNS-Resolver für weitere Netze
 
 *System › DNS-Resolver für weitere Netze* (Super-Admins, mit Passwort und 2FA-Code) lässt andere Server Ihres Netzes, etwa den

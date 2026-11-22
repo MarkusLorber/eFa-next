@@ -24,15 +24,38 @@ Each node sees the new mode within a minute and takes all settings anew (`cluste
 On the master:
 
 ```
-efactl cluster-init --name mx-01
+efactl cluster-init --name mx-01 --mode ha --confirm yes
 efactl cluster-token
 ```
 
-On each node, with the token and the CA fingerprint of `cluster-token`:
+The token is shown once and valid for 30 minutes. On each node, with the token and the CA fingerprint of `cluster-token`
+(the token is read from the prompt, never from an argument):
 
 ```
+efactl cluster-join-check --master mx-01.example.org:8460
 efactl cluster-join --master mx-01.example.org:8460 --name mx-02 --address 192.0.2.12 --ca_fingerprint <fingerprint>
+efactl cluster-join-preview
+efactl cluster-activate --understood yes --confirm yes
+efactl cluster-join-status
 ```
+
+`cluster-join-check` checks port 8460 to the master, the token (the master answers only to a valid token and does not use it
+up), the same eFa-next version, the platform (EL9 or EL10: a mix is a note, no refusal, see below), the time, maintenance mode and a release upgrade;
+`cluster-join` does the same checks again and refuses when one fails. The node then waits (pending): the master sends it no
+traffic and it takes no settings yet. `cluster-join-preview` lists what the settings of the master replace;
+`cluster-activate` makes a backup first (no settings without it), lets the master reach the node on its port, then takes the
+settings. `cluster-leave` on a waiting node removes it on the master too. The first master is chosen on purpose on its host (`--confirm yes`): its admin logins, users, passwords and 2FA count for
+every node; on joining, those of the node are replaced (the preview lists them, `--understood yes` confirms that), and whoever
+had an account only on the node loses that access. The way back in stays root on the console (`efactl admin-password`). A
+waiting node gets only a manifest of the master's settings (names, paths, hashes, sizes), never their content or a secret;
+the full settings follow its confirmation. All of it is for super admins only, and the web
+interface (*Cluster & offline*, card *Set up a cluster*) asks for the password and 2FA code for each step.
+
+**EL9 and EL10 in one cluster.** A cluster of EL9 and EL10 nodes was tested for setup, join, sync and the login lockout (an
+EL9 master with an EL10 node): each node takes the settings of the master as its own platform needs them. Run it like this only
+for a while, during the release upgrade from EL9 to EL10 one node at a time (see [release-upgrade.md](release-upgrade.md)), and
+keep every node on the same eFa-next version: `cluster-join` refuses another version, and a node of another release series
+takes no settings of the master until it is updated.
 
 Joining takes a snapshot of the master once. After that the node follows the journal of the master over mutual TLS (port 8460).
 

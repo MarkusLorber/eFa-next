@@ -110,6 +110,58 @@ def readonly_clam(context, page, name):
     return found
 
 
+def compliance_zip(context, page, role):
+    """The signed verification result: a valid zip for the super admin and the auditor of the whole system (checked with
+    efactl compliance-verify-check and the fingerprint of backup-key-show), no zip for a login limited to a tenant."""
+    page.goto(HOST + '/p/privacy')
+    page.wait_for_load_state('networkidle')
+    if role not in ('super', 'auditor', 'tenant'):
+        return []
+    csrf = page.query_selector('input[name=csrf]')
+    reply = context.request.post(HOST + '/compliance-result.zip', max_redirects=0,
+                                 form={'csrf': csrf.get_attribute('value') if csrf else '', 'standard': 'pci-dss'})
+    is_zip = reply.ok and reply.headers.get('content-type', '').startswith('application/zip')
+    if role == 'tenant':
+        return ['/compliance-result.zip: a signed result for a tenant admin'] if is_zip else []
+    if not is_zip:
+        return [f'/compliance-result.zip as {role}: {reply.status}, no zip']
+    if role == 'super' and not page.query_selector('button[formaction="/compliance-result.zip"]'):
+        return ['/p/privacy: no button Download verification result']
+    path = f'/tmp/efa-live-compliance-{role}.zip'
+    with open(path, 'wb') as f:
+        f.write(reply.body())
+    fingerprint = json.loads(efactl('backup-key-show').stdout or '{}').get('fingerprint', '')
+    done = efactl('compliance-verify-check', f'--file={path}', f'--fingerprint={fingerprint}')
+    os.remove(path)
+    return [] if done.returncode == 0 else [f'compliance-verify-check of the zip of {role}: {(done.stdout + done.stderr).strip()[:200]}']
+
+
+def enrol_2fa(context, page, role, password):
+    """Hans 2026-11-19: an admin without 2FA lands on its setup right after the password and reaches nothing else; the test
+    admin sets it up as a person would: the QR page (password again), the key, the first code, then the pages."""
+    if role == 'user':
+        return []
+    if '#totp-setup' not in page.url:
+        return [f'{role}: first login without 2FA did not lead to the 2FA setup ({page.url})']
+    if context.request.get(HOST + '/p/sec', max_redirects=0).status not in (302, 303):
+        return [f'{role}: another page was reachable before the 2FA setup']
+    csrf = page.query_selector('input[name=csrf]').get_attribute('value')
+    shown = context.request.post(HOST + '/run/totp-setup', form={'csrf': csrf, 'reauth': password})
+    key = re.search(r'>([A-Z2-7]{4}(?: [A-Z2-7]{1,4})+)<', shown.text())
+    if not key:
+        return [f'{role}: the 2FA setup showed no key']
+    sys.path.insert(0, '/usr/lib/eFa/python')
+    import efa_totp
+    import time
+    code = efa_totp.hotp(efa_totp.secret_from_text(key.group(1).replace(' ', '')), int(time.time()) // 30)
+    confirmed = context.request.post(HOST + '/run/totp-confirm', form={'csrf': csrf, 'code': code})
+    page.goto(HOST + '/p/sec')
+    page.wait_for_load_state('networkidle')
+    if confirmed.status >= 400 or '#totp-setup' in page.url:
+        return [f'{role}: 2FA not switched on after the first code ({confirmed.status})']
+    return []
+
+
 def check_role(browser, out, role, name, password):
     problems, login = [], HOST + ('/portal/login' if role == 'user' else '/login')
     errors = []
@@ -123,6 +175,9 @@ def check_role(browser, out, role, name, password):
     page.wait_for_load_state('networkidle')
     if page.url.startswith(login):
         return [f'login failed ({page.url})'], 0
+    problems += enrol_2fa(context, page, role, password)
+    if problems:
+        return problems, 0
     # Each page once: links to a card of a page (#card) are the same page.
     links = sorted({href.split('#')[0] for href in page.eval_on_selector_all('nav a[href], a[href^="/p/"], a[href^="/portal/"]',
                                                                              'items => items.map(item => item.getAttribute("href"))')
@@ -167,6 +222,7 @@ def check_role(browser, out, role, name, password):
         page.emulate_media(color_scheme='light')
     if role == 'readonly':
         problems += readonly_clam(context, page, name)
+    problems += compliance_zip(context, page, role)
     context.close()
     return problems, len(links)
 

@@ -119,7 +119,7 @@ class FakePlatform:
     def service_is_active(self, name):
         return True
 
-    def release_prepare(self, release_rpm, packages):
+    def release_prepare(self, release_rpm, packages, run=None):
         self.calls.append(('release_prepare', release_rpm, tuple(packages)))
         return True, ''
 
@@ -161,7 +161,7 @@ class FakePlatform:
         # What rpm -K says of a package signed by the ELevate key.
         return f'{os.path.basename(path)}: digests signatures OK\n', 'RSA/SHA256, Key ID 429785e181b961a5'
 
-    def release_cleanup(self, packages):
+    def release_cleanup(self, packages, run=None):
         self.calls.append(('release_cleanup', tuple(packages)))
         self.removed |= {item for item in host_facts(10)['packages'] if item in packages or item.split('-0.')[0] in packages}
         return True, ''

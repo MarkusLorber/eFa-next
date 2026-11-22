@@ -15,6 +15,7 @@ gets no archive wizard and a refusal for a disclaimer of all domains. Screenshot
 """
 import json
 import os
+import re
 import secrets
 import socket
 import subprocess
@@ -28,10 +29,27 @@ HOST = 'https://127.0.0.1'
 BROWSER = os.environ.get('EFA_LIVE_BROWSER') or None
 TEST_DOMAIN = 'wizard-live.example'
 NO_TLS_PORT = 2526
+SILENT_PORT = 2528
 
 
 def efactl(*args, stdin=''):
     return subprocess.run(['efactl', *args], input=stdin, capture_output=True, text=True, timeout=120)
+
+
+def smtp_silent(stop):
+    """A host on 127.0.0.1 that takes the connection and never greets: the archive test takes its whole second."""
+    server = socket.socket()
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(('127.0.0.1', SILENT_PORT))
+    server.listen(4)
+    server.settimeout(0.5)
+    while not stop.is_set():
+        try:
+            client, _address = server.accept()
+        except socket.timeout:
+            continue
+        with client:
+            stop.wait(3)
 
 
 def smtp_without_starttls(stop):
@@ -64,6 +82,39 @@ def smtp_without_starttls(stop):
     server.close()
 
 
+# 2FA for every admin (Hans 2026-11-19, at once also after an update): the test admins set it up at their first login and give
+# the code at every later one; a code is never used twice (the login refuses a replay of the same 30 s step).
+TOTP = {}  # name: [secret, last step used]
+
+
+def totp_code(name):
+    sys.path.insert(0, '/usr/lib/eFa/python')
+    import efa_totp
+    secret, last = TOTP[name]
+    while int(time.time()) // 30 <= last:
+        time.sleep(1)
+    step = int(time.time()) // 30
+    TOTP[name][1] = step
+    return efa_totp.hotp(secret, step)
+
+
+def enrol_2fa(context, page, name, password):
+    """The setup a new admin lands on after the password: the key (password again), then the first code."""
+    sys.path.insert(0, '/usr/lib/eFa/python')
+    import efa_totp
+    csrf = page.query_selector('input[name=csrf]').get_attribute('value')
+    shown = context.request.post(HOST + '/run/totp-setup', form={'csrf': csrf, 'reauth': password})
+    key = re.search(r'>([A-Z2-7]{4}(?: [A-Z2-7]{1,4})+)<', shown.text())
+    if not key:
+        raise RuntimeError(f'{name}: the 2FA setup showed no key')
+    TOTP[name] = [efa_totp.secret_from_text(key.group(1).replace(' ', '')), 0]
+    confirmed = context.request.post(HOST + '/run/totp-confirm', form={'csrf': csrf, 'code': totp_code(name)})
+    if confirmed.status >= 400:
+        raise RuntimeError(f'{name}: 2FA not switched on ({confirmed.status})')
+    page.goto(HOST + '/')
+    page.wait_for_load_state('networkidle')
+
+
 def login(browser, name, password, locale='en-US'):
     context = browser.new_context(ignore_https_errors=True, viewport={'width': 1280, 'height': 1000}, locale=locale)
     page = context.new_page()
@@ -72,8 +123,12 @@ def login(browser, name, password, locale='en-US'):
     page.goto(HOST + '/login')
     page.fill('input[name=username]', name)
     page.fill('input[name=password]', password)
+    if name in TOTP:
+        page.fill('input[name=code]', totp_code(name))
     page.click('form button:not([type=button]), input[type=submit]')
     page.wait_for_load_state('networkidle')
+    if '#totp-setup' in page.url:
+        enrol_2fa(context, page, name, password)
     return context, page, errors
 
 
@@ -198,16 +253,24 @@ def check_super(browser, out, name, password):
     go(page, 'apply')
     if TEST_DOMAIN not in efactl('settings').stdout:
         problems.append('route: Apply did not add the domain')
-    # Archive: the connection test in the background, a host that does not answer and one without STARTTLS.
-    for host, port, wanted in (('192.0.2.1', '25', ('timed out', 'unreachable', 'No route', 'refused')), ('127.0.0.1', str(NO_TLS_PORT), ('no STARTTLS',))):
+    # Archive: the connection test in the background, a host that does not answer, one that never greets and one without
+    # STARTTLS.
+    for host, port, wanted in (('192.0.2.1', '25', ('timed out', 'unreachable', 'No route', 'refused')),
+                               ('127.0.0.1', str(SILENT_PORT), ('timed out',)), ('127.0.0.1', str(NO_TLS_PORT), ('no STARTTLS',))):
         wizard_page(page, 'archive')
         go(page, target='+new', template='piler')
         go(page, name='wizardlive', address='journal@archive.example.net', host=host, port=port, format='copy')
         go(page, direction='both', all='+chosen')
         go(page, domains=TEST_DOMAIN)
-        took = go(page, 'test', tls='verify')
-        if took > 1.5:
-            problems.append(f'archive test: the page waited {took:.1f} s for the test')
+        # The answer page comes before the result: it shows the running test (the host that never greets takes the whole second
+        # of the test). No time budget: under load the page alone took 2 s (EL9, 2026-11-22), as long as a page that waits.
+        put(page, 'tls', 'verify')
+        # The answer page itself (after the redirect), not the page of the click, which is loaded already.
+        with page.expect_navigation(wait_until='domcontentloaded'):
+            page.click('#wizard button[name=go][value=test]')
+        if port == str(SILENT_PORT) and not page.query_selector('#wizard [data-poll]'):
+            problems.append('archive test: the page waited for the test instead of showing it running')
+        page.wait_for_load_state('networkidle')
         try:
             page.wait_for_selector('#wizard table.kv', timeout=8000)
         except Exception:  # noqa: BLE001 - the missing result is named below
@@ -317,6 +380,7 @@ def main():
         users[role] = (name, password)
     stop = threading.Event()
     threading.Thread(target=smtp_without_starttls, args=(stop,), daemon=True).start()
+    threading.Thread(target=smtp_silent, args=(stop,), daemon=True).start()
     failed = False
     try:
         with sync_playwright() as playwright:

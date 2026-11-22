@@ -15,7 +15,7 @@ Signatur und jede Datei, bevor sich etwas ändert ([backup-signature.md](../back
 
 ## Einrichten
 
-1. **Sicherungspasswort:** *Passwort für automatische Sicherungen* (mindestens 12 Zeichen). Ab dann sind die Sicherungen
+1. **Sicherungspasswort:** *Automatische Sicherung: Passwort* (ein Knopf in der Karte *Automatische Sicherung*, mindestens 12 Zeichen). Ab dann sind die Sicherungen
    verschlüsselt (AES-256). Bewahren Sie das Passwort außerhalb dieses Hosts auf: Ohne es lässt sich keine Sicherung irgendwo
    wiederherstellen.
 2. **Automatische Sicherung:** an oder aus. Updates und das Release-Upgrade machen in jedem Fall zuerst ihre eigene Sicherung.
@@ -47,6 +47,20 @@ sudo efactl restore --name <Datei> --confirm yes
 
 Ein abgebrochener Restore (Stromausfall) wird erkannt und blockiert spätere Updates nicht. Eine Sicherung mit den Einstellungen
 von Postfix und nginx stellt nur der Haupt-Admin (oder root auf der Konsole) wieder her.
+
+## Wiederherstellungstest
+
+*Wiederherstellungstest jetzt* (`efactl backup-restore-test`) prüft die neueste Sicherung dieses Hosts wie eine
+Wiederherstellung, ohne hier etwas zu ändern: die Signatur und das Manifest jeder Datei, dann die Datenbank in einer
+Wegwerf-MariaDB mit eigenem Datenordner und Socket, ohne Netz und ohne Events. Jede Tabelle des Dumps muss danach da sein. Der
+Test läuft im Hintergrund mit der niedrigsten CPU- und Platten-Priorität; er startet nicht bei hoher Last oder ohne genug freien
+Plattenplatz (der doppelte Dump plus 1 GB Reserve). Eine verschlüsselte Sicherung braucht das gespeicherte Sicherungspasswort.
+
+*Wiederherstellungstest: monatlich* (`efactl backup-restore-test-set --monthly on`, ab Werk aus) führt ihn einmal im Monat ab
+04:00 aus. Das Ergebnis steht unter *Wiederherstellungstest: Status*; ein fehlgeschlagener Test löst das Ereignis
+`restore_test_failed` aus (Wazuh-Regel 108094), und der Härtungsbericht prüft auf einen bestandenen Test in den letzten 35 Tagen.
+Der Test zeigt, dass eine Sicherung lesbar und importierbar ist; ein Wiederanlaufplan und Tests auf einem anderen Host bleiben
+Ihre Aufgabe.
 
 ## Einstellungen von einem anderen Host
 

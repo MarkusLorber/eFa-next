@@ -140,6 +140,17 @@ def _cron_lines():
     return lines
 
 
+# 2026-11-20: efa-migrate removes the cron files of eFa 5 it knows (OLD_CRON); everything else is listed at the end, not left silently.
+EFA_CRON = ('/etc/cron.d/certbotrenew', '/etc/cron.d/efa-migration-monitor')
+
+
+def leftover_crons(lines, owned):
+    """The cron lines eFa-next did not bring: root's crontab and the files of /etc/cron.d no package owns (owned(path))."""
+    return [f'{source}: {line.strip()[:160]}' for source, line in lines
+            if line.strip() and not line.strip().startswith('#') and not re.match(r'^[A-Za-z_]\w*\s*=', line.strip())
+            and source not in EFA_CRON and not owned(source)]
+
+
 def _script_text(path):
     try:
         with open(path, errors='replace') as f:
@@ -609,6 +620,10 @@ def self_test():
                                       'IPV6MASK': ''}, 'ipv6dns': False}, 'pw')
     assert 'IPV6ADDRESS:disabled\n' in none6 and 'IPV6GATEWAY:\n' in none6 and '--' not in none6, 'no IPv6 of eFa 5'
     assert sql_string("a'b\\c") == "'a\\'b\\\\c'" and sql_string('plain') == "'plain'"
+    left = leftover_crons([('crontab root', '30 2 * * * /usr/bin/clamscan \\'), ('crontab root', '# off'), ('crontab root', 'MAILTO=root'),
+                           ('/etc/cron.d/certbotrenew', '0 0 * * * root certbot renew'), ('/etc/cron.d/raid-check', '0 1 * * 0 root /usr/sbin/raid-check'),
+                           ('/etc/cron.d/itw', '0 4 * * * root /opt/x.sh')], lambda path: path == '/etc/cron.d/raid-check')
+    assert left == ['crontab root: 30 2 * * * /usr/bin/clamscan \\', '/etc/cron.d/itw: 0 4 * * * root /opt/x.sh'], left
     assert my_cnf_value('a"b\\c') == '"a\\"b\\\\c"'
 
     class Ran:
@@ -1110,6 +1125,8 @@ def restore_settings(plan, target, warnings, disable=False):
         # MIG-LE: the lineage as it is, the same key (a TLSA record stays right); if it cannot, efactl says why and nothing changes.
         if efactl('letsencrypt-takeover'):
             warnings.append("Let's Encrypt: certificate taken over as it is (same key and key type), renewals keep the key.")
+        # 2026-11-20: the other lineages of eFa 5 too: certbot renew runs them all, and their apache plugin is gone.
+        efactl('letsencrypt-heal')
 
     # A Wazuh agent of the eFa 5 host is taken over as it is: ossec.conf and the agent stay unchanged.
     done = subprocess.run(['/usr/sbin/efactl', 'wazuh-take-over'], capture_output=True, text=True,
@@ -1160,6 +1177,11 @@ def restore_settings(plan, target, warnings, disable=False):
     lost = lost_postconf(plan['old_postconf'], new_postconf)
     if lost:
         warnings.append('Postfix settings replaced or dropped, the old values are in main.cf in config.tar.gz: ' + ', '.join(lost))
+    owned = lambda path: path != 'crontab root' and subprocess.run(['rpm', '-qf', path], capture_output=True).returncode == 0
+    left = leftover_crons(_cron_lines(), owned)
+    if left:
+        warnings.append('CHECK: cron jobs eFa-next did not bring still run (root crontab, /etc/cron.d); remove those of eFa 5, broken ones '
+                        'are also on the dashboard (check after package updates): ' + ' | '.join(left))
 
 
 FIRST_LOGIN = (

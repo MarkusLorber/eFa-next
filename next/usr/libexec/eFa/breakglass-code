@@ -1,0 +1,61 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+"""pam_exec checker of the break-glass admin (sshd, sudo, login): the code comes on stdin only (expose_authtok), never in the
+command line or the environment. Over SSH the address must be in the admin networks. A code works once. Every try raises the
+alarm, a lock-out of faillock its own. Hard time limit, and any error fails closed (exit 1)."""
+import os
+import signal
+import subprocess
+import sys
+
+sys.path.insert(0, '/usr/lib/eFa/python')
+TIME_LIMIT = 20
+
+
+def alarm(event, source, service):
+    try:
+        subprocess.run(['/usr/sbin/efactl', 'breakglass-alarm', '--event', event, '--source', source[:64], '--service', service[:16]],
+                       capture_output=True, timeout=10, env={'PATH': '/usr/sbin:/usr/bin'})
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def locked(user, tty):
+    """faillock counts this try already when it fails: the user is locked out from the next one on."""
+    import efa_breakglass
+    folder = ['--dir', '/var/run/faillock-efa-bg-tty'] if tty else []
+    try:
+        done = subprocess.run(['faillock', *folder, '--user', user], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    lines = [line for line in done.stdout.splitlines() if line[:4].isdigit()]
+    return len(lines) + 1 >= efa_breakglass.FAILLOCK['deny']
+
+
+def main():
+    signal.signal(signal.SIGALRM, lambda *_a: os._exit(1))
+    signal.alarm(TIME_LIMIT)
+    import efa_breakglass
+    user, service = os.environ.get('PAM_USER', ''), os.environ.get('PAM_SERVICE', '')
+    source = os.environ.get('PAM_RHOST') or os.environ.get('PAM_TTY') or 'local'
+    state = efa_breakglass.read_state()
+    if not user or user != state.get('user') or os.environ.get('PAM_TYPE', 'auth') != 'auth':
+        return 1
+    code = sys.stdin.read(512).replace('\0', '').strip()
+    if service == 'sshd' and not efa_breakglass.in_networks(source, state.get('networks', [])):
+        alarm('refused-network', source, service)
+        return 1
+    ok = efa_breakglass.use_code(code)
+    alarm('login-ok' if ok else 'login-failed', source, service)
+    if not ok and locked(user, service == 'login'):
+        alarm('locked-out', source, service)
+    return 0 if ok else 1
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except Exception:  # noqa: BLE001 - fail closed, whatever went wrong
+        sys.exit(1)

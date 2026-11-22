@@ -45,7 +45,9 @@ class Efactl(unittest.TestCase):
         # Every command that writes a map, a drop-in or a list: a line break in any of its values is refused.
         multi = {(name, arg['name']) for name, cmd in e.COMMANDS.items() for arg in cmd['args'] if arg.get('multiline') or arg.get('lines')}
         self.assertEqual(multi, {('crypto-import', 'data'), ('crypto-hsm-set', 'cert'), ('clam-securiteinfo-set', 'urls'),
-                                 ('disclaimer-template-set', 'text'), ('disclaimer-template-set', 'html')})
+                                 ('disclaimer-template-set', 'text'), ('disclaimer-template-set', 'html'),
+                                 # The login banner: plain text with line breaks, other control characters refused (NIST AC-8).
+                                 ('login-banner-set', 'text')})
 
     def test_audit_file_lines_cannot_be_forged(self):
         e = self.e

@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.6.2
+Version:        6.0.0.6.7
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -170,6 +170,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Sun Nov 22 2026 Markus Lorber - 6.0.0.6.7-1
+- 6.0.0.6.7: 2FA required for every admin, the compliance file of each release (JSON, Markdown, OSCAL), the base system updates with dnf, cluster hardening and break-glass admin, GDPR erasure, file check, restore test, incident reports; see CHANGELOG.md.
+
 * Thu Nov 19 2026 Markus Lorber - 6.0.0.6.6.2-1
 - 6.0.0.6.6.2: a cluster node keeps following its master when Fail2Ban or one journal entry fails, and the master raises an alarm when a node lags or stops; see CHANGELOG.md.
 

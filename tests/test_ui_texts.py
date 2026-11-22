@@ -73,6 +73,30 @@ class UiTextTests(unittest.TestCase):
         missing = sorted({text for text in wanted if text and text not in ('on or off', 'On or off') and not self.de.get(text)})
         self.assertEqual(missing, [], 'texts without German translation: fill them in de.po (scripts/i18n_extract.py)')
 
+    def test_tick_box_help_never_says_type(self):
+        # Hans 2026-11-20: the (i) of a tick box said "needs yes typed"; the console asks to type yes, the web form asks for a tick.
+        typed = re.compile(r'\btyped?\b(?! (?:of|in)\b)|\btippen\b|\bgetippte|\beingeben\b', re.I)
+        found = []
+        for name, command in self.schema.items():
+            for arg in command.get('args') or []:
+                shown = efa_help.web_label(arg.get('label', ''), arg.get('kind'))
+                if not (shown['yes'] or arg.get('kind') == 'confirm' or arg.get('choices') or arg.get('label', '').endswith(': on or off')):
+                    continue
+                text = efa_help.FIELD.get(name, {}).get(arg['name']) or ''
+                for said in (text, self.de.get(text) or ''):
+                    if typed.search(said):
+                        found.append(f'{name}.{arg["name"]}: {said}')
+        self.assertEqual(found, [], 'help of a tick box or a choice that asks to type: say tick (or choose) instead')
+
+    def test_eu_tick_box_sends_the_sentence_efactl_checks(self):
+        # 2026-11-20: the tick of an EU transfer sent yes, which eu_transfer_check never takes.
+        with open(EFACTL, encoding='utf-8') as f:
+            wanted = re.search(r"^EU_CONFIRM = '([^']+)'$", f.read(), re.M).group(1)
+        with open(WEB, encoding='utf-8') as f:
+            web = f.read()
+        self.assertEqual(re.search(r"^EU_CONFIRM = '([^']+)'$", web, re.M).group(1), wanted)
+        self.assertIn("value=\"{{ eu_confirm if eu_confirm in arg.label else 'yes' }}\"", web)
+
     def test_web_label(self):
         self.assertEqual(efa_help.web_label('Score, empty keeps it'), {'label': 'Score', 'placeholder': 'Empty keeps it', 'clear': False, 'yes': False})
         found = efa_help.web_label('Senders or domains that always pass; - for none')

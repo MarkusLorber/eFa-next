@@ -93,7 +93,8 @@ HINTS = {
     'admin-access': 'Admin access only from allowed networks and the firewall: Security page; a wrong address locks you out.',
 }
 # Frameworks of the setup that lead to standards, only where the mapping is documented (docs/plan-hardening-wizard.md).
-FRAMEWORK_STANDARDS = {'bsi-grundschutz': ['bsi-02102-2'], 'bsi-tr02102': ['bsi-02102-1', 'bsi-02102-2', 'bsi-02102-4']}
+FRAMEWORK_STANDARDS = {'bsi-grundschutz': ['bsi-02102-2'], 'bsi-tr02102': ['bsi-02102-1', 'bsi-02102-2', 'bsi-02102-4'],
+                       'nist-800-53': ['nist-80052']}
 # The setup never sets these: the SSH profile needs a new SSH login within 10 minutes, nobody does that in the web installer.
 # The own ECDSA web certificate needs Let's Encrypt (a public name, port 80, an account with e-mail and accepted terms): the
 # setup has none of these, and its failure took the whole variant step back (2026-11-16, moz-modern on a .local host).

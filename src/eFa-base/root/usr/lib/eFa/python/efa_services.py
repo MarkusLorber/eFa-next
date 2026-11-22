@@ -282,6 +282,10 @@ def step_clamav():
         text, {"NotifyClamd": conf}, disable=("Example",)))
     c.ensure_file(P("clamd_log"), "", 0o640, pl.account("clamav_user"),
                   pl.account("clamav_user"))
+    # A fresh EL9: the socket folder /run/clamd.scan comes from tmpfiles.d, whose rpm trigger runs only at the end of the
+    # transaction, after the setup; clamd (not root) cannot make it, and every restart of the setup failed. As for postfix.
+    if os.path.exists(rp("/usr/lib/tmpfiles.d/clamd.scan.conf")):
+        c.run(["systemd-tmpfiles", "--create", "clamd.scan.conf"])
     # rspamd talks to clamd over the local socket.
     members = pl.group_members(pl.account("av_group"))
     rspamd = pl.account("rspamd_user")

@@ -48,7 +48,7 @@ Grenzen je Mandant, Domain, Empfänger oder Absender stehen unter *Domain-Einste
 
 *Schutz › Blocklisten*: DNS-Blocklisten (RBL), über den eigenen Resolver von eFa-next gefragt. Ein Schalter je Liste zeigt den
 wirksamen Zustand. Listen, die nur für geringe Mengen oder nicht kommerziell frei sind, bleiben aus, bis Sie sie einschalten und
-ihre Bedingungen annehmen. *Eigene Blockliste* fügt eine weitere hinzu; *postscreen* auf Port 25 verwirft Clients nach dem Gewicht
+ihre Bedingungen annehmen. *Eigene Liste*, ein Knopf in der Tabelle der Blocklisten, fügt eine weitere hinzu; *postscreen* auf Port 25 verwirft Clients nach dem Gewicht
 ihrer Einträge; *Bedrohungs-Feeds* fügt Feeds wie URLhaus oder ThreatFox hinzu, oder einen eigenen TAXII- oder MISP-Feed.
 
 ![Blocklisten](../images/manual/rbl.png)

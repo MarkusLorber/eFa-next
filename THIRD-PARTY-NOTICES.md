@@ -81,6 +81,7 @@ The spec file asks for the OS packages. **Check before release which one a fresh
 | Flag of Austria and flag of the EU in the footer | `efa-web.py` | Drawn as simple SVG shapes for this project. National and EU symbols may have rules of use of their own |
 | Web interface fonts, icons, CSS, JavaScript | `efa-web.py` | Written for this project. System fonts only, nothing bundled |
 | CycloneDX 1.5 JSON schema (bom, spdx, jsf) | `third-party/cyclonedx-1.5/`, in the repository, build time only | CycloneDX specification, tag 1.5, Apache-2.0 |
+| OSCAL 1.1.2 component-definition JSON schema | `third-party/oscal-1.1.2/`, in the repository, build time only | NIST OSCAL, release v1.1.2, public domain (US government work) |
 
 ## Not used anymore
 

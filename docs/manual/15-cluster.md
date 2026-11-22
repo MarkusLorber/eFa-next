@@ -18,10 +18,13 @@ Set it up:
 
 ```bash
 # on the master
-sudo efactl cluster-init --name mx-01 --mode ha
+sudo efactl cluster-init --name mx-01 --mode ha --confirm yes
 sudo efactl cluster-token
 # on each node, with the token and the CA fingerprint of cluster-token
+sudo efactl cluster-join-check --master mx-01.example.com:8460   # checks first, the token stays valid
 sudo efactl cluster-join --master mx-01.example.com:8460 --name mx-02 --address 192.0.2.12 --ca_fingerprint <fingerprint>
+sudo efactl cluster-join-preview        # what the settings of the master replace here
+sudo efactl cluster-activate --understood yes --confirm yes   # backup, then the settings of the master
 ```
 
 The nodes follow the journal of the master over mutual TLS (port 8460), each with its own key. Shared: the eFa-next settings,
@@ -36,8 +39,10 @@ checks the MX records. When the master is gone for good, `cluster-promote` makes
 
 The second MX can use this host as its DNS resolver (chapter 10).
 
-**Staged updates:** `efactl cluster-update-set --mode on --window 2` lets the master update one node at a time: the first node
-installs in the maintenance window, the master waits a health window, then the next follows; an unhealthy node stops the rollout.
+**Staged updates:** in a cluster every install is staged (6.0.0.6.7): the master updates one node at a time, the first node
+installs in the maintenance window, the master waits a health window (`efactl cluster-update-set --mode on --window 2`), then the
+next follows, the master last; an unhealthy node stops the rollout. The update settings are those of the master, also for the
+operating system; chapter 14, *Updates in a cluster*.
 Details: [cluster.md](../cluster.md).
 
 ## Operation without internet

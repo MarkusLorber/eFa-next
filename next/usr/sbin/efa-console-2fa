@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Markus Lorber and eFa-next contributors
 # Author: Markus Lorber, Lukasz Galusinski
-"""Login shell of a console admin (efactl console-2fa-set): over SSH it asks for the code of the own 2FA of this user, when it
-has one set up, and starts bash only when efactl accepts it; without one set up no code is asked (owner's rule), efactl notes
-the login. Never the code of another user. Fails closed: with 2FA no terminal, no code, an error of efactl, no shell. On the
-local console (/dev/ttyN) no code is asked, as Text F of the setup says."""
+"""Login shell of a console admin (efactl console-2fa-set): over SSH it asks for the code of the own 2FA of this user and starts
+bash only when efactl accepts it. Without one set up: since 2FA is required for every admin (Hans 2026-11-19) it sets up the
+first one right here (the app entry, the first code, ten recovery codes), then starts bash; before that day, or on a development
+host, no code is asked and efactl notes the login. Never the code of another user. Fails closed: with 2FA (or its setup due) no
+terminal, no code, an error of efactl, no shell. On the local console (/dev/ttyN) no code is asked, as Text F of the setup says."""
 import getpass
 import json
 import os
@@ -15,6 +16,7 @@ import sys
 
 SHELL = '/bin/bash'
 VERIFY = ['sudo', '-n', '/usr/sbin/efactl', 'console-2fa-verify']
+ENROLL = ['sudo', '-n', '/usr/sbin/efactl', 'console-2fa-enroll', '--first=yes']
 
 
 def local_console(fd=0):
@@ -25,12 +27,45 @@ def local_console(fd=0):
 
 
 def code_needed(run=subprocess.run):
-    """True or False from efactl (the own 2FA of this user is set up or not), None when efactl did not answer."""
+    """'code' (2FA set up), 'enroll' (none, and required now), '' (none, none asked), None when efactl did not answer."""
     try:
         done = run(VERIFY + ['--check=yes'], capture_output=True, text=True, timeout=30)
-        return bool(json.loads(done.stdout)['needed']) if done.returncode == 0 else None
+        answer = json.loads(done.stdout) if done.returncode == 0 else None
+        return None if answer is None else 'code' if answer['needed'] else 'enroll' if answer.get('enroll') else ''
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
         return None
+
+
+def enroll(ask, run=subprocess.run, out=print):
+    """The first 2FA of this user: the app entry, then its first code; True when efactl switched it on."""
+    try:
+        done = run(ENROLL, capture_output=True, text=True, timeout=30)
+        start = json.loads(done.stdout) if done.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        start = None
+    if not start or 'uri' not in start:
+        out('eFa-next: the 2FA setup did not start, login refused; log in on the local console.', file=sys.stderr)
+        return False
+    out('eFa-next: 2FA is required for every admin. Add this entry to an authenticator app '
+        '(2FA ist für jeden Admin Pflicht. Diesen Eintrag in eine Authenticator-App übernehmen):')
+    out(f"  {start['uri']}")
+    out(f"  Secret / Geheimnis: {start['secret']}")
+    try:
+        code = ask('First code of the app / Erster Code der App: ').strip()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    try:
+        done = run(ENROLL + [f'--code={code}'], capture_output=True, text=True, timeout=30)
+        result = json.loads(done.stdout) if done.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        result = None
+    if not result or not result.get('active'):
+        out('eFa-next: the code did not fit, login refused; log in again to start over.', file=sys.stderr)
+        return False
+    out('Recovery codes, each works once, shown only now / Wiederherstellungscodes, je einmal gültig, nur jetzt sichtbar:')
+    for item in result.get('recovery_codes', []):
+        out(f'  {item}')
+    return True
 
 
 def code_ok(code, run=subprocess.run):
@@ -50,10 +85,12 @@ def main(argv, ask=input, run=subprocess.run, local=local_console, interactive=N
         if needed is None:
             print('eFa-next: the 2FA check did not answer, login refused; log in on the local console.', file=sys.stderr)
             return 1
-        if needed:
-            if not (sys.stdin.isatty() if interactive is None else interactive):
-                print('eFa-next: this login needs the 2FA code: log in with a terminal (ssh -t).', file=sys.stderr)
-                return 1
+        if needed and not (sys.stdin.isatty() if interactive is None else interactive):
+            print('eFa-next: this login needs 2FA (its code or its first setup): log in with a terminal (ssh -t).', file=sys.stderr)
+            return 1
+        if needed == 'enroll' and not enroll(ask, run):
+            return 1
+        if needed == 'code':
             name = user or getpass.getuser()
             try:
                 code = ask(f'2FA code for {name} (or a recovery code) / 2FA-Code für {name} (oder ein Wiederherstellungscode): ').strip()
@@ -104,6 +141,29 @@ def self_test():
         assert started[-1] == (SHELL, ['bash', '-c', 'id']) and not asked, 'no 2FA set up: no code asked, scp and commands work'
         main(['-efa-console-2fa'], run=efactl(True, False), local=lambda: True)
         assert started[-1] == (SHELL, ['-bash']), 'the local console needs no code'
+        # Hans 2026-11-19: no 2FA yet and required now: the first one is set up right here, then the shell starts.
+        def enrolling(accept):
+            def run(cmd, **kw):
+                seen.append((cmd, kw.get('input')))
+                if cmd[-1] == '--check=yes':
+                    return Done(0, json.dumps({'needed': False, 'enroll': True}))
+                if cmd == ENROLL:
+                    return Done(0, json.dumps({'uri': 'otpauth://totp/x', 'secret': 'ABCD'}))
+                if cmd[:-1] == ENROLL and cmd[-1].startswith('--code='):
+                    return Done(0, json.dumps({'active': True, 'recovery_codes': ['aaaa-bbbb-cccc']})) if accept else Done(1, '{"error": "Wrong code"}')
+                return Done(1)
+            return run
+        started.clear()
+        shown = []
+        assert enroll(lambda p: '123456', enrolling(True), out=lambda *a, **k: shown.append(a[0])) and any('aaaa-bbbb-cccc' in line for line in shown)
+        assert seen[-1][0] == ENROLL + ['--code=123456'] and ENROLL[-1] == '--first=yes', 'only the first 2FA, never a new one over an active'
+        main(['-efa-console-2fa'], ask=lambda p: '123456', run=enrolling(True), local=lambda: False, interactive=True)
+        assert started[-1] == (SHELL, ['-bash']), 'set up, then the shell'
+        started.clear()
+        assert main(['-efa-console-2fa'], ask=lambda p: '000000', run=enrolling(False), local=lambda: False, interactive=True) == 1 and not started
+        assert main(['efa-console-2fa', '-c', 'id'], run=enrolling(True), local=lambda: False, interactive=False) == 1 and not started,             'the setup needs a terminal: no shell without one'
+        main(['-efa-console-2fa'], run=enrolling(False), local=lambda: True)
+        assert started[-1] == (SHELL, ['-bash']), 'the local console needs neither code nor setup'
     finally:
         os.execv = real_execv
     print('self-test ok')

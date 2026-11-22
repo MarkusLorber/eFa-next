@@ -1,6 +1,8 @@
 <!--
   eFa-next rules for the Wazuh manager. Copy to /var/ossec/etc/rules/.
-  Rule IDs 108000-108099. The fields are those of /var/log/eFa/events.json, see docs/WAZUH.md.
+  Rule IDs 108000-108099 and 108200-108299 (108100-108199 are the checks of the SCA policy). The fields are those of /var/log/eFa/events.json, see docs/WAZUH.md.
+  The compliance groups (pci_dss_, gdpr_, hipaa_, nist_800_53_, gpg13_, tsc_) are copied from comparable rules of the
+  Wazuh ruleset 4.14; the mapping is in docs/WAZUH.md.
 -->
 <group name="efa-next,">
 
@@ -20,84 +22,377 @@
     <if_sid>108000, 108001</if_sid>
     <field name="event">^login_ok$</field>
     <description>eFa-next: web login of $(dstuser) from $(src_ip)</description>
-    <group>authentication_success,</group>
+    <group>authentication_success,gdpr_IV_32.2,gpg13_7.1,gpg13_7.2,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,pci_dss_10.2.5,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
   <rule id="108011" level="5">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^login_failed$</field>
     <description>eFa-next: failed web login of $(dstuser) from $(src_ip)</description>
-    <group>authentication_failed,</group>
+    <group>authentication_failed,gdpr_IV_35.7.d,gdpr_IV_32.2,gpg13_7.1,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,pci_dss_10.2.4,pci_dss_10.2.5,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
   <rule id="108012" level="10" frequency="8" timeframe="120">
     <if_matched_sid>108011</if_matched_sid>
     <same_field>src_ip</same_field>
     <description>eFa-next: many failed web logins from $(src_ip)</description>
-    <group>authentication_failures,</group>
+    <group>authentication_failures,gdpr_IV_35.7.d,gdpr_IV_32.2,gpg13_7.1,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_SI.4,pci_dss_10.2.4,pci_dss_10.2.5,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
   <rule id="108013" level="6">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^ip_banned$</field>
     <description>eFa-next: Fail2Ban banned $(src_ip)</description>
+    <group>pci_dss_11.4,gpg13_4.13,gdpr_IV_35.7.d,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,tsc_CC7.4,</group>
   </rule>
 
   <rule id="108014" level="3">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^ip_unbanned$</field>
     <description>eFa-next: Fail2Ban released $(src_ip)</description>
+    <group>pci_dss_11.4,gpg13_4.13,gdpr_IV_35.7.d,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,tsc_CC7.4,</group>
   </rule>
 
   <rule id="108020" level="10">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^service_down$</field>
     <description>eFa-next: service $(service) is down</description>
-    <group>service_availability,</group>
+    <group>service_availability,pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
   </rule>
 
   <rule id="108021" level="3">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^service_up$</field>
     <description>eFa-next: service $(service) runs again</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
   </rule>
 
   <rule id="108022" level="8">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^firewall_guard_repair$</field>
     <description>eFa-next: the firewall guard repaired the firewall</description>
+    <group>pci_dss_11.4,gpg13_4.13,gdpr_IV_35.7.d,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,tsc_CC7.4,</group>
   </rule>
 
   <rule id="108030" level="3">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^config_change$</field>
     <description>eFa-next: $(dstuser) changed settings ($(command))</description>
-    <group>config_changed,</group>
+    <group>config_changed,pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
   </rule>
 
   <rule id="108031" level="5">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^config_change_failed$</field>
     <description>eFa-next: a change by $(dstuser) failed ($(command))</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
   </rule>
 
   <rule id="108040" level="7">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^virus_found$</field>
     <description>eFa-next: viruses found in mail</description>
+    <group>virus,pci_dss_5.1,pci_dss_5.2,pci_dss_11.4,gpg13_4.2,gdpr_IV_35.7.d,nist_800_53_SI.3,nist_800_53_SI.4,tsc_A1.2,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
   <rule id="108041" level="3">
     <if_sid>108000, 108001</if_sid>
     <field name="event">^rbl_hits$</field>
     <description>eFa-next: mail refused by blocklists</description>
+    <group>gdpr_IV_35.7.d,gpg13_4.12,nist_800_53_SI.4,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
   <rule id="108050" level="7">
     <if_sid>550, 553, 554</if_sid>
     <field name="file">^/etc/eFa/|^/etc/postfix/|^/etc/rspamd/local.d/|^/etc/nginx/</field>
     <description>eFa-next: configuration file $(file) changed</description>
-    <group>syscheck,config_changed,</group>
+    <group>syscheck,config_changed,pci_dss_11.5,gpg13_4.11,gdpr_II_5.1.f,hipaa_164.312.c.1,hipaa_164.312.c.2,nist_800_53_SI.7,tsc_PI1.4,tsc_PI1.5,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
   </rule>
 
+  <rule id="108060" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^audit_anchor$</field>
+    <description>eFa-next: signed daily anchor of the strict audit log written ($(day))</description>
+    <group>pci_dss_10.5.2,pci_dss_10.5.5,gpg13_10.1,gdpr_II_5.1.f,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.9,tsc_CC6.1,tsc_CC7.2,tsc_CC7.3,tsc_PI1.4,tsc_PI1.5,tsc_CC7.1,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108061" level="12">
+    <if_sid>108060</if_sid>
+    <field name="severity">^warning$</field>
+    <description>eFa-next: strict audit log chain broken, the anchor of $(day) records the break</description>
+    <group>pci_dss_10.5.2,pci_dss_11.4,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.9,nist_800_53_SI.4,tsc_CC6.1,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108062" level="9">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^audit_mode_off$</field>
+    <description>eFa-next: $(dstuser) switched the strict audit mode off</description>
+    <group>config_changed,pci_dss_10.5.2,pci_dss_11.4,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.9,nist_800_53_SI.4,tsc_CC6.1,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108063" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^audit_entry$</field>
+    <description>eFa-next: strict audit entry: $(action) by $(dstuser)</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108064" level="5">
+    <if_sid>108063</if_sid>
+    <field name="severity">^warning$</field>
+    <description>eFa-next: strict audit entry not ok: $(action) by $(dstuser)</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108065" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^four_eyes_request$</field>
+    <description>eFa-next: $(dstuser) asked for a four-eyes change ($(command))</description>
+    <group>pci_dss_10.2.5,pci_dss_10.2.2,gpg13_7.6,gpg13_7.8,gpg13_7.13,gdpr_IV_32.2,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_AC.6,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108066" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^console_2fa_failed$</field>
+    <description>eFa-next: wrong 2FA code of console admin $(dstuser)</description>
+    <group>authentication_failed,gdpr_IV_35.7.d,gdpr_IV_32.2,gpg13_7.1,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,pci_dss_10.2.4,pci_dss_10.2.5,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108067" level="10" frequency="5" timeframe="300">
+    <if_matched_sid>108066</if_matched_sid>
+    <same_user />
+    <description>eFa-next: many wrong 2FA codes of console admin $(dstuser)</description>
+    <group>authentication_failures,gdpr_IV_35.7.d,gdpr_IV_32.2,gpg13_7.1,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_SI.4,pci_dss_10.2.4,pci_dss_10.2.5,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108068" level="12">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^admin_network_bruteforce$</field>
+    <description>eFa-next: login lockout: $(src_ip) blocked from the admin network after $(count) failures</description>
+    <group>authentication_failures,gdpr_IV_35.7.d,gdpr_IV_32.2,gpg13_7.1,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_SI.4,pci_dss_10.2.4,pci_dss_10.2.5,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108069" level="12">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^web_lockdown$</field>
+    <description>eFa-next: web admin lockdown ($(reason))</description>
+    <group>pci_dss_11.4,gpg13_4.13,gdpr_IV_35.7.d,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,tsc_CC7.4,</group>
+  </rule>
+
+  <rule id="108070" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^web_lockdown_end$</field>
+    <description>eFa-next: web admin lockdown ended</description>
+    <group>pci_dss_11.4,gpg13_4.13,gdpr_IV_35.7.d,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,tsc_CC7.4,</group>
+  </rule>
+
+  <rule id="108071" level="10">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^breakglass$</field>
+    <description>eFa-next: break-glass admin: $(action) ($(service) from $(source))</description>
+    <group>pci_dss_10.2.5,pci_dss_10.2.2,gpg13_7.6,gpg13_7.8,gpg13_7.13,gdpr_IV_32.2,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_AC.6,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108072" level="13">
+    <if_sid>108071</if_sid>
+    <field name="severity">^critical$</field>
+    <description>eFa-next: break-glass admin used: $(action) ($(service) from $(source))</description>
+    <group>pci_dss_10.2.5,pci_dss_10.2.2,gpg13_7.6,gpg13_7.8,gpg13_7.13,gdpr_IV_32.2,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_AC.6,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108073" level="12">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^cve_alert$</field>
+    <description>eFa-next: $(cve) affects $(package) $(installed), fixed in $(fixed)</description>
+    <group>vulnerability,pci_dss_6.2,pci_dss_11.2.1,gdpr_IV_35.7.d,nist_800_53_SI.2,nist_800_53_RA.5,tsc_CC7.1,</group>
+  </rule>
+
+  <rule id="108074" level="12">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^security_floor_violation$</field>
+    <description>eFa-next: security floor violated by $(service)</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108075" level="12">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^security_floor_guard_error$</field>
+    <description>eFa-next: security floor guard failed for $(service)</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108076" level="8">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^os_check_failed$</field>
+    <description>eFa-next: OS check found $(count) problems</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108077" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^security_findings$</field>
+    <description>eFa-next: security self-check found $(problems) new problems</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108078" level="10">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^rspamd_module_failed$</field>
+    <description>eFa-next: rspamd modules not loaded: $(modules)</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108079" level="8">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^service_not_starting$|^service_sandbox_failed$</field>
+    <description>eFa-next: service $(service) does not start or its sandbox failed</description>
+    <group>service_availability,pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108080" level="8">
+    <if_sid>108030</if_sid>
+    <field name="command">^user-set$|^user-state$|^tenant-set$|^tenant-lock$|^tenant-delete$|^tenant-group-map-set$</field>
+    <description>eFa-next: $(dstuser) changed users, roles or tenants ($(command))</description>
+    <group>config_changed,pci_dss_10.2.7,pci_dss_10.2.5,pci_dss_8.1.2,gpg13_4.13,gdpr_IV_35.7.d,gdpr_IV_32.2,hipaa_164.312.b,hipaa_164.312.a.2.I,hipaa_164.312.a.2.II,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_AC.2,nist_800_53_IA.4,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108081" level="8">
+    <if_sid>108030</if_sid>
+    <field name="command">^user-2fa-reset$|^passkey-reset$|^totp-disable$|^totp-policy-set$|^console-2fa-set$|^admin-password$|^password-change$|^totp-recovery-new$|^token-create$|^token-revoke$|^breakglass-issue$|^breakglass-remove$</field>
+    <description>eFa-next: $(dstuser) changed a credential, 2FA or API token ($(command))</description>
+    <group>config_changed,pci_dss_10.2.7,pci_dss_10.2.5,pci_dss_8.1.2,gpg13_4.13,gdpr_IV_35.7.d,gdpr_IV_32.2,hipaa_164.312.b,hipaa_164.312.a.2.I,hipaa_164.312.a.2.II,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_AC.2,nist_800_53_IA.4,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108082" level="8">
+    <if_sid>108030</if_sid>
+    <field name="command">^login-lockout-set$|^four-eyes-set$|^four-eyes-decide$|^web-allowlist-set$|^admin-idle-set$|^audit-mode$|^ssh-root-set$|^firewall-set$|^pwned-check-set$</field>
+    <description>eFa-next: $(dstuser) changed a security policy ($(command))</description>
+    <group>config_changed,pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108083" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^setup_variant_set$|^setup_eu_locked$|^cluster_mode$</field>
+    <description>eFa-next: setup or cluster mode changed ($(event))</description>
+    <group>config_changed,pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108084" level="6">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^eu_transfer_confirmed$</field>
+    <description>eFa-next: $(dstuser) confirmed a backup target outside the EU for $(domain)</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108085" level="8">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^update_hook_refused$</field>
+    <description>eFa-next: update hook refused: $(reason)</description>
+    <group>pci_dss_10.6.1,pci_dss_11.4,gdpr_IV_30.1.g,gdpr_IV_35.7.d,gpg13_4.14,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_SI.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108086" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^release_upgrade$</field>
+    <description>eFa-next: release upgrade finished</description>
+    <group>config_changed,pci_dss_10.6.1,pci_dss_10.2.7,gpg13_4.10,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,tsc_CC8.1,</group>
+  </rule>
+
+  <rule id="108087" level="10">
+    <if_sid>108086</if_sid>
+    <field name="severity">^critical$</field>
+    <description>eFa-next: release upgrade failed</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108088" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^retro_hit$</field>
+    <description>eFa-next: mail found malicious after delivery: $(message_id)</description>
+    <group>virus,pci_dss_5.1,pci_dss_5.2,pci_dss_11.4,gpg13_4.2,gdpr_IV_35.7.d,nist_800_53_SI.3,nist_800_53_SI.4,tsc_A1.2,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108089" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^dlp_match$</field>
+    <description>eFa-next: outbound DLP rule hit ($(action), $(rules))</description>
+    <group>gdpr_IV_35.7.d,gpg13_4.12,nist_800_53_SI.4,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108090" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^link_blocked$</field>
+    <description>eFa-next: a blocked link was clicked</description>
+    <group>gdpr_IV_35.7.d,gpg13_4.12,nist_800_53_SI.4,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108091" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^lookalike_certificate$</field>
+    <description>eFa-next: look-alike domain certificate: $(domains)</description>
+    <group>gdpr_IV_35.7.d,gpg13_4.12,nist_800_53_SI.4,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108092" level="6">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^sending_limit$</field>
+    <description>eFa-next: sending limit hit by $(who) ($(action))</description>
+    <group>gdpr_IV_35.7.d,gpg13_4.12,nist_800_53_SI.4,pci_dss_11.4,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108093" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^feed_failed$|^blocklist_feed_failed$</field>
+    <description>eFa-next: threat feed update failed</description>
+    <group>pci_dss_5.2,pci_dss_11.4,gdpr_IV_35.7.d,nist_800_53_SI.3,nist_800_53_SI.4,tsc_A1.2,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
+
+  <rule id="108094" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^backup_upload_failed$|^restore_test_failed$</field>
+    <description>eFa-next: backup upload or restore test failed ($(target))</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108095" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^queue_alarm$|^destination_down$|^headers_disk_full$</field>
+    <description>eFa-next: mail flow problem ($(event))</description>
+    <group>service_availability,pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108096" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^hourly_job_failed$|^monitor_cron_restored$|^cluster_update_stopped$|^update_fallback$</field>
+    <description>eFa-next: update or scheduled job problem ($(event))</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108097" level="5">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^tenant_limit$</field>
+    <description>eFa-next: tenant $(tenant) reached its $(limit) limit</description>
+    <group>pci_dss_10.6.1,pci_dss_10.2.6,gpg13_10.1,gdpr_IV_35.7.d,hipaa_164.312.b,nist_800_53_AU.6,nist_800_53_AU.14,nist_800_53_AU.5,tsc_CC7.2,tsc_CC7.3,tsc_CC6.8,</group>
+  </rule>
+
+  <rule id="108098" level="3">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^update_available$</field>
+    <description>eFa-next: update available: $(version)</description>
+    <group>pci_dss_6.2,pci_dss_11.2.1,gdpr_IV_35.7.d,nist_800_53_SI.2,nist_800_53_RA.5,tsc_CC7.1,</group>
+  </rule>
+
+  <rule id="108099" level="10">
+    <if_sid>108098</if_sid>
+    <field name="security">^true$</field>
+    <description>eFa-next: security update available: $(version)</description>
+    <group>vulnerability,pci_dss_6.2,pci_dss_11.2.1,gdpr_IV_35.7.d,nist_800_53_SI.2,nist_800_53_RA.5,tsc_CC7.1,</group>
+  </rule>
+
+  <rule id="108200" level="7">
+    <if_sid>108000, 108001</if_sid>
+    <field name="event">^config_file_changed$</field>
+    <description>eFa-next: $(count) configuration files changed outside efactl ($(files))</description>
+    <group>config_changed,pci_dss_11.5,gpg13_4.11,gdpr_II_5.1.f,hipaa_164.312.c.1,hipaa_164.312.c.2,nist_800_53_SI.7,tsc_PI1.4,tsc_PI1.5,tsc_CC6.1,tsc_CC6.8,tsc_CC7.2,tsc_CC7.3,</group>
+  </rule>
 </group>

@@ -1,7 +1,36 @@
 # Two-factor login (2FA) with TOTP
 
-Under Users, Two-factor login (admins) and in the user portal under Held mail (users) (5r). Off until a user sets it up, or a
-super admin asks for it per role.
+Under Users, Two-factor login (admins) and in the user portal under Held mail (users) (5r).
+
+## Required for every admin (6.0.0.6.7)
+
+Every admin login (super, tenant, domain, manager, helpdesk, read-only, auditor, the main admin `admin`, LDAP logins) must have
+a second factor: TOTP or a passkey. An admin without one sets it up right after the password at the next login and reaches
+nothing else before; nobody is locked out. The console admin (SSH) sets up its own at its first SSH login: the login shell
+shows the app entry and asks for the first code, then shows the ten recovery codes once; the local console (tty) asks for
+nothing, as before.
+
+- New install: from the first login. Upgrade: at the next login after the update, as on a new install: the password, then
+  straight into the 2FA setup, which works with the password, so nobody is locked out. `efactl admin-2fa-heal` (run by the
+  package) writes the day in `/etc/eFa/admin-2fa.json` and puts the console admin behind the login shell.
+- Not affected: the user portal (role user: optional, or per `totp-policy-set --role user`), logins with single sign-on (OIDC:
+  the factor of their provider), the break-glass admin (its one-time codes), API tokens.
+- A 2FA of an admin cannot be switched off any more (`totp-disable`, `console-2fa-set --mode off` refuse); a lost phone is reset
+  as below, and the login sets up a new one at its next login.
+- Fail closed: a missing 2FA table refuses the login (S38), a missing or broken `/etc/eFa/admin-2fa.json` counts as "required now".
+- In a cluster in master/client mode the web 2FA of a login is set up on the master (a node names the master on the setup page);
+  it reaches every node. The console admin is of its host and sets up its 2FA there.
+- Only a development host (the dev flag of efa-init, `/etc/eFa/dev-no-setup-code`, root:root) has no such rule; the hardening
+  report shows "2FA required for every admin role" as failed there. There is no setting that lifts it.
+
+## Every confirmation asks for the code (6.0.0.6.7)
+
+What an admin confirms with the password again (the critical changes of the dashboard, the last step of a wizard, the own login
+under My account) also takes the code of the 2FA app, every time, checked by efactl on the server: there is no "if set up" any
+more. An admin without a 2FA app gets "Set up your 2FA app first" and sets it up under My account; a passkey alone gives no code,
+so such an admin adds an app. The first app is set up with the password only. A confirmation counts five minutes, as before.
+Not affected: the user portal (role user), OIDC logins (the factor of their provider), the console, API tokens (they never do
+these changes) and a development host with the dev flag.
 
 ## Set up
 
@@ -15,8 +44,8 @@ critical changes asks for password and code. A code counts once. Wrong codes cou
 
 ## Rules and resets
 
-- `totp-policy-set --role tenant --mode required`: logins of this role must set up 2FA at their next login; until then they
-  reach only the 2FA setup. Only a super admin sets the rules. Default: optional for every role.
+- `totp-policy-set --role user --mode required`: logins of the user portal must set up 2FA at their next login; until then they
+  reach only the 2FA setup. Only a super admin sets the rules. Admins need 2FA in any case (see above).
 - New phone, old one still there: My account, set up 2FA again (password and current code). The old app counts until the new
   one is confirmed.
 - Lost phone: log in with a recovery code, then set up a new app under My account. Every recovery code used is in the audit
@@ -29,7 +58,7 @@ critical changes asks for password and code. A code counts once. Wrong codes cou
   - the reset ends all open sessions of the login, sends it a mail, and the login must set up a new 2FA at its next login
     before it reaches anything else (before 6.0.0.6.5 it came in with the password alone, unless its role asked for 2FA);
   - with four eyes on, the reset waits for a second admin; every reset is in the audit log (and the strict audit).
-- `totp-disable --code ...` switches it off, not when the role asks for it.
+- `totp-disable --code ...` switches it off, not for an admin and not when the role asks for it.
 - Logins with single sign-on (OIDC) use the second factor of their provider.
 
 The secrets are stored encrypted (AES-256-GCM, key `/etc/eFa/totp.key`, root only) and bound to the user; recovery codes only

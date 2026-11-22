@@ -57,6 +57,10 @@ first-install)
     step /usr/sbin/efactl harvest-set --mode on
     # B6: and failed logins of web, portal, API and port 587, with a week for repeat offenders.
     step /usr/sbin/efactl login-lockout-set --mode on
+    # Hans 2026-11-19: every admin sets up 2FA at the first login (the console admin at its first SSH login).
+    step /usr/sbin/efactl admin-2fa-heal --mode first-install
+    # PCI DSS 8.2.8: admin sessions end after 15 idle minutes on a new install; an upgrade keeps its value.
+    step /usr/sbin/efactl admin-idle-set --minutes 15
     # D2: addresses in the mail log become pseudonyms after 14 days; an upgrade keeps them as they are.
     step /usr/sbin/efactl pseudonymise-set --days 14
     # D3: held mail is stored encrypted with a key per tenant; an upgrade keeps it as it is.
@@ -86,6 +90,8 @@ first-install)
     step /usr/sbin/efactl repo-keys-heal
     ;;
 upgrade)
+    # 6.0.0.6.7: the files of the break-glass admin as they must be (nothing to do without one).
+    step /usr/sbin/efactl breakglass-heal
     # 6.0.0.6: efa-web reaches efactl only through efactl-runner; the sudo rule of 6.0.0.5 and older goes.
     step rm -f /etc/sudoers.d/efa-web
     # The rspamd repository only over https (its own file names http for packages and key).
@@ -100,6 +106,8 @@ upgrade)
     step /usr/sbin/efactl repo-keys-heal
     # DNS-SHARE: the networks that may ask this unbound, in unbound and in the firewall as the list says (release upgrade, restore).
     step /usr/sbin/efactl dns-share-apply
+    # Own host names (2026-11-19): unbound and the block of /etc/hosts as the settings say (nothing to do without any).
+    [ ! -f /etc/eFa/hosts.json ] && [ ! -f /etc/eFa/local.d/hosts.json ] || step /usr/sbin/efactl hosts-apply
     # MIG-ALLOW: a table efa-sender-skip-domaincheck made by hand becomes marked allow entries, in the order of eFa-next.
     step /usr/sbin/efactl sender-skip-heal
     # A confirmation of the legal texts holds on while the terms are the same (only the notices of third parties changed).
@@ -132,11 +140,15 @@ upgrade)
     step /usr/sbin/efactl backup-targets-eu-lock
     # 9n: full access to the rspamd web interface is gone; open access becomes read only for an hour.
     step /usr/sbin/efactl rspamd-sso-upgrade
+    # Hans 2026-11-19: 2FA for every admin, after a notice of 7 days on the dashboard; admins without one set it up at the next login.
+    step /usr/sbin/efactl admin-2fa-heal --mode upgrade
     # The blocklist choices of eFa-next replace the defaults of rspamd once, keeping what filters now.
     [ -f /etc/eFa/rbl.json ] || step /usr/sbin/efactl rbl-apply --keep yes
     step fix_monitor_settings
     # Only rewrites the line of a monitor that is on: maintenance mode stays as it is.
     [ ! -e /etc/cron.d/eFa-Monitor.cron ] || step /usr/sbin/efa-monitor --enable
+    # 6.0.0.6.7: maintenance mode gets its marker; a host without the cron file keeps maintenance mode on, marked (the admin decides).
+    step /usr/sbin/efactl monitor-cron-heal --first yes
     step fix_console_sudo
     step move_old_log_copies
     # The job of the old setup, nothing writes its marker any more.
@@ -196,6 +208,8 @@ p.service_enable("efa-cve-watch.path", start=True)
 p.service_enable("efa-os-check.path", start=True)
 p.service_enable("efa-floor-guard.path", start=True)
 p.service_enable("efa-outbound-hold.timer", start=True)'
+# Package 13: the files of this package and of the setup are the new baseline of the file check (only when it is on).
+step /usr/sbin/efactl fim-renew
 
 if [ -n "$failed" ]; then
     echo "efa-next-setup $1: FAILED:$failed" >&2

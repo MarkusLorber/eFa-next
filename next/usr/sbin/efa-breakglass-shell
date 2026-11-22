@@ -1,0 +1,19 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Markus Lorber and eFa-next contributors
+# Author: Markus Lorber, Lukasz Galusinski
+"""Login shell of the break-glass admin: a note in syslog and to every terminal, then a normal login shell (bash -l) for the
+work of recovery, sudo -i included (each sudo asks a fresh one-time code). The alarm itself comes from the PAM check."""
+import os
+import subprocess
+import syslog
+
+who = os.environ.get('USER') or os.environ.get('LOGNAME') or '?'
+where = (os.environ.get('SSH_CONNECTION') or '').split(' ')[0] or 'local console'
+syslog.openlog('efa-breakglass', 0, syslog.LOG_AUTHPRIV)
+syslog.syslog(syslog.LOG_ALERT, f'break-glass shell of {who} from {where}')
+try:
+    subprocess.run(['wall', f'eFa-next: the break-glass admin {who} logged in from {where}.'], timeout=5, capture_output=True)
+except (OSError, subprocess.SubprocessError):
+    pass
+os.execv('/bin/bash', ['-bash'])

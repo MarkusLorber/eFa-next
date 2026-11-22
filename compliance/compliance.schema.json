@@ -1,0 +1,96 @@
+{
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "$id": "https://efa-next.eu/schema/compliance-1.json",
+ "title": "eFa-next compliance file",
+ "description": "Which technical requirements of a standard eFa-next covers, how far, and the evidence to check each claim. No certification, no legal advice.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["format", "schema", "product", "version", "commit", "date", "source_sha256", "notice", "disclaimer", "summary", "standards"],
+ "definitions": {
+  "text": {"type": "string", "maxLength": 600},
+  "status": {"enum": ["covered", "partial", "not-covered", "out-of-scope"]},
+  "owner": {"enum": ["efa-next", "os", "operator", "shared"]},
+  "evidence": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["type", "ref"],
+   "properties": {
+    "type": {"enum": ["test", "selftest", "hardening", "standard", "command", "file", "wazuh-rule"]},
+    "ref": {"type": "string", "minLength": 1, "maxLength": 200},
+    "key": {"type": "string", "maxLength": 80},
+    "equals": {}
+   }
+  },
+  "control": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["id", "title", "status", "owner", "scope", "limits", "evidence"],
+   "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 60},
+    "title": {"$ref": "#/definitions/text"},
+    "status": {"$ref": "#/definitions/status"},
+    "owner": {"$ref": "#/definitions/owner"},
+    "scope": {"$ref": "#/definitions/text"},
+    "limits": {"$ref": "#/definitions/text"},
+    "evidence": {"type": "array", "items": {"$ref": "#/definitions/evidence"}}
+   }
+  },
+  "counts": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["covered", "partial", "not-covered", "out-of-scope"],
+   "properties": {
+    "covered": {"type": "integer", "minimum": 0},
+    "partial": {"type": "integer", "minimum": 0},
+    "not-covered": {"type": "integer", "minimum": 0},
+    "out-of-scope": {"type": "integer", "minimum": 0}
+   }
+  }
+ },
+ "properties": {
+  "format": {"const": "efa-next-compliance"},
+  "schema": {"const": 1},
+  "product": {"const": "eFa-next"},
+  "version": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+){3,5}$"},
+  "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+  "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+  "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+  "notice": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["legally_binding", "en", "de"],
+   "properties": {
+    "legally_binding": {"const": false},
+    "en": {"type": "string", "minLength": 200},
+    "de": {"type": "string", "minLength": 200}
+   }
+  },
+  "disclaimer": {"const": "DISCLAIMER.md"},
+  "ci": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "unit_tests": {"type": "string"},
+    "self_tests": {"enum": ["ok"]},
+    "tests_referenced": {"type": "integer", "minimum": 0}
+   }
+  },
+  "summary": {"type": "object", "additionalProperties": {"$ref": "#/definitions/counts"}},
+  "standards": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "title", "version", "applies", "controls"],
+    "properties": {
+     "id": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+     "title": {"$ref": "#/definitions/text"},
+     "version": {"$ref": "#/definitions/text"},
+     "applies": {"$ref": "#/definitions/text"},
+     "controls": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/control"}}
+    }
+   }
+  }
+ }
+}

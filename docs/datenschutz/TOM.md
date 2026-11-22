@@ -14,6 +14,7 @@ Den aktuellen Stand eines Systems zeigen `efactl hardening-report` (CIS AlmaLinu
   Passwörter), optional über LDAP/Active Directory oder OpenID Connect, Sitzungen laufen ab
 - Fail2Ban sperrt IP-Adressen nach wiederholten Fehlversuchen bei SSH und SMTP-AUTH; die Weboberfläche sperrt nach mehreren
   Fehlanmeldungen für 5 Minuten
+- Zwei-Faktor-Anmeldung (TOTP oder Passkey) ist für jeden Admin Pflicht, auch für den Konsolen-Admin über SSH (seit 6.0.0.6.7)
 - Firewall mit Freigabeliste für SSH und Weboberfläche, Firewall-Wächter stellt fehlende Regeln wieder her
 - SSH: Root-Anmeldung abschaltbar (Schalter in der Weboberfläche), Schlüssel empfohlen
 - SMTP-AUTH nur über TLS; Neuinstallation: nur Logins der Einlieferer, keine Systemkonten
@@ -34,6 +35,9 @@ Den aktuellen Stand eines Systems zeigen `efactl hardening-report` (CIS AlmaLinu
 - Sicherungen verschlüsselt (AES-256, GnuPG), nur verschlüsselte Sicherungen verlassen das System
 - optional: Mail und Anhänge als AES-256-verschlüsseltes PDF (Stichwort im Betreff oder DLP-Regel)
 - Passwörter der Weboberfläche nur als Hash (PBKDF2-SHA256), Logins der Einlieferer als SHA512-CRYPT
+- Verschlüsselung der Datenträger (Mail-Log, Queue, Datenbank, Quarantäne): Sache des Betreibers, mit LUKS bei der Installation
+  oder auf Ebene der Virtualisierung: `[ja/nein, wie]`. Der Härtungsbericht zeigt, ob die Dateisysteme verschlüsselt sind.
+  eFa-next selbst verschlüsselt gehaltene Mails pro Mandant (AES-256-GCM) und die Sicherungen.
 
 ## 2. Integrität
 

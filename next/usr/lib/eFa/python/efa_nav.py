@@ -117,7 +117,7 @@ NAV = [
                       ('Submitters', ['submitter-list', 'submitter-set', 'submitter-remove', 'outbound-limits-set', 'hijack-list', 'hijack-release']),
                       ('Limits & recipient check', ['message-size-set', 'recipient-verification-set']),
                       ('Header privacy', ['header-privacy-status', 'header-privacy-set'], 'advanced'),
-                      ('TLS with partners', ['tls-partner-list', 'tls-partner-set'], 'advanced')],
+                      ('TLS with partners', ['tls-partner-suggest', 'tls-partner-list', 'tls-partner-set'], 'advanced')],
          'show': ['transports'],
          # Hans 2026-11-15: held accounts show on top in the wizard view too (efa-web flow_top).
          'always': ['hijack-list'],
@@ -251,8 +251,9 @@ NAV = [
                 {'slug': 'sec', 'title': 'Security', 'sub': 'Is this server safe, who may administer it, how logins are protected, which TLS it speaks.',
          # The four tasks are compact cards of their own in both views (efa-web sec_view); the full cards are here, in Expert.
          'sections': [('State of this server', ['security-status', 'security-check', 'floor-status', 'cve-watch-status', 'threat-status'], 'advanced'),
-                      ('Admin access', ['ssh-root-status', 'ssh-root-set', 'web-allowlist-show', 'web-allowlist-set', 'ssh-profile-status', 'ssh-profile-set', 'ssh-profile-confirm'], 'advanced'),
-                      ('Logins', ['login-lockout-status', 'login-lockout-set'], 'advanced'),
+                      ('Admin access', ['login-banner-status', 'login-banner-set', 'ssh-root-status', 'ssh-root-set', 'web-allowlist-show', 'web-allowlist-set', 'ssh-profile-status', 'ssh-profile-set', 'ssh-profile-confirm',
+                                        'breakglass-status', 'breakglass-issue', 'breakglass-remove'], 'advanced'),
+                      ('Logins', ['login-lockout-status', 'login-lockout-set', 'admin-idle-status', 'admin-idle-set'], 'advanced'),
                       ('TLS', ['tls-profile-status', 'tls-profile-set', 'tls-port25-set'], 'advanced'),
                       ('Self check and security minimum', ['security-check-set', 'security-oval-set', 'pwned-check-set', 'floor-check'], 'advanced'),
                       ('Attack alert', ['threat-set'], 'advanced'),
@@ -262,7 +263,8 @@ NAV = [
                       ('Setup variant', ['setup-variant-status', 'setup-offer-dismiss', 'console-2fa-set'], 'advanced'),
                       ('Milter health', ['milter-health-status', 'milter-health-set'], 'advanced'),
                       ('Hardening report', ['hardening-report', 'switches-status', 'tls-min-set', 'kernel-hardening-set', 'service-harden-status', 'service-harden'], 'advanced')],
-         'notes': {'login-lockout-set': 'Counts the failed logins of the web interface, the user portal, the API and port 587 per address. '
+         'notes': {'admin-idle-set': 'Admin sessions end after this many idle minutes; PCI DSS 8.2.8 and NIST SP 800-53 AC-11 ask for 15 at most. Shorter needs nothing more, longer needs your password again and, while four eyes is on, a second admin. The user portal stays at 60 minutes.',
+                   'login-lockout-set': 'Counts the failed logins of the web interface, the user portal, the API and port 587 per address. '
                                         'Relay networks, the firewall allowlist and cluster nodes are never banned.',
                    'ssh-root-set': 'Off also stops the SSH keys of root: only other users can log in then, with sudo. Key-only keeps root keys and stops '
                                    'passwords. Off refuses unless another user has full sudo rights and an SSH key or a password login. '
@@ -296,15 +298,17 @@ NAV = [
                                       'crypto policy), with the reason of each finding. DANE incoming, MTA-STS and TLS-RPT need DNS records '
                                       'or a mailbox. Also in the PDF of the hardening report.'}},
                 {'slug': 'privacy', 'title': 'Privacy & Compliance', 'sub': 'Data of one person, the export of headers, how long what is kept, the audit log and the evidence.',
-         'sections': [('Data of one person (GDPR)', ['gdpr-export', 'gdpr-delete']),
+         'sections': [('Data of one person (GDPR)', ['gdpr-export', 'gdpr-delete', 'gdpr-reapply']),
                       ('Export headers', ['headers-export']),
                       ('Storage & privacy', ['retention-status', 'retention-set', 'pseudonymise-status', 'pseudonymise-set', 'content-reason-set', 'subject-display-set', 'headers-store-set',
                                              'maillog-retention-set', 'maillog-size-set', 'maillog-purge']),
                       ('Audit log', ['audit-search']),
+                      ('Compliance file', ['compliance-verify']),
                       ('Strict audit mode', ['audit-strict-status', 'audit-mode', 'audit-verify', 'audit-anchor-verify', 'audit-rules-set'], 'advanced'),
                       ('NIS2 incidents', ['incident-list', 'incident-open', 'incident-report'], 'advanced'),
                       ('Privacy evidence', ['privacy-evidence'], 'advanced'),
-                      ('Configuration history', ['history-list', 'history-show', 'history-undo'], 'advanced')]}]),
+                      ('Configuration history', ['history-list', 'history-show', 'history-undo'], 'advanced'),
+                      ('File check', ['fim-status', 'fim-set', 'fim-accept'], 'advanced')]}]),
     ('Monitoring & reports', [
                 {'slug': 'report', 'title': 'Mail report', 'sub': 'Summary of the mail log, updated once an hour.',
          'sections': [('Report', ['report-show', 'report-status', 'report-set']), ('Mail history', ['mail-history']), ('Countries of the delivering servers', ['geoip-report']),
@@ -362,6 +366,7 @@ NAV = [
                       ('Restore', ['restore']),
                       ('External backup targets', ['backup-target-list', 'backup-target-set', 'backup-target-test']),
                       ('Settings to another host', ['settings-export', 'settings-import']),
+                      ('Restore test', ['backup-restore-test-status', 'backup-restore-test', 'backup-restore-test-set']),
                       ('Signature key in a hardware module', ['backup-hsm-set'], 'advanced')],
          'notes': {'backup-password-set': 'Automatic backups are encrypted with it. It is stored for root only and never shown '
                                           'again. If you lose it, those backups are unusable.',
@@ -377,17 +382,25 @@ NAV = [
                       ('More interfaces', ['interfaces-list', 'interface-set', 'interface-confirm', 'interface-revert', 'uplink-route-set'], 'advanced'),
                       ('DANE', ['dane-status', 'dane-set', 'tlsa-show', 'letsencrypt-rollover', 'web-cert-set'], 'advanced'),
                       ('MTA-STS', ['mta-sts-show', 'mta-sts-set', 'mta-sts-check', 'mta-sts-text'], 'advanced'),
-                      ('DNS resolver for other networks', ['dns-share-list', 'dns-share-add', 'dns-share-del', 'dns-share-secondary-set'], 'advanced')],
-         'show': ['dns_zones'],
+                      # 2026-11-19: names and addresses as /etc/hosts has them, for Postfix and rspamd too (through unbound).
+                      ('Own host names', ['hosts-list', 'hosts-set', 'hosts-local-set'], 'advanced'),
+                      ('DNS resolver for other networks', ['dns-share-list', 'dns-share-add', 'dns-share-edit', 'dns-share-del', 'dns-share-secondary-set'], 'advanced')],
+         'show': ['dns_zones', 'own_hosts', 'own_hosts_local'],
          'notes': {'interface-set': 'For internal mail servers or a second uplink. The interface of the default route is changed above, not here. '
                                     'Reverts after 5 minutes unless you keep the change; a firewall zone changes only between minute 20 and 50.',
                    'dns-share-add': 'Only the networks listed may ask, everything else stays refused (never an open resolver): at most /8 for IPv4, '
                                     '/32 for IPv6. Each net also opens port 53 in the firewall, from that net only. A net outside the private '
-                                    'ranges needs yes. The other MX of a cluster is one entry, its address.',
-                   'dns-share-secondary-set': 'This host asks its own unbound first, then the other MX.'}},
+                                    'ranges needs the tick for it. The other MX of a cluster is one entry, its address. In a cluster '
+                                    'each entry is for all nodes or for the nodes ticked; each node answers only its own.',
+                   'dns-share-secondary-set': 'This host asks its own unbound first, then the other MX.',
+                   'hosts-set': 'Like a line of /etc/hosts, for all of eFa-next: Postfix, rspamd and the web interface use it. In a cluster '
+                                'the master hands it to every node. Other record types of the name (MX, TXT) stay as DNS has them.',
+                   'hosts-local-set': 'Only in a cluster, for a node that reaches a server under another address: never handed on, '
+                                      'and on this host it wins over the same name of the cluster.'}},
                 # A page of its own (6.0.0.5): on the Security page its reads and cards cost more than the page budget of 100 ms.
         {'slug': 'cluster', 'title': 'Cluster & offline', 'sub': 'Several nodes, staged updates and operation without internet.',
-         'sections': [('Cluster', ['cluster-status', 'cluster-init', 'cluster-mode-set', 'cluster-token', 'cluster-join', 'cluster-resync', 'cluster-mx-check', 'cluster-node-remove', 'cluster-promote', 'cluster-leave'], 'advanced'),
+         'sections': [('Cluster', ['cluster-status', 'cluster-init', 'cluster-mode-set', 'cluster-token', 'cluster-join-check', 'cluster-join',
+                                   'cluster-join-preview', 'cluster-activate', 'cluster-join-status', 'cluster-harden', 'cluster-harden-status', 'cluster-resync', 'cluster-mx-check', 'cluster-node-remove', 'cluster-promote', 'cluster-leave'], 'advanced'),
                       ('Staged cluster updates', ['cluster-update-status', 'cluster-update-set'], 'advanced'),
                       ('Offline operation', ['offline-status', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make'], 'advanced'),
                       ('Cluster: all nodes', ['cluster-maillog', 'cluster-quarantine', 'cluster-queue', 'cluster-mail-action', 'cluster-unban'], 'advanced')]}]),
@@ -431,7 +444,7 @@ ADMIN_PAGES = {page['slug']: page for _, pages in ADMIN_NAV for page in pages}
 # A status shown inside the card of its switch: one card per topic.
 STATUS_OF = {'disclaimer-set': 'disclaimer-status', 'disclaimer-template-set': 'disclaimer-status', 'disclaimer-template-remove': 'disclaimer-status', 'disclaimer-restore': 'disclaimer-status', 'disclaimer-import': 'disclaimer-status', 'retention-set': 'retention-status', 'bulk-set': 'bulk-status', 'archive-set': 'archive-status', 'archive-remove': 'archive-status', 'pdf-set': 'pdf-status', 'pdf-password-set': 'pdf-status', 'dlp-set': 'dlp-status', 'dlp-rule-set': 'dlp-status', 'spool-set': 'spool-status', 'phish-set': 'phish-status', 'banner-set': 'banner-status', 'milter-health-set': 'milter-health-status', 'mta-sts-set': 'mta-sts-show', 'dane-set': 'dane-status', 'links-set': 'links-status', 'ml-set': 'ml-status', 'ml-train': 'ml-status', 'cdr-set': 'cdr-status', 'attachment-set': 'attachment-status', 'neural-set': 'neural-status', 'bec-set': 'bec-status', 'bec-vip-set': 'bec-status', 'bec-partner-set': 'bec-status', 'my-settings-set': 'my-settings', 'audit-mode': 'audit-strict-status', 'audit-rules-set': 'audit-strict-status', 'security-check-set': 'security-status', 'siem-set': 'siem-status', 'otlp-set': 'otlp-status', 'api-set': 'api-status', 'oidc-set': 'oidc-status', 'ldap-set': 'ldap-status',
              'uq-set': 'uq-status', 'report-set': 'report-status', 'sanesecurity-set': 'sanesecurity-status', 'firewall-guard-set': 'firewall-guard-status',
-             'autoupdate-set': 'autoupdate-status', 'ssh-root-set': 'ssh-root-status', 'web-allowlist-set': 'web-allowlist-show', 'wazuh-config': 'wazuh-status'}
+             'autoupdate-set': 'autoupdate-status', 'ssh-root-set': 'ssh-root-status', 'admin-idle-set': 'admin-idle-status', 'login-banner-set': 'login-banner-status', 'web-allowlist-set': 'web-allowlist-show', 'wazuh-config': 'wazuh-status'}
 # Notes longer than this go into a Help block that opens on a click.
 NOTE_SHORT = 110
 
@@ -448,8 +461,10 @@ FORM_SOURCE = {
     'attachment-set': ('attachment-status', {'mode': 'enabled', 'action': 'action', 'encrypted': 'encrypted', 'macros': 'macros', 'names': 'names', 'executables': 'executables', 'add': None, 'remove': None}),
     'audit-mode': ('audit-strict-status', {'mode': 'on', 'require_reason': 'require_reason', 'days': 'days', 'reason': None}),
     'audit-rules-set': ('audit-strict-status', {'mode': 'audit_rules'}),
-    'autoupdate-set': ('autoupdate-status', {'mode': 'mode', 'days': 'days', 'time': 'time'}),
+    'autoupdate-set': ('autoupdate-status', {'mode': 'mode', 'days': 'days', 'time': 'time', 'os': 'os'}),
     'backup-set': ('settings', {'mode': 'auto_backup'}),
+    'backup-restore-test-set': ('backup-restore-test-status', {'monthly': 'monthly'}),
+    'fim-set': ('fim-status', {'mode': 'mode'}),
     'banner-set': ('banner-status', {'mode': 'enabled', 'text': 'text', 'unsigned_only': 'unsigned_only', 'add': None, 'remove': None}),
     'milter-health-set': ('milter-health-status', {'milter': None, 'action': None}),
     'bec-set': ('bec-status', {'mode': 'enabled', 'score_vip': 'scores.vip', 'score_lookalike': 'scores.lookalike', 'score_first_contact': 'scores.first_contact',
@@ -542,10 +557,14 @@ FORM_SOURCE = {
                                    'initial_destination_concurrency': 'initial_destination_concurrency'}),
     'ssh-root-set': ('ssh-root-status', {'mode': 'mode'}),
     'flow-set': ('flow-status', {'animation': 'animation'}),
+    'admin-idle-set': ('admin-idle-status', {'minutes': 'minutes'}),
+    'login-banner-set': ('login-banner-status', {'text': 'text', 'ssh': 'ssh'}),
     'login-lockout-set': ('login-lockout-status', {'mode': 'mode', 'tries': 'tries', 'minutes': 'minutes', 'hours': 'hours', 'repeat': 'repeat'}),
     'harvest-set': ('harvest-status', {'mode': 'mode', 'tries': 'tries', 'minutes': 'minutes', 'hours': 'hours', 'allow': 'allow'}),
     'dkim-provision-set': ('dkim-provision-status', {'mode': 'mode'}),
     'cluster-mode-set': ('cluster-status', {'mode': 'mode'}),
+    'cluster-harden': ('cluster-harden-status', {'select': 'chosen.standards', 'os': 'chosen.os', 'kernel': 'chosen.kernel', 'sandbox': 'chosen.sandbox',
+                                                 'port25_tls': 'chosen.port25_tls', 'ssh': 'chosen.ssh', 'ssh_hosts': 'chosen.ssh_hosts', 'preview': None}),
     'subject-display-set': ('settings', {'mode': 'show_subjects'}),
     'subject-set': ('subject-get', {'text': 'subject_tag'}),
     'submission-pam-set': ('switches-status', {'mode': 'submission_pam'}),
@@ -562,11 +581,11 @@ FORM_SOURCE = {
 }
 # Forms that add, remove or act on one entry, or start a job: nothing to show beforehand.
 FORM_NEW = {
-    'secret-remove', 'settings-export', 'settings-import', 'geoip-import', 'greylisting-exception-set', 'search-save', 'search-delete', 'account-email-set', 'password-change', 'totp-recovery-new', 'totp-setup', 'floor-check', 'release-upgrade', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-password-set', 'backup-target-set', 'backup-target-test',
-    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'web-cert-set', 'gdpr-export', 'gdpr-delete', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-securiteinfo-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-init', 'cluster-join', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
-    'blocklist-entry', 'blocklist-remove', 'legal-accept', 'uplink-route-set', 'ssh-profile-confirm', 'ssh-profile-revert', 'disclaimer-template-remove', 'disclaimer-restore', 'disclaimer-import', 'blocklist-set', 'symbol-score-set', 'dkim-create', 'dkim-generate', 'dkim-generate-ed25519', 'dkim-provision-takeover', 'dkim-remove', 'dkim-source-remove', 'dkim-source-set', 'dlp-rule-set', 'dns-zone-set', 'domain-onboard', 'domain-verify', 'extra-service-set',
+    'secret-remove', 'settings-export', 'settings-import', 'geoip-import', 'greylisting-exception-set', 'search-save', 'search-delete', 'account-email-set', 'password-change', 'totp-recovery-new', 'totp-setup', 'floor-check', 'release-upgrade', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-restore-test', 'fim-accept', 'backup-password-set', 'backup-target-set', 'backup-target-test',
+    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'web-cert-set', 'gdpr-export', 'gdpr-delete', 'gdpr-reapply', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-securiteinfo-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-init', 'cluster-join', 'cluster-activate', 'breakglass-login', 'breakglass-alarm', 'update-staged-run', 'monitor-cron-heal', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
+    'blocklist-entry', 'blocklist-remove', 'legal-accept', 'uplink-route-set', 'ssh-profile-confirm', 'ssh-profile-revert', 'disclaimer-template-remove', 'disclaimer-restore', 'disclaimer-import', 'blocklist-set', 'symbol-score-set', 'dkim-create', 'dkim-generate', 'dkim-generate-ed25519', 'dkim-provision-takeover', 'dkim-remove', 'dkim-source-remove', 'dkim-source-set', 'dlp-rule-set', 'dns-zone-set', 'hosts-set', 'hosts-local-set', 'domain-onboard', 'domain-verify', 'extra-service-set',
     'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
-    'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-share-add', 'dns-share-del', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
+    'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-share-add', 'dns-share-edit', 'dns-share-del', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
     'quarantine-release', 'queue-action', 'rbl-apply', 'rbl-custom-set', 'relay-networks-add', 'relay-networks-remove', 'restore', 'rotation-pregenerate',
     'rotation-run', 'rule-set', 'sender-add', 'sender-list-set', 'sender-move', 'sender-remove', 'sender-rule-set', 'service-restart', 'session-end',
     'submitter-remove', 'submitter-set', 'tenant-delete', 'tenant-domain-set', 'tenant-group-map-set', 'tenant-lock', 'tenant-set', 'token-create',

@@ -13,9 +13,15 @@ it: backups (kept 5 days), the logs of the operating system, and mail already de
 
 `efactl gdpr-delete --address anna@example.com --reason "request 2026-11-08 #12" --confirm yes` deletes the mail log rows,
 stored headers and DNS evidence of these mails, the held mail for the address (the file goes once no other recipient waits
-for it), the spam reports and the BEC relations and writing profile in Redis. Accounts stay (Users), as do entries of the
-sender lists; held mail of this sender for other recipients is the data of those recipients. Backups keep the data for up to
-5 days.
+for it), the spam reports and the BEC relations and writing profile in Redis. With `--accounts yes` also the logins of the
+address (as user name or mail address) with their 2FA, passkeys, API tokens and sessions, through the checks of a removal
+(never the last super admin); with `--lists yes` its entries of the allow and block lists and the rules with it as sender or
+recipient. Held mail of this sender for other recipients is the data of those recipients.
+
+Backups stay as they are (they are signed) and keep the data for up to 5 days. Every erasure therefore goes into an erasure
+list under /var/lib/eFa, outside the backups, with the pseudonym of the address only (the one of the audit log). A restore of
+an older backup erases those addresses again by itself and names the number in its result; `efactl gdpr-reapply` does the
+same by hand, for example after a restore on a new host with the list copied over.
 
 Both steps are in the audit log (and the strict audit log) with the pseudonym of the address and the reason, never the address
 itself.

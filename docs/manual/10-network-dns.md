@@ -34,6 +34,29 @@ Forwarding all names (`.`) is refused. An internal domain below a signed public 
 only. Each change is checked by `unbound-checkconf`; if Unbound does not stay up, the settings of before come back.
 Details: [dns-forwarding.md](../dns-forwarding.md).
 
+### Own host names
+
+Names and addresses like lines of `/etc/hosts`, for all of eFa-next. A pure `/etc/hosts` line would not do: Postfix and rspamd
+ask the own Unbound, never that file. eFa-next writes each name into Unbound (A and AAAA; other record types of the name, such
+as MX, and every name below it are resolved as before) and into a block of `/etc/hosts`. A PTR is set only for private
+addresses, so the real reverse name of a public address stays.
+
+```
+sudo efactl hosts-set --name git.corp.example --action add --addresses "10.0.0.5 2001:db8::5" --note "git server"
+sudo efactl hosts-set --name git.corp.example --action remove
+sudo efactl hosts-list
+```
+
+At most 4 addresses per name and 256 names. Refused: loopback, link-local, multicast and reserved addresses, the name of this
+host (`hostname-set`), and names eFa-next needs the real answer for: localhost, `.arpa`, its update and certificate servers,
+the operating system repositories and the zones of the blocklists. Each change is checked by `unbound-checkconf`; if Unbound
+does not stay up, everything stays as before. In the web interface a change asks for the password and 2FA again.
+
+In a cluster the master hands `hosts-set` to every node (and to a node that joins). A node that reaches a server under another
+address gets a name of its own with `hosts-local-set` (same arguments): it is never handed on and wins on that node over the
+same name of the cluster. A line written by hand in `/etc/hosts` wins there for programs that read the file; `hosts-list`
+names such names under `also_by_hand`.
+
 ### DNS resolver for other networks
 
 *System › DNS resolver for other networks* (super admins, with password and 2FA code) lets other servers of your network, such

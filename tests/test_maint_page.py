@@ -3,6 +3,7 @@
 # Author: Markus Lorber, Lukasz Galusinski
 """Hans 2026-11-17 (UI review, page by page like Security): Maintenance & update by task. Standard shows the Update card, then
 the maintenance mode (its switch in the head) and power; the full cards in Expert."""
+import gc
 import re
 import time
 import unittest
@@ -59,6 +60,8 @@ class MaintPage(unittest.TestCase):
     def test_page_time(self):
         for view in ('standard', 'expert'):
             self.page(view=view)
+            # The garbage of the tests before (the whole suite) is collected first, so the budget counts the page alone.
+            gc.collect()
             start = time.perf_counter()
             self.page(view=view)
             self.assertLess(time.perf_counter() - start, 0.1, view)

@@ -256,6 +256,14 @@ class EL9(Platform):
         if self.manager_running():
             c.run(["systemctl", "start", "--no-block", name], check=False)
 
+    def job_start(self, unit, argv):
+        res = c.run(["systemd-run", f"--unit={unit}", "--collect", "-p", "Nice=19", "-p", "IOSchedulingClass=idle", *argv], check=False)
+        return res.returncode == 0
+
+    def database_folder(self, path):
+        # A second MariaDB runs as mysqld_t and writes only to its data folders; without SELinux chcon fails and nothing is needed.
+        c.run(["chcon", "-t", "mysqld_db_t", path], check=False)
+
     def service_try_restart(self, name):
         name = self.UNIT_ALIASES.get(name, name)
         if self.manager_running():
@@ -376,15 +384,17 @@ class EL9(Platform):
         res = c.run(["dnf", "-y", "downgrade"] + list(files), check=False)
         return res.returncode == 0, (res.stderr or res.stdout)[-300:]
 
-    def configure_auto_updates(self):
+    def configure_auto_updates(self, upgrade_type="security"):
+        """dnf-automatic installs the updates itself: security only (the setup) or all (default). Returns True if changed."""
         path = self.PATHS["dnf_automatic_conf"]
         text = c.read_text(path)
-        new = c.set_ini(text, "commands", {"upgrade_type": "security",
+        new = c.set_ini(text, "commands", {"upgrade_type": upgrade_type,
                                            "download_updates": "yes",
                                            "apply_updates": "yes"})
         new = c.set_ini(new, "emitters", {"emit_via": "stdio"})
         changed = c.write_file(path, new)
-        self.service_enable("dnf-automatic.timer", start=True)
+        if changed or not self.service_is_enabled("dnf-automatic.timer"):
+            self.service_enable("dnf-automatic.timer", start=True)
         return changed
 
     def reboot_required(self):
@@ -422,6 +432,19 @@ class EL9(Platform):
             return []
         res = c.run(["rpm", "-q", "--qf", "%{NAME}\n", "--whatrequires", *provides], check=False)
         return sorted({line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith("no package")})
+
+    def service_started_at(self, name):
+        name = self.UNIT_ALIASES.get(name, name)
+        if not self.manager_running():
+            return 0
+        res = c.run(["systemctl", "show", name, "-p", "ExecMainStartTimestamp", "--timestamp=unix", "--value"], check=False)
+        value = res.stdout.strip().lstrip("@")
+        return int(value) if value.isdigit() else 0
+
+    def package_install_time(self, package):
+        res = c.run(["rpm", "-q", "--qf", "%{INSTALLTIME}\n", package], check=False)
+        times = [int(item) for item in res.stdout.split() if item.isdigit()]
+        return max(times) if res.returncode == 0 and times else 0
 
     def version_older(self, installed, fixed):
         import rpm
@@ -978,23 +1001,26 @@ class EL9(Platform):
         signature = c.run(["rpm", "-qp", "--qf", "%{RSAHEADER:pgpsig} %{SIGPGP:pgpsig}", path], check=False)
         return (checksig.stdout or "") + (checksig.stderr or ""), signature.stdout or ""
 
-    def release_prepare(self, release_rpm, packages):
+    def release_prepare(self, release_rpm, packages, run=None):
         """release_rpm: a local package already checked by release_signature, or None (the tool comes from the enabled
-        repositories). dnf checks the local package against the imported keys once more."""
+        repositories). dnf checks the local package against the imported keys once more. run: how eFa-next runs a dnf
+        transaction (its hooks and wrapper), else plain."""
+        run = run or (lambda argv: c.run(argv, check=False))
         if release_rpm and not self.package_installed("elevate-release"):
-            done = c.run(["dnf", "-y", "--setopt=localpkg_gpgcheck=1", "install", release_rpm], check=False)
+            done = run(["dnf", "-y", "--setopt=localpkg_gpgcheck=1", "install", release_rpm])
             if done.returncode != 0:
                 return False, (done.stderr or done.stdout or "")[-500:]
-        done = c.run(["dnf", "-y", "install"] + list(packages), check=False)
+        done = run(["dnf", "-y", "install"] + list(packages))
         return done.returncode == 0, (done.stderr or done.stdout or "")[-500:]
 
-    def release_cleanup(self, packages):
+    def release_cleanup(self, packages, run=None):
         """After the upgrade: the upgrade tool and its repository go. (ok, last lines of the output)."""
+        run = run or (lambda argv: c.run(argv, check=False))
         installed = [name for name in packages if self.package_installed(name)]
         if not installed:
             return True, ""
         # leapp's names are on the exclude= line of dnf.conf: without --disableexcludes dnf skips them and still ends with 0.
-        done = c.run(["dnf", "-y", "--disableexcludes=main", "remove"] + installed, check=False)
+        done = run(["dnf", "-y", "--disableexcludes=main", "remove"] + installed)
         left = [name for name in installed if self.package_installed(name)]
         output = (done.stderr or done.stdout or "")[-500:]
         return done.returncode == 0 and not left, ("still installed: " + ", ".join(left) + " " if left else "") + output

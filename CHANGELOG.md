@@ -1,5 +1,258 @@
 # Changelog
 
+## 6.0.0.6.7 (2026-11-22)
+
+**Breaking for API clients:** `passkey-reset`, `tls-profile-set`, `tls-min-set`, `backup-target-set`, `gdpr-delete` and
+`update-rollback` are no longer done with an API token alone: like the other critical changes they ask for the password and
+the 2FA code of an admin again. After the update every admin sets up 2FA at the next login; see the 2FA section below.
+
+### GDPR erasure in full
+- `gdpr-delete --accounts yes --lists yes`: also the logins of the address (user name or mail address) with their 2FA,
+  passkeys, tokens and sessions, through the checks of a removal, and its entries of the allow and block lists and rules.
+- Every erasure goes, as the pseudonym of the address only, into an erasure list outside the backups; a restore of an older
+  backup erases those addresses again (also `efactl gdpr-reapply`). The backups stay as they are (signed).
+
+### File check without Wazuh
+- `efactl fim-set --mode on` (Privacy & Compliance, File check; off by default): a baseline of /etc/eFa, /etc/postfix,
+  /etc/rspamd/local.d and /etc/nginx (SHA-256, size and time of each file), signed with the backup key of this host. Before
+  every change through efactl the files are compared with it and after the change it is renewed, so only changes outside
+  efactl count; once a day every file is hashed again. A change outside efactl raises `config_file_changed` (Wazuh rule
+  108200, the first of the new range 108200-108299) and stays in `fim-status` until `fim-accept`.
+- Hardening report: "No configuration file changed outside efactl".
+
+### Restore test
+- `efactl backup-restore-test [--name <backup>]` (Backup & restore, Restore test): checks a backup as a restore would, without
+  changing this host: signature and manifest, then the database into a throwaway MariaDB (own data folder and socket, no
+  network, no events). Every table of the dump must be there. In the background at the lowest CPU and disk priority, after a
+  check of load and disk space; encrypted backups with the stored backup password.
+- `backup-restore-test-set --monthly on`: once a month (off by default). Result in `backup-restore-test-status`, the events
+  `restore_test_ok` and `restore_test_failed` (Wazuh rule 108094), and the hardening check "A restore test of a backup passed in
+  the last 35 days".
+
+### TLS with partners: suggestions
+- `efactl tls-partner-suggest [--days 7]` (Mail routing, TLS with partners): the most frequent recipient domains of the mail log
+  that publish DANE or MTA-STS and have no rule yet, with the level to require (dane-only with DANE here, else verify) and the
+  command to add each. Port 25 stays opportunistic for every other domain.
+- Hardening report: "Incoming mail on port 25 without TLS: under 5 % (7 days)", for information, from the counts of port 25.
+
+### Incident reports: GDPR and DORA
+- `efactl incident-report --stage gdpr` (personal data breach, GDPR Art. 33, 72 hours) and `--stage dora-initial |
+  dora-intermediate | dora-final` (major ICT incident, DORA Art. 19, with the classification criteria of Art. 18), from the
+  same record as NIS2; `incident-open --personal_data --subjects`. eFa-next never sends a report to an authority itself.
+- docs/compliance/incident-response.md: a template of the process around it.
+
+### Compliance: templates and hints
+- Templates, not checked by a lawyer: docs/datenschutz/DSFA.md (impact assessment of the mail filtering, Art. 35 GDPR) and
+  BAA.md (HIPAA Business Associate Agreement); privacy-evidence and compliance-verify give their technical annex.
+- Disk encryption: TOM and the install guide say it is the operator's (LUKS or the virtualisation); the hardening report shows
+  "The file systems of the mail data are encrypted (LUKS)" for information.
+- After the setup the dashboard leads to the hardening wizard for the SSH profile of BSI TR-02102-4 / CIS until it is set (the
+  notice can be hidden); root login off stays a choice of its own.
+
+### Compliance: small packages
+- New installs end admin sessions after 15 idle minutes (an upgraded host keeps its value).
+- The PCI DSS and HIPAA frameworks also keep the mail log at least 365 days (raise only, only when chosen; it holds personal
+  data longer, the setup says so).
+- Hardening report, CIS 1.9: the update policy of eFa-next with the operating system (security or all) counts like
+  dnf-automatic.
+- BSI TR-03116-4 (Stand 2025) complete in the security standards: TLS 1.3 recommended, TLS sessions at most 48 hours, no 0-RTT,
+  certificate keys after TR-02102.
+- Login banner (NIST SP 800-53 AC-8): `efactl login-banner-set`, text before the admin login and optionally before SSH
+  (/etc/issue.net, sshd drop-in); off by default; check in the hardening report.
+
+### Fresh install on EL9: the socket folder of clamd
+- A new install on a fresh EL9 stopped at `scan-limits-set`: clamd could not make `/run/clamd.scan` (its tmpfiles.d entry is
+  applied only at the end of the rpm transaction, after the setup). The base setup makes it first, as it does the spool of
+  Postfix on EL10.
+
+### 2FA required for every admin (behaviour change on upgrade)
+- Every admin login (super, tenant, domain, manager, helpdesk, read-only, auditor, the main admin, LDAP logins) needs a second
+  factor, TOTP or a passkey. An admin without one sets it up right after the password at the next login and reaches nothing
+  else before; nobody is locked out. The console admin sets up its own at its first SSH login (the login shell shows the app
+  entry and asks for the first code); the local console asks for nothing, as before.
+- **Upgrade:** after the update every admin sets up 2FA at the next login (password, then straight into the setup, which works
+  with the password: nobody is locked out). New installs: from the first login. OIDC logins keep the factor of their provider, the user portal and the break-glass admin are unchanged. A 2FA of an
+  admin can no longer be switched off; only a development host (dev flag of efa-init) has no such rule.
+- In a cluster in master/client mode the web 2FA is set up on the master (the node names it) and reaches every node; the
+  console admin of each host sets up its own there.
+- **Every confirmation of an admin asks for the code of its 2FA app** (Hans 2026-11-22): the password again of a critical
+  change, of a wizard and of My account takes the code always, checked by efactl (`user-verify --strict yes`,
+  `admin-2fa-verify --strict yes`), never "if set up". An admin without a 2FA app (also one with a passkey only) is told to set
+  one up first; the first app itself is set up with the password. The user portal and OIDC logins are unchanged.
+- Password and 2FA code are asked again also for `passkey-reset`, `tls-profile-set`, `tls-min-set`, `backup-target-set`,
+  `gdpr-delete` and `update-rollback`; like the other changes of this list they are no longer done with an API token alone.
+- Hardening report: "2FA required for every admin role" (PCI DSS 8.4, NIST SP 800-53 IA-2). Compliance file: PCI DSS 8.4,
+  NIS2 21(2)(j), NIST IA-2, HIPAA 164.312(d), DORA 9(4)(c), ISO A.8.5 covered; PCI DSS 8.3.4 and NIST AC-7 with the
+  compensating control documented in docs/compliance/compensating-controls.md (no lockout per account, on purpose).
+
+### The base system updates with dnf
+- Minor and patch updates of the base system (ClamAV, Redis/Valkey, nginx, rspamd, Python and its modules, Fail2Ban, MariaDB,
+  Postfix) come with a plain `dnf upgrade` and need no eFa-next release; a new major version still waits for a tested release
+  (the exclude lines of the setup stay). The packages of eFa-next require them only with a minimum version.
+- After every package change the services of eFa-next that still run a replaced file restart before the check after package
+  updates, the base first: libraries by `needs-restarting -s`, Python modules by the install time of the package against the
+  start of the service (efa-web and the milters ran old Python code until a reboot). Never firewalld or nginx (after `nginx -t`).
+  *Update system* does the same before its health check. Audit log and result of the check name them.
+- New CI step `third-party-update`: dnf could take every update of the third-party packages, and with the base packages
+  replaced in place the check restarts what ran them and eFa-next stays green.
+
+### DNS for other networks per node
+- In a cluster each entry of *DNS resolver for other networks* is for all nodes (the default; entries of before too) or
+  for the nodes ticked, and `efactl dns-share-edit` (and its form) changes that later. The list goes to every node through
+  the journal of the master; each node answers only the nets of its own entries (unbound and port 53 in the firewall). The
+  list shows the nodes of each entry (a node no longer in the cluster as unknown) and the address each node answers on.
+  The second resolver of a host stays per host. Outside a cluster nothing changes.
+- The (i) help of a tick box no longer asks to type yes (dns-share-add, backup-target-set, restore, cluster-harden,
+  pyzor-set); a test keeps it so.
+- The tick box *I accept the transfer outside the EU* (Pyzor, SIEM and the other services outside the own networks) sent
+  `yes`, which efactl never took as the confirmation: the web form now sends the sentence efactl checks.
+
+### Migration from eFa 5: Let's Encrypt and cron leftovers
+- `certbot renew` failed on migrated hosts ("Could not select or initialize the requested installer apache"): the migration
+  took over one Let's Encrypt lineage, and any other lineage of eFa 5 still named the apache plugin that went with eFa 5.
+  New `efactl letsencrypt-heal` gives every such lineage the renewal settings of the takeover (webroot of nginx, key kept,
+  a copy as `.efa-heal.bak`, audit log); efa-migrate runs it after the takeover.
+- The check after package updates also names renewal settings of eFa 5 and cron lines that cannot run as meant: a line
+  ending in a backslash (cron has no continuation lines), a program that is not there, or software of eFa 5 that is gone.
+- efa-migrate lists at its end the cron jobs eFa-next did not bring (root's crontab, files of /etc/cron.d no package
+  owns) instead of leaving them silently.
+
+### Compliance file of the release
+- First release with a compliance file: `eFa-next-<version>.compliance.json` with `.compliance.md` and `.compliance.de.md`,
+  164 controls in 15 standards (GDPR, CRA, NIS2, DORA, PCI DSS 4.0.1, HIPAA, NIST SP 800-53, NIST CSF 2.0, SOC 2, ISO/IEC 27001
+  Annex A, BSI, CIS AlmaLinux parts, GPG13, RFC 9325, EU digital sovereignty), each with status (covered, partial, not covered,
+  out of scope), owner, scope, limits and evidence. Not a legally binding statement and no certification (DISCLAIMER.md);
+  open to independent checks. docs/compliance/README.md.
+- `scripts/compliance_build.py` builds and checks it (evidence beyond documents, every reference resolves, every named test
+  passed in the same CI run, JSON schema `compliance/compliance.schema.json`); CI step `compliance`; legal rule L16 for its
+  notice; `scripts/compliance_diff.py` for the changes between releases.
+- `efactl compliance-verify [--standard ID]` (read only, auditors too) checks the claims on an installed host: hardening checks,
+  security standards, settings and installed files; *Privacy & Compliance*, *Compliance file*.
+- `tests/test_no_telemetry.py`: the code names no analytics or telemetry service.
+- OSCAL export `eFa-next-<version>.compliance.oscal.json` (OSCAL 1.1.2 component-definition; official ids for NIST SP 800-53
+  Rev. 5, the eFa-next namespace for the others), checked against the pinned official schema in the CI step.
+- *Download verification result* (Privacy & Compliance, super admins and auditors of the whole system, audited): the check of
+  this host as a zip with `result.json`, an Ed25519 signature with the backup signing key (or the hardware module) and the
+  public key; `openssl pkeyutl -verify -rawin` or `efactl compliance-verify-check --file` checks it.
+
+### Compliance: admin idle timeout, NIST SP 800-53, Wazuh compliance groups
+- *Security*, *Logins*: admin sessions end after 5, 10, 15, 30 or 60 idle minutes (`efactl admin-idle-set --minutes N`,
+  `admin-idle-status`). Default 60, so an upgrade changes nothing. Super admins only; a longer timeout asks the password (and
+  2FA) again and, while four eyes is on, waits for a second admin; a shorter one needs nothing more. One value for the whole
+  cluster; efa-web reads it again when it changes, also for sessions already open. The user portal stays at 60 minutes.
+- Hardening report: *Admin sessions end after at most 15 minutes idle* (PCI DSS 8.2.8, NIST SP 800-53 AC-11), for
+  information.
+- Setup frameworks: PCI DSS, HIPAA and the new *NIST SP 800-53 (moderate baseline)* suggest an idle timeout of 15 minutes
+  (only ever shorter, shown in the Re-Setup preview); NIST SP 800-53 also the daily security self check and the TLS profile
+  NIST SP 800-52 Rev. 2. FIPS 140 mode is not supported or tested by eFa-next.
+- Wazuh: every eFa-next rule that raises an alert carries the compliance groups of the Wazuh dashboards (PCI DSS, GDPR, HIPAA,
+  NIST 800-53, GPG13, TSC), copied from the comparable rules of the Wazuh ruleset; new rules 108060-108099 for events that had
+  none (audit anchors and strict audit, four eyes, console 2FA, login lockout, web lockdown, break-glass, CVE alerts, security
+  floor, account, credential and policy changes, update and mail-flow problems); the SCA checks of eFa-next name their controls
+  (NIST SP 800-53, PCI DSS 4.0, HIPAA, SOC 2, GDPR). Mapping in docs/WAZUH.md.
+
+### Cluster: one update policy, every install staged
+- The update settings (eFa-next off/notify/auto, days, time; the operating system off, security only or all) are set on the
+  master and handed on to every node, where they are read only; on joining, the master's policy wins (shown in the preview).
+- Every install in a cluster, eFa-next and operating system, goes through the staged rollout: one node (with its reboot in the
+  same step), its health window from the end of that step, then the next, the master last; dnf-automatic is off on every
+  member. With the operating system off only eFa-next releases are installed. A lease (6 h) that expires.
+- A node without its master for 48 h plus 6 h per place installs security updates alone, once a day, not while a peer updates,
+  with an alarm.
+- Update hooks: `/etc/eFa/update-hooks.d/` with `pre.d`, `post.d` and a `wrapper` for the dnf transaction; only run when root
+  alone can change them (no symlinks), a pre hook can veto, a refused wrapper refuses the update. Every dnf transaction of
+  eFa-next runs inside them (also the automatic install of a release, features, Wazuh, the offline bundle, the tool of the
+  release upgrade); only leapp's own transaction after its reboot is not wrapped (its pre hooks run before).
+### Own host names (like /etc/hosts)
+- New: own host names with up to 4 IPv4/IPv6 addresses each (`efactl hosts-set`, `hosts-list`; card *Own host names* on
+  *Network, DNS & certificate*). Written into Unbound, so Postfix and rspamd use them too (A and AAAA only, typetransparent: other
+  record types and names below stay as DNS has them; a PTR only for private addresses), and into a block of `/etc/hosts`.
+- Names eFa-next needs the real answer for (localhost, `.arpa`, update, certificate and repository servers, blocklist zones),
+  the own host name and loopback, link-local, multicast and reserved addresses are refused. A change Unbound refuses leaves
+  everything as before; a change in the web interface asks for the password and 2FA again; each change is audited.
+- Cluster: `hosts-set` is handed on by the master (journal, and `hosts.json` in the snapshot of a join). `hosts-local-set`
+  (`/etc/eFa/local.d/hosts.json`) stays on its node and wins there over the same name of the cluster. The update, a restore and
+  a join write Unbound and `/etc/hosts` from the settings (`hosts-apply`).
+### Pages by task
+- *My account*: the overview and the guided 2FA stay open; name and phone and my settings are folded below their titles like
+  the password and the e-mail address (one click opens each).
+- *Backup & restore*: the password of the automatic backups is a button in the card *Automatic backup*, the fingerprint of the
+  signing key one in the backup list (titles *Automatic backup: password*, *Backup: fingerprint of the signing key*); the
+  section *Backups* reads as two cards.
+- *Blocklists*: changing one list and your own list are buttons in the table of the blocklists (titles *Blocklists:
+  change one*, *Blocklists: your own list*); the page reads as one screen at 1440 px.
+- *Tenants*: the limits of a tenant are a button in the card *Tenant usage* (title *Tenant usage: limits*); the section
+  *Usage & limits* reads as one card.
+
+### Harden the cluster
+- *Cluster & offline*, *Harden the cluster* (master, super admins, with the password and 2FA again): standards, items of the
+  operating system, kernel settings, the sandbox, TLS on port 25 and the SSH profile for every host the same way, after a
+  preview of each host. The master sends each node a job with these values only (never a command line), from its own
+  certificate, with an id and an expiry (15 minutes, no replay); each node checks them against its own lists and applies
+  them itself, step by step, never lowering anything; a step that fails stays as it was and the others go on; audited on
+  both sides. The firewall stays per host. The SSH profile only on the hosts ticked for it: each waits for its confirmation
+  with a new login on that host (or goes back after 10 minutes), and the master shows *waiting for SSH confirmation* until
+  the host says confirmed or back. A new node takes the master's choice after its join (not its SSH profile). One run at a
+  time, with its progress on the page.
+
+### Break-glass admin
+- *Security*, *Break-glass admin*: a local user with a random name (`efa-bg-` and 8 characters) and ten one-time codes of 128
+  bits, given once in a PDF ("Notfall - sicher verwahren"); only their scrypt hashes are kept, 0600, under
+  `/var/lib/efa-breakglass` (not in backups, exports or the cluster). It has no password, no TOTP and no key. New codes end
+  the old ones at once; a lost PDF means new codes.
+- SSH takes it only from the admin networks (those of the admin web access) and only with a code (keyboard-interactive);
+  from anywhere else it cannot log in at all, and without admin networks not over SSH. Nothing global changes in SSH:
+  password and keyboard-interactive stay off for everyone else, the SSH profile still sets the crypto. The local console
+  takes a code too, with a faillock counter of its own, so a lock-out over SSH never closes the console. sudo asks a fresh
+  code every time (no NOPASSWD). 5 wrong codes in 15 minutes lock it for 15 minutes.
+- Every try, right or wrong, and a lock-out raises an alarm: audit, syslog, the event for SIEM, OpenTelemetry and Wazuh, a mail
+  to every admin. The code goes to its check on stdin only, never in a command line, a log or the audit.
+- The web interface takes the break-glass admin with a code in the password field (no TOTP for this user only), with the rights
+  of the main admin; every try raises the alarm, 5 wrong codes in 15 minutes lock it for 15 minutes. After the login a red bar
+  says so on every page, with the codes left and *New codes*. The dashboard shows every try of the last day. The security self
+  check lists it as the documented exception to MFA (codes left, last use, faillock).
+- The web login of the break-glass admin, like SSH, only from the admin networks; without admin networks it is off (the local
+  console stays the way in). A try from elsewhere is refused before anything is counted, so nobody outside can lock the
+  account; its alarm comes at most once per source in 10 minutes, every try is counted. A wrong code, a try from outside
+  and an unknown user get the same answer, in the same time (every failed login takes at least a second).
+- In a cluster every host keeps its own break-glass admin: `cluster-init` and confirming a join need it first (the PDF), a join
+  never replaces it (the preview says so), and the alarm of a node goes to its master too (a job with id and expiry over the
+  channel of the cluster), for the dashboard there.
+- An existing cluster (6.0.0.6.6 and older) is never held up by a missing break-glass admin: sync, journal, resync, rolling
+  updates and the mode go on. Each host without one shows the red notice *Break-glass admin missing* with the way to make it;
+  the master's Cluster page names the nodes without one, and the Cluster card of its dashboard marks each such node in red
+  (*Break-glass admin missing*) with the button to the Cluster page. Only a new cluster and a new node (a rejoin too: it goes
+  through join and confirmation again) need it first.
+- OS packages stay updatable: the lines of the break-glass admin stand only in the files of sshd, sudo and login (never in the
+  files of authselect); the self check warns when an update of openssh, sudo, util-linux or authselect changed them or left a
+  .rpmnew, and `efactl breakglass-heal` (after every package change and every update of eFa-next) puts them back; a second run
+  changes nothing. `scripts/breakglass_check.sh` checks it on a disposable host, before and after reinstalling those packages.
+
+### Cluster wizard
+- *Cluster & offline* has a card *Set up a cluster*: on the master *This server becomes the master* and *Token for a node*
+  (shown once, valid 30 minutes instead of an hour, with the fingerprint of the master); on the node *Checks before the join*
+  with the address of the master and the token: port 8460 to the master, the token, the same eFa-next version and platform
+  (a cluster of EL9 and EL10 nodes is refused for now), the time, maintenance mode and a release upgrade. The fingerprint is
+  shown to compare; joining needs it. The master answers this check only to a valid token, does not use the token up and
+  says only version, platform and time; it limits the checks per address and in total and writes every refusal with its
+  source into the audit log.
+- A node that joined waits (pending): no traffic from the master, not in the view over all nodes, no rollout, the scrub of the
+  journal does not wait for it. *Show what changes* lists the mail settings, files and services the settings of the master
+  replace; *Back up and take the settings of the master* makes a backup first (none: nothing taken), lets the master reach
+  the node on its port, then takes the settings, in the background with its progress, one run at a time. *Stop and leave*
+  removes the waiting node on the master too. `cluster-join`, `cluster-join-check`, `cluster-join-preview`,
+  `cluster-activate` and `cluster-join-status` are for super admins only; every step asks for the password and 2FA code.
+- The first master is chosen on purpose on its host (there is no default); a box on the master step and in the preview says
+  that the master sets the admin logins, users, passwords and 2FA for all nodes and that the node's are replaced, with the
+  way back in (root on the console, `efactl admin-password`). The preview lists the logins of the node that go (name and
+  role only) and whether the admin who joins exists on the master (asked at the master for that one login, with the token,
+  under the limits of the check); confirming needs the box *I understand that logins are taken over from the master*,
+  checked by efactl.
+- A waiting node gets only a manifest of the settings of the master (names, paths, hashes, sizes): no content, no key, no
+  password, no value; the full settings only after its confirmation. Confirming and leaving carry an id, a time and an
+  expiry (15 minutes); the master refuses a replay, an old or a future one, counted, limited and in the audit log. The
+  progress of the confirmation moves on the page while it runs.
+
 ## 6.0.0.6.6.2 (2026-11-19)
 
 ### Cluster: a node never stops following its master without a word

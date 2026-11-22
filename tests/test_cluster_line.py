@@ -166,6 +166,19 @@ class DashboardCard(Base):
         self.assertNotIn('Cluster page', card, 'all fine: no button')
         self.assertIn('Dieser Host ist der Master (Modus ha).', self.dash('de'))
 
+    def test_node_without_break_glass_admin_in_red(self):
+        # 6.0.0.6.7: per node, red, and the button to the Cluster page; a node of before (no answer about it) stays quiet.
+        self.write({'role': 'master', 'name': 'node-b', 'mode': 'ha'})
+        now = int(time.time())
+        self.health([{'name': 'node-a', 'role': 'node', 'version': '6.0.0.6.7', 'contact': now - 20, 'behind': 0, 'sync': 'ok', 'breakglass': False},
+                     {'name': 'node-c', 'role': 'node', 'version': '6.0.0.6.7', 'contact': now - 20, 'behind': 0, 'sync': 'ok', 'breakglass': True},
+                     {'name': 'node-d', 'role': 'node', 'version': '6.0.0.6.6', 'contact': now - 20, 'behind': 0, 'sync': 'ok', 'breakglass': None}])
+        card = self.dash()
+        self.assertEqual(card.count('Break-glass admin missing'), 1)
+        self.assertIn('node-a <span class="b">Break-glass admin missing</span>', card)
+        self.assertIn('Cluster page', card)
+        self.assertIn('node-a <span class="b">Notfall-Admin fehlt</span>', self.dash('de'))
+
     def test_problems_lead_to_the_cluster_page(self):
         self.write({'role': 'master', 'name': 'node-b', 'mode': 'ha'})
         self.health([{'name': 'node-a', 'sync': 'error', 'error': 'timed out', 'behind': 3}, {'name': 'node-c', 'sync': 'pending'}],
@@ -237,6 +250,7 @@ class Poll(unittest.TestCase):
         self.assertEqual((rows['a']['sync'], rows['a']['behind'], rows['a']['contact']), ('ok', 2, 2000))
         self.assertEqual((rows['b']['sync'], rows['b']['contact'], rows['b']['version']), ('error', 1000, '6.0.0.6.5'), 'the last contact stays')
         self.assertEqual(rows['c']['sync'], 'pending')
+        self.assertIsNone(rows['a']['breakglass'], 'a node of before does not say')
         self.assertNotIn('host', json.dumps(health), 'no addresses in the card file')
         self.assertTrue(health['mx']['ok'])
 
@@ -244,6 +258,12 @@ class Poll(unittest.TestCase):
 class Files(unittest.TestCase):
     """2026-11-18: the two files are state, not configuration: in /var/lib/efa-cluster (0755, /var/lib/eFa is root only), not in
     /etc; not in config backups or the snapshot of the cluster; files of before under /etc/eFa go."""
+
+    def test_break_glass_from_the_answer_and_kept_while_away(self):
+        state = {'role': 'master', 'nodes': {'a': {}, 'b': {}}}
+        rows = efa_cluster.health_rows(state, {'a': {'breakglass': False, 'applied': 1}, 'b': OSError('x')}, {'nodes': [{'name': 'b', 'breakglass': True}]}, 1, 5)
+        self.assertEqual([row['breakglass'] for row in rows], [False, True])
+        self.assertIsNone(efa_cluster.health_rows(state, {'a': {'breakglass': 'yes'}}, {}, 1, 5)[0]['breakglass'], 'only a true or false')
 
     def test_where_and_not_in_backups(self):
         self.assertEqual(efa_cluster.view_file(), '/var/lib/efa-cluster/view.json')

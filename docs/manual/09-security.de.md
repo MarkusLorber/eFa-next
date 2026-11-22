@@ -115,6 +115,7 @@ gesetzt sind; der **Firewall-Test** prüft Ports und SMTP, wahlweise über eine 
 | Angriffswarnung | letztes Ergebnis und Empfindlichkeit der Angriffsprüfung (Kapitel 4) |
 | Adress-Ausspähung | sperrt Absender, die in wenigen Minuten viele unbekannte Empfänger probieren |
 | Fehlanmeldungen | Sperre nach Fehlanmeldungen an Weboberfläche, Portal, API und Port 587 |
+| Leerlaufzeit der Admin-Sitzungen | Admin-Sitzungen enden nach 5, 10, 15, 30 oder 60 Minuten ohne Aktivität (Standard 60; das Benutzerportal bleibt bei 60). Länger fragt das Passwort erneut |
 | Sicherheits-Selbstprüfung | prüft den Host täglich; wahlweise neue Passwörter gegen bekannte Datenlecks (Have I Been Pwned, k-Anonymität: nur ein Hash-Anfang verlässt den Host) |
 | CVE-Wache | gleicht die installierten Pakete mit veröffentlichten Schwachstellen ab |
 | Konfigurationsverlauf | jede Änderung mit altem und neuem Wert; *Rückgängig* nimmt eine zurück |
@@ -126,6 +127,18 @@ gesetzt sind; der **Firewall-Test** prüft Ports und SMTP, wahlweise über eine 
 | Härtungsbericht | der Zustand aller Härtungsschalter, auch als PDF (`/hardening.pdf`) |
 
 Alle Änderungen aus Web und Konsole stehen im Audit-Log (*Benutzer › Audit-Log*).
+
+## Dateiprüfung ohne Wazuh
+
+*Dateiprüfung: an oder aus* auf der Seite Datenschutz & Compliance (`efactl fim-set --mode on`, ab Werk aus) führt eine
+Basislinie von /etc/eFa, /etc/postfix, /etc/rspamd/local.d und /etc/nginx: SHA-256, Größe und Zeit jeder Datei, signiert mit
+dem Sicherungsschlüssel dieses Hosts. Vor jeder Änderung über efactl (Weboberfläche, Konsole, Timer) werden die Dateien mit ihr
+verglichen, nach der Änderung wird sie erneuert: Es zählt nur eine Änderung außerhalb von efactl, etwa mit einem Editor oder
+einem anderen Programm. Die Prüfung vor einer Änderung vertraut Größe und Zeit; einmal am Tag wird jede Datei neu gehasht. Eine
+Änderung außerhalb von efactl löst das Ereignis `config_file_changed` aus (Wazuh-Regel 108200) und bleibt unter *Dateiprüfung:
+Status*, bis ein Admin sie annimmt (`efactl fim-accept --file <Pfad>` oder `all`). Die Paket-Einrichtung erneuert die Basislinie am Ende eines Updates; ein Update über eFa-next (automatisch oder *System aktualisieren*) wird vor dnf geprüft, ein Update von Hand mit dnf nicht. Ein neuer Lauf des Einrichtungsassistenten
+ändert Dateien außerhalb von efactl: danach annehmen. Mit dem Wazuh-Agenten überwacht zusätzlich dessen Dateiintegrität
+(Regel 108050) dieselben Ordner.
 
 ## Sicherheitsrichtlinie
 

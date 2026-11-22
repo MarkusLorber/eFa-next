@@ -28,6 +28,13 @@ For a fresh host with version 9 (EL9) of AlmaLinux, Rocky Linux, CentOS Stream o
   Peaks matter more than the daily sum: 500,000 mails a day are about 350 a minute on average, 5 to 10 times that at peak.
   The disk holds the mail log, the headers of all mail and the quarantine for 30 days by default; more days, more disk.
 
+## Disk encryption
+
+eFa-next encrypts held mail per tenant and its backups, but not the mail log, the queue, the database or the quarantine on disk.
+Encrypting the disks is the operator's: LUKS when installing AlmaLinux (choose "Encrypt my data"; the host then needs the
+passphrase at boot, or a TPM/Clevis/Tang unlock), or encryption on the layer of the virtualisation or the storage. The hardening
+report shows "The file systems of the mail data are encrypted (LUKS)" for information; it sees only dm-crypt on this host.
+
 ## Dedicated server
 
 eFa-next needs a server or VM of its own. Only eFa-next and the operating system run on it: no other server services, no other

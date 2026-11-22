@@ -76,10 +76,11 @@ class Http2(unittest.TestCase):
         self.assertEqual(found, [])
 
     def test_no_claim_of_fixed_versions(self):
-        # 2026-11-18: the fixed nginx versions are not confirmed; status names the setting, the version and the config only.
+        # The upstream versions (1.30.7 / 1.31.9) say nothing about EL packages, which get the fixes backported under their own
+        # version: never a check by them. The fixed releases of the vendor are in NGINX_FIXED (test_nginx_min_evr).
         self.assertFalse(hasattr(self.efactl, 'nginx_http2_fixed'))
         source = open(os.path.join(ROOT, 'next', 'usr', 'sbin', 'efactl'), encoding='utf-8').read()
-        self.assertNotRegex(source, r'CVE-2026-12\d{4}')
+        self.assertNotRegex(source, r'1\.30\.7|1\.31\.9')
 
     def host(self, folder, mode):
         efactl = self.efactl

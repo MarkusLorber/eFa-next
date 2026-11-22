@@ -38,13 +38,16 @@ Paketquelle ist für normale Systemupdates aus (`enabled=0`): `dnf upgrade` alle
 
 - **Automatische eFa-next-Updates:** *aus*, *melden* (Standard) oder *automatisch*, mit Wartungstagen und -uhrzeit.
   *Automatisch* installiert im Fenster, mit Sicherung davor und Gesundheitsprüfung danach.
+- **Updates des Betriebssystems:** *aus*, *nur Sicherheitsupdates* oder *alle Updates*. Auf einem Host allein installiert
+  dnf-automatic sie wie eingestellt. Der erste Start von 6.0.0.6.7 übernimmt, was da war: *Sicherheit*, wenn dnf-automatic an
+  war, sonst *aus*. Im Cluster siehe [Updates im Cluster](#updates-im-cluster).
 - **Jetzt nach einem eFa-next-Update suchen** und **Das eFa-next-Update jetzt installieren** tun dasselbe sofort.
 - Ein Sicherheitsrelease ist im Dashboard als solches markiert; die Sicherheits-Selbstprüfung meldet ein fehlendes nach 7 Tagen.
 
 ```bash
 sudo efactl update-check
 sudo efactl update-install --confirm yes
-sudo efactl autoupdate-set --mode auto --days "sat sun" --time 03:00
+sudo efactl autoupdate-set --mode auto --days "sat sun" --time 03:00 --os security
 ```
 
 Von Hand aus der Paketquelle (zuerst die Paketquellen-Datei, siehe
@@ -84,6 +87,73 @@ Updates des Betriebssystems lassen sich so nicht zurücknehmen: Vor großen Upda
 - Nach jeder Änderung der installierten Pakete läuft eine Prüfung: die Konfigurationstests von Postfix, nginx, rspamd, Unbound und
   fail2ban, die Maildienste und `.rpmnew`/`.rpmsave`-Dateien. Ein Fehler ist rot im Dashboard und geht per Mail an den Admin
   (*Prüfung nach Paketupdates: jetzt ausführen*).
+- Vor dieser Prüfung starten die Dienste von eFa-next neu, die noch eine vom Update ersetzte Datei verwenden: zuerst der
+  Unterbau (MariaDB, Redis/Valkey, Unbound, ClamAV, rspamd, Fail2Ban, Postfix, Dovecot), dann die Dienste von eFa-next, auch nach
+  einem Update der Python-Module, die sie laden. Nie auf diesem Weg neu gestartet: firewalld (es verlöre seine Laufzeitregeln)
+  und nginx (Neustart nach `nginx -t`). Die neu gestarteten Dienste stehen im Audit-Log und im Ergebnis der Prüfung.
+
+### Der Unterbau mit dnf
+
+Der Unterbau (ClamAV, Redis/Valkey, nginx, rspamd, Python und seine Module, Fail2Ban, MariaDB, Postfix und das übrige
+Betriebssystem) wartet nicht auf ein eFa-next-Release: Minor- und Patch-Updates kommen mit einem einfachen `dnf upgrade`, mit
+*System aktualisieren* oder mit den automatischen Betriebssystem-Updates (*nur Sicherheitsupdates* oder *alle Updates*). Die
+Pakete von eFa-next verlangen diese Pakete nur mit einer Mindestversion, nie mit einer Obergrenze.
+
+Eine neue **Major**-Version (ClamAV 2, rspamd 5, Flask, Werkzeug oder Waitress 4, pymilter 2, Fail2Ban 2) kommt nur mit einem
+eFa-next-Release, das damit getestet ist: Das Setup trägt diese Major-Versionen in die `exclude`-Zeile von `/etc/dnf/dnf.conf`
+und des rspamd-Repositorys ein. Diese Zeilen nicht entfernen. Das eFa-next-Release, das eine neue Major-Version unterstützt,
+entfernt sie selbst.
+
+```bash
+sudo dnf upgrade                   # der Unterbau, innerhalb seiner Major-Versionen
+sudo efactl os-check-run           # die Prüfung nach Paketupdates sofort (sie läuft auch von selbst)
+```
+
+## Updates im Cluster
+
+Im Cluster gelten die Update-Einstellungen des Masters (`/etc/eFa/update-policy.json`, an jeden Knoten weitergegeben). Auf einem
+Knoten sind sie nur lesbar (*Verwaltet von* dem Master); `autoupdate-set`, *System aktualisieren* und *Installieren* werden dort
+abgelehnt. dnf-automatic ist auf jedem Mitglied aus. Jede Installation, eFa-next und Betriebssystem, läuft über die gestaffelte
+Verteilung des Masters: Ein Knoten installiert (mit Neustart im selben Schritt, wenn die Pakete einen brauchen), der Master
+wartet sein Gesundheitsfenster ab dem Ende dieses Schritts, dann folgt der nächste Knoten, der Master zuletzt. Ein Knoten, der
+scheitert oder nicht zurückkommt, stoppt die Verteilung und löst einen Alarm aus. Mit *Betriebssystem aus* installiert die
+Verteilung nur eFa-next-Releases (im Modus *automatisch*), nie Pakete.
+
+- Ein Knoten hält während seines Schritts eine Sperre von 6 Stunden; ein zweiter Schritt wartet darauf, die Sperre eines toten
+  Knotens läuft ab.
+- Ohne seinen Master für 48 Stunden plus 6 Stunden je Platz in der Liste der Knoten (der erste nach 48 h, der zweite nach 54 h
+  ...) installiert ein Knoten die Sicherheitsupdates des Betriebssystems allein, einmal am Tag, nie ein eFa-next-Release, und
+  nicht, solange ein anderer Knoten ein Update meldet. Jedes Mal ein Alarm und eine Mail. Ist der Master zurück, installiert nur
+  seine Verteilung.
+- Beim Beitritt ersetzt die Richtlinie des Masters die des Knotens; die Vorschau des Beitritts zeigt es (*Updates*).
+
+## Update-Hooks
+
+`/etc/eFa/update-hooks.d/` führt eigene Programme rund um ein Systemupdate aus (und damit rund um jeden Schritt der Verteilung):
+
+| Pfad | Wann | Ein Fehler |
+|---|---|---|
+| `pre.d/*` | vor der Sicherung | stoppt das Update (ein Veto) |
+| `post.d/*` | nach den Paketen, vor einem Neustart | wird gemeldet, das Update bleibt |
+| `wrapper` | führt die dnf-Transaktion aus; bekommt die ganze dnf-Befehlszeile als Argumente | das Update scheitert |
+
+Jeder Hook bekommt seine Phase (`pre`, `post`) als Argument und `EFA_UPDATE_JOB`, `EFA_UPDATE_OS`, `EFA_UPDATE_DRY_RUN`; er hat
+10 Minuten. Ein Hook läuft nur, wenn der Ordner und jeder Ordner darüber root gehören und für Gruppe und andere nicht schreibbar
+sind, und er eine normale Datei ist (kein Symlink), root:root gehört, ausführbar ist und für Gruppe und andere nicht schreibbar.
+Einer, der die Prüfung nicht besteht, wird mit Alarm ausgelassen; ein Wrapper, der sie nicht besteht, lehnt das ganze Update mit
+Alarm ab, nie ersatzweise reines dnf. Hooks gehören jedem Host: Im Cluster werden sie nicht weitergegeben.
+
+Jede dnf-Transaktion, die eFa-next startet, läuft darin: das Systemupdate, die Installation eines eFa-next-Releases (auch die
+automatische) und der Weg zurück, jeder Schritt der Verteilung und die Ausweichinstallation, die Pakete einer Funktion, Wazuh,
+das Offline-Paket und das Werkzeug des Release-Upgrades; die Pre- und Post-Hooks laufen einmal darum herum. Nicht über den
+Wrapper: die eigene Transaktion von leapp beim Release-Upgrade auf AlmaLinux 10 läuft nach dem Neustart in dessen
+Upgrade-Umgebung. Die Pre-Hooks des Release-Upgrades laufen davor und können es stoppen; prüfen Sie die Pakete Ihres Wrappers nach
+diesem Upgrade.
+
+```bash
+sudo install -d -m 0755 /etc/eFa/update-hooks.d/pre.d
+sudo install -m 0755 mein-wrapper /etc/eFa/update-hooks.d/wrapper   # z. B. exec /usr/local/sbin/mein-safe-update "$@"
+```
 
 ## Wartung
 

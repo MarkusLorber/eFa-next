@@ -142,6 +142,11 @@ class StepTests(RootTestCase):
         self.assertIn("#TCPSocket 3310", text)
         self.assertIn("LocalSocket /run/clamd.scan/clamd.sock", text)
         self.assertIn(["usermod", "-a", "-G", "virusgroup", "_rspamd"], self.runner.calls)
+        self.assertNotIn(["systemd-tmpfiles", "--create", "clamd.scan.conf"], self.runner.calls)
+        # A fresh EL9: the socket folder of clamd from tmpfiles.d before the setup restarts clamd (its rpm trigger runs later).
+        self.write("usr/lib/tmpfiles.d/clamd.scan.conf", "d /run/clamd.scan 0710 clamscan virusgroup -\n")
+        s.step_clamav()
+        self.assertIn(["systemd-tmpfiles", "--create", "clamd.scan.conf"], self.runner.calls)
 
     def test_firewall_never_reloads(self):
         self.runner.active.add("firewalld")

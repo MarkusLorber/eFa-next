@@ -118,6 +118,14 @@ def form_fields(html):
     return found
 
 
+# Links of a task card into the Expert view of ANOTHER page (until the rule resolves every cross-page anchor on its target page,
+# after 6.0.0.6.7): each listed here, its anchor checked on the target page by check_standard.
+CROSS_PAGE_LINKS = {
+    # The cluster wizard (Cluster page): first the break-glass admin of the host, on the Security page (2026-11-18).
+    '/p/sec?view=expert&amp;next=cluster#breakglass-issue': ('sec', 'breakglass-issue'),
+}
+
+
 def task_card_problems(slug, standard, expert):
     """6.0.0.6.6: a task card (class card task) exists only in the standard view and sums up full cards of Expert. It needs a
     control or a link to ?view=expert#anchor; every such anchor exists in Expert; every field it posts has the same value as
@@ -173,6 +181,9 @@ def check_standard(web):
             continue
         cards_expert = dict(card.findall(expert[slug]))
         broken.extend(task_card_problems(slug, html, expert[slug]))
+        for link, (target, anchor) in CROSS_PAGE_LINKS.items():
+            if link in html and f'id="{anchor}"' not in expert.get(target, ''):
+                broken.append(f'{slug}: link {link}, whose card {anchor} the expert view of {target} lacks')
         for name, body in card.findall(html):
             if '<form' not in body and '<button' not in body and 'warnbox' not in body and name not in web.WARNING_CARDS | web.DAILY_LISTS:
                 broken.append(f'{slug}/{name}: no control')

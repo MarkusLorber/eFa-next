@@ -11,6 +11,7 @@ import importlib.util
 import os
 import re
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -87,7 +88,9 @@ class SyncFindings(unittest.TestCase):
             def make_request(self, base, name):
                 return 'CSR'
 
-            def join_request(self, host, port, ca, body):
+            def join_request(self, host, port, ca, body, path='/v1/join'):
+                if path == '/v1/precheck':
+                    return {'version': '6.0.0.6.6', 'platform': 'el10', 'time': int(time.time())}
                 self.body = body
                 return {'ca': 'CA', 'cert': 'CERT', 'master': 'node-a', 'master_fingerprint': 'MF', 'mode': 'ha', 'version': '6.0.0.6.6',
                         'platform': 'el10'}
@@ -110,7 +113,8 @@ class SyncFindings(unittest.TestCase):
                 mock.patch.object(self.efactl, '_secrets', lambda count, prompt: ['token']), \
                 mock.patch.object(self.efactl, '_write', lambda path, text, *a: None), mock.patch.object(self.efactl, '_cluster_service', lambda on: None), \
                 mock.patch.object(self.efactl, 'cluster_resync', lambda args: {}), mock.patch.object(self.efactl, 'cluster_status', lambda args: {}), \
-                mock.patch.object(self.efactl, '_own_names', lambda: ['mx2.example.org']), mock.patch.object(self.efactl.os, 'makedirs', lambda *a, **k: None):
+                mock.patch.object(self.efactl, '_own_names', lambda: ['mx2.example.org']), mock.patch.object(self.efactl.os, 'makedirs', lambda *a, **k: None), \
+                mock.patch.object(self.efactl, '_efa_version', lambda: '6.0.0.6.6'):  # not the version installed here
             self.efactl.cluster_join(args)
         self.assertEqual(written[-1]['mode'], 'ha', 'the mode of the answer, not master-client until the first poll')
         self.assertEqual(written[-1]['master']['platform'], 'el10')

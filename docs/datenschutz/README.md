@@ -11,6 +11,8 @@ Rechtsberatung.
 | [VVT.md](VVT.md) | Eintrag für das Verzeichnis von Verarbeitungstätigkeiten (Art. 30 DSGVO) |
 | [TOM.md](TOM.md) | Technische und organisatorische Maßnahmen (Art. 32 DSGVO), soweit eFa-next sie umsetzt |
 | [AVV.md](AVV.md) | Gerüst für einen Auftragsverarbeitungsvertrag (Art. 28 DSGVO), für MSPs, die eFa-next für Kunden betreiben |
+| [DSFA.md](DSFA.md) | Datenschutz-Folgenabschätzung (Art. 35 DSGVO) für die Mailfilterung; nicht anwaltlich geprüft |
+| [BAA.md](BAA.md) | Business Associate Agreement (HIPAA, englisch) für Betreiber, die ePHI im Mailfluss verarbeiten; nicht anwaltlich geprüft |
 
 Platzhalter stehen in eckigen Klammern: `[Name des Verantwortlichen]`.
 

@@ -71,11 +71,19 @@ WEB_CERT_LATER = ("Own ECDSA certificate of the web interface: only from Let's E
                   "step Let's Encrypt; without them, or if Let's Encrypt fails, the self-signed certificate stays (later: Security standards).")
 
 # Raises: admin_2fa (2FA required for every admin role), audit_days (keep the audit log at least so long), tls (the TLS profiles
-# that count; any other becomes bsi), security_daily (security self check every day). A framework without a setting of its own
-# in eFa-next has a note only: no pretended protection.
+# that count; any other becomes bsi), security_daily (security self check every day), idle_minutes (admin sessions end after so
+# many idle minutes at most: PCI DSS 8.2.8, NIST SP 800-53 AC-11). A framework without a setting of its own in eFa-next has a
+# note only: no pretended protection.
 _NIS2 = {'admin_2fa': True, 'audit_days': 365, 'tls': ('bsi', 'mozilla-modern')}
 _ISO = {'admin_2fa': True, 'security_daily': True}
 _INTL = {'admin_2fa': True, 'audit_days': 365, 'tls': ('bsi', 'rfc9325', 'mozilla-modern')}
+_IDLE15 = {**_INTL, 'idle_minutes': 15}
+# PCI DSS 10.5.1: logs 12 months. The mail log holds personal data: only raised when the framework is chosen (GDPR Art. 5(1)(e)).
+_CARD_HEALTH = {**_IDLE15, 'maillog_days': 365}
+MAILLOG_NOTE = ('Keeps the mail log at least 365 days (the framework asks 12 months of logs): personal data are kept longer '
+                '(GDPR Art. 5(1)(e)); set the retention back only if this framework does not apply.')
+NIST_80053_NOTE = ('Moderate baseline, technical part only; a non-binding suggestion. FIPS 140 mode is not supported or tested by '
+                   'eFa-next.')
 NIS2_NOTE = 'NIS2 incident records and reports: Users, NIS2 incidents.'
 BSI_NOTE = 'SSH after BSI TR-02102-4: hardening report, efactl ssh-profile-set --mode bsi.'
 ISO_NOTE = 'Record of processing and TOM: Users, Privacy evidence.'
@@ -103,10 +111,11 @@ FRAMEWORKS = {
     'hgb-ao-gobd': ('HGB/AO/GoBD (DE)', 2, {}, RETENTION_NOTE),
     'revdsg': ('revDSG (CH)', 3, {}, NO_SETTING_NOTE),
     'uk-gdpr': ('UK GDPR', 3, {}, NO_SETTING_NOTE),
-    'pci-dss': ('PCI DSS', 3, _INTL, ''),
-    'hipaa': ('HIPAA (US)', 3, _INTL, ''),
+    'pci-dss': ('PCI DSS', 3, _CARD_HEALTH, MAILLOG_NOTE),
+    'hipaa': ('HIPAA (US)', 3, _CARD_HEALTH, MAILLOG_NOTE),
     'soc2': ('SOC 2', 3, _INTL, ''),
     'nist-csf': ('NIST CSF', 3, _INTL, ''),
+    'nist-800-53': ('NIST SP 800-53 (moderate baseline)', 3, {**_IDLE15, 'security_daily': True}, NIST_80053_NOTE),
 }
 ADMIN_ROLES = ('super', 'tenant', 'domain', 'manager', 'helpdesk', 'readonly', 'auditor')
 NOTE_RE = re.compile(r'^[\w .,;:()/&+\'-]{0,200}$')
@@ -161,7 +170,8 @@ def frameworks_clean(ids):
 
 def targets(ids, variant, eulink):
     """What the guided setup and the frameworks ask for, before comparing it with the system."""
-    wanted = {'admin_2fa': False, 'main_admin_2fa': variant == 'guided', 'audit_days': 0, 'tls': None, 'security_daily': False}
+    wanted = {'admin_2fa': False, 'main_admin_2fa': variant == 'guided', 'audit_days': 0, 'tls': None, 'security_daily': False, 'idle_minutes': 0,
+              'maillog_days': 0}
     if variant != 'guided':
         return wanted
     for key in frameworks_clean(ids) + (['gdpr'] if eulink == 'yes' else []):
@@ -169,13 +179,17 @@ def targets(ids, variant, eulink):
         wanted['admin_2fa'] |= raises.get('admin_2fa', False)
         wanted['security_daily'] |= raises.get('security_daily', False)
         wanted['audit_days'] = max(wanted['audit_days'], raises.get('audit_days', 0))
+        wanted['maillog_days'] = max(wanted['maillog_days'], raises.get('maillog_days', 0))
+        if raises.get('idle_minutes'):
+            wanted['idle_minutes'] = min(wanted['idle_minutes'] or raises['idle_minutes'], raises['idle_minutes'])
         if 'tls' in raises:
             wanted['tls'] = tuple(item for item in (wanted['tls'] or raises['tls']) if item in raises['tls']) or ('bsi',)
     return wanted
 
 
 def plan(current, wanted):
-    """The changes, each [setting, now, then]: only up, never down. current: policy (role: mode), audit_days, tls, security_daily."""
+    """The changes, each [setting, now, then]: only up, never down. current: policy (role: mode), audit_days, tls, security_daily,
+    idle_minutes (the idle timeout only ever gets shorter)."""
     changes = []
     roles = ADMIN_ROLES if wanted['admin_2fa'] else ()
     for role in roles:
@@ -189,6 +203,10 @@ def plan(current, wanted):
         changes.append(['tls_profile', current['tls'], 'bsi'])
     if wanted['security_daily'] and not current['security_daily']:
         changes.append(['security_daily', False, True])
+    if wanted.get('maillog_days') and current.get('maillog_days', 0) < wanted['maillog_days']:
+        changes.append(['maillog_days', current.get('maillog_days', 0), wanted['maillog_days']])
+    if wanted.get('idle_minutes') and current.get('idle_minutes', 60) > wanted['idle_minutes']:
+        changes.append(['idle_minutes', current.get('idle_minutes', 60), wanted['idle_minutes']])
     return changes
 
 
@@ -342,8 +360,22 @@ def self_test():
     assert not [c for c in changes if c[0] in ('audit_days', '2fa:super')], 'never down, nothing already there'
     assert plan({**current, 'audit_days': 3000, 'tls': 'mozilla-modern'}, targets(['dora'], 'guided', 'no'))[-1][0] != 'audit_days'
     assert ['2fa:main-admin', 'optional', 'required'] in plan(current, targets([], 'guided', 'no'))
+    # The idle timeout: PCI DSS, HIPAA and NIST SP 800-53 ask for 15 minutes; only ever shorter, never in manual.
+    assert targets(['pci-dss'], 'guided', 'no')['idle_minutes'] == 15 and targets(['nist-csf', 'soc2'], 'guided', 'no')['idle_minutes'] == 0
+    assert targets(['nist-800-53'], 'manual', 'no')['idle_minutes'] == 0 and targets(['nist-800-53'], 'guided', 'no')['security_daily']
+    assert ['idle_minutes', 60, 15] in plan({**current, 'idle_minutes': 60}, targets(['hipaa'], 'guided', 'no'))
+    assert ['idle_minutes', 60, 15] in plan(current, targets(['nist-800-53'], 'guided', 'no')), 'no value known: the default 60'
+    assert not [c for c in plan({**current, 'idle_minutes': 10}, targets(['pci-dss'], 'guided', 'no')) if c[0] == 'idle_minutes'], 'never longer'
+    assert not [c for c in plan({**current, 'idle_minutes': 15}, targets(['pci-dss'], 'guided', 'no')) if c[0] == 'idle_minutes']
+    assert not [c for c in plan({**current, 'idle_minutes': 60}, targets(['soc2'], 'guided', 'no')) if c[0] == 'idle_minutes']
+    assert ('NIST SP 800-53 (moderate baseline)', NIST_80053_NOTE) in notes(['nist-800-53']) and 'FIPS 140' in NIST_80053_NOTE
+    # PCI DSS and HIPAA: the mail log at least 365 days, only longer, only with that framework.
+    assert ['maillog_days', 30, 365] in plan({**current, 'maillog_days': 30}, targets(['pci-dss'], 'guided', 'no'))
+    assert not [c for c in plan({**current, 'maillog_days': 400}, targets(['hipaa'], 'guided', 'no')) if c[0] == 'maillog_days'], 'never shorter'
+    assert not [c for c in plan({**current, 'maillog_days': 30}, targets(['nist-800-53', 'nis2'], 'guided', 'no')) if c[0] == 'maillog_days']
+    assert 'GDPR' in dict(notes(['pci-dss']))['PCI DSS']
     assert plan(current, targets(['nis2'], 'manual', 'no')) == []
-    assert ('BAO/UGB (AT)', RETENTION_NOTE) in notes(['bao-ugb']) and notes(['pci-dss']) == []
+    assert ('BAO/UGB (AT)', RETENTION_NOTE) in notes(['bao-ugb']) and notes(['soc2']) == []
     good = {'variant': 'guided', 'eulink': 'no', 'notice': confirmation(first), 'noeu': confirmation(first), 'note': 'own rules'}
     assert state_problem(good) is None and state_problem({**good, 'noeu': ''}) and state_problem({**good, 'variant': 'x'})
     assert state_problem({**good, 'note': 'a\nKEY:x'}) and eu_locked({'eulink': 'yes'}) and not eu_locked({}) and not eu_locked(good)

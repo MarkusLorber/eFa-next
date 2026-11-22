@@ -34,8 +34,14 @@ CARD = {
     'audit-strict-status': 'Whether the strict audit mode is on, its files and the state of the signed chain.',
     'audit-verify': 'Checks the strict audit log: every entry, the chain between them and the signature of each file.',
     'autoupdate-set': 'Whether eFa-next updates only notify you or install by themselves in the maintenance window, with backup, health check and rollback on failure.',
-    'autoupdate-status': 'The state of eFa-next updates. Operating system updates are handled by dnf-automatic.',
+    'autoupdate-status': 'The state of eFa-next updates and the update policy of the operating system (dnf-automatic on a host alone; in a cluster the staged rollout of the master).',
     'backup-hsm-set': 'Signs the backups with a key in a hardware security module (PKCS#11) instead of a software key.',
+    'fim-status': 'The file check: the files of the configuration changed outside efactl (an editor, another program) that no admin accepted yet.',
+    'fim-set': 'On: a signed baseline of /etc/eFa, /etc/postfix, /etc/rspamd/local.d and /etc/nginx. Changes through efactl renew it; anything else raises an event and a Wazuh alert. Off by default.',
+    'fim-accept': 'Takes a changed file off the list once you know the change: one file, or all.',
+    'backup-restore-test-status': 'The last restore test: when, which backup, the files and tables checked or what failed.',
+    'backup-restore-test': 'Checks a backup as a restore would, without changing this host: signature and manifest, then the database into a throwaway MariaDB. Runs in the background at the lowest priority; needs the stored password for encrypted backups.',
+    'backup-restore-test-set': 'Monthly restore test of the newest backup (off by default). A failed test raises an event and a Wazuh alert.',
     'backup-key-show': 'The fingerprint of the key this host signs its backups with. Another host restores them only with it.',
     'backup-list': 'The backups on this host.',
     'backup-now': 'Makes a backup now of the database, settings and keys. Encrypted backups also go to the external targets.',
@@ -68,6 +74,15 @@ CARD = {
     'cluster-cve': 'On the cluster master: the CVE warnings of every node.',
     'cluster-init': 'Makes this node the master of a new cluster, with its own certificate authority.',
     'cluster-join': 'Joins this node to a cluster. The master is checked by its CA fingerprint before the token is sent.',
+    'breakglass-status': 'The break-glass admin of this host: its name, the codes left, the last use and from where SSH takes it.',
+    'breakglass-issue': 'Ten new one-time codes for the break-glass admin, in a PDF shown only now; the old codes stop working at once.',
+    'breakglass-remove': 'Removes the break-glass admin of this host: its user, its codes and its SSH and sudo rules.',
+    'cluster-harden': 'Hardens every host of the cluster the same way: preview first; each host applies it itself and never lowers anything.',
+    'cluster-harden-status': 'The hardening of the cluster: each host with each step, and the SSH profile waiting for its confirmation on the host.',
+    'cluster-join-check': 'Checks before a join: port, token, version, platform, time and maintenance mode. Changes nothing, the token stays valid.',
+    'cluster-join-preview': 'Shows which mail settings, files and services the settings of the master replace on this waiting node.',
+    'cluster-activate': 'Confirms the join: a backup first, then the master reaches this node, then its settings. In the background.',
+    'cluster-join-status': 'The confirmation of the join: waiting, running with its step, done or stopped.',
     'cluster-leave': 'This node leaves the cluster and its cluster keys are removed. On the master the whole cluster ends.',
     'cluster-mail-action': 'Releases or deletes a held mail, or retries or holds one in the queue, on the node that has it.',
     'cluster-maillog': 'The mail log of all nodes, newest first.',
@@ -79,7 +94,7 @@ CARD = {
     'cluster-queue': 'The mail queues of all nodes.',
     'cluster-resync': 'Takes all shared settings of the master anew.',
     'cluster-status': 'On the master each node with its state; on a client its master.',
-    'cluster-token': 'Makes a one-time token for one new node, valid for one hour, with the CA fingerprint to check on that node.',
+    'cluster-token': 'Makes a one-time token for one new node, valid for 30 minutes, with the CA fingerprint to check on that node.',
     'cluster-unban': 'Lifts a Fail2Ban ban on all nodes and keeps the address out of the shared bans for an hour.',
     'cluster-update-set': 'Updates one node first, waits a health window, then the rest and the master last. A problem stops the rollout.',
     'cluster-update-status': 'Shows the staged updates and the current rollout.',
@@ -128,7 +143,11 @@ CARD = {
     'dns-servers-set': 'Your internal DNS servers, used for internal domains without servers of their own. All other names are resolved directly by this host.',
     'dns-share-add': 'Lets other servers of your network, such as a second MX, use the resolver of this host. Only listed networks may ask, so it never becomes an open resolver. Each network also opens port 53 for that network only.',
     'dns-share-del': 'Removes networks from the list and closes their port 53 again.',
+    'dns-share-edit': 'Changes which nodes of the cluster answer a network of the list; each node opens and closes its port 53 for it by itself.',
     'dns-share-list': 'The networks this host answers DNS queries for, besides itself.',
+    'hosts-list': 'Your own host names with their addresses, like lines of /etc/hosts, and where each one applies.',
+    'hosts-set': 'Adds or removes an own host name, like a line of /etc/hosts. Postfix, rspamd and the web interface use it; in a cluster every node gets it from the master.',
+    'hosts-local-set': 'Adds or removes a host name for this host alone, for a cluster node that reaches a server under another address. It is never handed on and wins here over the same name of the cluster.',
     'dns-share-secondary-set': 'A second resolver for this host itself, usually the other MX. This host asks its own resolver first, then that one.',
     'dns-zone-list': 'Shows the internal DNS servers and the domains they answer for.',
     'dns-zone-set': 'Adds or removes a domain that the internal DNS servers answer for, such as your Active Directory domain.',
@@ -171,7 +190,8 @@ CARD = {
     'four-eyes-set': 'Critical changes then need a second admin before they run. Only a super admin can switch it.',
     'fuzzy-set': 'Keeps fuzzy fingerprints of spam approved by admins, so similar variants are caught later.',
     'fuzzy-status': 'The own fuzzy store and how many fingerprints of approved spam it holds.',
-    'gdpr-delete': 'Erases the mail log rows, stored headers, held mail and spam reports of one address under GDPR Article 17. This cannot be undone.',
+    'gdpr-delete': 'Erases the mail log rows, stored headers, held mail and spam reports of one address under GDPR Article 17, and when asked its accounts and its entries of the sender lists. A restore of an older backup erases it again. This cannot be undone.',
+    'gdpr-reapply': 'Erases again every address erased before, as after a restore: the erasure list holds only pseudonyms. A restore does this by itself.',
     'gdpr-export': 'Everything eFa-next keeps about one mail address, for a request for access under GDPR Article 15.',
     'graymail-mine-set': 'Your own choice for newsletters to your mailbox.',
     'graymail-set': 'Newsletters and other wanted bulk mail: whether they are recognised and what happens with them for users without their own choice.',
@@ -218,6 +238,12 @@ CARD = {
     'links-set': 'Rewrites links in incoming mail so each click is checked again first. Catches pages that turned malicious after delivery.',
     'links-status': 'Whether links are checked on click, the address they lead over, and the domains left as they are.',
     'load-set': 'When the dashboard and the alerts warn about high load.',
+    'compliance-verify': 'Checks on this host what the compliance file of the release claims: hardening checks, security standards, settings and installed files. Read only. Not a legally binding statement and no certification.',
+    'tls-partner-suggest': 'Suggests partner domains to require TLS for: the most frequent recipient domains of the mail log that publish DANE or MTA-STS, with the command to add each. Port 25 stays opportunistic for all others.',
+    'login-banner-set': 'Your text before the admin login of the web interface, such as a notice on authorised use (NIST SP 800-53 AC-8); with SSH on also before the SSH login. Empty: no banner. Off by default.',
+    'login-banner-status': 'The text shown before the admin login, and whether SSH shows it too.',
+    'admin-idle-set': 'Ends admin sessions after 5, 10, 15, 30 or 60 idle minutes (default 60). PCI DSS 8.2.8 and NIST SP 800-53 AC-11 ask for 15 at most. The user portal stays at 60 minutes.',
+    'admin-idle-status': 'Shows after how many idle minutes an admin session ends, and whether that is 15 minutes or less.',
     'login-lockout-set': 'Bans an address after too many failed logins at the web interface, the user portal, the API or port 587. Relay networks, the firewall allowlist and cluster nodes are never banned.',
     'login-lockout-status': 'Shows how failed logins are counted and which addresses are banned for it right now.',
     'lookalike-allow': 'Marks a found domain as harmless or your own; it is never reported again.',
@@ -555,6 +581,7 @@ FIELD = {
     'autoupdate-set': {
         'days': 'The days of the maintenance window.',
         'mode': 'Notify is the safe default.',
+        'os': 'Security updates only is the safe default. In a cluster every install goes through the staged rollout of the master.',
         'time': 'The start time of the maintenance window.',
     },
     'backup-hsm-set': {
@@ -567,6 +594,18 @@ FIELD = {
     'backup-password-set': {
         'mode': 'Set a new password or remove the stored one.',
     },
+    'fim-accept': {
+        'file': 'The path as the status shows it, or all.',
+    },
+    'fim-set': {
+        'mode': 'on: a new baseline of the files as they are now; off: baseline and findings removed.',
+    },
+    'backup-restore-test': {
+        'name': 'Empty tests the newest backup of this host; uploaded backups only by name.',
+    },
+    'backup-restore-test-set': {
+        'monthly': 'on: once a month from 04:00, when the load allows.',
+    },
     'backup-set': {
         'mode': 'Switches the daily backup on or off.',
     },
@@ -575,7 +614,7 @@ FIELD = {
         'action': 'Add or remove the target.',
         'bucket': 'S3 only: the bucket name.',
         'endpoint': 'S3 only: the https address of the storage.',
-        'eu_confirm': 'For your own server: type yes to confirm it stands in the EU and its operator is European.',
+        'eu_confirm': 'For your own server: tick this to confirm it stands in the EU and its operator is European.',
         'host': 'SFTP only: the server.',
         'keep_days': 'Older backups on the target are deleted.',
         'key_file': 'SFTP only: the private key on this server, readable by root only.',
@@ -661,9 +700,26 @@ FIELD = {
         'mode': 'On fetches and uses the signatures of this source.',
         'source': 'The provider of the signatures and its country.',
     },
+    'cluster-activate': {
+        'understood': 'The users, passwords and 2FA of this node are replaced by those of the master.',
+    },
     'cluster-init': {
         'mode': 'Master/client: settings only on the master. HA: settings on every node.',
         'name': 'Name of this node, such as mx-1.',
+    },
+    'cluster-join-check': {
+        'master': 'The master host, and :port if not 8460.',
+    },
+    'cluster-harden': {
+        'select': 'Standards, added to what each host has chosen; none is taken away.',
+        'os': 'Items of the operating system to switch on, such as auditd chronyd.',
+        'kernel': 'The kernel settings of the hardening report on every host.',
+        'sandbox': 'The sandbox of the services; a host that has more keeps it.',
+        'port25_tls': 'TLS required on port 25 on every host.',
+        'ssh': 'The SSH profile after BSI, only on the hosts named below.',
+        'ssh_hosts': 'Each host named here confirms the SSH profile with a new login; else it goes back after 10 minutes.',
+        'preview': 'Each host says what would change, nothing is written.',
+        'confirm': 'Tick this to apply it on every host; without the tick nothing changes (Preview shows what would).',
     },
     'cluster-join': {
         'address': 'The address the master reaches this node at.',
@@ -855,14 +911,32 @@ FIELD = {
     'dns-forward-fix': {
         'backup': 'Folder for the old file; empty for /var/lib/eFa.',
     },
+    'hosts-local-set': {
+        'action': 'Add or remove the name.',
+        'addresses': 'One to four IPv4 or IPv6 addresses, separated by spaces; only to add. Loopback, link-local and multicast are refused.',
+        'name': 'A short name such as backup, or a full one such as git.corp.example. Names eFa-next needs for updates, certificates and blocklists are refused.',
+        'note': 'What the name is for, such as the backup server; up to 100 characters.',
+    },
+    'hosts-set': {
+        'action': 'Add or remove the name.',
+        'addresses': 'One to four IPv4 or IPv6 addresses, separated by spaces; only to add. Loopback, link-local and multicast are refused.',
+        'name': 'A short name such as backup, or a full one such as git.corp.example. Names eFa-next needs for updates, certificates and blocklists are refused.',
+        'note': 'What the name is for, such as the backup server; up to 100 characters.',
+    },
     'dns-servers-set': {
         'servers': 'IP, IP@port, or with TLS IP@853#name.',
         'tls': 'Encrypts the queries and checks the certificate of the server.',
     },
     'dns-share-add': {
-        'confirm_public': 'A network outside the private ranges needs yes typed.',
+        'confirm_public': 'Tick this to allow addresses outside the private ranges (public addresses). Without the tick such entries are refused.',
         'nets': 'IP addresses or networks, IPv4 or IPv6; at most /8 for IPv4.',
         'note': 'A note such as the server name.',
+        'nodes': 'In a cluster: the nodes that answer this network. None ticked: all nodes, also those that join later.',
+    },
+    'dns-share-edit': {
+        'net': 'The entry whose nodes change; the network itself stays.',
+        'nodes': 'The nodes that answer this network from now on. None ticked: all nodes, also those that join later.',
+        'note': 'A new note; empty keeps the one there.',
     },
     'dns-share-del': {
         'nets': 'Addresses or networks to remove.',
@@ -997,6 +1071,8 @@ FIELD = {
     'gdpr-delete': {
         'address': 'The mail address whose data is erased.',
         'reason': 'Date and number of the request, as proof; it is kept in the audit log.',
+        'accounts': 'yes: also the logins of the address (user name or mail address) with their 2FA, passkeys, tokens and sessions.',
+        'lists': 'yes: also the entries of the allow and block lists and the rules with the address.',
     },
     'gdpr-export': {
         'address': 'The mail address of the person who asked.',
@@ -1098,6 +1174,8 @@ FIELD = {
         'detected': 'When it was noticed, such as 2026-11-08 10:15.',
         'impact': 'How the service is affected, such as mail delayed for two hours.',
         'malicious': 'Whether an unlawful or malicious act is suspected; the report asks for it.',
+        'personal_data': 'yes, no or unknown: whether personal data is concerned; the GDPR Art. 33 notification (72 hours) asks for it.',
+        'subjects': 'About how many people and records are concerned; the GDPR notification asks for it.',
         'summary': 'A short description of what is known.',
         'title': 'What happened, in a few words.',
     },
@@ -1156,6 +1234,19 @@ FIELD = {
     'load-set': {
         'minutes': 'Only after the load stayed this long.',
         'percent': 'Warn from this load in percent.',
+    },
+    'compliance-verify': {
+        'standard': 'Only this standard, such as pci-dss or gdpr; empty checks all.',
+    },
+    'tls-partner-suggest': {
+        'days': 'How many days of the mail log count, 1 to 30.',
+    },
+    'login-banner-set': {
+        'text': 'Plain text, up to 1000 characters, with line breaks. Empty removes the banner.',
+        'ssh': 'On: SSH shows the same text before the login (/etc/issue.net, the original is kept and comes back with off).',
+    },
+    'admin-idle-set': {
+        'minutes': 'Idle minutes until an admin session ends: 5, 10, 15, 30 or 60. Longer than now asks your password again.',
     },
     'login-lockout-set': {
         'hours': 'How long the ban lasts.',
@@ -1358,7 +1449,7 @@ FIELD = {
     },
     'pyzor-set': {
         'accept': 'Once per server: yes accepts that a checksum of every incoming mail goes to the Pyzor server.',
-        'confirm': 'Only with EU relation and a server outside the own networks: type the sentence shown to allow the transfer.',
+        'confirm': 'Only with EU relation and a server outside the own networks: tick this to allow the transfer outside the EU; it goes into the audit log.',
         'mode': 'Off is the default. On asks the Pyzor server about each incoming mail.',
         'server': 'host:port; public.pyzor.org:24441 is the public server of the Pyzor project. Run your own for a closed network.',
         'weight': 'The score a Pyzor hit adds to the spam score; 2.0 is the default.',
@@ -1487,7 +1578,7 @@ FIELD = {
         'file': 'Or the path of a backup file on this server.',
         'name': 'A backup from the list.',
         'signer': 'Only for a backup of another host: its key fingerprint.',
-        'unsigned': 'An unsigned backup (6.0.0.4 or older, efa5-export) needs yes typed; it goes into the audit.',
+        'unsigned': 'Tick this to restore an unsigned backup (6.0.0.4 or older, efa5-export); it goes into the audit.',
     },
     'retention-set': {
         'data': 'Which data the days apply to; the allowed range is in brackets.',

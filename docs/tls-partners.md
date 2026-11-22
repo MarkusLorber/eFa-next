@@ -15,3 +15,11 @@ Mail routing, TLS with partners. Off until you add a partner; an upgrade changes
 The maps are `/etc/postfix/efa-tls-partner-out` (in `smtp_tls_policy_maps`) and `/etc/postfix/efa-tls-partner-in` (in
 `smtpd_sender_restrictions`, class `efa_tls_partner`). TLS on port 25 for all senders stays opportunistic (RFC 3207); use
 MTA-STS and DANE for that.
+
+## Suggestions (6.0.0.6.7)
+
+`efactl tls-partner-suggest [--days 7]` reads the recipient domains of the mail log of the last days, the most frequent first
+(at most 30 that have no rule yet), and checks each in DNS: TLSA records for port 25 of one of its MX (DANE) or the TXT record
+`_mta-sts.<domain>` (MTA-STS). For each that publishes one it suggests the level (dane-only when DANE is on here, else verify)
+and the command to add it. Nothing changes until you add a partner. Port 25 stays opportunistic for every other domain (RFC
+3207); the hardening report shows the share of incoming sessions without TLS for information.
