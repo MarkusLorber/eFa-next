@@ -11,7 +11,7 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.7
+Version:        6.0.0.6.8
 Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
@@ -151,6 +151,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Mon Nov 23 2026 Markus Lorber - 6.0.0.6.8-1
+- 6.0.0.6.8: with eFa-next-base 6.0.0.6.8 (rspamd 4.3.1); the CI checks that a virus scan without a verdict fails the scan; see CHANGELOG.md.
+
 * Sun Nov 22 2026 Markus Lorber - 6.0.0.6.7-1
 - 6.0.0.6.7: 2FA required for every admin, the compliance file of each release (JSON, Markdown, OSCAL), the base system updates with dnf, cluster hardening and break-glass admin, GDPR erasure, file check, restore test, incident reports; see CHANGELOG.md.
 

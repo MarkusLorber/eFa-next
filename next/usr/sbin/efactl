@@ -41799,7 +41799,10 @@ def self_test():
             assert not advisory_items(tree_entries, {'eFa-next': [(newest[0], newest[1], newest[2] + '.el10')]}, tree_older, set(), {}, {})
             # EFA-2026-006/007: a host on 6.0.0.6.6 gets both, and neither locks the web interface (no web hole of eFa-next).
             on_666 = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.6', '1.el9')]}, tree_older, set(), {}, {})
-            assert {item['advisory'] for item in on_666} == {'EFA-2026-006', 'EFA-2026-007', 'EFA-2026-008'} and not lockdown_trigger(on_666), on_666
+            assert {item['advisory'] for item in on_666} == {'EFA-2026-006', 'EFA-2026-007', 'EFA-2026-008', 'EFA-2026-009'} and not lockdown_trigger(on_666), on_666
+            # EFA-2026-009 (rspamd 4.3.1): a host on 6.0.0.6.7 gets exactly that one, and it locks nothing (no web hole).
+            on_667 = advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6.7', '1.el9')]}, tree_older, set(), {}, {})
+            assert [item['advisory'] for item in on_667] == ['EFA-2026-009'] and not lockdown_trigger(on_667), on_667
             # S38 (EFA-2026-004): a host on 6.0.0.6 gets exactly that one.
             assert [item for item in advisory_items(tree_entries, {'eFa-next': [('0', '6.0.0.6', '2.el10')]}, tree_older, set(), {}, {})], 'EFA-2026-004 for 6.0.0.6'
         # 9o-b: lock once, open after the patch, no lock again after a release by hand for the same items.

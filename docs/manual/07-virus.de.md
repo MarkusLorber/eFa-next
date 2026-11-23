@@ -6,7 +6,7 @@ Alles unter *Schutz › Viren, Anhänge & Links*, jeweils als eigene Karte.
 
 Jede Mail prüft ClamAV. *Prüfgrenzen* begrenzen eine Prüfung: die Sekunden, die clamd brauchen darf (5 bis 20), die größte Mail,
 die es prüft (10 bis 64 MB), und die Sekunden aller Prüfungen von rspamd (8 bis 60). Scheitert die Prüfung (clamd aus, zu langsam,
-eine Grenze erreicht), geht die Mail entweder ungeprüft durch (*offen*) oder wird mit `451` aufgeschoben, sodass der Absender es
+eine Grenze erreicht, eine Antwort ohne Befund), geht die Mail entweder ungeprüft durch (*offen*) oder wird mit `451` aufgeschoben, sodass der Absender es
 erneut versucht (*geschlossen*); eine zu große Mail wird dann abgewiesen. Eine Neuinstallation ist geschlossen; der Modus kann je
 Mandant abweichen (`efactl scan-fail-set --tenant <Name> --fail closed`).
 

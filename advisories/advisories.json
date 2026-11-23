@@ -104,6 +104,19 @@
       "web_rce": false,
       "summary": "A cluster node could silently stop following its master (Fail2Ban busy): it then missed new bans, settings and 2FA changes. 6.0.0.6.6.2 keeps it following and alarms.",
       "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.6.2"
+    },
+    {
+      "id": "EFA-2026-009",
+      "package": "eFa-next",
+      "fixed": ["0", "6.0.0.6.8", "1"],
+      "cves": [],
+      "severity": "Important",
+      "vector": "",
+      "cwe": "CWE-290",
+      "remote": true,
+      "web_rce": false,
+      "summary": "rspamd before 4.3.1: DMARC reject bypass (malformed SPF domain), DKIM results hidden, a clamd reply without a verdict passed as clean, worker crashes. Fixed by requiring rspamd 4.3.1.",
+      "link": "https://github.com/MarkusLorber/eFa-next/releases/tag/v6.0.0.6.8"
     }
   ]
 }

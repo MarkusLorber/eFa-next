@@ -5,7 +5,7 @@ All on *Protection › Viruses, attachments & links*, each a card of its own.
 ## Virus scan (ClamAV)
 
 Every mail is scanned by ClamAV. *Scan limits* bound one scan: the seconds clamd may take (5 to 20), the largest mail it scans
-(10 to 64 MB) and the seconds of all checks of rspamd (8 to 60). When the scan fails (clamd down, too slow, a limit hit), the
+(10 to 64 MB) and the seconds of all checks of rspamd (8 to 60). When the scan fails (clamd down, too slow, a limit hit, a reply without a verdict), the
 mail either passes unscanned (*fail open*) or is deferred with `451` so the sender tries again (*fail closed*); a mail too
 large to scan is then rejected. A new install fails closed; the mode can differ per tenant
 (`efactl scan-fail-set --tenant <name> --fail closed`).

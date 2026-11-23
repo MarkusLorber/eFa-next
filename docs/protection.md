@@ -19,7 +19,7 @@ With greylisting off and its score below the spam marking, mail in between gets 
 
 `efactl scan-limits-set` (Viruses, attachments & links, Scan limits) bounds the virus scan of one mail: the seconds clamd may take (5 to 20),
 the largest mail it scans (10 to 64 MB; clamd reads at most four times that from archives) and the seconds of all checks of rspamd
-(8 to 60). When the scan fails (clamd not running, too slow, a limit hit) the mail either passes unscanned (fail open, as before)
+(8 to 60). When the scan fails (clamd not running, too slow, a limit hit, a reply without a verdict) the mail either passes unscanned (fail open, as before)
 or fails closed: it is deferred with `451` and the sender tries again; a mail too large to scan is rejected. The mode is set for
 all and can differ per tenant (`efactl scan-fail-set --tenant <name> --fail open|closed|inherit`). A new install fails closed;
 an upgrade keeps the old behaviour until the limits are switched on. Changing them restarts clamd, which takes up to a minute;

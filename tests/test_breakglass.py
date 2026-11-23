@@ -434,10 +434,13 @@ class ExistingCluster(unittest.TestCase):
         html = client.get('/p/cluster', **https).get_data(as_text=True)
         self.assertIn('Break-glass admin missing on this host.', html)
         self.assertIn('<span class="b">node-a</span>', html, 'the node without it, in red; node-c has one')
-        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
-        import page_times
-        self.assertIn('/p/sec?view=expert&amp;next=cluster#breakglass-issue', page_times.CROSS_PAGE_LINKS)
         self.assertIn('/p/sec?view=expert&amp;next=cluster#breakglass-issue', html)
+        # The link list of the page check of the CI (scripts/page_times.py, only on Forgejo): checked where it is.
+        tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts', 'page_times.py')
+        if os.path.exists(tool):
+            sys.path.insert(0, os.path.dirname(tool))
+            import page_times
+            self.assertIn('/p/sec?view=expert&amp;next=cluster#breakglass-issue', page_times.CROSS_PAGE_LINKS)
 
 
 def _read(folder):

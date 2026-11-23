@@ -1,0 +1,4747 @@
+{
+ "format": "efa-next-compliance",
+ "schema": 1,
+ "product": "eFa-next",
+ "version": "6.0.0.6.8",
+ "commit": "6ea1444a4224152675c1b82e851d1f9b744b2dda",
+ "date": "2026-11-23",
+ "source_sha256": "68f8225b6d1e4144b4ae20b85449f15512182ba46d6fbe5e6491cfb4ecd67353",
+ "notice": {
+  "legally_binding": false,
+  "en": "Not a legally binding statement. This file lists which technical requirements of the standards eFa-next covers, how far, and how each claim can be checked. It is no certification, no confirmation of conformity by a third party and no legal advice. Warranty and liability: DISCLAIMER.md applies, to the maximum extent permitted by law. The operator stays responsible for the conformity of their organisation. Anyone can have this information verified independently at any time by auditors of their own choice, with: the SHA-256 of this file in the signed SHA256SUMS of the release, \"efactl compliance-verify\" on an installed host, and the open source code (AGPL-3.0).",
+  "de": "Keine rechtlich verbindliche Aussage. Diese Datei listet, welche technischen Anforderungen der Standards eFa-next abdeckt, in welchem Umfang und wie jede Angabe geprüft werden kann. Sie ist keine Zertifizierung, keine Konformitätsbestätigung durch Dritte und keine Rechtsberatung. Gewährleistung und Haftung: Es gilt DISCLAIMER.md, soweit gesetzlich zulässig. Der Betreiber bleibt für die Konformität seiner Organisation verantwortlich. Eine unabhängige Überprüfung durch eigene Prüfer oder Auditoren ist jederzeit möglich, mit: der SHA-256-Prüfsumme dieser Datei in der signierten SHA256SUMS des Release, \"efactl compliance-verify\" auf einem installierten Host und dem offenen Quellcode (AGPL-3.0)."
+ },
+ "disclaimer": "DISCLAIMER.md",
+ "ci": {
+  "unit_tests": "Ran 775 tests",
+  "self_tests": "ok",
+  "tests_referenced": 58
+ },
+ "summary": {
+  "gdpr": {
+   "covered": 8,
+   "partial": 3,
+   "not-covered": 0,
+   "out-of-scope": 0
+  },
+  "cra": {
+   "covered": 10,
+   "partial": 1,
+   "not-covered": 0,
+   "out-of-scope": 0
+  },
+  "nis2": {
+   "covered": 5,
+   "partial": 3,
+   "not-covered": 0,
+   "out-of-scope": 2
+  },
+  "dora": {
+   "covered": 2,
+   "partial": 2,
+   "not-covered": 0,
+   "out-of-scope": 1
+  },
+  "pci-dss": {
+   "covered": 12,
+   "partial": 3,
+   "not-covered": 0,
+   "out-of-scope": 2
+  },
+  "hipaa": {
+   "covered": 4,
+   "partial": 2,
+   "not-covered": 0,
+   "out-of-scope": 2
+  },
+  "nist-800-53": {
+   "covered": 28,
+   "partial": 7,
+   "not-covered": 1,
+   "out-of-scope": 1
+  },
+  "nist-csf": {
+   "covered": 3,
+   "partial": 3,
+   "not-covered": 0,
+   "out-of-scope": 1
+  },
+  "soc2": {
+   "covered": 7,
+   "partial": 2,
+   "not-covered": 0,
+   "out-of-scope": 1
+  },
+  "iso27001": {
+   "covered": 10,
+   "partial": 2,
+   "not-covered": 0,
+   "out-of-scope": 1
+  },
+  "bsi": {
+   "covered": 5,
+   "partial": 2,
+   "not-covered": 0,
+   "out-of-scope": 0
+  },
+  "cis-el": {
+   "covered": 9,
+   "partial": 1,
+   "not-covered": 0,
+   "out-of-scope": 0
+  },
+  "gpg13": {
+   "covered": 8,
+   "partial": 0,
+   "not-covered": 0,
+   "out-of-scope": 1
+  },
+  "rfc9325": {
+   "covered": 2,
+   "partial": 1,
+   "not-covered": 0,
+   "out-of-scope": 0
+  },
+  "eu-sovereignty": {
+   "covered": 6,
+   "partial": 0,
+   "not-covered": 0,
+   "out-of-scope": 0
+  }
+ },
+ "standards": [
+  {
+   "id": "gdpr",
+   "title": "GDPR (Regulation (EU) 2016/679)",
+   "version": "2016/679",
+   "applies": "Always for an operator in the EU or for mail of people in the EU. The operator is the controller.",
+   "controls": [
+    {
+     "id": "Art. 5(1)(c)",
+     "title": "Data minimisation",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "No mail content in logs; subjects only for permitted roles; pseudonyms in the mail log; header privacy outbound.",
+     "limits": "Pseudonyms after 14 days only on new installs; an upgrade keeps the old setting.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "pseudonymise-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.Menu.test_privacy_page_holds_the_three_sections"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      }
+     ]
+    },
+    {
+     "id": "Art. 5(1)(e)",
+     "title": "Storage limitation",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Retention days per kind of data and tenant, nightly purge with an audit entry.",
+     "limits": "Backups keep data up to their own age.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "retention-status"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/gdpr-requests.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 15",
+     "title": "Right of access",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "gdpr-export of everything about one mail address.",
+     "limits": "Accounts and sender lists are named, not exported in full.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "gdpr-export"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/gdpr-requests.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 17",
+     "title": "Right to erasure",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "gdpr-delete of one mail address: mail log rows, stored headers, held mail, spam reports and mail relations; when asked its accounts and its entries of the sender lists. Audited with a pseudonym and the reason; every erasure goes into an erasure list (pseudonyms only, outside the backups) that a restore applies again.",
+     "limits": "Backups stay as they are (signed) for up to 5 days; logs of the operating system and mail already delivered to the mailbox are outside eFa-next.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "gdpr-export"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/gdpr-requests.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_gdpr_delete_full.Erasure.test_lists"
+      },
+      {
+       "type": "test",
+       "ref": "test_gdpr_delete_full.Erasure.test_erased_again"
+      }
+     ]
+    },
+    {
+     "id": "Art. 25",
+     "title": "Data protection by design and by default",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "New features are off after an update; private defaults on new installs.",
+     "limits": "Defaults of an upgraded host stay as they were.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_setup_defaults.SetupDefaults.test_fresh_on_upgrade_unchanged"
+      },
+      {
+       "type": "command",
+       "ref": "pseudonymise-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.Menu.test_privacy_page_holds_the_three_sections"
+      }
+     ]
+    },
+    {
+     "id": "Art. 28",
+     "title": "Processor",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "A template for the data processing agreement; tenants separated in rights.",
+     "limits": "The template is not reviewed by a lawyer; the contract is the operator's.",
+     "evidence": [
+      {
+       "type": "file",
+       "ref": "docs/datenschutz/AVV.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      }
+     ]
+    },
+    {
+     "id": "Art. 30",
+     "title": "Records of processing activities",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "privacy-evidence builds the record of processing and the TOM from the settings in effect.",
+     "limits": "The record stays the operator's document.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "privacy-evidence"
+      },
+      {
+       "type": "file",
+       "ref": "docs/datenschutz/VVT.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/datenschutz/TOM.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 32",
+     "title": "Security of processing",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "TLS profiles, 2FA and passkeys, login lockout, signed and encrypted backups, audit chain with signed anchors, SELinux and service sandboxes.",
+     "limits": "Mail log, queue and database are not encrypted at rest by eFa-next: disk encryption is the operator's.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "test",
+       "ref": "test_unit_hardening.UnitHardeningTests.test_every_own_user_service_is_sandboxed"
+      },
+      {
+       "type": "test",
+       "ref": "test_selinux_policy.SelinuxPolicyTests.test_types_required"
+      },
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      }
+     ]
+    },
+    {
+     "id": "Art. 33-34",
+     "title": "Notification of a personal data breach",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "Audit log, events to SIEM and Wazuh, the NIS2 report helper for the timeline; reports for NIS2, GDPR Art. 33 and DORA Art. 19 prepared from the incident record, and an incident response template.",
+     "limits": "The notice itself is the operator's.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/nis2-incident.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/incident-response.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 35",
+     "title": "Data protection impact assessment",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "A template of the impact assessment for mail filtering; privacy-evidence fills the technical part.",
+     "limits": "Template not checked by a lawyer; the assessment is the operator's.",
+     "evidence": [
+      {
+       "type": "file",
+       "ref": "docs/datenschutz/DSFA.md"
+      },
+      {
+       "type": "command",
+       "ref": "privacy-evidence"
+      }
+     ]
+    },
+    {
+     "id": "Art. 44-49",
+     "title": "Transfers to third countries",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "EU link: backups only to EU-owned providers, report services outside the EU only after a typed confirmation, no ruf.",
+     "limits": "Only with the EU link answered yes; a host can opt out with a typed confirmation.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "eu-relation-status",
+       "key": "global",
+       "equals": "yes"
+      },
+      {
+       "type": "test",
+       "ref": "test_setup_defaults.SetupDefaults.test_fresh_on_upgrade_unchanged"
+      },
+      {
+       "type": "file",
+       "ref": "docs/eu-relation.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108084"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cra",
+   "title": "Cyber Resilience Act (Regulation (EU) 2024/2847), Annex I",
+   "version": "2024/2847",
+   "applies": "Essential requirements of a product with digital elements; for eFa-next as open source software.",
+   "controls": [
+    {
+     "id": "Annex I 1(2)(b)",
+     "title": "Secure by default configuration",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Fail-closed defaults, TLS limits, no plain SIEM, new features off after updates.",
+     "limits": "Port 25 stays opportunistic (RFC 3207) by design.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_setup_defaults.SetupDefaults.test_fresh_on_upgrade_unchanged"
+      },
+      {
+       "type": "command",
+       "ref": "standards-check"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(c)",
+     "title": "Security updates, automatic where possible",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Signed releases from the own dnf repository, automatic install at a set time, CVE watch.",
+     "limits": "Automatic install is a setting (autoupdate); the operator chooses it.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.Rollout.test_a_failed_step_or_no_answer_stops_it"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/RPM-GPG-KEY-efa-next"
+      },
+      {
+       "type": "file",
+       "ref": "scripts/publish/publish-release.sh"
+      },
+      {
+       "type": "command",
+       "ref": "autoupdate-status"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(d)",
+     "title": "Protection from unauthorised access",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Roles and scopes, 2FA and passkeys, login lockout, admin allowlist, idle timeout.",
+     "limits": "2FA is optional until a role or framework requires it.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(e)",
+     "title": "Confidentiality of data",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "TLS everywhere, held mail encrypted per tenant, encrypted backups.",
+     "limits": "Mail log, queue and database not encrypted at rest by eFa-next.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The web interface offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-02102-2"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "hardening",
+       "ref": "The file systems of the mail data are encrypted (LUKS)"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_fs_encrypted"
+      },
+      {
+       "type": "file",
+       "ref": "docs/install.md"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(f)",
+     "title": "Integrity of data and configuration",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Signed backups, audit chain, security floor guard, rpm -V, file integrity through Wazuh; file check of the configuration without Wazuh (fim-set).",
+     "limits": "File integrity alerts need the Wazuh agent.",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108050"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/wazuh/sca-efa-next.yml"
+      },
+      {
+       "type": "test",
+       "ref": "test_floor_dropins.FloorDropinTests.test_path_unit_runs_the_check"
+      },
+      {
+       "type": "test",
+       "ref": "test_rpm_verify.RpmVerifyTests.test_unchanged_paths"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      },
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_outside_change_noted_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_efactl_changes_renew"
+      },
+      {
+       "type": "hardening",
+       "ref": "No configuration file changed outside efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108200"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(j)",
+     "title": "Limit attack surfaces",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Dedicated server, systemd sandboxes, SELinux, firewall with guard.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_unit_hardening.UnitHardeningTests.test_every_own_user_service_is_sandboxed"
+      },
+      {
+       "type": "test",
+       "ref": "test_selinux_policy.SelinuxPolicyTests.test_types_required"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      },
+      {
+       "type": "command",
+       "ref": "service-harden-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 1(2)(l)",
+     "title": "Record and monitor relevant activity",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log of every change, events to SIEM, OTLP and Wazuh with compliance groups.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108030"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 2(1)",
+     "title": "Identify components: SBOM",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CycloneDX SBOM per release, checked against the official schema.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "build/sbom.py"
+      },
+      {
+       "type": "file",
+       "ref": "build/sbom.py"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 2(2)",
+     "title": "Address and remediate vulnerabilities",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CVE watch every 15 minutes, signed advisories, security updates.",
+     "limits": "Fixes of packages of the distribution come from the distribution.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 2(5)",
+     "title": "Coordinated vulnerability disclosure",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "SECURITY.md and security.txt name the contact.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "file",
+       "ref": "SECURITY.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/security.txt"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      }
+     ]
+    },
+    {
+     "id": "Annex I 2(7)",
+     "title": "Secure distribution of updates",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "GPG-signed packages and SHA256SUMS; the repository key is pinned.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.Rollout.test_a_failed_step_or_no_answer_stops_it"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/RPM-GPG-KEY-efa-next"
+      },
+      {
+       "type": "file",
+       "ref": "scripts/publish/publish-release.sh"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "nis2",
+   "title": "NIS2 (Directive (EU) 2022/2555), Art. 21(2)",
+   "version": "2022/2555",
+   "applies": "Essential and important entities; eFa-next supports the technical measures of the operator.",
+   "controls": [
+    {
+     "id": "Art. 21(2)(b)",
+     "title": "Incident handling",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Events to SIEM, OTLP and Wazuh; the NIS2 report helper for 24 h, 72 h and a month; reports for NIS2, GDPR Art. 33 and DORA Art. 19 prepared from the incident record, and an incident response template.",
+     "limits": "Process and team are the operator's.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/nis2-incident.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/incident-response.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(c)",
+     "title": "Business continuity, backup",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Encrypted, signed backups to EU targets; spooling; cluster; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "Restore tests and the plan are the operator's.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(d)",
+     "title": "Supply chain security",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "SBOM, signed repository, dependencies from distribution repositories only.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "build/sbom.py"
+      },
+      {
+       "type": "file",
+       "ref": "build/sbom.py"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/RPM-GPG-KEY-efa-next"
+      },
+      {
+       "type": "file",
+       "ref": "scripts/publish/publish-release.sh"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(e)",
+     "title": "Security in maintenance, vulnerability handling",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CVE watch, update policy with staged rollout, config history.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.Rollout.test_a_failed_step_or_no_answer_stops_it"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(f)",
+     "title": "Assess the effectiveness of measures",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Daily security self check, hardening report, compliance-verify.",
+     "limits": "Audits are the operator's.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "security-status"
+      },
+      {
+       "type": "command",
+       "ref": "hardening-report"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(h)",
+     "title": "Cryptography and encryption",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS profiles after BSI TR-02102-2, DANE, MTA-STS, post-quantum hybrid where the platform has it; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic; hybrid key exchange only with EL10.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing mail uses DANE"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(i)",
+     "title": "Access control",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Roles, scopes, four eyes, admin allowlist, idle timeout.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108080"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(j)",
+     "title": "Multi-factor authentication",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_totp.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_webauthn.py"
+      },
+      {
+       "type": "test",
+       "ref": "test_oidc_flow.OidcFlowTests.test_forged_and_unsigned_tokens"
+      },
+      {
+       "type": "command",
+       "ref": "totp-status"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 21(2)(a)",
+     "title": "Risk analysis and policies",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    },
+    {
+     "id": "Art. 21(2)(g)",
+     "title": "Cyber hygiene and training",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "dora",
+   "title": "DORA (Regulation (EU) 2022/2554)",
+   "version": "2022/2554",
+   "applies": "Financial entities; eFa-next supports the ICT measures of the operator.",
+   "controls": [
+    {
+     "id": "Art. 9(4)(c)",
+     "title": "Strong authentication, access policies",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 10",
+     "title": "Detection of anomalous activity",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Attack alert, events, CVE watch, login lockout.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_threat.Threat.test_floods_and_waves"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      }
+     ]
+    },
+    {
+     "id": "Art. 12",
+     "title": "Backup and restoration",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Encrypted, signed backups, EU targets; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "Restore tests are the operator's.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "Art. 17-19",
+     "title": "ICT incident management and reporting",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "Events, audit log, the report helper; reports for NIS2, GDPR Art. 33 and DORA Art. 19 prepared from the incident record, and an incident response template.",
+     "limits": "Classification and reports are the operator's.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/nis2-incident.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/incident-response.md"
+      }
+     ]
+    },
+    {
+     "id": "Art. 28",
+     "title": "ICT third-party risk",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "eFa-next is self-hosted; no service of the project is involved.",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "pci-dss",
+   "title": "PCI DSS 4.0.1",
+   "version": "4.0.1",
+   "applies": "Only when card data passes through the mail flow or the host is in the card data environment.",
+   "controls": [
+    {
+     "id": "1.2",
+     "title": "Network security controls",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "firewalld with the firewall guard, admin allowlist, Fail2Ban.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      },
+      {
+       "type": "command",
+       "ref": "firewall-guard-status"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108022"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.AdminExemptNetworks.test_no_entry_as_wide_as_the_internet"
+      }
+     ]
+    },
+    {
+     "id": "2.2",
+     "title": "Secure configuration",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Hardening report and security standards (CIS AlmaLinux parts, BSI).",
+     "limits": "Only the parts of CIS that eFa-next touches.",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      },
+      {
+       "type": "hardening",
+       "ref": "Passwords are stored with SHA-512 or yescrypt"
+      },
+      {
+       "type": "hardening",
+       "ref": "/etc/shadow is readable by root only"
+      },
+      {
+       "type": "command",
+       "ref": "standards-check"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/standards.json"
+      }
+     ]
+    },
+    {
+     "id": "3.5",
+     "title": "Stored account data unreadable",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Held mail encrypted per tenant, encrypted backups.",
+     "limits": "Mail log, queue and database are not encrypted at rest by eFa-next; keep card numbers out of mail with the DLP card rule.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "command",
+       "ref": "dlp-status"
+      },
+      {
+       "type": "hardening",
+       "ref": "The file systems of the mail data are encrypted (LUKS)"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_fs_encrypted"
+      },
+      {
+       "type": "file",
+       "ref": "docs/install.md"
+      }
+     ]
+    },
+    {
+     "id": "4.2.1",
+     "title": "Strong cryptography in transit",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS 1.2 and 1.3 only on every service eFa-next runs; TLS per partner domain; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 is opportunistic (RFC 3207): require TLS per partner domain.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "The web interface offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "5.2",
+     "title": "Anti-malware",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "ClamAV, rspamd, disarming of attachments (CDR), retro scan.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108040"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108088"
+      },
+      {
+       "type": "file",
+       "ref": "docs/attachments-and-cdr.md"
+      }
+     ]
+    },
+    {
+     "id": "5.4.1",
+     "title": "Anti-phishing",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Link check on click, look-alike domains, BEC checks, phishing reports.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_links.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_lookalike.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-phish.py"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108090"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108091"
+      },
+      {
+       "type": "file",
+       "ref": "docs/link-check.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/bec.md"
+      }
+     ]
+    },
+    {
+     "id": "6.3.3",
+     "title": "Security patches",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "CVE watch, signed releases, automatic install.",
+     "limits": "Packages of the distribution come from the distribution.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      }
+     ]
+    },
+    {
+     "id": "7.2",
+     "title": "Access by need to know",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Roles and scopes per tenant and domain, the right to view mail content, four eyes.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108080"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      }
+     ]
+    },
+    {
+     "id": "8.2.8",
+     "title": "Re-authenticate after 15 minutes idle",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Admin idle timeout 5 to 60 minutes, 15 on new installs; PCI DSS, HIPAA and NIST SP 800-53 frameworks set 15.",
+     "limits": "Upgraded hosts keep their value until changed; the hardening report shows it. The user portal stays at 60 minutes.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleWeb.test_shorter_ends_open_sessions"
+      },
+      {
+       "type": "hardening",
+       "ref": "Admin sessions end after at most 15 minutes idle"
+      },
+      {
+       "type": "command",
+       "ref": "admin-idle-status",
+       "key": "at_most_15",
+       "equals": true
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.Small.test_idle_15_on_new_installs_only"
+      }
+     ]
+    },
+    {
+     "id": "8.3.4",
+     "title": "Lock out after failed logins",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "Lockout per address of web, portal, API and port 587; slowdown per name.",
+     "limits": "Compensating control documented: no lockout per account on purpose (docs/compliance/compensating-controls.md).",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.Jails.test_mail_jails_without_the_admin_networks"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108012"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108068"
+      },
+      {
+       "type": "file",
+       "ref": "docs/login-lockout.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.SaslPerName.test_per_name"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/compensating-controls.md"
+      }
+     ]
+    },
+    {
+     "id": "8.4",
+     "title": "Multi-factor authentication",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_totp.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_webauthn.py"
+      },
+      {
+       "type": "test",
+       "ref": "test_oidc_flow.OidcFlowTests.test_forged_and_unsigned_tokens"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "10.2",
+     "title": "Audit logs",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log of every change with who, when, address and command; strict chain with signed anchors.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108030"
+      },
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status",
+       "key": "on",
+       "equals": true
+      }
+     ]
+    },
+    {
+     "id": "10.5.1",
+     "title": "Keep audit logs 12 months",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Audit log 400 days by default; the PCI DSS and HIPAA frameworks raise the audit log and the mail log to at least 365 days.",
+     "limits": "The mail log keeps 365 days only when PCI DSS or HIPAA is chosen (or set by the operator); it holds personal data.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "retention-status"
+      },
+      {
+       "type": "command",
+       "ref": "retention-status"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_setup.py"
+      }
+     ]
+    },
+    {
+     "id": "10.6",
+     "title": "Time synchronisation",
+     "status": "covered",
+     "owner": "os",
+     "scope": "chronyd, checked by the hardening report.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "chronyd runs"
+      }
+     ]
+    },
+    {
+     "id": "11.5.2",
+     "title": "Change detection",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "File check of eFa-next (fim-set): a signed baseline of /etc/eFa, /etc/postfix, /etc/rspamd/local.d and /etc/nginx, compared before every change through efactl and hashed again daily; changes outside efactl raise an event and a Wazuh alert until an admin accepts them. Also file integrity through Wazuh; rpm -V; security floor guard.",
+     "limits": "Off by default (fim-set). The check before a change trusts size and time; the daily check hashes every file.",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108050"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/wazuh/sca-efa-next.yml"
+      },
+      {
+       "type": "test",
+       "ref": "test_floor_dropins.FloorDropinTests.test_path_unit_runs_the_check"
+      },
+      {
+       "type": "test",
+       "ref": "test_rpm_verify.RpmVerifyTests.test_unchanged_paths"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_outside_change_noted_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_efactl_changes_renew"
+      },
+      {
+       "type": "hardening",
+       "ref": "No configuration file changed outside efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108200"
+      }
+     ]
+    },
+    {
+     "id": "11.3",
+     "title": "Vulnerability scans and penetration tests",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "Scans of the operator's addresses and penetration tests.",
+     "limits": "eFa-next watches CVEs of its own packages only.",
+     "evidence": []
+    },
+    {
+     "id": "12",
+     "title": "Policies, risk, staff",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "hipaa",
+   "title": "HIPAA Security Rule (45 CFR Part 164, Subpart C)",
+   "version": "45 CFR 164.308-164.316",
+   "applies": "Only when ePHI passes through the mail flow of a US covered entity or business associate.",
+   "controls": [
+    {
+     "id": "164.312(a)(1)",
+     "title": "Access control",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Unique users, emergency access (break-glass), automatic logoff, held mail encrypted.",
+     "limits": "Automatic logoff default 60 minutes; 15 with the HIPAA framework.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_breakglass.Codes.test_codes_are_long_and_single_use"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleWeb.test_shorter_ends_open_sessions"
+      }
+     ]
+    },
+    {
+     "id": "164.312(b)",
+     "title": "Audit controls",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log, strict chain with signed anchors, a reason to view mail content, events to SIEM.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108030"
+      },
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status",
+       "key": "on",
+       "equals": true
+      }
+     ]
+    },
+    {
+     "id": "164.312(c)(1)",
+     "title": "Integrity",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Signed backups, audit chain, DKIM and ARC, CDR keeps the original; file check of the configuration without Wazuh (fim-set).",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108050"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/wazuh/sca-efa-next.yml"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_outside_change_noted_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_efactl_changes_renew"
+      },
+      {
+       "type": "hardening",
+       "ref": "No configuration file changed outside efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108200"
+      }
+     ]
+    },
+    {
+     "id": "164.312(d)",
+     "title": "Person or entity authentication",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_totp.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_webauthn.py"
+      },
+      {
+       "type": "test",
+       "ref": "test_oidc_flow.OidcFlowTests.test_forged_and_unsigned_tokens"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "164.312(e)(1)",
+     "title": "Transmission security",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "TLS profiles; TLS per partner domain; S/MIME and PGP at the gateway; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic: set TLS or encryption per partner.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "file",
+       "ref": "docs/tls-partners.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "164.308",
+     "title": "Administrative safeguards",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "Backup, restore check and the hardening report help.",
+     "evidence": []
+    },
+    {
+     "id": "164.310",
+     "title": "Physical safeguards",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    },
+    {
+     "id": "164.314",
+     "title": "Business associate contracts",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "A template of a Business Associate Agreement; privacy-evidence and compliance-verify give its annex.",
+     "limits": "Template not checked by a lawyer; the contract is the operator's.",
+     "evidence": [
+      {
+       "type": "file",
+       "ref": "docs/datenschutz/BAA.md"
+      },
+      {
+       "type": "command",
+       "ref": "privacy-evidence"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "nist-800-53",
+   "title": "NIST SP 800-53 Rev. 5",
+   "version": "Rev. 5",
+   "applies": "Operators who use it as a baseline; the technical families.",
+   "controls": [
+    {
+     "id": "AC-2",
+     "title": "Account management",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Users, groups, roles, locking, sessions ended at once.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108080"
+      },
+      {
+       "type": "test",
+       "ref": "test_tenant_groups.TenantGroups.test_limits_inside_usage"
+      }
+     ]
+    },
+    {
+     "id": "AC-3",
+     "title": "Access enforcement",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Every efactl command checks the right of the login; the portal is a separate program.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108080"
+      }
+     ]
+    },
+    {
+     "id": "AC-5",
+     "title": "Separation of duties",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Four eyes for critical changes.",
+     "limits": "Off by default.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_cannot_be_passed_by_the_switching_commands"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_four_eyes_only_when_longer"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108065"
+      },
+      {
+       "type": "command",
+       "ref": "four-eyes-list"
+      }
+     ]
+    },
+    {
+     "id": "AC-6",
+     "title": "Least privilege",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "efa-web runs without root through efactl-runner; services sandboxed.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_unit_hardening.UnitHardeningTests.test_every_own_user_service_is_sandboxed"
+      },
+      {
+       "type": "test",
+       "ref": "test_selinux_policy.SelinuxPolicyTests.test_types_required"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      },
+      {
+       "type": "command",
+       "ref": "service-harden-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efactl-runner.py"
+      }
+     ]
+    },
+    {
+     "id": "AC-7",
+     "title": "Unsuccessful logon attempts",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "Lockout per address, slowdown per name.",
+     "limits": "Compensating control documented: no lockout per account on purpose (docs/compliance/compensating-controls.md).",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.Jails.test_mail_jails_without_the_admin_networks"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108012"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108068"
+      },
+      {
+       "type": "file",
+       "ref": "docs/login-lockout.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.SaslPerName.test_per_name"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/compensating-controls.md"
+      }
+     ]
+    },
+    {
+     "id": "AC-8",
+     "title": "System use notification",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "A text of the operator before the admin login of the web interface and, if wanted, before the SSH login.",
+     "limits": "Off by default: the operator writes the text.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "A login banner is shown before the admin login"
+      },
+      {
+       "type": "command",
+       "ref": "login-banner-status",
+       "key": "web",
+       "equals": true
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.LoginBanner.test_off_by_default_web_and_ssh_and_back"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.LoginBanner.test_web_shows_it_escaped_admin_only"
+      }
+     ]
+    },
+    {
+     "id": "AC-11",
+     "title": "Device lock (session idle)",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Admin idle timeout 5 to 60 minutes, 15 on new installs.",
+     "limits": "Upgraded hosts keep their value until changed; the hardening report shows it.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleWeb.test_shorter_ends_open_sessions"
+      },
+      {
+       "type": "hardening",
+       "ref": "Admin sessions end after at most 15 minutes idle"
+      },
+      {
+       "type": "command",
+       "ref": "admin-idle-status",
+       "key": "at_most_15",
+       "equals": true
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.Small.test_idle_15_on_new_installs_only"
+      }
+     ]
+    },
+    {
+     "id": "AC-12",
+     "title": "Session termination",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Sessions end on logout, on a lock of the user and from the session list.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleWeb.test_shorter_ends_open_sessions"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-web.py"
+      }
+     ]
+    },
+    {
+     "id": "AC-17",
+     "title": "Remote access",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Admin web only from allowed addresses; SSH key-only root; break-glass only from admin networks.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Root cannot log in with a password"
+      },
+      {
+       "type": "test",
+       "ref": "test_breakglass.Codes.test_codes_are_long_and_single_use"
+      },
+      {
+       "type": "test",
+       "ref": "test_breakglass.Part2.test_only_from_the_admin_networks_and_nothing_counted_from_outside"
+      }
+     ]
+    },
+    {
+     "id": "AU-2",
+     "title": "Event logging",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Every change, login and security event.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108030"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "AU-6",
+     "title": "Audit record review and reporting",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit search, Wazuh with compliance groups, reports.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      }
+     ]
+    },
+    {
+     "id": "AU-8",
+     "title": "Time stamps",
+     "status": "covered",
+     "owner": "os",
+     "scope": "chronyd; UTC in events.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "chronyd runs"
+      }
+     ]
+    },
+    {
+     "id": "AU-9",
+     "title": "Protection of audit information",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "HMAC chain and signed Ed25519 daily anchors.",
+     "limits": "Strict mode is off by default.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status",
+       "key": "on",
+       "equals": true
+      },
+      {
+       "type": "command",
+       "ref": "audit-anchor-verify",
+       "key": "ok",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108060"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108061"
+      },
+      {
+       "type": "file",
+       "ref": "docs/audit-anchor.md"
+      }
+     ]
+    },
+    {
+     "id": "AU-11",
+     "title": "Audit record retention",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Audit log 400 days by default, raised by frameworks.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "retention-status"
+      }
+     ]
+    },
+    {
+     "id": "CA-7",
+     "title": "Continuous monitoring",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Daily self check, hardening report, CVE watch, compliance-verify.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "security-status"
+      },
+      {
+       "type": "command",
+       "ref": "hardening-report"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      }
+     ]
+    },
+    {
+     "id": "CM-2",
+     "title": "Baseline configuration",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Security standards with rollback, config history.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "command",
+       "ref": "standards-check"
+      },
+      {
+       "type": "file",
+       "ref": "docs/config-history.md"
+      }
+     ]
+    },
+    {
+     "id": "CM-3",
+     "title": "Configuration change control",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Config history with undo, four eyes, audit.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      }
+     ]
+    },
+    {
+     "id": "CM-6",
+     "title": "Configuration settings",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Hardening report, security floor guard.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      },
+      {
+       "type": "hardening",
+       "ref": "Passwords are stored with SHA-512 or yescrypt"
+      },
+      {
+       "type": "hardening",
+       "ref": "/etc/shadow is readable by root only"
+      },
+      {
+       "type": "command",
+       "ref": "standards-check"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/standards.json"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      }
+     ]
+    },
+    {
+     "id": "CM-7",
+     "title": "Least functionality",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Dedicated server; services not needed are off.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_unit_hardening.UnitHardeningTests.test_every_own_user_service_is_sandboxed"
+      },
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      }
+     ]
+    },
+    {
+     "id": "CM-8",
+     "title": "System component inventory",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "SBOM per release.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "build/sbom.py"
+      },
+      {
+       "type": "file",
+       "ref": "build/sbom.py"
+      }
+     ]
+    },
+    {
+     "id": "CP-9",
+     "title": "System backup",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Encrypted, signed backups; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "Restore tests are the operator's.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "IA-2",
+     "title": "Identification and authentication",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_replicated_user_needs_totp_on_the_node"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_totp.py"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_webauthn.py"
+      },
+      {
+       "type": "test",
+       "ref": "test_oidc_flow.OidcFlowTests.test_forged_and_unsigned_tokens"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "IA-5",
+     "title": "Authenticator management",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Passwords of at least 12 characters, breach check, hashed; recovery codes once.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_more_changes_need_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_secrets.SecretsTest.test_no_password_on_a_command_line"
+      },
+      {
+       "type": "command",
+       "ref": "totp-status"
+      }
+     ]
+    },
+    {
+     "id": "IA-7",
+     "title": "Cryptographic module authentication",
+     "status": "not-covered",
+     "owner": "os",
+     "scope": "FIPS 140 mode is not supported or tested by eFa-next.",
+     "limits": "Ed25519, ChaCha20 and X25519MLKEM768 are used.",
+     "evidence": []
+    },
+    {
+     "id": "IR-4",
+     "title": "Incident handling",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "Events, report helper; reports for NIS2, GDPR Art. 33 and DORA Art. 19 prepared from the incident record, and an incident response template.",
+     "limits": "Plan and team are the operator's.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/nis2-incident.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/incident-response.md"
+      }
+     ]
+    },
+    {
+     "id": "RA-5",
+     "title": "Vulnerability monitoring and scanning",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "CVE watch of the installed packages.",
+     "limits": "Network scans are the operator's.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      }
+     ]
+    },
+    {
+     "id": "SA-11",
+     "title": "Developer testing",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CI with unit tests, self-tests, install and upgrade tests for every release.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "test",
+       "ref": "test_legal_check.RepositoryTests.test_repository_has_only_the_open_findings"
+      }
+     ]
+    },
+    {
+     "id": "SC-7",
+     "title": "Boundary protection",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "firewalld with the firewall guard, admin allowlist.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      },
+      {
+       "type": "command",
+       "ref": "firewall-guard-status"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108022"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.AdminExemptNetworks.test_no_entry_as_wide_as_the_internet"
+      }
+     ]
+    },
+    {
+     "id": "SC-8",
+     "title": "Transmission confidentiality and integrity",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS profiles, DANE, MTA-STS; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "The web interface offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing mail uses DANE"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "SC-13",
+     "title": "Cryptographic protection",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "TLS profile NIST SP 800-52 Rev. 2 available.",
+     "limits": "No FIPS 140 validated mode.",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "nist-80052"
+      },
+      {
+       "type": "hardening",
+       "ref": "Certificate of web and mail: RSA from 3000 bits or ECC (P-256, P-384)"
+      }
+     ]
+    },
+    {
+     "id": "SC-28",
+     "title": "Protection of information at rest",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Held mail encrypted per tenant, encrypted backups.",
+     "limits": "Mail log, queue and database not encrypted by eFa-next.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "hardening",
+       "ref": "The file systems of the mail data are encrypted (LUKS)"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_fs_encrypted"
+      },
+      {
+       "type": "file",
+       "ref": "docs/install.md"
+      }
+     ]
+    },
+    {
+     "id": "SI-2",
+     "title": "Flaw remediation",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Signed updates, CVE watch.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      }
+     ]
+    },
+    {
+     "id": "SI-3",
+     "title": "Malicious code protection",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "ClamAV, rspamd, CDR.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108040"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108088"
+      },
+      {
+       "type": "file",
+       "ref": "docs/attachments-and-cdr.md"
+      }
+     ]
+    },
+    {
+     "id": "SI-4",
+     "title": "System monitoring",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Attack alert, service monitor, events.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_threat.Threat.test_a_service_down_counts_at_the_second_check"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "SI-7",
+     "title": "Software and information integrity",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "rpm -V, security floor, file integrity through Wazuh; file check of the configuration without Wazuh (fim-set).",
+     "limits": "Alerts on file changes need the Wazuh agent.",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108050"
+      },
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/wazuh/sca-efa-next.yml"
+      },
+      {
+       "type": "test",
+       "ref": "test_floor_dropins.FloorDropinTests.test_path_unit_runs_the_check"
+      },
+      {
+       "type": "test",
+       "ref": "test_rpm_verify.RpmVerifyTests.test_unchanged_paths"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_outside_change_noted_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_fim_baseline.Fim.test_efactl_changes_renew"
+      },
+      {
+       "type": "hardening",
+       "ref": "No configuration file changed outside efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108200"
+      }
+     ]
+    },
+    {
+     "id": "SI-8",
+     "title": "Spam protection",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "The core function of eFa-next.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-reports.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_links.py"
+      }
+     ]
+    },
+    {
+     "id": "AT, MA, MP, PE, PL, PM, PS",
+     "title": "Organisational families",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "nist-csf",
+   "title": "NIST Cybersecurity Framework 2.0",
+   "version": "2.0",
+   "applies": "As a frame for the operator's programme.",
+   "controls": [
+    {
+     "id": "PR.AA",
+     "title": "Identity management, authentication and access control",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Roles, 2FA, idle timeout, lockout.",
+     "limits": "2FA a setting.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      },
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      }
+     ]
+    },
+    {
+     "id": "PR.DS",
+     "title": "Data security",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "TLS, encrypted held mail and backups.",
+     "limits": "No encryption at rest of mail log, queue and database.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "hardening",
+       "ref": "The file systems of the mail data are encrypted (LUKS)"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_fs_encrypted"
+      },
+      {
+       "type": "file",
+       "ref": "docs/install.md"
+      }
+     ]
+    },
+    {
+     "id": "PR.PS",
+     "title": "Platform security",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Hardening, sandboxes, signed updates.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      },
+      {
+       "type": "test",
+       "ref": "test_unit_hardening.UnitHardeningTests.test_every_own_user_service_is_sandboxed"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      }
+     ]
+    },
+    {
+     "id": "DE.CM",
+     "title": "Continuous monitoring",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Events, attack alert, CVE watch.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      }
+     ]
+    },
+    {
+     "id": "RS.MA",
+     "title": "Incident management",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "Events and report helper; reports for NIS2, GDPR Art. 33 and DORA Art. 19 prepared from the incident record, and an incident response template.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "file",
+       "ref": "docs/WAZUH.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/nis2-incident.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/compliance/incident-response.md"
+      }
+     ]
+    },
+    {
+     "id": "RC.RP",
+     "title": "Incident recovery plan execution",
+     "status": "partial",
+     "owner": "operator",
+     "scope": "Backups and restore; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "GV",
+     "title": "Govern",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "soc2",
+   "title": "SOC 2 Trust Services Criteria",
+   "version": "TSC 2017 (revised points of focus 2022)",
+   "applies": "Only for an organisation that runs eFa-next as a service; it is a report on the organisation.",
+   "controls": [
+    {
+     "id": "CC6.1",
+     "title": "Logical access security",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Roles, scopes, 2FA, admin allowlist.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Web.test_a_token_never_does_what_needs_the_password"
+      },
+      {
+       "type": "test",
+       "ref": "test_maillog_privacy_menu.LiveFilter.test_tenant_scope"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108080"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      }
+     ]
+    },
+    {
+     "id": "CC6.6",
+     "title": "Boundary protection",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Firewall with guard, allowlists, lockout.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      },
+      {
+       "type": "command",
+       "ref": "firewall-guard-status"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108022"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.AdminExemptNetworks.test_no_entry_as_wide_as_the_internet"
+      },
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      }
+     ]
+    },
+    {
+     "id": "CC6.7",
+     "title": "Transmission protection",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS profiles, mTLS in the cluster; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "The web interface offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "CC6.8",
+     "title": "Malicious software",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "ClamAV, rspamd, CDR, signed updates.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108040"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108088"
+      },
+      {
+       "type": "file",
+       "ref": "docs/attachments-and-cdr.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      }
+     ]
+    },
+    {
+     "id": "CC7.1",
+     "title": "Vulnerabilities and configuration changes",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CVE watch, security floor, config history.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      }
+     ]
+    },
+    {
+     "id": "CC7.2",
+     "title": "Monitoring of components",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Events with compliance groups, attack alert.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "CC8.1",
+     "title": "Change management",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log, four eyes, config history; CI and signed releases.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      }
+     ]
+    },
+    {
+     "id": "A1.2",
+     "title": "Backup and recovery infrastructure",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Encrypted, signed backups, cluster, spooling; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "Restore tests are the operator's.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "C1.2",
+     "title": "Disposal of confidential information",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Retention per kind of data and tenant, nightly purge.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "retention-status"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/gdpr-requests.md"
+      }
+     ]
+    },
+    {
+     "id": "CC1-CC5",
+     "title": "Control environment, communication, risk, monitoring activities",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "iso27001",
+   "title": "ISO/IEC 27001:2022 Annex A",
+   "version": "2022",
+   "applies": "The technological controls (A.8) the operator can support with eFa-next.",
+   "controls": [
+    {
+     "id": "A.8.2",
+     "title": "Privileged access rights",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Roles, four eyes, break-glass admin with one-time codes.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_lines_only_where_the_table_allows_them"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_four_eyes_for_the_main_admins"
+      },
+      {
+       "type": "test",
+       "ref": "test_breakglass.Codes.test_codes_are_long_and_single_use"
+      }
+     ]
+    },
+    {
+     "id": "A.8.5",
+     "title": "Secure authentication",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_idle.AdminIdleCommand.test_shorter_needs_no_reauth_longer_does"
+      },
+      {
+       "type": "command",
+       "ref": "login-lockout-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "hardening",
+       "ref": "2FA required for every admin role"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fresh_install_requires_it_at_once"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_a_second_factor_of_either_kind_counts"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_fail_closed"
+      },
+      {
+       "type": "test",
+       "ref": "test_admin_2fa_required.AdminTwoFactor.test_console_admin_sets_it_up_at_the_first_ssh_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efa-console-2fa"
+      },
+      {
+       "type": "file",
+       "ref": "docs/two-factor.md"
+      }
+     ]
+    },
+    {
+     "id": "A.8.7",
+     "title": "Protection against malware",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "ClamAV, rspamd, CDR.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108040"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108088"
+      },
+      {
+       "type": "file",
+       "ref": "docs/attachments-and-cdr.md"
+      }
+     ]
+    },
+    {
+     "id": "A.8.8",
+     "title": "Management of technical vulnerabilities",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "CVE watch, signed updates.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "cve-watch-status",
+       "key": "mode",
+       "equals": "on"
+      },
+      {
+       "type": "test",
+       "ref": "test_advisories.AdvisoryTests.test_entries_have_the_form_of_the_cve_watch"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108073"
+      },
+      {
+       "type": "file",
+       "ref": "docs/cve-watch.md"
+      }
+     ]
+    },
+    {
+     "id": "A.8.9",
+     "title": "Configuration management",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Security standards, config history, floor guard.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "command",
+       "ref": "floor-status",
+       "key": "failed",
+       "equals": []
+      }
+     ]
+    },
+    {
+     "id": "A.8.13",
+     "title": "Information backup",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Encrypted, signed backups; restore test of a backup into a throwaway database (backup-restore-test), monthly when switched on.",
+     "limits": "Restore tests are the operator's.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-signature.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_dump_tables"
+      },
+      {
+       "type": "test",
+       "ref": "test_restore_test.RestoreTest.test_run_records"
+      },
+      {
+       "type": "hardening",
+       "ref": "A restore test of a backup passed in the last 35 days"
+      }
+     ]
+    },
+    {
+     "id": "A.8.15",
+     "title": "Logging",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log, strict chain, events.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108030"
+      },
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      }
+     ]
+    },
+    {
+     "id": "A.8.16",
+     "title": "Monitoring activities",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Attack alert, events, Wazuh.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "A.8.17",
+     "title": "Clock synchronisation",
+     "status": "covered",
+     "owner": "os",
+     "scope": "chronyd.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "chronyd runs"
+      }
+     ]
+    },
+    {
+     "id": "A.8.20",
+     "title": "Network security",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "Firewall with guard.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      },
+      {
+       "type": "command",
+       "ref": "firewall-guard-status"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108022"
+      },
+      {
+       "type": "test",
+       "ref": "test_f2b_admin_networks.AdminExemptNetworks.test_no_entry_as_wide_as_the_internet"
+      }
+     ]
+    },
+    {
+     "id": "A.8.23",
+     "title": "Web filtering",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Link check on click for links in mail.",
+     "limits": "Only links in mail.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_links.py"
+      }
+     ]
+    },
+    {
+     "id": "A.8.24",
+     "title": "Use of cryptography",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS profiles, key lengths after BSI TR-02102-1; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Certificate of web and mail: RSA from 3000 bits or ECC (P-256, P-384)"
+      },
+      {
+       "type": "hardening",
+       "ref": "SSH host key RSA from 3000 bits"
+      },
+      {
+       "type": "hardening",
+       "ref": "DKIM RSA keys from 3000 bits (Ed25519 next to them)"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-02102-1"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "A.5, A.6, A.7",
+     "title": "Organisational, people and physical controls",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "bsi",
+   "title": "BSI technical guidelines and IT-Grundschutz",
+   "version": "TR-02102 2026-01, TR-03108 2.0, TR-03116-4 2025",
+   "applies": "Settings eFa-next checks against the published guidelines (security standards of eFa-next).",
+   "controls": [
+    {
+     "id": "TR-02102-1",
+     "title": "Key lengths",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Certificates, SSH host keys and DKIM keys checked.",
+     "limits": "An RSA 2048 certificate fails the check and needs a new key.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Certificate of web and mail: RSA from 3000 bits or ECC (P-256, P-384)"
+      },
+      {
+       "type": "hardening",
+       "ref": "SSH host key RSA from 3000 bits"
+      },
+      {
+       "type": "hardening",
+       "ref": "DKIM RSA keys from 3000 bits (Ed25519 next to them)"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-02102-1"
+      }
+     ]
+    },
+    {
+     "id": "TR-02102-2",
+     "title": "TLS",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "TLS profile BSI for Postfix and nginx; hybrid post-quantum key exchange where the platform has it.",
+     "limits": "X25519MLKEM768 only with the OpenSSL of EL10.",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "bsi-02102-2"
+      },
+      {
+       "type": "command",
+       "ref": "tls-profile-status"
+      },
+      {
+       "type": "hardening",
+       "ref": "Hybrid key exchange X25519MLKEM768 offered"
+      },
+      {
+       "type": "hardening",
+       "ref": "The web interface offers TLS 1.2 or newer only"
+      }
+     ]
+    },
+    {
+     "id": "TR-02102-4",
+     "title": "SSH",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "SSH profile BSI, set in the hardening wizard.",
+     "limits": "Needs a new SSH login within 10 minutes: not set by the setup; the dashboard leads to the hardening wizard until it is set.",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "bsi-02102-4"
+      },
+      {
+       "type": "hardening",
+       "ref": "SSH offers only BSI key exchange, ciphers, MACs and host key algorithms"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_ssh_profile_notice"
+      }
+     ]
+    },
+    {
+     "id": "TR-03108",
+     "title": "Secure mail transport",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "TLS versions, DANE, MTA-STS, TLS-RPT, DNSSEC, a valid certificate, no system accounts on port 587; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "Port 25 opportunistic as TR-03108 allows for unknown partners.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "SMTP-AUTH only over TLS"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing mail uses DANE"
+      },
+      {
+       "type": "hardening",
+       "ref": "Own domains publish MTA-STS"
+      },
+      {
+       "type": "hardening",
+       "ref": "TLS reports (TLS-RPT) are read"
+      },
+      {
+       "type": "hardening",
+       "ref": "The own resolver validates DNSSEC"
+      },
+      {
+       "type": "standard",
+       "ref": "bsi-03108"
+      },
+      {
+       "type": "hardening",
+       "ref": "The server certificate is valid for more than 14 days"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 does not take system accounts"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    },
+    {
+     "id": "TR-03116-4",
+     "title": "TLS in federal agencies",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "TLS of web, submission and mail checked against TR-03116-4 (Stand 2025).",
+     "limits": "Checked as a security standard: TLS versions, cipher suites, groups, TLS 1.3, session lifetime, no 0-RTT, certificate keys.",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "bsi-03116-4"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.Small.test_tr_03116_4"
+      }
+     ]
+    },
+    {
+     "id": "OPS.1.1.5",
+     "title": "Logging",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log with signed daily anchors.",
+     "limits": "Strict mode off by default.",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status",
+       "key": "on",
+       "equals": true
+      },
+      {
+       "type": "command",
+       "ref": "audit-anchor-verify",
+       "key": "ok",
+       "equals": true
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108060"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108061"
+      },
+      {
+       "type": "file",
+       "ref": "docs/audit-anchor.md"
+      }
+     ]
+    },
+    {
+     "id": "APP.5.3",
+     "title": "General e-mail client and server",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Filtering, TLS, SPF, DKIM, DMARC, ARC.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "command",
+       "ref": "scan-status",
+       "key": "enabled",
+       "equals": true
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing mail uses DANE"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "cis-el",
+   "title": "CIS AlmaLinux OS 9/10 Benchmark (the parts eFa-next checks)",
+   "version": "Benchmark 2.0",
+   "applies": "Only the recommendations that eFa-next checks or sets; not a full CIS assessment.",
+   "controls": [
+    {
+     "id": "1.6",
+     "title": "Mandatory access control (SELinux)",
+     "status": "covered",
+     "owner": "os",
+     "scope": "SELinux enforcing, own policy module.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_selinux_policy.SelinuxPolicyTests.test_types_required"
+      },
+      {
+       "type": "hardening",
+       "ref": "SELinux enforces"
+      }
+     ]
+    },
+    {
+     "id": "1.10",
+     "title": "System-wide crypto policy",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Crypto policy set by the security standards.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      }
+     ]
+    },
+    {
+     "id": "3.3",
+     "title": "Kernel network parameters",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "sysctl values of the hardening report.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "command",
+       "ref": "hardening-report"
+      }
+     ]
+    },
+    {
+     "id": "4.1",
+     "title": "Host firewall",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "firewalld with the firewall guard.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The firewall runs"
+      },
+      {
+       "type": "command",
+       "ref": "firewall-guard-status"
+      }
+     ]
+    },
+    {
+     "id": "5.1",
+     "title": "SSH server configuration",
+     "status": "partial",
+     "owner": "shared",
+     "scope": "Root without password, no empty passwords, at most 4 tries.",
+     "limits": "Root login with a key is allowed (CIS asks for none).",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Root cannot log in with a password"
+      },
+      {
+       "type": "hardening",
+       "ref": "No empty passwords over SSH"
+      },
+      {
+       "type": "hardening",
+       "ref": "At most 4 login attempts per connection"
+      },
+      {
+       "type": "hardening",
+       "ref": "No X11 forwarding"
+      },
+      {
+       "type": "standard",
+       "ref": "cis-el"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_templates.Templates.test_ssh_profile_notice"
+      }
+     ]
+    },
+    {
+     "id": "5.4",
+     "title": "Password hashing and files",
+     "status": "covered",
+     "owner": "os",
+     "scope": "SHA-512 or yescrypt, /etc/shadow root only.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Passwords are stored with SHA-512 or yescrypt"
+      },
+      {
+       "type": "hardening",
+       "ref": "/etc/shadow is readable by root only"
+      }
+     ]
+    },
+    {
+     "id": "6.2",
+     "title": "Logging and auditing (auditd)",
+     "status": "covered",
+     "owner": "os",
+     "scope": "auditd runs; eFa-next rules for its own files.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "auditd runs"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status"
+      }
+     ]
+    },
+    {
+     "id": "2.3",
+     "title": "Time synchronisation",
+     "status": "covered",
+     "owner": "os",
+     "scope": "chronyd.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "chronyd runs"
+      }
+     ]
+    },
+    {
+     "id": "3.1",
+     "title": "Network configuration",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "No interface with a profile the network service made by itself.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "No interface with a profile the network service made by itself (DHCP from any network)"
+      }
+     ]
+    },
+    {
+     "id": "1.9",
+     "title": "Updates installed",
+     "status": "covered",
+     "owner": "shared",
+     "scope": "dnf-automatic, or the update policy of eFa-next with the operating system (security or all).",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Operating system updates are installed automatically"
+      },
+      {
+       "type": "command",
+       "ref": "autoupdate-status"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_small.Small.test_cis_19_takes_the_update_policy"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "gpg13",
+   "title": "GPG13 Protective Monitoring",
+   "version": "UK HMG Good Practice Guide 13",
+   "applies": "A mail gateway as a boundary monitoring point; used by the Wazuh dashboards.",
+   "controls": [
+    {
+     "id": "PMC1",
+     "title": "Accurate time in logs",
+     "status": "covered",
+     "owner": "os",
+     "scope": "chronyd.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "chronyd runs"
+      }
+     ]
+    },
+    {
+     "id": "PMC2",
+     "title": "Recording of business traffic crossing a boundary",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Mail log of every message with its result.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-maillog.py"
+      }
+     ]
+    },
+    {
+     "id": "PMC3",
+     "title": "Suspicious activity at the boundary",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Blocklist hits, viruses, bans as events.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108013"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108041"
+      },
+      {
+       "type": "wazuh-rule",
+       "ref": "108040"
+      }
+     ]
+    },
+    {
+     "id": "PMC4",
+     "title": "Workstation, device and system activity",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Service monitor events.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108020"
+      },
+      {
+       "type": "test",
+       "ref": "test_threat.Threat.test_a_service_down_counts_at_the_second_check"
+      }
+     ]
+    },
+    {
+     "id": "PMC7",
+     "title": "Session activity by user",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Audit log with user, address, command; session list.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_audit_file_lines_cannot_be_forged"
+      },
+      {
+       "type": "test",
+       "ref": "test_insider_hardening.Efactl.test_a_failed_change_is_in_the_audit_log_whatever_its_error"
+      },
+      {
+       "type": "command",
+       "ref": "session-list"
+      }
+     ]
+    },
+    {
+     "id": "PMC8",
+     "title": "Data backup status",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Backup alarm and event.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "wazuh-rule",
+       "ref": "108094"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_sign.py"
+      }
+     ]
+    },
+    {
+     "id": "PMC9",
+     "title": "Alerting critical events",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "Events to SIEM, OTLP and Wazuh with levels.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_every_alert_has_compliance_groups"
+      },
+      {
+       "type": "test",
+       "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      }
+     ]
+    },
+    {
+     "id": "PMC10",
+     "title": "Status of the audit system",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "audit-verify, audit-anchor-verify, hardening check.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "The strict audit log has a valid signed anchor of the last two days"
+      },
+      {
+       "type": "command",
+       "ref": "audit-strict-status",
+       "key": "on",
+       "equals": true
+      },
+      {
+       "type": "command",
+       "ref": "audit-anchor-verify",
+       "key": "ok",
+       "equals": true
+      }
+     ]
+    },
+    {
+     "id": "PMC12",
+     "title": "Legal framework",
+     "status": "out-of-scope",
+     "owner": "operator",
+     "scope": "The organisation that runs eFa-next.",
+     "limits": "",
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "rfc9325",
+   "title": "RFC 9325 (BCP 195): TLS and DTLS recommendations",
+   "version": "November 2022",
+   "applies": "TLS of the mail and web services of eFa-next.",
+   "controls": [
+    {
+     "id": "4.1",
+     "title": "Protocol versions",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "TLS 1.2 and 1.3 only.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "rfc9325"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming SMTP offers TLS 1.2 or newer only"
+      },
+      {
+       "type": "hardening",
+       "ref": "Port 587 requires TLS 1.2 or newer"
+      },
+      {
+       "type": "hardening",
+       "ref": "Outgoing SMTP uses TLS 1.2 or newer only"
+      }
+     ]
+    },
+    {
+     "id": "4.2",
+     "title": "Cipher suites",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "AEAD and ECDHE only in the profiles.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "standard",
+       "ref": "rfc9325"
+      },
+      {
+       "type": "hardening",
+       "ref": "Cipher settings are valid grades"
+      }
+     ]
+    },
+    {
+     "id": "3.9",
+     "title": "Opportunistic TLS on port 25",
+     "status": "partial",
+     "owner": "efa-next",
+     "scope": "Port 25 opportunistic, DANE and MTA-STS where published; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "limits": "By design (RFC 3207).",
+     "evidence": [
+      {
+       "type": "hardening",
+       "ref": "Outgoing mail uses DANE"
+      },
+      {
+       "type": "hardening",
+       "ref": "Own domains publish MTA-STS"
+      },
+      {
+       "type": "test",
+       "ref": "test_tls_partner_suggest.Suggest.test_candidates"
+      },
+      {
+       "type": "hardening",
+       "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "eu-sovereignty",
+   "title": "EU digital sovereignty (own criteria of eFa-next)",
+   "version": "eFa-next",
+   "applies": "Own criteria, no external standard; each one checkable.",
+   "controls": [
+    {
+     "id": "SOV-1",
+     "title": "Open source, self-hosted",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "AGPL-3.0, runs on the operator's own server; no service of the project is needed to run it.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_legal_check.RepositoryTests.test_repository_has_only_the_open_findings"
+      },
+      {
+       "type": "file",
+       "ref": "DISCLAIMER.md"
+      },
+      {
+       "type": "file",
+       "ref": "LICENSE"
+      }
+     ]
+    },
+    {
+     "id": "SOV-2",
+     "title": "No telemetry",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "No analytics or telemetry; outgoing connections are the ones an admin turns on.",
+     "limits": "A check of known names, not a proof of absence.",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_no_telemetry.NoTelemetry.test_no_known_telemetry_endpoint"
+      }
+     ]
+    },
+    {
+     "id": "SOV-3",
+     "title": "EU-only backup targets",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "With the EU link, backups only to providers in European hands.",
+     "limits": "A host can opt out with a typed confirmation.",
+     "evidence": [
+      {
+       "type": "command",
+       "ref": "eu-relation-status",
+       "key": "global",
+       "equals": "yes"
+      },
+      {
+       "type": "test",
+       "ref": "test_setup_defaults.SetupDefaults.test_fresh_on_upgrade_unchanged"
+      },
+      {
+       "type": "file",
+       "ref": "docs/eu-relation.md"
+      },
+      {
+       "type": "file",
+       "ref": "docs/backup-eu.md"
+      }
+     ]
+    },
+    {
+     "id": "SOV-4",
+     "title": "Signed updates from the own repository",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "GPG-signed packages and SHA256SUMS, key pinned; GitHub only a mirror.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "file",
+       "ref": "next/usr/share/eFa/RPM-GPG-KEY-efa-next"
+      },
+      {
+       "type": "file",
+       "ref": "scripts/publish/publish-release.sh"
+      },
+      {
+       "type": "test",
+       "ref": "test_update_policy.DnfCallSites.test_no_dnf_transaction_bypasses_the_runner"
+      }
+     ]
+    },
+    {
+     "id": "SOV-5",
+     "title": "SBOM for every release",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "CycloneDX SBOM, checked against the official schema.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "build/sbom.py"
+      },
+      {
+       "type": "file",
+       "ref": "build/sbom.py"
+      }
+     ]
+    },
+    {
+     "id": "SOV-6",
+     "title": "Verifiable compliance file",
+     "status": "covered",
+     "owner": "efa-next",
+     "scope": "This file, its SHA-256 in the signed SHA256SUMS, an OSCAL export, efactl compliance-verify and a result signed by the host.",
+     "limits": "",
+     "evidence": [
+      {
+       "type": "test",
+       "ref": "test_compliance_file.Build.test_release_file_is_valid"
+      },
+      {
+       "type": "command",
+       "ref": "compliance-verify"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_file.Build.test_oscal_export_is_valid"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_file.Verify.test_signed_result_round_trip_and_tamper"
+      },
+      {
+       "type": "test",
+       "ref": "test_compliance_file.Verify.test_signed_only_for_the_whole_system"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

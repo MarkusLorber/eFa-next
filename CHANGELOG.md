@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.0.0.6.8 (2026-11-23)
+
+### rspamd 4.3.1 is the minimum (EFA-2026-009)
+- rspamd before 4.3.1 let a spoofed mail past a DMARC reject policy: a malformed SPF domain chosen by the sender gave
+  `DMARC_DNSFAIL` instead of the reject. One DKIM signature with an unresolvable or overlong `d=` or `s=` label hid every DKIM
+  result of the mail. A reply of clamd without a verdict (for example during a reload of its database) counted as a clean
+  scan. Crafted mail could crash a worker (use-after-free in lua_tcp, timers, html and mime) and slow it down (URL hashes).
+- eFa-next-base requires rspamd 4.3.1 by its arch-bound name, so dnf takes it along with this update; the lock to the major
+  version 4 stays in rspamd.repo.
+- A virus scan without a verdict now sets `CLAM_VIRUS_FAIL`, which the scan limits (C7) handle like any scan failure: a domain
+  that fails closed defers the mail with `451`, one that fails open lets it pass unscanned, marked `EFA_SCAN_FAIL`. The CI
+  checks it against a made-up clamd (`scripts/scan_fail_live.py`): with rspamd 4.3.0 the same mail passed as scanned.
+- Checked against the changes of rspamd 4.3.1 that are not compatible: the time values of eFa-next in the rspamd settings are
+  read by UCL, not by the stricter `lua_util.parse_time_interval` (greylisting, fuzzy storage and task timeout unchanged on
+  4.3.1); eFa-next writes scores and actions to `local.d` and none through the dynamic configuration; it does not switch
+  symbols at run time; `max_dns_requests` of the RBL module and `check_balance` of the Bayes autolearn stay unset.
+
 ## 6.0.0.6.7 (2026-11-22)
 
 **Breaking for API clients:** `passkey-reset`, `tls-profile-set`, `tls-min-set`, `backup-target-set`, `gdpr-delete` and

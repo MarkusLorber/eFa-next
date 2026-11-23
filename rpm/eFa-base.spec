@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.7
+Version:        6.0.0.6.8
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -44,10 +44,12 @@ Recommends:     selinux-policy-targeted-extra
 Requires:       redis
 %endif
 # 4.3.0: fixes of crashes of the workers and of the milter, ARC and Authentication-Results (CVE-4); the major lock stays in rspamd.repo.
+# 4.3.1 (EFA-2026-009): DMARC reject kept for a malformed SPF domain, DKIM results not hidden by one bad signature, a clamd reply
+# without a verdict is a scan failure, worker crashes in lua_tcp, timers and html/mime fixed.
 Requires:       rspamd
-# rspamd 4.3.0 at least (EFA-2026-005). Its packages also provide a plain "rspamd" without a version, which meets any
-# "rspamd >= x": only the arch-bound name carries the version, so dnf really takes 4.3.0 along with this update.
-Requires:       (rspamd(x86-64) >= 4.3.0 or rspamd(aarch-64) >= 4.3.0)
+# rspamd 4.3.1 at least (EFA-2026-009, before EFA-2026-005). Its packages also provide a plain "rspamd" without a version, which meets any
+# "rspamd >= x": only the arch-bound name carries the version, so dnf really takes 4.3.1 along with this update.
+Requires:       (rspamd(x86-64) >= 4.3.1 or rspamd(aarch-64) >= 4.3.1)
 Requires:       nginx
 Requires:       clamav
 Requires:       clamd
@@ -170,6 +172,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Mon Nov 23 2026 Markus Lorber - 6.0.0.6.8-1
+- 6.0.0.6.8: rspamd 4.3.1 is the minimum (DMARC reject bypass, hidden DKIM results, virus scan without a verdict, worker crashes); see CHANGELOG.md.
+
 * Sun Nov 22 2026 Markus Lorber - 6.0.0.6.7-1
 - 6.0.0.6.7: 2FA required for every admin, the compliance file of each release (JSON, Markdown, OSCAL), the base system updates with dnf, cluster hardening and break-glass admin, GDPR erasure, file check, restore test, incident reports; see CHANGELOG.md.
 
