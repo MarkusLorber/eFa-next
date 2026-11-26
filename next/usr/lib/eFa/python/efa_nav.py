@@ -7,7 +7,7 @@ NAV = [
     # 6.0.0.6.x (Hans): what is used every day on top, less used further down; every function once (portal-only cards apart).
     ('Daily', [
                 {'slug': 'dash', 'title': 'Dashboard', 'sub': 'Current state of this server.',
-         'sections': [('Details', ['status', 'settings', 'notice-ack'], 'advanced')],
+         'sections': [('Details', ['status', 'settings', 'notice-ack'], 'advanced'), ('Mail flow picture', ['flow-set'], 'advanced')],
          'load': ['quarantine-list', 'backup-list', 'dkim-check', 'rotation-status', 'ssh-root-status', 'bayes-status', 'security-status', 'dash-stats',
                   'rbl-show', 'standards-show']},
                 # 6.0.0.6 (Hans): the quick search with Check a mail beside it, the message search with all filters in its own window
@@ -17,7 +17,7 @@ NAV = [
                 {'slug': 'quar', 'title': 'Quarantine', 'sub': 'Spam held back in the mail queue instead of delivered.',
          'sections': [('Quarantine', ['quarantine-list', 'quarantine-show', 'quarantine-release', 'quarantine-delete']),
                       ('Settings', ['quarantine-set', 'quarantine-days-set', 'quarantine-purge'], 'advanced'),
-                      ('Emergency access', ['emergency-list', 'emergency-show', 'emergency-file', 'emergency-status', 'emergency-set'], 'advanced')]},
+                      ('Emergency access', ['emergency-list', 'emergency-show', 'emergency-file', 'emergency-export', 'emergency-export-fetch', 'emergency-status', 'emergency-set'], 'advanced')]},
                 {'slug': 'held', 'title': 'Held mail', 'sub': 'Mail stored for its recipients until someone releases it.',
          'sections': [('Held mail', ['uq-list', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'uq-delete']),
                       ('Spam reports', ['train-request', 'train-list', 'train-decide']),
@@ -26,7 +26,7 @@ NAV = [
                       ('Two-factor login (2FA)', ['totp-status', 'totp-setup', 'totp-confirm', 'totp-recovery-new', 'totp-disable', 'passkey-status', 'passkey-register', 'passkey-remove'], 'advanced'),
                       ('Newsletters and my spam limit', ['graymail-status', 'graymail-mine-set', 'user-spam-status', 'user-spam-mine-set']),
                       ('Recall my mail', ['recall-list', 'recall-withdraw']),
-                      ('Emergency access to my mail', ['emergency-list', 'emergency-show', 'emergency-file'])],
+                      ('Emergency access to my mail', ['emergency-list', 'emergency-show', 'emergency-file', 'emergency-export', 'emergency-export-fetch'])],
          'autoload': ['uq-list'],
          # 6.0.0.6.x (Hans): no double cards. These are the user portal's; an admin has My account and the admin pages.
          'portal_only': ['My settings', 'My account', 'Two-factor login (2FA)', 'Newsletters and my spam limit', 'Emergency access to my mail'],
@@ -49,7 +49,8 @@ NAV = [
                       ('Address harvesting', ['harvest-status', 'harvest-set'], 'advanced'),
                       ('Spam traps', ['trap-status', 'trap-set'], 'advanced'),
                       ('Pyzor', ['pyzor-status', 'pyzor-set'], 'advanced'),
-                      ('Own fuzzy store', ['fuzzy-status', 'fuzzy-set'], 'advanced'),
+                      ('Content rules', ['content-rules-status', 'content-rules-set'], 'advanced'),
+                      ('Own fuzzy store', ['fuzzy-status', 'fuzzy-set', 'fuzzy-shared-purge'], 'advanced'),
                       ('Community fuzzy store', ['community-status', 'community-set'], 'advanced'),
                       ('Neural network', ['neural-status', 'neural-set'], 'advanced'),
                       ('Symbol scores', ['symbol-scores', 'symbol-score-set'], 'advanced'),
@@ -67,7 +68,7 @@ NAV = [
                       ('Attachments', ['attachment-status', 'attachment-set'], 'advanced'),
                       ('Link check', ['links-status', 'links-set', 'links-hint-set'], 'advanced'),
                       ('Phishing reports and banner', ['phish-status', 'phish-set', 'banner-status', 'banner-set', 'outlook-addin'], 'advanced'),
-                      ('Content disarm', ['cdr-status', 'cdr-set', 'cdr-list', 'cdr-release', 'html-disarm-set', 'bimi-set'], 'advanced'),
+                      ('Content disarm', ['cdr-status', 'cdr-set', 'cdr-outbound-set', 'cdr-list', 'cdr-release', 'html-disarm-set', 'bimi-set'], 'advanced'),
                       ('Office macros', ['ole-status', 'ole-set'], 'advanced'),
                       ('Encrypted archives', ['unlock-status', 'unlock-set'], 'advanced'),
                       ('QR codes', ['qr-status', 'qr-set'], 'advanced'),
@@ -77,7 +78,8 @@ NAV = [
                       ('Extra virus scanners', ['scanner-status', 'scanner-set'], 'advanced'),
                       ('Sandbox', ['sandbox-status', 'sandbox-set'], 'advanced'),
                       ('Scan limits', ['scan-status', 'scan-limits-set', 'scan-fail-set'], 'advanced'),
-                      ('Own blocks', ['own-block-status', 'own-hash-set', 'own-yara-set'], 'advanced')],
+                      ('Own blocks', ['own-block-status', 'own-hash-set', 'own-yara-set'], 'advanced'),
+                      ('YARA rules of the community', ['yara-community-status', 'yara-community-set'], 'advanced')],
          'notes': {'own-hash-set': 'An attachment with this SHA-256 is rejected, for only this tenant (default) or for all tenants.',
                    'own-yara-set': 'One rule per entry, read by ClamAV; a hit rejects the mail. A rule of a tenant counts only for mail to that '
                                    'tenant. Checked by clamscan before it is loaded; import and include are not allowed.',
@@ -133,6 +135,7 @@ NAV = [
                                           'rejected, and the admin and the sender get a notice once.'}},
                 {'slug': 'dkim', 'title': 'DKIM, ARC & DMARC', 'sub': 'Signing keys, their rotation, ARC sealing and the DMARC record of your domains.',
          'sections': [('DKIM keys', ['dkim-check', 'dkim-create', 'dkim-import', 'dkim-remove', 'dkim-export']),
+                      ('Hardware module', ['dkim-hsm-status', 'dkim-hsm-set', 'dkim-hsm-test', 'dkim-hsm-fallback'], 'advanced'),
                       ('Key rotation', ['rotation-status', 'rotation-all-set', 'rotation-set', 'rotation-pregenerate', 'rotation-run', 'resolver-set'], 'advanced'),
                       ('Managed externally', ['dkim-provision-status', 'dkim-provision-set', 'dkim-source-set', 'dkim-source-remove', 'dkim-provision-takeover'], 'advanced'),
                       ('ARC', ['arc-show', 'arc-all-set', 'arc-set', 'arc-trusted-set'], 'advanced'),
@@ -231,7 +234,7 @@ NAV = [
                    'password-change': 'Your other sessions end.'}},
                 {'slug': 'users', 'title': 'Users', 'sub': 'Users with their groups, their 2FA, API tokens and the login directory.',
          'sections': [('Users', ['user-list', 'user-show', 'user-set', 'user-state']),
-                      ('2FA of the users', ['user-2fa-reset', 'totp-policy-set']),
+                      ('2FA of the users', ['user-2fa-reset', 'totp-policy-set', 'email-recovery-set']),
                       ('Passkeys', ['passkey-reset', 'passkey-set'], 'advanced'),
                       ('API tokens', ['token-list', 'token-create', 'token-revoke', 'api-status', 'api-set']),
                       ('Login directory', ['oidc-status', 'oidc-set', 'ldap-status', 'ldap-set'], 'advanced')],
@@ -379,7 +382,7 @@ NAV = [
          # cards in Expert.
          'sections': [('Main interface', ['network-show', 'network-set', 'hostname-set'], 'advanced'),
                       ('DNS and certificate', ['dns-zone-list', 'dns-servers-set', 'dns-zone-set', 'dns-zone-test', 'dns-forward-status', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover'], 'advanced'),
-                      ('More interfaces', ['interfaces-list', 'interface-set', 'interface-confirm', 'interface-revert', 'uplink-route-set'], 'advanced'),
+                      ('More interfaces', ['interfaces-list', 'interface-set', 'interface-confirm', 'interface-revert', 'uplink-route-set', 'uplink-failover-status', 'uplink-failover-set'], 'advanced'),
                       ('DANE', ['dane-status', 'dane-set', 'tlsa-show', 'letsencrypt-rollover', 'web-cert-set'], 'advanced'),
                       ('MTA-STS', ['mta-sts-show', 'mta-sts-set', 'mta-sts-check', 'mta-sts-text'], 'advanced'),
                       # 2026-11-19: names and addresses as /etc/hosts has them, for Postfix and rspamd too (through unbound).
@@ -442,7 +445,7 @@ def _admin_page(page):
 ADMIN_NAV = [(group, [_admin_page(page) for page in pages]) for group, pages in NAV]
 ADMIN_PAGES = {page['slug']: page for _, pages in ADMIN_NAV for page in pages}
 # A status shown inside the card of its switch: one card per topic.
-STATUS_OF = {'disclaimer-set': 'disclaimer-status', 'disclaimer-template-set': 'disclaimer-status', 'disclaimer-template-remove': 'disclaimer-status', 'disclaimer-restore': 'disclaimer-status', 'disclaimer-import': 'disclaimer-status', 'retention-set': 'retention-status', 'bulk-set': 'bulk-status', 'archive-set': 'archive-status', 'archive-remove': 'archive-status', 'pdf-set': 'pdf-status', 'pdf-password-set': 'pdf-status', 'dlp-set': 'dlp-status', 'dlp-rule-set': 'dlp-status', 'spool-set': 'spool-status', 'phish-set': 'phish-status', 'banner-set': 'banner-status', 'milter-health-set': 'milter-health-status', 'mta-sts-set': 'mta-sts-show', 'dane-set': 'dane-status', 'links-set': 'links-status', 'ml-set': 'ml-status', 'ml-train': 'ml-status', 'cdr-set': 'cdr-status', 'attachment-set': 'attachment-status', 'neural-set': 'neural-status', 'bec-set': 'bec-status', 'bec-vip-set': 'bec-status', 'bec-partner-set': 'bec-status', 'my-settings-set': 'my-settings', 'audit-mode': 'audit-strict-status', 'audit-rules-set': 'audit-strict-status', 'security-check-set': 'security-status', 'siem-set': 'siem-status', 'otlp-set': 'otlp-status', 'api-set': 'api-status', 'oidc-set': 'oidc-status', 'ldap-set': 'ldap-status',
+STATUS_OF = {'disclaimer-set': 'disclaimer-status', 'disclaimer-template-set': 'disclaimer-status', 'disclaimer-template-remove': 'disclaimer-status', 'disclaimer-restore': 'disclaimer-status', 'disclaimer-import': 'disclaimer-status', 'retention-set': 'retention-status', 'bulk-set': 'bulk-status', 'archive-set': 'archive-status', 'archive-remove': 'archive-status', 'pdf-set': 'pdf-status', 'pdf-password-set': 'pdf-status', 'dlp-set': 'dlp-status', 'dlp-rule-set': 'dlp-status', 'spool-set': 'spool-status', 'phish-set': 'phish-status', 'banner-set': 'banner-status', 'milter-health-set': 'milter-health-status', 'mta-sts-set': 'mta-sts-show', 'dane-set': 'dane-status', 'links-set': 'links-status', 'ml-set': 'ml-status', 'ml-train': 'ml-status', 'cdr-set': 'cdr-status', 'cdr-outbound-set': 'cdr-status', 'attachment-set': 'attachment-status', 'neural-set': 'neural-status', 'bec-set': 'bec-status', 'bec-vip-set': 'bec-status', 'bec-partner-set': 'bec-status', 'my-settings-set': 'my-settings', 'audit-mode': 'audit-strict-status', 'audit-rules-set': 'audit-strict-status', 'security-check-set': 'security-status', 'siem-set': 'siem-status', 'otlp-set': 'otlp-status', 'api-set': 'api-status', 'oidc-set': 'oidc-status', 'ldap-set': 'ldap-status',
              'uq-set': 'uq-status', 'report-set': 'report-status', 'sanesecurity-set': 'sanesecurity-status', 'firewall-guard-set': 'firewall-guard-status',
              'autoupdate-set': 'autoupdate-status', 'ssh-root-set': 'ssh-root-status', 'admin-idle-set': 'admin-idle-status', 'login-banner-set': 'login-banner-status', 'web-allowlist-set': 'web-allowlist-show', 'wazuh-config': 'wazuh-status'}
 # Notes longer than this go into a Help block that opens on a click.
@@ -470,8 +473,12 @@ FORM_SOURCE = {
     'bec-set': ('bec-status', {'mode': 'enabled', 'score_vip': 'scores.vip', 'score_lookalike': 'scores.lookalike', 'score_first_contact': 'scores.first_contact',
                                'score_style': 'scores.style', 'relation_days': 'relation_days', 'score_language': 'scores.language',
                                'score_young_domain': 'scores.young_domain', 'young_days': 'young_days', 'score_pattern': 'scores.pattern'}),
-    'bulk-set': ('bulk-status', {'mode': 'enabled', 'auto': 'auto', 'senders': 'senders', 'pace': 'pace', 'missing': 'missing'}),
+    'uplink-failover-set': ('uplink-failover-status', {'mode': 'enabled', 'backup': 'backup', 'probe': 'probe'}),
+    'yara-community-set': ('yara-community-status', {'mode': 'enabled'}),
+    'bulk-set': ('bulk-status', {'mode': 'enabled', 'auto': 'auto', 'senders': 'senders', 'pace': 'pace', 'missing': 'missing', 'address': 'address',
+                                 'warmup': 'warmup.enabled', 'arf': 'arf'}),
     'cdr-set': ('cdr-status', {'mode': 'enabled'}),
+    'cdr-outbound-set': ('cdr-status', {'mode': 'outbound'}),
     'content-reason-set': ('audit-strict-status', {'mode': 'content_reason'}),
     'dane-set': ('dane-status', {'mode': 'enabled'}),
     'dlp-set': ('dlp-status', {'cards': 'cards', 'iban': 'iban', 'ids': 'ids', 'ignore': 'ignore'}),
@@ -517,7 +524,7 @@ FORM_SOURCE = {
     'ole-set': ('ole-status', {'mode': 'enabled'}),
     'pyzor-set': ('pyzor-status', {'mode': 'enabled', 'server': 'server', 'weight': 'weight'}),
     'sandbox-set': ('sandbox-status', {'token': 'token_stored', 'mode': 'enabled', 'url': 'url', 'threshold': 'threshold'}),
-    'fuzzy-set': ('fuzzy-status', {'mode': 'enabled', 'score': 'score'}),
+    'fuzzy-set': ('fuzzy-status', {'mode': 'enabled', 'score': 'score', 'shared': 'shared'}),
     'retro-set': ('retro-status', {'mode': 'enabled', 'tell_recipients': 'tell_recipients'}),
     'signature-set': ('signature-status', {'mode': 'enabled'}),
     'four-eyes-set': ('four-eyes-list', {'mode': 'all', 'tenant': '?tenant', 'level': None}),
@@ -556,7 +563,7 @@ FORM_SOURCE = {
     'spool-set': ('spool-status', {'maximal_queue_lifetime': 'maximal_queue_lifetime', 'bounce_queue_lifetime': 'bounce_queue_lifetime',
                                    'initial_destination_concurrency': 'initial_destination_concurrency'}),
     'ssh-root-set': ('ssh-root-status', {'mode': 'mode'}),
-    'flow-set': ('flow-status', {'animation': 'animation'}),
+    'flow-set': ('flow-status', {'theme': 'theme', 'animation': 'animation'}),
     'admin-idle-set': ('admin-idle-status', {'minutes': 'minutes'}),
     'login-banner-set': ('login-banner-status', {'text': 'text', 'ssh': 'ssh'}),
     'login-lockout-set': ('login-lockout-status', {'mode': 'mode', 'tries': 'tries', 'minutes': 'minutes', 'hours': 'hours', 'repeat': 'repeat'}),
@@ -580,9 +587,9 @@ FORM_SOURCE = {
     'uq-set': ('uq-status', {'mode': 'enabled', 'score': 'score', 'days': 'days', 'digest': 'digest', 'self_release': 'self_release', 'public_url': 'public_url'}),
 }
 # Forms that add, remove or act on one entry, or start a job: nothing to show beforehand.
-FORM_NEW = {
-    'secret-remove', 'settings-export', 'settings-import', 'geoip-import', 'greylisting-exception-set', 'search-save', 'search-delete', 'account-email-set', 'password-change', 'totp-recovery-new', 'totp-setup', 'floor-check', 'release-upgrade', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-restore-test', 'fim-accept', 'backup-password-set', 'backup-target-set', 'backup-target-test',
-    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'web-cert-set', 'gdpr-export', 'gdpr-delete', 'gdpr-reapply', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-securiteinfo-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-init', 'cluster-join', 'cluster-activate', 'breakglass-login', 'breakglass-alarm', 'update-staged-run', 'monitor-cron-heal', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
+FORM_NEW = {'emergency-export', 'emergency-export-fetch', 
+    'secret-remove', 'email-recovery-set', 'totp-email-send', 'settings-export', 'settings-import', 'geoip-import', 'greylisting-exception-set', 'search-save', 'search-delete', 'account-email-set', 'password-change', 'totp-recovery-new', 'totp-setup', 'floor-check', 'release-upgrade', 'setup-variant-apply', 'totp-import', 'console-2fa-enroll', 'archive-remove', 'archive-set', 'arc-trusted-set', 'audit-rspamd', 'backup-import', 'backup-now', 'backup-restore-test', 'fim-accept', 'backup-password-set', 'backup-target-set', 'backup-target-test',
+    'bec-partner-set', 'bec-vip-set', 'scan-fail-set', 'tls-partner-set', 'header-privacy-set', 'own-hash-set', 'own-yara-set', 'letsencrypt-rollover', 'web-cert-set', 'gdpr-export', 'gdpr-delete', 'gdpr-reapply', 'incident-open', 'incident-report', 'privacy-evidence', 'totp-confirm', 'totp-disable', 'user-2fa-reset', 'totp-policy-set', 'passkey-register', 'passkey-remove', 'passkey-reset', 'passkey-set', 'hijack-release', 'links-hint-set', 'html-disarm-set', 'feed-set', 'bimi-set', 'tracking-set', 'tracking-list-set', 'lookalike-set', 'lookalike-run', 'lookalike-allow', 'recall-withdraw', 'outbound-hold-set', 'outbound-hold-run', 'update-staged-set', 'emergency-show', 'emergency-file', 'emergency-set', 'history-show', 'history-undo', 'four-eyes-decide', 'signature-sync', 'outlook-addin', 'update-mirror-set', 'offline-trust-set', 'offline-bundle-apply', 'offline-bundle-make', 'crypto-key-make', 'crypto-import', 'crypto-remove', 'crypto-policy-set', 'crypto-hsm-set', 'backup-hsm-set', 'clam-securiteinfo-set', 'clam-source-set', 'retro-run', 'retro-imap-set', 'application-exception-set', 'mta-sts-check', 'mta-sts-unserve', 'mta-sts-text', 'domain-check-run', 'domain-check-show', 'role-set', 'security-txt', 'trap-set', 'scanner-set', 'cve-mute', 'web-lockdown', 'cve-watch-run', 'cdr-release', 'cluster-token', 'cluster-init', 'cluster-join', 'cluster-activate', 'breakglass-login', 'breakglass-alarm', 'update-staged-run', 'monitor-cron-heal', 'cluster-mail-action', 'cluster-promote', 'cluster-node-remove', 'cluster-unban',
     'blocklist-entry', 'blocklist-remove', 'legal-accept', 'uplink-route-set', 'ssh-profile-confirm', 'ssh-profile-revert', 'disclaimer-template-remove', 'disclaimer-restore', 'disclaimer-import', 'blocklist-set', 'symbol-score-set', 'dkim-create', 'dkim-generate', 'dkim-generate-ed25519', 'dkim-provision-takeover', 'dkim-remove', 'dkim-source-remove', 'dkim-source-set', 'dlp-rule-set', 'dns-zone-set', 'hosts-set', 'hosts-local-set', 'domain-onboard', 'domain-verify', 'extra-service-set',
     'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-forward-fix', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
     'group-map-set', 'group-remove', 'group-set', 'group-state', 'headers-export', 'dns-share-add', 'dns-share-edit', 'dns-share-del', 'letsencrypt-set', 'letsencrypt-takeover', 'pdf-password-set', 'phish-set', 'quarantine-delete',
@@ -594,9 +601,9 @@ FORM_NEW = {
     'wazuh-update'}
 # shortcut: forms for one domain, tenant, list or interface show their values only when opened through the Change button of
 # their table (the key in the address); filling them from the picked key needs a request per pick, later.
-FORM_KEYED = {'notice-ack', 'os-harden-set', 'application-set', 'arc-set', 'disclaimer-set', 'disclaimer-template-set', 'dmarc-record-set', 'domain-general-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-spam-set',
+FORM_KEYED = {'content-rules-set', 'notice-ack', 'os-harden-set', 'application-set', 'arc-set', 'disclaimer-set', 'disclaimer-template-set', 'dmarc-record-set', 'domain-general-set', 'domain-quarantine-set', 'domain-routing-set', 'domain-spam-set',
               'interface-set', 'mta-sts-set', 'rbl-set', 'retention-set', 'rotation-set', 'tenant-brand-set', 'tenant-ldap-set', 'tenant-limits-set',
-              'tenant-oidc-set'}
+              'tenant-oidc-set', 'dkim-hsm-set', 'dkim-hsm-fallback'}
 
 
 # A switch that is off has no value in effect: its fields show the default that switching it on would use.
@@ -635,3 +642,25 @@ def form_value(output, key):
     if value is None or isinstance(value, dict):
         return ''
     return str(value)
+
+# Changes that need the password (and the 2FA code) of the admin again, at most every 5 minutes: the web interface and
+# efa-tui (G7-22) ask for it before efactl runs them.
+REAUTH_COMMANDS = {'user-set', 'user-2fa-reset', 'user-state', 'group-set', 'group-map-set', 'tenant-group-map-set', 'token-create', 'firewall-set', 'firewall-guard-set',
+                   'ssh-root-set', 'web-allowlist-set', 'restore', 'dkim-remove', 'dkim-import', 'backup-password-set', 'admin-password', 'audit-mode',
+                   'cluster-init', 'cluster-token', 'cluster-leave', 'oidc-set', 'ldap-set', 'api-set', 'resetup', 'console-2fa-set', 'release-upgrade',
+                   'dns-share-add', 'dns-share-edit', 'dns-share-del', 'dns-share-secondary-set', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-securiteinfo-set'}
+# What ends a control or a record: four eyes, the audit rules and the days of the logs, a whole tenant, a file taken back.
+REAUTH_COMMANDS |= {'four-eyes-set', 'audit-rules-set', 'retention-set', 'tenant-delete', 'history-undo'}
+# G7-9: settings into or out of this host only with the password and 2FA again.
+REAUTH_COMMANDS |= {'settings-export', 'settings-import', 'pyzor-set'}
+# 2026-11-18 (cluster wizard): every change of the cluster with the password and 2FA again, joining too.
+REAUTH_COMMANDS |= {'cluster-join', 'cluster-mode-set', 'cluster-promote', 'cluster-node-remove', 'cluster-activate'}
+# 2026-11-19: an own host name sends the mail of Postfix and the checks of rspamd to the address it names: password and 2FA again.
+REAUTH_COMMANDS |= {'hosts-set', 'hosts-local-set'}
+REAUTH_COMMANDS |= {'breakglass-issue', 'breakglass-remove'}  # the break-glass admin (2026-11-18)
+REAUTH_COMMANDS |= {'cluster-harden'}  # hardening of the cluster
+# Hans 2026-11-22 (step-up as recommended): what weakens TLS, removes passkeys of another login, sends backups elsewhere,
+# erases a person's data or takes an update back: password and 2FA code too (login-lockout-set and admin-idle-set ask in efactl).
+REAUTH_COMMANDS |= {'passkey-reset', 'tls-profile-set', 'tls-min-set', 'backup-target-set', 'gdpr-delete', 'update-rollback'}
+# G7-17 (P7-6): a key of DKIM into a hardware module, or the emergency mode with the software key: password and 2FA code again.
+REAUTH_COMMANDS |= {'dkim-hsm-set', 'dkim-hsm-fallback'}

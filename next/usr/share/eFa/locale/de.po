@@ -16,6 +16,9 @@ msgstr "Aktueller Zustand dieses Servers."
 msgid "Details"
 msgstr "Details"
 
+msgid "Mail flow picture"
+msgstr "Bild des Mailflusses"
+
 msgid "Mail log"
 msgstr "Mail-Log"
 
@@ -112,6 +115,9 @@ msgstr "Spamfallen"
 msgid "Pyzor"
 msgstr "Pyzor"
 
+msgid "Content rules"
+msgstr "Inhaltsregeln"
+
 msgid "Own fuzzy store"
 msgstr "Eigener Fuzzy-Speicher"
 
@@ -186,6 +192,9 @@ msgstr "Prüfgrenzen"
 
 msgid "Own blocks"
 msgstr "Eigene Sperren"
+
+msgid "YARA rules of the community"
+msgstr "YARA-Regeln der Community"
 
 msgid "An attachment with this SHA-256 is rejected, for only this tenant (default) or for all tenants."
 msgstr "Ein Anhang mit diesem SHA-256 wird abgewiesen, nur für diesen Mandanten (Standard) oder für alle Mandanten."
@@ -306,6 +315,9 @@ msgstr "Signaturschlüssel, ihre Rotation, ARC-Siegel und der DMARC-Eintrag Ihre
 
 msgid "DKIM keys"
 msgstr "DKIM-Schlüssel"
+
+msgid "Hardware module"
+msgstr "Hardware-Modul"
 
 msgid "Key rotation"
 msgstr "Schlüsselrotation"
@@ -970,6 +982,11 @@ msgstr "Disclaimer und ihre Vorlagen"
 msgid "Reports by mail and the daily mail"
 msgstr "Berichte per Mail und die tägliche Mail"
 
+msgid "Content rules: thread, marketing, language, obfuscation"
+msgstr "Inhaltsregeln: Thread, Werbung, Sprache, Verschleierung"
+msgid "YARA rules of the community: the switch"
+msgstr "YARA-Regeln der Community: der Schalter"
+
 msgid "Sanesecurity signatures"
 msgstr "Sanesecurity-Signaturen"
 
@@ -1174,6 +1191,9 @@ msgstr "Name dieses Knotens, etwa mx-1"
 msgid "Mode: master-client (settings only here) or ha (settings on every node)"
 msgstr "Betriebsart: master-client (Einstellungen nur hier) oder ha (Einstellungen auf jedem Knoten)"
 
+msgid "Address of the first node: the cluster port opens for it only"
+msgstr "Adresse des ersten Knotens: der Cluster-Port öffnet sich nur für ihn"
+
 msgid "Type yes: this host becomes the first master, its logins count for all nodes"
 msgstr "yes eingeben: dieser Host wird der erste Master, seine Logins gelten für alle Knoten"
 
@@ -1188,6 +1208,9 @@ msgstr "Zum Bestätigen yes eintippen: jeder Knoten übernimmt alle Einstellunge
 
 msgid "Cluster: one-time token for a new node"
 msgstr "Cluster: Einmal-Token für einen neuen Knoten"
+
+msgid "Address of the node: the cluster port opens for it only"
+msgstr "Adresse des Knotens: der Cluster-Port öffnet sich nur für ihn"
 
 msgid "Cluster: join a master"
 msgstr "Cluster: einem Master beitreten"
@@ -1489,6 +1512,24 @@ msgstr "VLAN-ID, leer für keine"
 msgid "Network: no automatic profiles for new interfaces"
 msgstr "Netzwerk: keine automatischen Profile für neue Schnittstellen"
 
+msgid "Uplinks: failover of outgoing mail"
+msgstr "Uplinks: Umschaltung ausgehender Mail"
+
+msgid "Uplinks: failover of outgoing mail to a backup uplink"
+msgstr "Uplinks: Umschaltung ausgehender Mail auf einen Ersatz-Uplink"
+
+msgid "Failover to the backup uplink: on or off"
+msgstr "Umschaltung auf den Ersatz-Uplink: an oder aus"
+
+msgid "Backup uplink (an interface with the role uplink and a fixed address)"
+msgstr "Ersatz-Uplink (eine Schnittstelle mit der Rolle Uplink und fester Adresse)"
+
+msgid "What the main uplink has to reach, host:port"
+msgstr "Was der Haupt-Uplink erreichen muss, Host:Port"
+
+msgid "Uplinks: the failover watch (every minute)"
+msgstr "Uplinks: die Überwachung der Umschaltung (jede Minute)"
+
 msgid "Outgoing mail of a domain over an uplink"
 msgstr "Ausgehende Mail einer Domain über einen Uplink"
 
@@ -1645,6 +1686,12 @@ msgstr "Maildomain, für das Single Sign-on eines Mandanten"
 msgid "yes: a login of the user portal"
 msgstr "yes: eine Anmeldung des Benutzerportals"
 
+msgid "Tenant ID"
+msgstr "Mandanten-ID"
+
+msgid "yes: confirm a change, a new login at the provider"
+msgstr "yes: eine Änderung bestätigen, neue Anmeldung beim Anbieter"
+
 msgid "Single sign-on: finish a login"
 msgstr "Single Sign-on: Anmeldung abschließen"
 
@@ -1657,8 +1704,11 @@ msgstr "Nonce"
 msgid "Verifier"
 msgstr "Verifier"
 
-msgid "Tenant ID"
-msgstr "Mandanten-ID"
+msgid "Start of the confirmation (Unix time)"
+msgstr "Beginn der Bestätigung (Unix-Zeit)"
+
+msgid "The login that confirms"
+msgstr "Das Login, das bestätigt"
 
 msgid "My login"
 msgstr "Meine Anmeldung"
@@ -2308,6 +2358,17 @@ msgstr "Entschärfung von Inhalten: schalten"
 msgid "Disarm attachments: on or off"
 msgstr "Anhänge entschärfen: an oder aus"
 
+msgid "Content disarm: outgoing mail too"
+msgstr "Entschärfung von Inhalten: auch ausgehende Mail"
+
+msgid "Disarm outgoing mail too, its DKIM signatures made again: on or off"
+msgstr "Auch ausgehende Mail entschärfen, ihre DKIM-Signaturen neu erstellen: an oder aus"
+msgid "Bulk mail: delivery and complaints"
+msgstr "Massenversand: Zustellung und Beschwerden"
+
+msgid "Last days (1 to 30)"
+msgstr "Letzte Tage (1 bis 30)"
+
 msgid "Bulk mail: settings"
 msgstr "Massenversand: Einstellungen"
 
@@ -2325,6 +2386,15 @@ msgstr "Tempo je Zieldomain"
 
 msgid "When provider requirements are missing"
 msgstr "Wenn Provider-Vorgaben fehlen"
+
+msgid "Own sending address of the bulk mail (on this server, with PTR); - for none"
+msgstr "Eigene Absendeadresse des Massenversands (auf diesem Server, mit PTR); - für keine"
+
+msgid "Warm-up of the address: on or off"
+msgstr "Aufwärmen der Adresse: an oder aus"
+
+msgid "Address for the complaints (ARF) of the providers; - for none"
+msgstr "Adresse für die Beschwerden (ARF) der Anbieter; - für keine"
 
 msgid "Archive handover: add or change a target"
 msgstr "Archiv-Weitergabe: Ziel hinzufügen oder ändern"
@@ -2794,6 +2864,18 @@ msgstr "Für"
 msgid "Sender domain or submitter, empty for all"
 msgstr "Absender-Domain oder Einlieferer, leer für alle"
 
+msgid "YARA rules of the community: switch"
+msgstr "YARA-Regeln der Community: schalten"
+
+msgid "Signed YARA rules of the community, daily: on or off"
+msgstr "Signierte YARA-Regeln der Community, täglich: an oder aus"
+
+msgid "I accept the terms of the rules: type yes"
+msgstr "Ich akzeptiere die Bedingungen der Regeln: yes eingeben"
+
+msgid "YARA rules of the community: background job"
+msgstr "YARA-Regeln der Community: Hintergrundjob"
+
 msgid "Own blocks: file hashes and YARA rules"
 msgstr "Eigene Sperren: Datei-Hashes und YARA-Regeln"
 
@@ -2955,6 +3037,18 @@ msgstr "Neues Passwort"
 
 msgid "New password again"
 msgstr "Neues Passwort noch einmal"
+
+msgid "2FA: a code by mail instead of the lost app (only to set up a new one)"
+msgstr "2FA: ein Code per Mail statt der verlorenen App (nur zum Einrichten einer neuen)"
+
+msgid "2FA by mail (lost app) per role"
+msgstr "2FA per Mail (verlorene App) je Rolle"
+
+msgid "2FA by mail (lost app): per role on or off"
+msgstr "2FA per Mail (App verloren): je Rolle ein oder aus"
+
+msgid "Code by mail"
+msgstr "Code per Mail"
 
 msgid "2FA of a user: reset (lost phone)"
 msgstr "2FA eines Benutzers: zurücksetzen (Telefon verloren)"
@@ -3340,6 +3434,18 @@ msgstr "Fuzzy-Hashes des von Admins freigegebenen Spams auf diesem Host speicher
 msgid "Score of a variant (1 to 20)"
 msgstr "Punkte einer Variante (1 bis 20)"
 
+msgid "Shared by the nodes of the cluster (kept on the master): on or off"
+msgstr "Von den Knoten des Clusters geteilt (beim Master): an oder aus"
+
+msgid "Shared fuzzy store: delete all its hashes"
+msgstr "Geteilter Fuzzy-Speicher: alle Hashes löschen"
+
+msgid "Type yes to delete every hash of the shared store"
+msgstr "yes eingeben, um jeden Hash des geteilten Speichers zu löschen"
+
+msgid "Cluster: apply the fuzzy store of the master"
+msgstr "Cluster: den Fuzzy-Speicher des Masters übernehmen"
+
 msgid "Spam trap addresses"
 msgstr "Spamfallen-Adressen"
 
@@ -3529,6 +3635,24 @@ msgstr "Notfallzugriff: eine Mail lesen"
 msgid "Mail"
 msgstr "Mail"
 
+msgid "Emergency access: export a mailbox"
+msgstr "Notfallzugriff: ein Postfach exportieren"
+
+msgid "Mailbox"
+msgstr "Postfach"
+
+msgid "Format: zip or mbox"
+msgstr "Format: zip oder mbox"
+
+msgid "Tell this address, such as the data protection contact"
+msgstr "Diese Adresse benachrichtigen, etwa den Datenschutz-Kontakt"
+
+msgid "Emergency access: download the export"
+msgstr "Notfallzugriff: den Export herunterladen"
+
+msgid "Export number"
+msgstr "Export-Nummer"
+
 msgid "Emergency access: save an attachment or the mail"
 msgstr "Notfallzugriff: einen Anhang oder die Mail speichern"
 
@@ -3664,6 +3788,42 @@ msgstr "Domain oder Adresse"
 msgid "Kind for encryption"
 msgstr "Art für die Verschlüsselung"
 
+msgid "DKIM keys in a hardware module (PKCS#11)"
+msgstr "DKIM-Schlüssel in einem Hardware-Modul (PKCS#11)"
+
+msgid "DKIM key of a domain in a hardware module"
+msgstr "DKIM-Schlüssel einer Domain in einem Hardware-Modul"
+
+msgid "Key in the module: on or off"
+msgstr "Schlüssel im Modul: an oder aus"
+
+msgid "Selector of this key"
+msgstr "Selektor dieses Schlüssels"
+
+msgid "PKCS#11 module"
+msgstr "PKCS#11-Modul"
+
+msgid "Other module: its path (.so)"
+msgstr "Anderes Modul: sein Pfad (.so)"
+
+msgid "Label of the token (slot)"
+msgstr "Label des Tokens (Slot)"
+
+msgid "Label of the key in the token"
+msgstr "Label des Schlüssels im Token"
+
+msgid "PIN of the token"
+msgstr "PIN des Tokens"
+
+msgid "DKIM key in the module: test signing"
+msgstr "DKIM-Schlüssel im Modul: Testsignatur"
+
+msgid "DKIM: emergency mode with the software key"
+msgstr "DKIM: Notbetrieb mit Software-Schlüssel"
+
+msgid "Software key instead of the module: on or off"
+msgstr "Software-Schlüssel statt Modul: an oder aus"
+
 msgid "Backups: the signing key in a hardware module (PKCS#11)"
 msgstr "Sicherungen: der Signaturschlüssel in einem Hardwaremodul (PKCS#11)"
 
@@ -3726,6 +3886,24 @@ msgstr "Office-Makros: von olevba gelesen und bewertet"
 
 msgid "Read the macros of Office files with olevba (oletools, EPEL)"
 msgstr "Die Makros von Office-Dateien mit olevba lesen (oletools, EPEL)"
+
+msgid "Content rules: switch one"
+msgstr "Inhaltsregeln: eine schalten"
+
+msgid "Rule: thread, marketing, language or obfuscation"
+msgstr "Regel: thread, marketing, language oder obfuscation"
+
+msgid "Score of a hit (thread: the bonus, below 0)"
+msgstr "Punkte eines Treffers (thread: der Bonus, unter 0)"
+
+msgid "Thread: score of a reply to an unknown mail"
+msgstr "Thread: Punkte einer Antwort auf eine unbekannte Mail"
+
+msgid "Thread: days a sent Message-ID counts"
+msgstr "Thread: Tage, die eine gesendete Message-ID zählt"
+
+msgid "Language: codes not expected, such as ru zh; - for none"
+msgstr "Sprache: nicht erwartete Kürzel, etwa ru zh; - für keine"
 
 msgid "Pyzor: checksums of incoming mail compared by a Pyzor server"
 msgstr "Pyzor: Prüfsummen eingehender Mail von einem Pyzor-Server vergleichen lassen"
@@ -3898,8 +4076,8 @@ msgstr "html für eine Druckseite, pdf zum Herunterladen, leer für die Werte"
 msgid "Settings: export parts for another host"
 msgstr "Einstellungen: Bereiche für einen anderen Host exportieren"
 
-msgid "Parts, with commas: spam, attachments, lists, disclaimer, reports"
-msgstr "Bereiche, mit Kommas: spam, attachments, lists, disclaimer, reports"
+msgid "Parts, with commas: spam, attachments, lists, disclaimer, reports, content, yara"
+msgstr "Bereiche, mit Kommas: spam, attachments, lists, disclaimer, reports, content, yara"
 
 msgid "Password for the file, at least 12 characters"
 msgstr "Passwort für die Datei, mindestens 12 Zeichen"
@@ -4963,11 +5141,14 @@ msgstr "Unbekannte Empfänger bis zur Sperre (3 bis 100)"
 msgid "Addresses or networks never banned for it, - for none"
 msgstr "Adressen oder Netze, die dafür nie gesperrt werden, - für keine"
 
-msgid "Mail flow picture"
-msgstr "Bild des Mailflusses"
+msgid "Mail flow picture: theme"
+msgstr "Bild des Mailflusses: Theme"
 
-msgid "Mail flow picture: moving letters"
-msgstr "Bild des Mailflusses: wandernde Briefe"
+msgid "Theme of the icons"
+msgstr "Theme der Symbole"
+
+msgid "Moving letters (pictures before 6.0.0.7)"
+msgstr "Wandernde Briefe (Bilder vor 6.0.0.7)"
 
 msgid "DMARC reports"
 msgstr "DMARC-Berichte"
@@ -5107,6 +5288,9 @@ msgstr "rspamd-Weboberfläche: Vollzugriff gibt es nicht mehr. Nach dem Update w
 msgid "Cluster master {name} not reachable since {since}. Mail filtering goes on with the last settings. If it is gone for good: efactl cluster-promote on one node."
 msgstr "Cluster-Master {name} nicht erreichbar seit {since}. Die Mailfilterung läuft mit den letzten Einstellungen weiter. Ist er endgültig weg: efactl cluster-promote auf einem Knoten."
 
+msgid "Meanwhile each node holds the send limits at 1/{nodes} of the setting, as it no longer sees what the others send."
+msgstr "Solange hält jeder Knoten die Sendegrenzen bei 1/{nodes} der Einstellung, da er nicht mehr sieht, was die anderen senden."
+
 msgid "The systemd sandbox did not work for {names}: they run without it (Hardening report, Sandbox of the services)."
 msgstr "Die systemd-Sandbox hat bei {names} nicht funktioniert: sie laufen ohne (Härtungsbericht, Sandbox der Dienste)."
 
@@ -5202,6 +5386,12 @@ msgstr "Mindestsicherheit: {service} bleibt gestoppt, eine Einstellung unter der
 
 msgid "Security minimum: settings under the limit were set back on {when}, see the audit log (Security, Security minimum)."
 msgstr "Mindestsicherheit: Einstellungen unter der Untergrenze wurden am {when} zurückgesetzt, siehe Audit-Log (Sicherheit, Mindestsicherheit)."
+
+msgid "Outgoing mail leaves over the backup uplink {backup} since {since}: the main uplink did not answer."
+msgstr "Ausgehende Mail geht seit {since} über den Ersatz-Uplink {backup} hinaus: Der Haupt-Uplink hat nicht geantwortet."
+
+msgid "The backup uplink {backup} is not fit to send mail: {reason}. A failover would not switch."
+msgstr "Der Ersatz-Uplink {backup} kann noch keine Mail senden: {reason}. Eine Umschaltung würde nicht greifen."
 
 msgid "the global allow list"
 msgstr "die globale Liste der erlaubten Absender"
@@ -5419,6 +5609,9 @@ msgstr "In /etc/hosts trägt die Loopback-Adresse {name}, nicht den Hostnamen {o
 msgid "The own S/MIME certificate of {id} ends on {date}: a new one (S/MIME and PGP)."
 msgstr "Das eigene S/MIME-Zertifikat von {id} endet am {date}: ein neues (S/MIME und PGP)."
 
+msgid "The hardware module of DKIM does not sign since {since}: outgoing mail of {domains} waits in the queue. Fix the module, or switch to the software key for a while (DKIM, Hardware module)."
+msgstr "Das Hardware-Modul von DKIM signiert seit {since} nicht: Ausgehende Mail von {domains} wartet in der Queue. Das Modul in Ordnung bringen oder vorübergehend auf den Software-Schlüssel umschalten (DKIM, Hardware-Modul)."
+
 msgid "Pyzor paused until {until}: the server {server} failed 3 times in a row ({error}). Mail goes on without Pyzor."
 msgstr "Pyzor pausiert bis {until}: Der Server {server} ist 3-mal in Folge fehlgeschlagen ({error}). Mail läuft ohne Pyzor weiter."
 
@@ -5472,6 +5665,15 @@ msgstr "2FA-Code, falls eingerichtet"
 
 msgid "Use a passkey"
 msgstr "Passkey verwenden"
+
+msgid "App lost?"
+msgstr "App verloren?"
+
+msgid "Type user name and password, then get a code by mail to your confirmed address. It is valid for 10 minutes and only lets you set up a new app; the old app and its recovery codes stop. Or use a recovery code."
+msgstr "Benutzername und Passwort eingeben, dann einen Code per Mail an die bestätigte Adresse anfordern. Er gilt 10 Minuten und erlaubt nur, eine neue App einzurichten; die alte App und ihre Wiederherstellungscodes gelten danach nicht mehr. Oder einen Wiederherstellungscode verwenden."
+
+msgid "Send me a code by mail"
+msgstr "Code per Mail senden"
 
 msgid "The passkey did not work. Log in with password and code."
 msgstr "Der Passkey hat nicht funktioniert. Mit Passwort und Code anmelden."
@@ -6862,6 +7064,9 @@ msgstr "noch nicht"
 msgid "Last message"
 msgstr "Letzte Meldung"
 
+msgid "Not reachable now, so its held mail is missing here:"
+msgstr "Gerade nicht erreichbar, seine zurückgehaltenen Mails fehlen hier:"
+
 msgid "virus"
 msgstr "Virus"
 
@@ -7219,6 +7424,12 @@ msgstr "Entfernt aktive Inhalte (Makros, Skripte) aus Office- und PDF-Dateien; d
 msgid "Originals kept"
 msgstr "Aufbewahrte Originale"
 
+msgid "disarmed too"
+msgstr "auch entschärft"
+
+msgid "never changed"
+msgstr "nie verändert"
+
 msgid "not running"
 msgstr "läuft nicht"
 
@@ -7255,6 +7466,18 @@ msgstr "{} Spam, {} Ham"
 msgid "rspamd default"
 msgstr "Vorgabe von rspamd"
 
+msgid "Replies to own mail"
+msgstr "Antworten auf eigene Mail"
+
+msgid "Marketing mail"
+msgstr "Werbe-Mail"
+
+msgid "Hidden characters"
+msgstr "Versteckte Zeichen"
+
+msgid "score"
+msgstr "Punkte"
+
 msgid "Extra checks"
 msgstr "Zusätzliche Prüfungen"
 
@@ -7280,7 +7503,7 @@ msgid "this server (unbound)"
 msgstr "dieser Server (unbound)"
 
 msgid "other"
-msgstr "anderer"
+msgstr "anderes"
 
 msgid "Names go to"
 msgstr "Namen gehen an"
@@ -7732,6 +7955,12 @@ msgstr "Eigene Gruppen"
 msgid "Main admin"
 msgstr "Hauptadmin"
 
+msgid "Your login is of single sign-on: this change is confirmed at your provider, with a new login there."
+msgstr "Ihr Login kommt aus Single Sign-on: Diese Änderung bestätigen Sie bei Ihrem Anbieter, mit einer neuen Anmeldung dort."
+
+msgid "Confirm at the provider"
+msgstr "Beim Anbieter bestätigen"
+
 msgid "Development"
 msgstr "Entwicklung"
 
@@ -7770,6 +7999,9 @@ msgstr "Etwas ist schiefgegangen. Die Einzelheiten stehen im Log des Servers."
 
 msgid "The page was open too long. Please log in again."
 msgstr "Die Seite war zu lange geöffnet. Bitte melden Sie sich erneut an."
+
+msgid "If this login may use a code by mail, it went to its confirmed address now. It is valid for 10 minutes, and it only lets you set up a new 2FA app: type it as the 2FA code."
+msgstr "Wenn dieses Login einen Code per Mail nutzen darf, ging er jetzt an seine bestätigte Adresse. Er gilt 10 Minuten und erlaubt nur, eine neue 2FA-App einzurichten: als 2FA-Code eingeben."
 
 msgid "Wrong password or 2FA code. With 2FA set up, enter the code of the app too."
 msgstr "Falsches Passwort oder falscher 2FA-Code. Mit eingerichteter 2FA auch den Code der App eingeben."
@@ -9025,6 +9257,9 @@ msgstr "Leer: keine"
 msgid "VLAN ID"
 msgstr "VLAN-ID"
 
+msgid "Failover to the backup uplink"
+msgstr "Umschaltung auf den Ersatz-Uplink"
+
 msgid "postfix"
 msgstr "postfix"
 
@@ -9108,6 +9343,9 @@ msgstr "Benutzerportal: Weiterleitungsadresse"
 
 msgid "A login of the user portal"
 msgstr "Eine Anmeldung des Benutzerportals"
+
+msgid "Confirm a change, a new login at the provider"
+msgstr "Eine Änderung bestätigen, neue Anmeldung beim Anbieter"
 
 msgid "Or empty with a tenant"
 msgstr "Oder leer bei einem Mandanten"
@@ -9364,6 +9602,9 @@ msgstr "Nur diese Domain"
 msgid "Disarm attachments"
 msgstr "Anhänge entschärfen"
 
+msgid "Disarm outgoing mail too, its DKIM signatures made again"
+msgstr "Auch ausgehende Mail entschärfen, ihre DKIM-Signaturen neu erstellen"
+
 msgid "Bulk mode"
 msgstr "Massenmail-Modus"
 
@@ -9387,6 +9628,15 @@ msgstr "protokollieren und die Mail markieren"
 
 msgid "hold in the queue until an admin releases it"
 msgstr "in der Warteschlange halten, bis ein Admin sie freigibt"
+
+msgid "Own sending address of the bulk mail (on this server, with PTR)"
+msgstr "Eigene Absendeadresse des Massenversands (auf diesem Server, mit PTR)"
+
+msgid "Warm-up of the address"
+msgstr "Aufwärmen der Adresse"
+
+msgid "Address for the complaints (ARF) of the providers"
+msgstr "Adresse für die Beschwerden (ARF) der Anbieter"
 
 msgid "MailStore (through MailStore Gateway or a journal mailbox)"
 msgstr "MailStore (über MailStore Gateway oder ein Journal-Postfach)"
@@ -9697,6 +9947,12 @@ msgstr "ein Einlieferer"
 msgid "Sender domain or submitter"
 msgstr "Absenderdomain oder Einlieferer"
 
+msgid "Signed YARA rules of the community, daily"
+msgstr "Signierte YARA-Regeln der Community, täglich"
+
+msgid "I accept the terms of the rules"
+msgstr "Ich akzeptiere die Bedingungen der Regeln"
+
 msgid "only this tenant"
 msgstr "nur dieser Mandant"
 
@@ -9786,6 +10042,9 @@ msgstr "Prüfer"
 
 msgid "user"
 msgstr "Benutzer"
+
+msgid "on: a lost app can be replaced with a code by mail"
+msgstr "ein: eine verlorene App kann mit einem Code per Mail ersetzt werden"
 
 msgid "optional"
 msgstr "optional"
@@ -9976,6 +10235,9 @@ msgstr "nis2@"
 msgid "Senders or domains that always pass"
 msgstr "Absender oder Domains, die immer durchkommen"
 
+msgid "Shared by the nodes of the cluster (kept on the master)"
+msgstr "Von den Knoten des Clusters geteilt (beim Master)"
+
 msgid "rejects the mail"
 msgstr "weist die Mail ab"
 
@@ -10054,6 +10316,12 @@ msgstr "aus (Kopien gelöscht)"
 msgid "3 days"
 msgstr "3 Tage"
 
+msgid "ZIP (one .eml per mail)"
+msgstr "ZIP (eine .eml je Mail)"
+
+msgid "mbox (mboxrd)"
+msgstr "mbox (mboxrd)"
+
 msgid "A file that can run code"
 msgstr "Eine Datei, die Code ausführen kann"
 
@@ -10129,6 +10397,27 @@ msgstr "S/MIME"
 msgid "PGP"
 msgstr "PGP"
 
+msgid "Key in the module"
+msgstr "Schlüssel im Modul"
+
+msgid "OpenSC (Nitrokey HSM, SmartCard-HSM, other smart cards)"
+msgstr "OpenSC (Nitrokey HSM, SmartCard-HSM, andere Smartcards)"
+
+msgid "SoftHSM 2 (software, for tests)"
+msgstr "SoftHSM 2 (Software, für Tests)"
+
+msgid "YubiHSM 2"
+msgstr "YubiHSM 2"
+
+msgid "p11-kit proxy (all modules of the system)"
+msgstr "p11-kit-Proxy (alle Module des Systems)"
+
+msgid "other (path below)"
+msgstr "anderes (Pfad darunter)"
+
+msgid "Software key instead of the module"
+msgstr "Software-Schlüssel statt Modul"
+
 msgid "URLhaus (abuse.ch, Switzerland)"
 msgstr "URLhaus (abuse.ch, Schweiz)"
 
@@ -10143,6 +10432,9 @@ msgstr "Ich habe die Bedingungen dieser Quelle gelesen und akzeptiere sie"
 
 msgid "Basic"
 msgstr "Basic"
+
+msgid "Language: codes not expected, such as ru zh"
+msgstr "Sprache: nicht erwartete Kürzel, etwa ru zh"
 
 msgid "Checksums of every incoming mail go to the Pyzor server"
 msgstr "Prüfsummen jeder eingehenden Mail gehen an den Pyzor-Server"
@@ -10770,6 +11062,57 @@ msgstr "Originale entschärfter Mail, neueste zuerst, mit Absender, Empfängern 
 
 msgid "Delivers the original of a disarmed mail unchanged. It does not pass the filters again."
 msgstr "Stellt das Original einer entschärften Mail unverändert zu. Es durchläuft die Filter nicht noch einmal."
+
+msgid "The four content rules with their switch and score: replies to own mail, marketing mail, language, hidden characters."
+msgstr "Die vier Inhaltsregeln mit Schalter und Punkten: Antworten auf eigene Mail, Werbe-Mail, Sprache, versteckte Zeichen."
+
+msgid "Switches one content rule and sets its score; each rule is off by default and only counts until it has a score."
+msgstr "Schaltet eine Inhaltsregel und setzt ihre Punkte; jede Regel ist zunächst aus und zählt nur, bis sie Punkte hat."
+
+msgid "Deletes every hash of the fuzzy store the nodes of the cluster share; the master keeps it. Kept in the audit log."
+msgstr "Löscht jeden Hash des Fuzzy-Speichers, den die Knoten des Clusters teilen; der Master hält ihn. Steht im Audit-Log."
+
+msgid "On a node: takes the settings of the shared fuzzy store from the master (runs by itself after a change)."
+msgstr "Auf einem Knoten: übernimmt die Einstellungen des geteilten Fuzzy-Speichers vom Master (läuft nach einer Änderung von selbst)."
+msgid "Disarms outgoing mail too and signs it again with the DKIM keys of this server; off by default, outgoing mail is then never changed."
+msgstr "Entschärft auch ausgehende Mail und signiert sie mit den DKIM-Schlüsseln dieses Servers neu; standardmäßig aus, ausgehende Mail wird dann nie verändert."
+
+msgid "The domains whose DKIM key is in a hardware module, their module and whether it signed last time."
+msgstr "Die Domains, deren DKIM-Schlüssel in einem Hardware-Modul liegt, ihr Modul und ob es zuletzt signiert hat."
+
+msgid "Puts the DKIM key of a domain into a hardware module (PKCS#11); a test signing runs first. Tested with SoftHSM only."
+msgstr "Legt den DKIM-Schlüssel einer Domain in ein Hardware-Modul (PKCS#11); zuerst läuft eine Testsignatur. Nur mit SoftHSM getestet."
+
+msgid "Lets the module sign a test header and checks the signature with its public key."
+msgstr "Lässt das Modul eine Test-Kopfzeile signieren und prüft die Signatur mit seinem öffentlichen Schlüssel."
+
+msgid "Emergency mode: the software key signs the domain again while the module does not answer."
+msgstr "Notbetrieb: Der Software-Schlüssel signiert die Domain wieder, solange das Modul nicht antwortet."
+msgid "What the bulk transports delivered per provider (sent, deferred, bounced) and the complaints per day and sender domain."
+msgstr "Was die Transporte des Massenversands je Anbieter zugestellt haben (gesendet, verschoben, abgewiesen), und die Beschwerden je Tag und Absenderdomain."
+msgid "Whether outgoing mail can switch to a backup uplink, which one sends now, and why it would not switch."
+msgstr "Ob ausgehende Mail auf einen Ersatz-Uplink umschalten kann, welcher gerade sendet und warum er nicht umschalten würde."
+
+msgid "Outgoing mail switches to a backup uplink when the main one does not answer, only if the backup is fit to send."
+msgstr "Ausgehende Mail schaltet auf einen Ersatz-Uplink um, wenn der Haupt-Uplink nicht antwortet, nur wenn der Ersatz senden kann."
+
+msgid "One round of the failover watch (it runs every minute by itself)."
+msgstr "Eine Runde der Überwachung (läuft jede Minute von selbst)."
+msgid "A whole mailbox of the emergency access as ZIP or mbox: you get a number, the download works once within 15 minutes."
+msgstr "Ein ganzes Postfach des Notfallzugriffs als ZIP oder mbox: Sie bekommen eine Nummer, der Download geht einmal innerhalb von 15 Minuten."
+
+msgid "Downloads an export you asked for, once and within 15 minutes; then ask for a new one."
+msgstr "Lädt einen angeforderten Export herunter, einmal und innerhalb von 15 Minuten; danach einen neuen anfordern."
+msgid "The icons of the mail flow picture on the dashboard: a theme is a folder under /usr/share/eFa/flow with one SVG per stage."
+msgstr "Die Symbole des Mailfluss-Bildes im Dashboard: Ein Theme ist ein Ordner unter /usr/share/eFa/flow mit einer SVG-Datei je Stufe."
+msgid "The YARA rules of the community: how many loaded, their version, the load time and the last check."
+msgstr "Die YARA-Regeln der Community: wie viele geladen, ihre Version, die Ladezeit und die letzte Prüfung."
+
+msgid "Signed YARA rules of the community from the eFa-next repository, daily; a hit counts as a virus."
+msgstr "Signierte YARA-Regeln der Community aus dem eFa-next-Repository, täglich; ein Treffer zählt wie ein Virus."
+
+msgid "Fetches and tests the rules now (it runs daily by itself)."
+msgstr "Holt und testet die Regeln jetzt (läuft täglich von selbst)."
 
 msgid "Disarms attachments: removes active content such as scripts and macros from PDF and Office files, keeps the original for the admins."
 msgstr "Entschärft Anhänge: entfernt aktive Inhalte wie Skripte und Makros aus PDF- und Office-Dateien, behält das Original für Admins."
@@ -11932,6 +12275,9 @@ msgstr "Schaltet Ihre 2FA aus. Nicht möglich, wenn Ihre Rolle sie verlangt."
 msgid "Whether 2FA is required for a role. Required is strongly recommended for all admin roles."
 msgstr "Ob 2FA für eine Rolle Pflicht ist. Pflicht wird für alle Admin-Rollen dringend empfohlen."
 
+msgid "Whether a login of this role with a lost app may get a code by mail to its confirmed address. The code only lets it set up a new app; the old app and its recovery codes stop. Off for super admins by default."
+msgstr "Ob ein Login dieser Rolle mit verlorener App einen Code per Mail an seine bestätigte Adresse bekommen darf. Der Code erlaubt nur, eine neue App einzurichten; die alte App und ihre Wiederherstellungscodes gelten danach nicht mehr. Für Super-Admins standardmäßig aus."
+
 msgid "Makes ten new recovery codes; the old ones stop working."
 msgstr "Erstellt zehn neue Wiederherstellungscodes; die alten gelten nicht mehr."
 
@@ -12433,8 +12779,85 @@ msgstr "Adressen oder Domains, die immer Massenmail senden, durch Komma getrennt
 msgid "The ID from the list of originals."
 msgstr "Die ID aus der Liste der Originale."
 
+msgid "thread: replies to mail sent from here; marketing: newsletters; language: the language of the text; obfuscation: hidden characters."
+msgstr "thread: Antworten auf von hier gesendete Mail; marketing: Newsletter; language: die Sprache des Textes; obfuscation: versteckte Zeichen."
+
+msgid "Each rule is off by default. On, the rule only counts and marks until you give it a score."
+msgstr "Jede Regel ist zunächst aus. Eingeschaltet zählt und markiert sie nur, bis Sie ihr Punkte geben."
+
+msgid "Points of a hit. For the thread rule a bonus below 0, such as -2."
+msgstr "Punkte eines Treffers. Für die Thread-Regel ein Bonus unter 0, etwa -2."
+
+msgid "Language codes you do not expect, such as ru zh ko. A hit adds the score."
+msgstr "Sprachkürzel, die Sie nicht erwarten, etwa ru zh ko. Ein Treffer gibt die Punkte."
+
+msgid "Thread rule only: points of a mail that says it replies to a Message-ID never sent from here. 0 is the default."
+msgstr "Nur Thread-Regel: Punkte einer Mail, die vorgibt, auf eine nie von hier gesendete Message-ID zu antworten. Standard ist 0."
+
+msgid "Thread rule only: how long a sent Message-ID is kept, 7 to 365 days."
+msgstr "Nur Thread-Regel: wie lange eine gesendete Message-ID behalten wird, 7 bis 365 Tage."
+msgid "One of your domains."
+msgstr "Eine Ihrer Domains."
+
+msgid "On: the module signs the mail of this domain; off: the software key again."
+msgstr "An: Das Modul signiert die Mail dieser Domain; aus: wieder der Software-Schlüssel."
+
+msgid "A new selector for the key of the module, such as hsm2026; its DNS record is shown afterwards."
+msgstr "Ein neuer Selektor für den Schlüssel des Moduls, etwa hsm2026; sein DNS-Eintrag wird danach angezeigt."
+
+msgid "The PKCS#11 library of your module, found on this server; other for a path of your own."
+msgstr "Die PKCS#11-Bibliothek Ihres Moduls, auf diesem Server gefunden; anderes für einen eigenen Pfad."
+
+msgid "Only with other: the path of the .so file, under /usr/lib64, /usr/lib or /opt."
+msgstr "Nur mit anderes: der Pfad der .so-Datei, unter /usr/lib64, /usr/lib oder /opt."
+
+msgid "The label of the token (the slot) in the module."
+msgstr "Das Label des Tokens (des Slots) im Modul."
+
+msgid "The label of the private key in the token."
+msgstr "Das Label des privaten Schlüssels im Token."
+
+msgid "The user PIN of the token; it stays on this server, root only."
+msgstr "Die Benutzer-PIN des Tokens; sie bleibt auf diesem Server, nur root."
+
+msgid "A domain whose key is in a module."
+msgstr "Eine Domain, deren Schlüssel in einem Modul liegt."
+
+msgid "On: the software key signs; off: the module again."
+msgstr "An: Der Software-Schlüssel signiert; aus: wieder das Modul."
+msgid "On: the watch asks every minute and switches after 3 misses; off: back to the main uplink."
+msgstr "An: Die Überwachung fragt jede Minute und schaltet nach 3 Fehlschlägen um; aus: zurück auf den Haupt-Uplink."
+
+msgid "An interface with the role uplink and a fixed address, with a PTR record and its place in SPF."
+msgstr "Eine Schnittstelle mit der Rolle Uplink und fester Adresse, mit PTR-Eintrag und Platz im SPF."
+
+msgid "Empty: the gateway of the main uplink must answer a ping (no third party is asked). Or three host:port of your own choice, comma separated: two of them must answer."
+msgstr "Leer: Das Gateway des Haupt-Uplinks muss auf einen Ping antworten (kein Dritter wird gefragt). Oder drei Host:Port Ihrer Wahl, mit Komma getrennt: Zwei davon müssen antworten."
+msgid "The mailbox: as a user your own address, as an admin one of your domains."
+msgstr "Das Postfach: als Benutzer die eigene Adresse, als Admin eine Ihrer Domains."
+
+msgid "ZIP holds one .eml file per mail; mbox (mboxrd) opens in Thunderbird and most mail programs."
+msgstr "ZIP enthält eine .eml-Datei je Mail; mbox (mboxrd) öffnet sich in Thunderbird und den meisten Mailprogrammen."
+
+msgid "Admins only: why you need the mail, at least 5 characters; it goes into the audit log."
+msgstr "Nur Admins: wozu Sie die Mail brauchen, mindestens 5 Zeichen; das steht im Audit-Log."
+
+msgid "Optional: an address that gets a short note (who, which mailbox, the reason; no content)."
+msgstr "Optional: eine Adresse, die einen kurzen Hinweis bekommt (wer, welches Postfach, der Grund; kein Inhalt)."
+
+msgid "The number you got when you asked for the export."
+msgstr "Die Nummer, die Sie beim Anfordern des Exports bekommen haben."
+msgid "On: the signed rules come daily, are tested with ClamAV and loaded; off: they are removed."
+msgstr "An: Die signierten Regeln kommen täglich, werden mit ClamAV getestet und geladen; aus: Sie werden entfernt."
+
+msgid "The rules are under the licences of their authors; yes accepts them."
+msgstr "Die Regeln stehen unter den Lizenzen ihrer Autoren; yes akzeptiert sie."
+
 msgid "On is recommended for offices that get many attachments from outside."
 msgstr "An wird für Büros empfohlen, die viele Anhänge von außen bekommen."
+
+msgid "Off keeps outgoing mail as it was signed. On disarms it too and signs it again; a mail it cannot sign again goes on unchanged."
+msgstr "Aus lässt ausgehende Mail, wie sie signiert wurde. An entschärft sie auch und signiert sie neu; eine Mail, die sich nicht neu signieren lässt, geht unverändert weiter."
 
 msgid "Yes deletes the stored URLs; then the account ID counts again."
 msgstr "Ja löscht die gespeicherten URLs; dann gilt wieder die Konto-ID."
@@ -12459,6 +12882,12 @@ msgstr "Master/Client: Einstellungen nur auf dem Master. HA: Einstellungen auf j
 
 msgid "Name of this node, such as mx-1."
 msgstr "Name dieses Knotens, etwa mx-1."
+
+msgid "The address (or host name) of the first node. The cluster port 8460 opens for it only, at once and after a reboot; empty: open it later with the token of each node."
+msgstr "Die Adresse (oder der Hostname) des ersten Knotens. Der Cluster-Port 8460 öffnet sich nur für ihn, sofort und nach einem Neustart; leer: später mit dem Token jedes Knotens öffnen."
+
+msgid "The address (or host name) of the node this token is for. The cluster port 8460 of this master opens for it only; removing the node closes it again."
+msgstr "Die Adresse (oder der Hostname) des Knotens, für den dieses Token ist. Der Cluster-Port 8460 dieses Masters öffnet sich nur für ihn; Entfernen des Knotens schließt ihn wieder."
 
 msgid "The master host, and :port if not 8460."
 msgstr "Der Master-Host, und :Port, falls nicht 8460."
@@ -13020,6 +13449,9 @@ msgstr "An lernt aus Ihren eigenen bestätigten Spam-Meldungen."
 
 msgid "Score added for a similar mail, 1 to 20."
 msgstr "Score, der für eine ähnliche Mail addiert wird, 1 bis 20."
+
+msgid "On: the master keeps one store for all nodes, the nodes ask it encrypted; only super admins and spam traps teach it."
+msgstr "An: Der Master hält einen Speicher für alle Knoten, die Knoten fragen ihn verschlüsselt; nur Super-Admins und Spamfallen füttern ihn."
 
 msgid "The mail address whose data is erased."
 msgstr "Die Mailadresse, deren Daten gelöscht werden."
@@ -14302,11 +14734,14 @@ msgstr "Der 6-stellige Code, den die App gerade zeigt."
 msgid "A current code of the app, or one of your recovery codes."
 msgstr "Ein aktueller Code der App oder einer Ihrer Wiederherstellungscodes."
 
-msgid "Required makes users of this role set up 2FA at their next login."
-msgstr "Pflicht lässt Benutzer dieser Rolle 2FA bei der nächsten Anmeldung einrichten."
+msgid "On: a login of this role with a lost app can get a code by mail (10 minutes, once, at most 3 mails in 15 minutes). Every mail and use is in the audit log."
+msgstr "Ein: ein Login dieser Rolle mit verlorener App kann einen Code per Mail bekommen (10 Minuten, einmal, höchstens 3 Mails in 15 Minuten). Jede Mail und jede Nutzung steht im Audit-Log."
 
 msgid "The role the rule applies to."
 msgstr "Die Rolle, für die die Regel gilt."
+
+msgid "Required makes users of this role set up 2FA at their next login."
+msgstr "Pflicht lässt Benutzer dieser Rolle 2FA bei der nächsten Anmeldung einrichten."
 
 msgid "Also prints the QR code on the console. In the web interface it is always shown."
 msgstr "Zeigt den QR-Code zusätzlich auf der Konsole. In der Weboberfläche wird er immer gezeigt."
@@ -14944,9 +15379,6 @@ msgstr "Die Domain, deren Mail signiert wird."
 msgid "RSA works everywhere; Ed25519 is shorter and newer. Both is the usual choice."
 msgstr "RSA funktioniert überall; Ed25519 ist kürzer und neuer. Beide ist die übliche Wahl."
 
-msgid "One of your domains."
-msgstr "Eine Ihrer Domains."
-
 msgid "Both makes the kind the domain does not have yet; a key there is stays."
 msgstr "Beide erstellt die Art, die der Domain noch fehlt; ein vorhandener Schlüssel bleibt."
 
@@ -15000,3 +15432,6 @@ msgstr "Pakete prüfen"
 
 msgid "Health check"
 msgstr "Gesundheitscheck"
+
+msgid "A folder under /usr/share/eFa/flow with one SVG icon per stage; default comes with eFa-next."
+msgstr "Ein Ordner unter /usr/share/eFa/flow mit einem SVG-Symbol je Stufe; default kommt mit eFa-next."

@@ -17,6 +17,14 @@ Die Zeiger zeigen CPU, RAM, Auslagerung (bernstein ab 50 %, rot ab 80 %, grau �
 Fehlanmeldungen der letzten 10 Minuten. Das farbige Band jedes Zeigers zeigt, wo Gelb und Rot beginnen. Tafel und Banner
 erneuern sich alle 30 Sekunden, solange die Seite sichtbar ist.
 
+## Bild des Mailflusses
+
+Das Dashboard zeigt, wie eFa-next eine Mail behandelt (6.0.0.7): eingehende Mail durch postscreen, die SMTP-Regeln, die Spam-
+und Virenprüfung, die Entschärfung und die Zustellung, mit den Zweigen abgewiesen, Benutzer-Quarantäne und Admin-Halt;
+ausgehende Mail durch die Ausgangsprüfung und die DKIM-Signatur. Eine abgeschaltete Stufe hat einen gestrichelten Rand. Die
+Zahlen sind die von heute; ein Klick öffnet das Mail-Log mit dem passenden Filter. Auf dem Telefon steht das Bild hochkant.
+Eigene Symbole: [flow-themes.de.md](../flow-themes.de.md).
+
 ## Angriffswarnung auf jeder Seite
 
 Einmal je Minute prüft eFa-next den Host auf Verbindungsfluten über SMTP, SYN-Fluten, Passwortraten bei SMTP AUTH und der
@@ -67,7 +75,10 @@ vor *Übernehmen*. Ein Assistent ruft nur dieselben `efactl`-Befehle wie die Kar
 Das Suchfeld oben im Menü (Taste `/`) schlägt beim Tippen vor: Seiten, Aktionen und Einstellungen mit einer Zeile Erklärung,
 Synonyme auf Deutsch und Englisch („Whitelist" findet die Absenderlisten) und das Mail-Log mit einem Filter für Adresse, Domain,
 IP oder Queue-ID. Vorgeschlagen wird nur, was die Anmeldung öffnen darf. Pfeiltasten, Enter und Esc funktionieren wie gewohnt.
-Das Textmenü der Konsole (efa-tui) hat noch keine Suche; geplant für 6.0.0.7.
+Das Textmenü der Konsole (efa-tui) hat die Mail-Suche auch (*Ansichten › Mail search*): dieselben Filter wie die *Erweiterte
+Suche*, die gefundenen Mails als Liste, Enter zeigt eine Mail (mit Grund, wo einer verlangt wird). Sie läuft über efactl mit den
+Rechten der Anmeldung; efa-tui schreibt nichts von der Suche irgendwohin. Eine Änderung, die die Weboberfläche mit Passwort und
+2FA-Code bestätigt, verlangt diese in efa-tui auch (alle 5 Minuten, nicht für root); Vier-Augen und Audit-Log gelten gleich.
 
 ![Suche mit Vorschlägen](../images/manual/search.png)
 

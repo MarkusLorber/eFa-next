@@ -23,7 +23,7 @@ sudo efactl cluster-token
 # on each node, with the token and the CA fingerprint of cluster-token
 sudo efactl cluster-join-check --master mx-01.example.com:8460   # checks first, the token stays valid
 sudo efactl cluster-join --master mx-01.example.com:8460 --name mx-02 --address 192.0.2.12 --ca_fingerprint <fingerprint>
-sudo efactl cluster-join-preview        # what the settings of the master replace here
+sudo efactl cluster-join-preview        # what the settings of the master replace here (a waiting node may only look, take part or leave)
 sudo efactl cluster-activate --understood yes --confirm yes   # backup, then the settings of the master
 ```
 
@@ -33,7 +33,12 @@ keeps its identity: host name, addresses, TLS certificates, SSH host keys; firew
 on their own host. Values for one node only go into `/etc/eFa/local.d/`.
 
 *Cluster: all nodes* shows the mail log, quarantine and queue of all nodes and acts on a mail of any node.
-The own fuzzy store stays per node; a store shared in the cluster is planned for 6.0.0.7.
+
+Users see the held mail of all nodes in the portal (6.0.0.7), for one hour after a login with the password: the master checks that password itself and signs a ticket; with a passkey, single sign-on or a digest link the portal shows the held mail of its own node, and digest links work on every node (tickets for passkey and single sign-on: a later version). Another node asks only for a named login with that ticket, never for a super admin, and never releases a virus; super admins and the release of a virus work on the web interface of the node that holds the mail.
+The fuzzy store is shared (6.0.0.7): the nodes read it and send what they learn to the master over the mutual TLS of the
+cluster; only the master writes it. An account held as taken over (over a send limit) is held on every node within half a
+minute, and a release made later wins everywhere. While the master is away, each node counts only its own mail and holds
+the send limits at 1/N (N the nodes of the cluster); the dashboard says so.
 `efactl cluster-status` shows each node and how far it is behind, `cluster-resync` takes all settings anew, `cluster-mx-check`
 checks the MX records. When the master is gone for good, `cluster-promote` makes a node the master of a new cluster.
 

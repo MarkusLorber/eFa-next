@@ -23,6 +23,7 @@ demselben Audit-Log. English: [FEATURES.md](FEATURES.md). Wie man sie nutzt, Kap
 - **Ausbruchsfilter**: eine neue Welle mit demselben Anhang oder Text wird 15 bis 60 Minuten zurückgehalten und dann neu geprüft. Standardmäßig aus.
 - **Prüfung nach der Zustellung**: Hashes zugestellter Mails gegen jede Feed-Aktualisierung, Treffer werden gemeldet. Standardmäßig aus.
 - **Spamfallen**: Fallenadressen trainieren Bayes und den Fuzzy-Speicher und werten die sendenden Server ab. Standardmäßig aus.
+- **Inhaltsregeln** (6.0.0.7): Antworten auf eigene Mail, Werbe-Mail, Sprache einer Mail (wie rspamd sie erkennt; FastText für 6.0.0.8 geplant), versteckte Zeichen; jede standardmäßig aus, eine Karte. [Spam](manual/06-spam.de.md)
 - **Newsletter (Graymail)**: an ihren Listen-Headern erkannt, pro Benutzer zugestellt, markiert oder zurückgehalten. Standardmäßig aus.
 - **Eigene Spam-Grenzen** pro Benutzer innerhalb der Grenzen des Admins. Standardmäßig aus.
 - **Junge Domains** werden höher bewertet; die Tage als Auswahl.
@@ -39,7 +40,7 @@ demselben Audit-Log. English: [FEATURES.md](FEATURES.md). Wie man sie nutzt, Kap
 - **QR-Codes** in Bildern und PDF-Dateien werden gelesen und ihre Links geprüft. Standardmäßig aus.
 - **Phishing-Meldungen und Warnbanner**: eine Meldeadresse pro Domain, ein Banner in verdächtigen Mails. [Phishing & Banner](phishing-and-banner.md)
 - **Outlook-Add-in**, um eine Mail mit einem Klick zu melden. [Schutz](protection.md)
-- **BIMI**: das Logo eines Absenders mit strenger DMARC-Richtlinie, geprüft als SVG Tiny PS. Standardmäßig aus.
+- **BIMI**: das Logo eines Absenders mit strenger DMARC-Richtlinie, geprüft als SVG Tiny PS, und sein Markenzertifikat (VMC oder CMC) gegen die Wurzeln der Prüfstellen. Im Hintergrund geholt, nur öffentliche HTTPS-Adressen. Standardmäßig aus.
 - **Übernommene Konten**: ein Absender über seiner Sendegrenze wird angehalten, bis ein Admin ihn freigibt. Standardmäßig aus. [Übernommene Konten](hijacked-accounts.md)
 
 ## Anhänge und Sandbox
@@ -50,6 +51,7 @@ demselben Audit-Log. English: [FEATURES.md](FEATURES.md). Wie man sie nutzt, Kap
 - **Verschlüsselte ZIP-Archive** werden mit einem Passwort aus der Mail geöffnet und geprüft. Standardmäßig aus.
 - **Sandbox**: verdächtige Anhänge an die eigene CAPEv2-Sandbox; die Mail wartet auf das Urteil. Standardmäßig aus.
 - **Eigene Sperren**: SHA-256 von Anhängen und YARA-Regeln, pro Mandant oder für alle. [Eigene Sperren](own-blocks.md)
+- **YARA-Regeln der Community** (6.0.0.7): vom eFa-next-Projekt signiert, täglich geholt, vor dem Laden mit ClamAV getestet; ein Treffer zählt wie ein Virus. Standardmäßig aus. [Eigene Sperren](own-blocks.md)
 - **Grenzen des Virenscans**: Zeit und Größe pro Mail, bei Fehler annehmen oder ablehnen, pro Mandant.
 
 ## Quarantäne, Portal und Mail-Behandlung
@@ -161,17 +163,14 @@ eFa-next oder zum Betriebssystem gehören. Er stoppt oder entfernt sie nie.
 
 ## Bekannte Grenzen
 
-- Der eigene Fuzzy-Speicher arbeitet je Knoten; ein gemeinsamer Speicher der Knoten eines Clusters ist nicht gebaut (geplant für 6.0.0.7).
-- Im Cluster bleiben zurückgehaltene Mails und die Warteschlange auf dem Knoten, der die Mail angenommen hat. Admins sehen und bearbeiten alle Knoten über den Master; Benutzer sehen im Portal nur die zurückgehaltenen Mails des Knotens, auf dem das Portal läuft, und bekommen einen Digest je Knoten. Eine gemeinsame Quarantäne aller Knoten folgt in 6.0.0.7.
-- BIMI prüft das Logo, nicht die VMC/CMC-Zertifikate (geplant für 6.0.0.7).
-- Suche nur in der Weboberfläche, nicht im Textmenü efa-tui (geplant für 6.0.0.7).
-- Notfallzugriff ohne ZIP/MBOX-Export je Postfach (geplant für 6.0.0.7).
-- DKIM- und ARC-Schlüssel bleiben Software-Schlüssel; das Hardware-Modul hält nur Backup-Signatur und S/MIME-Schlüssel (geplant für 6.0.0.7).
+- Im Cluster bleiben zurückgehaltene Mails und die Warteschlange auf dem Knoten, der die Mail angenommen hat; die Benutzer-Quarantäne zeigt und bearbeitet die zurückgehaltenen Mails aller Knoten (6.0.0.7). Solange der Master fehlt, warten die Digests. [Cluster](cluster.md#held-mail-of-the-users-on-all-nodes-6007)
+- BIMI kennt die Wurzeln von DigiCert und GlobalSign; andere legt ein Admin in /etc/eFa/bimi-roots.pem.
+- DKIM-Schlüssel in einem Hardware-Modul (PKCS#11): nur mit SoftHSM getestet; ein echtes Gerät wurde noch nicht getestet. ARC-Schlüssel bleiben Software-Schlüssel. [HSM auf eigener Hardware](hsm-bare-metal.de.md)
 - Auf EL10 Neuinstallationen auf AlmaLinux 10, Rocky Linux 10 und RHEL 10; Rocky Linux und RHEL 10 sind noch nicht auf einem echten Host getestet und haben noch keine OVAL-Sicherheitsmeldungen (die CVE-Wache zeigt das an). Das Release-Upgrade von AlmaLinux 9 auf 10 läuft seit 6.0.0.6 mit der signierten EL10-Paketquelle (nur AlmaLinux). [Release-Upgrade](release-upgrade.md)
-- Die Sendegrenzen übernommener Konten zählen je Knoten, nicht über den Cluster.
+- Im Cluster zählen die Sendegrenzen über alle Knoten mit bis zu einer halben Minute Verzug; ist der Master weg, hält jeder Knoten sie bei 1/N.
 - Single Sign-on (OIDC) ist noch nicht gegen einen echten Anbieter getestet; das ARC-Siegel nach dem Entschärfen noch nicht gegen einen fremden ARC-Prüfer.
-- Zusätzliche Uplinks je Absenderdomain ohne Ausfallumschaltung.
-- PDF-Dateien (Berichte, Härtungsbericht) zeigen nur westeuropäische Buchstaben; andere werden zu `?`.
+- Uplink-Umschaltung nur für ausgehende Mail; eingehende Mail folgt den MX-Einträgen.
+- PDF-Dateien (Berichte, Härtungsbericht): Chinesisch, Japanisch und Koreanisch brauchen das Paket google-droid-sans-fonts (empfohlen, wird standardmäßig mitinstalliert), sonst werden sie zu `?`. Arabisch und Hebräisch laufen von rechts nach links mit einer Kurzform des bidirektionalen Algorithmus (keine expliziten Richtungszeichen, keine verschachtelten Einbettungen) und den verbundenen arabischen Formen von Unicode (keine Ligaturen außer Lam-Alef, keine Vokalzeichen-Platzierung); komplexe Schriften wie Devanagari oder Thai werden nicht geformt.
 - Perl kommt zur Laufzeit nur mit MariaDB und rspamd, die es selbst brauchen.
 
 Änderungen und bekannte Grenzen je Release: [CHANGELOG.md](../CHANGELOG.md).

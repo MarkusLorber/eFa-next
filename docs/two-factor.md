@@ -32,6 +32,15 @@ so such an admin adds an app. The first app is set up with the password only. A 
 Not affected: the user portal (role user), OIDC logins (the factor of their provider), the console, API tokens (they never do
 these changes) and a development host with the dev flag.
 
+## Single sign-on: confirmed at the provider (6.0.0.7)
+
+An admin who logged in with OIDC has no password here. Its critical changes show the button *Confirm at the provider*
+instead of the password fields: it leads to a new login at the provider (`prompt=login`, `max_age=0`), with its own 2FA there.
+efactl takes the answer only when the ID token carries an `auth_time` not before the button was pressed (one minute of clock
+difference allowed) and names the same account (issuer and subject, as at the login). Then the change counts for five
+minutes, as after a password confirmation; send it again. The confirmation is bound to the session it started in: a proof
+for another session or another account opens nothing. A provider that does not send `auth_time` cannot confirm.
+
 ## Set up
 
 1. `totp-setup` shows a QR code and the key as text, for any TOTP app (FreeOTP, Aegis, Microsoft or Google Authenticator,
@@ -60,6 +69,26 @@ critical changes asks for password and code. A code counts once. Wrong codes cou
   - with four eyes on, the reset waits for a second admin; every reset is in the audit log (and the strict audit).
 - `totp-disable --code ...` switches it off, not for an admin and not when the role asks for it.
 - Logins with single sign-on (OIDC) use the second factor of their provider.
+
+## Lost app: a code by mail (6.0.0.7)
+
+On the login page, "App lost?": user name and password, then "Send me a code by mail". The code (8 digits) goes to the
+confirmed address of the login (the one whose link was clicked under My account). It is valid for 10 minutes and once, and it
+does one thing only: typed as the 2FA code, it lets the login set up a new app. At that moment the old app and the old recovery
+codes stop, the other sessions of the login end, and the login reaches nothing but the 2FA setup until the new app is confirmed.
+
+- Per role by a super admin (`email-recovery-set --role tenant --mode off`, Users, 2FA): on for every role but super admin by
+  default. The main admin and logins of a provider (LDAP, single sign-on) have none: recovery codes or the reset by an admin.
+- At most 3 mails in 15 minutes per login; every mail counts like a failed login of the address (lockout); 5 wrong codes end
+  the code. The answer is the same whether a mail went or not; only the right password gets that answer.
+- Logged: every mail (masked address, client address), every refusal with its reason, every wrong and every used code, in the
+  audit log and the strict audit (events `totp_email_sent`, `totp_email_refused`, `totp_email_used`).
+- The code is stored only keyed with the 2FA key, never as text.
+
+The trade-off: a mailbox is a weaker factor than an app. Whoever has the password and the mailbox (often the same password) can
+set up an own app. That is why the code never logs in to anything but the setup, why super admins have it off by default, and
+why every use is logged and mailed. The mail passes this server: keep the mails to these addresses out of an archive you give
+other people access to.
 
 The secrets are stored encrypted (AES-256-GCM, key `/etc/eFa/totp.key`, root only) and bound to the user; recovery codes only
 as hashes.

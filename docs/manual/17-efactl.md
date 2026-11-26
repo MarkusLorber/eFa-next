@@ -82,6 +82,8 @@ Commands marked *writes* change the system; the others only read.
 | `recall-withdraw` | Withdraw a mail of mine *(writes)* |
 | `emergency-list` | Emergency access: received mail |
 | `emergency-show` | Emergency access: read a mail |
+| `emergency-export` | Emergency access: export a mailbox *(writes)* |
+| `emergency-export-fetch` | Emergency access: download the export *(writes)* |
 | `emergency-file` | Emergency access: save an attachment or the mail |
 
 ### Quarantine
@@ -166,6 +168,8 @@ Commands marked *writes* change the system; the others only read.
 | `ole-set` | Office macros: read by olevba and scored *(writes)* |
 | `pyzor-status` | Pyzor |
 | `pyzor-set` | Pyzor: checksums of incoming mail compared by a Pyzor server *(writes)* |
+| `content-rules-status` | Content rules |
+| `content-rules-set` | Content rules: switch one *(writes)* |
 | `tracking-status` | Tracking protection |
 | `tracking-set` | Tracking protection: pixels and link parameters out of incoming mail *(writes)* |
 | `tracking-list-set` | Tracking protection: exceptions and own tracking hosts *(writes)* |
@@ -190,6 +194,8 @@ Commands marked *writes* change the system; the others only read.
 | `own-block-status` | Own blocks: file hashes and YARA rules |
 | `own-hash-set` | Own blocks: SHA-256 of a file *(writes)* |
 | `own-yara-set` | Own blocks: a YARA rule *(writes)* |
+| `yara-community-status` | YARA rules of the community |
+| `yara-community-set` | YARA rules of the community: switch *(writes)* |
 | `graymail-set` | Newsletters (graymail): settings *(writes)* |
 | `user-spam-set` | Own spam limits of the users *(writes)* |
 | `scan-status` | Virus scan: limits per mail |
@@ -197,6 +203,7 @@ Commands marked *writes* change the system; the others only read.
 | `scan-fail-set` | Virus scan: scan failures of a tenant *(writes)* |
 | `cdr-status` | Content disarm |
 | `cdr-set` | Content disarm: switch *(writes)* |
+| `cdr-outbound-set` | Content disarm: outgoing mail too *(writes)* |
 | `cdr-list` | Content disarm: originals |
 | `cdr-release` | Content disarm: deliver the original *(writes)* |
 | `html-disarm-set` | Content disarm: active HTML *(writes)* |
@@ -604,6 +611,8 @@ Commands marked *writes* change the system; the others only read.
 | `interface-confirm` | Network interfaces: keep the change *(writes)* |
 | `interface-revert` | Network interfaces: take back *(writes)* |
 | `uplink-route-set` | Outgoing mail of a domain over an uplink *(writes)* |
+| `uplink-failover-status` | Uplinks: failover of outgoing mail |
+| `uplink-failover-set` | Uplinks: failover of outgoing mail to a backup uplink *(writes)* |
 | `dns-zone-list` | Internal DNS: servers and domains |
 | `dns-servers-set` | Internal DNS servers *(writes)* |
 | `dns-zone-set` | Internal DNS domains *(writes)* |
@@ -729,7 +738,7 @@ Commands that no page shows: some are for the console only (for example `admin-p
 | `dkim-generate-ed25519` | Ed25519 key: generate |
 | `dkim-provision-apply` | DKIM: one call of a source (efa-dkim-api) |
 | `events-run` | Events: background job |
-| `flow-set` | Mail flow picture: moving letters |
+| `flow-set` | Mail flow picture: theme |
 | `flow-status` | Mail flow picture |
 | `form-check` | Forms: current values (check) |
 | `legal-accept` | Legal texts: confirm |

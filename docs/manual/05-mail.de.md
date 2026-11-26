@@ -52,7 +52,9 @@ einmal zuzustellen, zu löschen oder ihre Absender zu sperren; jede Sammelaktion
 
 *Einstellungen* legt fest, was in die Quarantäne geht und wie viele Tage es bleibt (`quarantine-set`, `quarantine-days-set`);
 *Notfallzugriff* lässt Benutzer und Admins eingehende Mail lesen, während Ihr Mailserver nicht läuft: jede Mail wird
-gezeigt, ihre Anhänge werden einzeln gespeichert; ein ZIP- oder MBOX-Export eines ganzen Postfachs ist für 6.0.0.7 geplant.
+gezeigt, ihre Anhänge werden einzeln gespeichert; ein ganzes Postfach geht als ZIP oder mbox hinaus (*Postfach exportieren*, einmal
+innerhalb von 15 Minuten abzuholen). Die Kopien und ihre Betreffzeilen sind versiegelt; Absender, Empfänger, Größe und Zeit
+stehen im Klartext in der Datenbank.
 
 ## Mail-Warteschlange
 

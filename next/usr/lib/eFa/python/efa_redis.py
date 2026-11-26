@@ -72,12 +72,18 @@ class Memory:
             table = data.setdefault(key, {})
             table[rest[0]] = int(table.get(rest[0], 0)) + int(rest[1])
             return table[rest[0]]
+        if name == 'HLEN':
+            return len(data.get(key, {}))
+        if name == 'HEXISTS':
+            return int(rest[0] in data.get(key, {}))
         if name == 'HGETALL':
             return [item for pair in sorted(data.get(key, {}).items()) for item in (pair[0], str(pair[1]))]
         if name == 'SADD':
             before = len(data.setdefault(key, set()))
             data[key] |= set(rest)
             return len(data[key]) - before
+        if name == 'SISMEMBER':
+            return int(rest[0] in data.get(key, set()))
         if name == 'SMEMBERS':
             return sorted(data.get(key, set()))
         if name == 'SCARD':
@@ -99,6 +105,20 @@ class Memory:
             return sum(1 for item in [key] + rest if data.pop(item, None) is not None)
         if name == 'EXPIRE':
             return int(key in data)
+        # G7-10/G7-15: the lists of the shared store of the cluster.
+        if name == 'RPUSH':
+            data.setdefault(key, []).extend(rest)
+            return len(data[key])
+        if name in ('LRANGE', 'LTRIM'):
+            items = data.get(key, [])
+            start, stop = int(rest[0]), int(rest[1])
+            start = max(0, len(items) + start if start < 0 else start)
+            stop = len(items) + stop if stop < 0 else stop
+            part = items[start:stop + 1]
+            if name == 'LRANGE':
+                return part
+            data[key] = part
+            return 'OK'
         raise OSError(f'redis: unknown command {name}')
 
 

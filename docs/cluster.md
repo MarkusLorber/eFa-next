@@ -24,9 +24,14 @@ Each node sees the new mode within a minute and takes all settings anew (`cluste
 On the master:
 
 ```
-efactl cluster-init --name mx-01 --mode ha --confirm yes
-efactl cluster-token
+efactl cluster-init --name mx-01 --mode ha --node 192.0.2.12 --confirm yes
+efactl cluster-token --node 192.0.2.12
 ```
+
+`--node` opens the cluster port 8460 of the master for that node only (6.0.0.7): one firewalld rich rule per address, at
+runtime and permanent, without a reload. Give it at `cluster-init` for the first node or at `cluster-token` for each further
+one. `cluster-join` opens the port of the node for its master only; `cluster-node-remove` and `cluster-leave` close the rules
+again. Without `--node` the port stays as it is, and you open it yourself.
 
 The token is shown once and valid for 30 minutes. On each node, with the token and the CA fingerprint of `cluster-token`
 (the token is read from the prompt, never from an argument):
@@ -42,7 +47,8 @@ efactl cluster-join-status
 `cluster-join-check` checks port 8460 to the master, the token (the master answers only to a valid token and does not use it
 up), the same eFa-next version, the platform (EL9 or EL10: a mix is a note, no refusal, see below), the time, maintenance mode and a release upgrade;
 `cluster-join` does the same checks again and refuses when one fails. The node then waits (pending): the master sends it no
-traffic and it takes no settings yet. `cluster-join-preview` lists what the settings of the master replace;
+traffic and it takes no settings yet. The master answers a waiting node only for the preview, the comparison of its hashes,
+`cluster-activate` and `cluster-leave`; every other request of it gets 403. `cluster-join-preview` lists what the settings of the master replace;
 `cluster-activate` makes a backup first (no settings without it), lets the master reach the node on its port, then takes the
 settings. `cluster-leave` on a waiting node removes it on the master too. The first master is chosen on purpose on its host (`--confirm yes`): its admin logins, users, passwords and 2FA count for
 every node; on joining, those of the node are replaced (the preview lists them, `--understood yes` confirms that), and whoever
@@ -177,10 +183,40 @@ encrypted with AES-256-GCM on the master, no shared secret. Details in [security
 
 The master goes one step on with its hourly update job. Off by default.
 
+## Held mail of the users on all nodes (6.0.0.7)
+
+A held mail stays on the node that took it; nothing is copied between nodes. Still the users' quarantine is one for the whole
+cluster:
+
+- **Portal and web interface** list the held mail of all nodes, on whichever node they run. Each mail carries the name of its
+  node in its ID (`mx-02:17`). Release, ask an admin, delete, allow or block the sender and the headers and text go to the node
+  that holds the mail.
+- **The node that holds a mail checks the rights itself.** It gets only the login name, loads that login from its own users
+  table and applies its own permissions; a filter of the asking node is never taken over.
+- **The master does not take a login on the word of a node** (security review 2026-11-24). When a user logs in with the
+  password on a node, the master checks the same password and 2FA code itself and signs a ticket for that login and that node
+  (one hour). A node asks the master for the held mail of a login only with that ticket. Without one (a login by passkey,
+  single sign-on or digest link, or after the hour) the portal shows the held mail of the own node, and digest links still
+  work by their token. No node makes a login because another node names it. Tickets for logins by passkey or single sign-on
+  are planned for a later version (decision of 2026-11-24).
+- **Links in a digest** start with the name of the node that made them and work on every node: the node that opens the link asks
+  the node that made it.
+- **One digest per user.** Only the master sends digests, with the held mail of all nodes. A node hands its lines to the master and
+  marks them as sent at once, so no mail is in two digests, also not when the master comes back after a break. While the master
+  is away no digest goes out; the held mail waits for the next digest of the master.
+- **A node that does not answer** within 3 seconds (6 seconds through the master) is named above the list ("Not reachable now"),
+  the others are shown. Its held mail waits there until the node is back.
+
+How it travels: the master asks every node at the same time over the cluster connection (`/v1/uq`, mutual TLS); a client asks
+its master, which asks the nodes. Only the master asks the nodes; a node that was asked asks no one. Without a cluster nothing
+changes.
+
+What another node may ask for is limited: a request always names a login (only a digest link comes with its own token
+instead), never a super admin (super admins work on the web interface of the node that holds the mail), and a virus is
+released only on the web interface of its own node. The audit line names the asking node and the login
+(`cluster node mx-02 (a@example.com)`). The list of a login is kept 30 seconds (web interface and portal); any form clears it.
+
 ## Limits
 
-Held mail and the mail queue stay on the node that took the mail; nothing is copied between nodes. For admins the master shows
-and acts on them (`cluster-quarantine`, `cluster-queue`, `cluster-mail-action`). The user portal and the daily digest only know
-the held mail of their own node: a user with held mail on two nodes gets two digests, and the portal shows only the mail of the
-node it runs on. While a node is down, its held mail waits there until the node is back. A quarantine shared by all nodes follows
-in 6.0.0.7.
+The mail queue stays on the node that took the mail. For admins the master shows and acts on all nodes (`cluster-quarantine`,
+`cluster-queue`, `cluster-mail-action`). While the master is away, the digests wait.

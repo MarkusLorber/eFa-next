@@ -19,8 +19,9 @@ With greylisting off and its score below the spam marking, mail in between gets 
 
 `efactl scan-limits-set` (Viruses, attachments & links, Scan limits) bounds the virus scan of one mail: the seconds clamd may take (5 to 20),
 the largest mail it scans (10 to 64 MB; clamd reads at most four times that from archives) and the seconds of all checks of rspamd
-(8 to 60). When the scan fails (clamd not running, too slow, a limit hit, a reply without a verdict) the mail either passes unscanned (fail open, as before)
-or fails closed: it is deferred with `451` and the sender tries again; a mail too large to scan is rejected. The mode is set for
+(8 to 60). When the scan fails (clamd not running, too slow, a limit hit) the mail either passes unscanned (fail open, as before)
+or fails closed: it is deferred with `451` and the sender tries again; a mail too large to scan is rejected. A reply of clamd without a verdict
+(for example while it reloads its database) defers the mail with `451` on every host, whatever the mode. The mode is set for
 all and can differ per tenant (`efactl scan-fail-set --tenant <name> --fail open|closed|inherit`). A new install fails closed;
 an upgrade keeps the old behaviour until the limits are switched on. Changing them restarts clamd, which takes up to a minute;
 domains that fail closed defer their mail during that time.
@@ -252,8 +253,11 @@ hashes in the local Redis for 90 days.
 - **What it finds:** new mails that are variants of such spam count as `EFA_FUZZY_LOCAL` (default 8 points, 1 to 20).
 - **Data:** only fuzzy hashes are kept, no content and no addresses. Nothing leaves the host.
 
-In a cluster each node has its own store and learns the reports approved on it. A shared store between the nodes needs the
-fuzzy port open between them; this is not built yet.
+In a cluster each node has its own store and learns the reports approved on it. With `efactl fuzzy-set --shared on` (6.0.0.7)
+the master also keeps one store for all nodes: its fuzzy worker listens on port 11336, opened only for the nodes. The nodes
+only read it, encrypted with the key pair of the master. Only the master itself writes to it (from the own host, encrypted,
+`encrypted_only`): what a super admin approves or a spam trap catches on a node goes to the master over the mutual TLS of the
+cluster (efa-cluster), never as a fuzzy update by the address of the node, which could be forged.
 
 Off by default.
 

@@ -11,7 +11,7 @@ import unittest
 TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Checks and jobs that start again on their own: an update that restarts the units may end one of them halfway.
 INTERRUPTIBLE = {'efa-blocklist', 'efa-cve-watch', 'efa-events', 'efa-firewall-guard', 'efa-mailreport', 'efa-outbound-hold',
-                 'efa-sanesecurity', 'efa-reboot-check', 'efa-geoip'}
+                 'efa-sanesecurity', 'efa-reboot-check', 'efa-geoip', 'efa-uplink-watch'}
 # Installs packages or changes keys: a run ended halfway has to show as failed.
 MUST_FAIL = {'efa-autoupdate', 'efa-dkim-rotation'}
 

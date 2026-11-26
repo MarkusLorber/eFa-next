@@ -33,3 +33,19 @@ tenant rules the symbol `EFA_TENANT_YARA`, and eFa-next rejects the mail only wh
 Limit: the rules of all tenants run in the one clamd of the host for every mail; a tenant rule that is slow costs all mail.
 The scan limits (Scan limits) bound that time. In a cluster set the entries on each node (or on the master in master/client
 mode).
+
+## YARA rules of the community (6.0.0.7)
+
+`efactl yara-community-set --mode on --accept yes` adds the YARA rules of the community that the eFa-next project bundles.
+Once a day the bundle comes from `https://repo.efa-next.eu/yara/community.yar` with its signature (`community.yar.sig`),
+checked with the pinned eFa-next key, as the advisories and updates. A bundle whose signature does not fit is not used.
+
+Before it is loaded, clamscan takes the bundle in a test and its load time is measured. Rules ClamAV does not take are left
+out one by one, with at most 48 test loads in all. The final set is loaded once more and timed, and it must find nothing in
+a built-in set of clean mails (plain text, a newsletter in HTML, an invoice with a PDF, a reply, a calendar entry). A bundle
+must name its version and an expiry date inside the signed text, be newer than the one in use and not expired: an old bundle
+sent again is refused. A bundle that does not load at all, loads too slowly, hits a clean mail or is refused keeps the rules
+of before. A hit counts as a virus
+(quarantine where that is on). `efactl yara-community-status` shows how many rules are loaded, the version of the bundle, the
+load time and the last check; `efactl yara-community-run` checks now. `--mode off` removes the rules. The rules are under the
+licences of their authors (`--accept yes`). Off by default, also after an upgrade; in settings-export as the part `yara`.

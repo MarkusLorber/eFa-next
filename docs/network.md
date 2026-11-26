@@ -32,3 +32,13 @@ the firewall zone happens only between minute 20 and 50 of an hour, and eFa-next
 ens35: Postfix gets a transport of its own (`efa-out-ens35`) bound to the address of that uplink. `--device main` sends it
 over the main interface again. The address of the uplink needs a PTR record with the HELO name and its place in the SPF
 record of the domain; the command says so.
+
+## Failover of outgoing mail to a backup uplink (6.0.0.7)
+
+`efactl uplink-failover-set --mode on --backup ens36`: every minute efa-uplink-watch asks whether the main uplink still
+works. By default it pings the gateway of the main uplink and asks no third party. With `--probe a:443,b:443,c:25` it
+connects instead to three hosts of your choice, and two of them must answer; `--probe -` goes back to the gateway. After three misses in a row outgoing mail leaves over the backup uplink (its own
+transport and routing table), but only when the backup is fit to send: its address has a PTR record, that name is the HELO
+name of this server and points back to the address, and the SPF record of each own domain lets the address send. Otherwise
+nothing switches, the mail waits in the queue, and the dashboard names what is missing. Five good answers of the main uplink
+switch back. Incoming mail is not touched, and neither is the firewall (no reload).

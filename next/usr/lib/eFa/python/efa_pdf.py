@@ -9,6 +9,7 @@ import struct
 import subprocess
 import tempfile
 import textwrap
+import unicodedata
 import zlib
 
 LINE_CHARS = 95
@@ -21,12 +22,23 @@ LINES_PER_PAGE = 64
 # embedded only into a PDF that needs it; a PDF in Western European letters stays as small as before. Without the font such
 # letters become '?', as before.
 FONT_FILES = {b'U1': ('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
-              b'U2': ('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf')}
+              b'U2': ('/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'),
+              # G7-24: Chinese, Japanese and Korean from Droid Sans Fallback (package google-droid-sans-fonts, TrueType, EL9 and EL10).
+              b'U3': ('/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf', '/usr/share/fonts/google-droid-sans-fonts/DroidSansFallback.ttf',
+                      '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf')}
 UNICODE_OF = {b'F1': b'U1', b'F2': b'U2'}
+# A letter the DejaVu font lacks (Chinese, Japanese, Korean) is set in this one, regular for bold too.
+FALLBACK = b'U3'
+# G7-24: only the glyphs a PDF uses are embedded (P7-17); these tables are of no use in a PDF.
+DROP_TABLES = {b'GSUB', b'GPOS', b'GDEF', b'kern', b'DSIG', b'hdmx', b'VDMX', b'LTSH', b'vhea', b'vmtx', b'morx', b'feat', b'JSTF', b'BASE'}
 
 
 def _text(value):
     return value.encode('cp1252', 'replace').replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
+
+
+def _wide(value):
+    return any(unicodedata.east_asian_width(char) in ('W', 'F') for char in value)
 
 
 def _fits(value):
@@ -97,15 +109,190 @@ def _font(name):
 
 def _show(font, size, value, used):
     """Font selection and show operator for one run of text: WinAnsi with the standard font where it fits, else glyph ids of the
-    embedded font (used collects them per font for _assemble)."""
+    embedded fonts (used collects them per font for _assemble). G7-24: right-to-left text (Arabic, Hebrew) in visual order,
+    Arabic in its joined forms; a letter DejaVu lacks (Chinese, Japanese, Korean) from the fallback font."""
     if _fits(value) or _font(UNICODE_OF[font]) is None:
         return b'/%s %s Tf (%s) Tj' % (font, str(size).encode(), _text(value))
-    name = UNICODE_OF[font]
-    cmap = _font(name)['cmap']
-    glyphs = [cmap.get(ord(char), 0) for char in value]
-    for char, glyph in zip(value, glyphs):
-        used.setdefault(name, {})[glyph] = char
-    return b'/%s %s Tf <%s> Tj' % (name, str(size).encode(), ''.join('%04x' % glyph for glyph in glyphs).encode())
+    value = visual(value)
+    name, fallback = UNICODE_OF[font], _font(FALLBACK)
+    runs = []
+    for char in value:
+        which = name if ord(char) in _font(name)['cmap'] or not fallback or ord(char) not in fallback['cmap'] else FALLBACK
+        if runs and runs[-1][0] == which:
+            runs[-1][1].append(char)
+        else:
+            runs.append((which, [char]))
+    out = []
+    for which, chars in runs:
+        cmap = _font(which)['cmap']
+        # A letter no font here has (google-droid-sans-fonts not installed) becomes '?', as before PDF-1.
+        glyphs = [cmap.get(ord(char)) or cmap.get(ord('?'), 0) for char in chars]
+        for char, glyph in zip(chars, glyphs):
+            used.setdefault(which, {})[glyph] = char if ord(char) in cmap else '?'
+        out.append(b'/%s %s Tf <%s> Tj' % (which, str(size).encode(), ''.join('%04x' % glyph for glyph in glyphs).encode()))
+    return b' '.join(out)
+
+
+# G7-24: right to left. A short form of the bidirectional algorithm (UAX 9) for one line: the direction of its first strong
+# letter, neutrals between letters of one direction take it, numbers stay left to right; runs reversed level by level, brackets
+# mirrored in right-to-left runs. Arabic letters take their joined forms from the presentation forms of Unicode (stdlib names).
+MIRROR = dict(zip('()[]{}<>«»', ')(][}{><»«'))
+_FORMS = {}
+
+
+def _forms(char):
+    """(isolated, final, initial, medial) of an Arabic letter, None where Unicode has no such form."""
+    if char not in _FORMS:
+        found = [None] * 4
+        try:
+            name = unicodedata.name(char)
+        except ValueError:
+            name = ''
+        if name.startswith('ARABIC LETTER '):
+            for index, form in enumerate(('ISOLATED', 'FINAL', 'INITIAL', 'MEDIAL')):
+                try:
+                    found[index] = unicodedata.lookup(f'{name} {form} FORM')
+                except KeyError:
+                    pass
+        _FORMS[char] = tuple(found)
+    return _FORMS[char]
+
+
+LAM_ALEF = {'\u0622': ('\ufef5', '\ufef6'), '\u0623': ('\ufef7', '\ufef8'), '\u0625': ('\ufef9', '\ufefa'), '\u0627': ('\ufefb', '\ufefc')}
+
+
+def shape(text):
+    """Arabic letters in their isolated, final, initial or medial form, lam with alef as one ligature (logical order kept)."""
+    if not any('\u0600' <= char <= '\u06ff' for char in text):
+        return text
+    chars = list(text)
+    letters = [i for i, char in enumerate(chars) if unicodedata.category(char) != 'Mn']
+
+    def joins_left(i):  # this letter connects to the letter after it
+        forms = _forms(chars[i])
+        return forms[2] is not None and forms[3] is not None
+
+    def joins_right(i):  # this letter connects to the letter before it
+        return _forms(chars[i])[1] is not None
+    out = list(chars)
+    skip = set()
+    for pos, i in enumerate(letters):
+        if i in skip:
+            continue
+        before = letters[pos - 1] if pos > 0 else None
+        after = letters[pos + 1] if pos + 1 < len(letters) else None
+        connect_before = before is not None and before not in skip and joins_left(before) and joins_right(i)
+        if chars[i] == '\u0644' and after is not None and chars[after] in LAM_ALEF:
+            out[i] = LAM_ALEF[chars[after]][1 if connect_before else 0]
+            out[after] = ''
+            skip.add(after)
+            continue
+        forms = _forms(chars[i])
+        if forms[0] is None:
+            continue
+        connect_after = after is not None and joins_left(i) and joins_right(after)
+        form = (forms[3] if connect_before and connect_after else forms[1] if connect_before else forms[2] if connect_after else forms[0])
+        out[i] = form or chars[i]
+    return ''.join(out)
+
+
+def _strong(char):
+    kind = unicodedata.bidirectional(char)
+    return 'R' if kind in ('R', 'AL') else 'L' if kind in ('L', 'EN', 'AN') else None
+
+
+def visual(text):
+    """The line in the order it is drawn, left to right. Unchanged without right-to-left letters."""
+    if not any(_strong(char) == 'R' for char in text):
+        return text
+    text = shape(text)
+    base = next((_strong(char) for char in text if _strong(char)), 'L')
+    kinds = [_strong(char) for char in text]
+    # Neutrals: the direction of both sides when they agree, else the base direction.
+    for i, kind in enumerate(kinds):
+        if kind is None:
+            left = next((kinds[j] for j in range(i - 1, -1, -1) if kinds[j]), base)
+            right = next((_strong(text[j]) for j in range(i + 1, len(text)) if _strong(text[j])), base)
+            kinds[i] = left if left == right else base
+    if base == 'R':
+        levels = [1 if kind == 'R' else 2 for kind in kinds]
+    else:
+        levels = [1 if kind == 'R' else 0 for kind in kinds]
+    chars = [MIRROR.get(char, char) if level % 2 else char for char, level in zip(text, levels)]
+    for level in range(max(levels), 0, -1):
+        i = 0
+        while i < len(chars):
+            if levels[i] >= level:
+                j = i
+                while j < len(chars) and levels[j] >= level:
+                    j += 1
+                chars[i:j], levels[i:j] = chars[i:j][::-1], levels[i:j][::-1]
+                i = j
+            else:
+                i += 1
+    return ''.join(chars)
+
+
+def _subset(font, glyphs):
+    """The TrueType file with only these glyphs (and the parts of composite glyphs they use), the others empty; glyph ids stay,
+    so CIDToGIDMap Identity still holds. Tables a PDF does not use are left out."""
+    data = font['data']
+    tables = {}
+    for index in range(struct.unpack('>H', data[4:6])[0]):
+        tag, _sum, offset, length = struct.unpack('>4sIII', data[12 + 16 * index:28 + 16 * index])
+        tables[tag] = data[offset:offset + length]
+    head, maxp = bytearray(tables[b'head']), tables[b'maxp']
+    count = struct.unpack('>H', maxp[4:6])[0]
+    long_loca = struct.unpack('>h', head[50:52])[0] == 1
+    loca = tables[b'loca']
+    offsets = (struct.unpack(f'>{count + 1}I', loca[:4 * (count + 1)]) if long_loca
+               else [value * 2 for value in struct.unpack(f'>{count + 1}H', loca[:2 * (count + 1)])])
+    glyf = tables[b'glyf']
+    keep, todo = {0}, [glyph for glyph in glyphs if 0 <= glyph < count]
+    while todo:
+        glyph = todo.pop()
+        if glyph in keep and glyph != 0:
+            continue
+        keep.add(glyph)
+        start, end = offsets[glyph], offsets[glyph + 1]
+        if end - start >= 10 and struct.unpack('>h', glyf[start:start + 2])[0] < 0:
+            at = start + 10
+            while True:
+                flags, part = struct.unpack('>HH', glyf[at:at + 4])
+                if part not in keep:
+                    todo.append(part)
+                at += 4 + (4 if flags & 1 else 2) + (8 if flags & 0x80 else 4 if flags & 0x40 else 2 if flags & 0x8 else 0)
+                if not flags & 0x20:
+                    break
+    new_glyf, new_loca = bytearray(), []
+    for glyph in range(count):
+        new_loca.append(len(new_glyf))
+        if glyph in keep:
+            new_glyf += glyf[offsets[glyph]:offsets[glyph + 1]]
+            new_glyf += b'\0' * (-len(new_glyf) % 4)
+    new_loca.append(len(new_glyf))
+    head[50:52] = struct.pack('>h', 1)
+    head[8:12] = b'\0\0\0\0'
+    tables.update({b'glyf': bytes(new_glyf), b'loca': struct.pack(f'>{count + 1}I', *new_loca), b'head': bytes(head)})
+    for tag in DROP_TABLES:
+        tables.pop(tag, None)
+
+    def checksum(blob):
+        blob += b'\0' * (-len(blob) % 4)
+        return sum(struct.unpack(f'>{len(blob) // 4}I', blob)) & 0xFFFFFFFF
+    tags = sorted(tables)
+    power = 1 << (len(tags).bit_length() - 1)
+    out = bytearray(struct.pack('>IHHHH', 0x00010000, len(tags), power * 16, power.bit_length() - 1, len(tags) * 16 - power * 16))
+    offset = 12 + 16 * len(tags)
+    body = bytearray()
+    for tag in tags:
+        blob = tables[tag]
+        out += struct.pack('>4sIII', tag, checksum(blob), offset + len(body), len(blob))
+        body += blob + b'\0' * (-len(blob) % 4)
+    whole = bytes(out + body)
+    adjust = (0xB1B0AFBA - checksum(whole)) & 0xFFFFFFFF
+    at = offset + sum(len(tables[tag]) + (-len(tables[tag]) % 4) for tag in tags[:tags.index(b'head')])
+    return whole[:at + 8] + struct.pack('>I', adjust) + whole[at + 12:]
 
 
 def _string(value):
@@ -119,8 +306,9 @@ def _unicode_font(add, name, glyphs):
     """The objects of a Type0 font with the whole TrueType file embedded, widths and ToUnicode for the glyphs used."""
     font = _font(name)
     scale = 1000.0 / font['units']
-    packed = zlib.compress(font['data'])
-    file_ = add(b'<< /Length %d /Length1 %d /Filter /FlateDecode >>\nstream\n' % (len(packed), len(font['data'])) + packed + b'\nendstream')
+    data = _subset(font, set(glyphs))
+    packed = zlib.compress(data)
+    file_ = add(b'<< /Length %d /Length1 %d /Filter /FlateDecode >>\nstream\n' % (len(packed), len(data)) + packed + b'\nendstream')
     bbox = b' '.join(b'%d' % round(value * scale) for value in font['bbox'])
     descriptor = add(b'<< /Type /FontDescriptor /FontName /%s /Flags 32 /FontBBox [%s] /ItalicAngle 0 /Ascent %d /Descent %d '
                      b'/CapHeight %d /StemV 80 /FontFile2 %d 0 R >>' % (font['name'], bbox, round(font['ascent'] * scale),
@@ -146,7 +334,8 @@ def build(lines, attachments=(), info=None):
     """The PDF bytes: lines of text, attachments as (file name, bytes) embedded; info: {'Title': ..., ...} for the document."""
     wrapped = []
     for line in lines:
-        wrapped += textwrap.wrap(line.expandtabs(4), LINE_CHARS, replace_whitespace=False, drop_whitespace=False) or ['']
+        # G7-24: Chinese, Japanese and Korean letters are about twice as wide.
+        wrapped += textwrap.wrap(line.expandtabs(4), LINE_CHARS // 2 if _wide(line) else LINE_CHARS, replace_whitespace=False, drop_whitespace=False) or ['']
     pages = [wrapped[i:i + LINES_PER_PAGE] for i in range(0, len(wrapped), LINES_PER_PAGE)] or [[]]
     used = {}
     streams = [b'BT /F1 10 Tf 12 TL 50 800 Td\n' + b''.join(_show(b'F1', 10, line, used) + b' T*\n' for line in page) + b'ET' for page in pages]
@@ -216,7 +405,7 @@ GRAY = (0.392, 0.396, 0.388)
 def _fit(text, size, width):
     """Lines of at most width points; Helvetica is about half its size wide per letter (wider letters fit, as the guess is low)."""
     # DejaVu Sans (PDF-1) is wider than Helvetica.
-    chars = max(int(width / (size * (0.52 if _fits(str(text)) or _font(b'U1') is None else 0.6))), 8)
+    chars = max(int(width / (size * (1.0 if _wide(str(text)) else 0.52 if _fits(str(text)) or _font(b'U1') is None else 0.6))), 8)
     return textwrap.wrap(str(text), chars) or ['']
 
 
@@ -384,6 +573,33 @@ def self_test():
                 f.flush()
                 done = subprocess.run(['pdftotext', f.name, '-'], capture_output=True)
             assert 'Žluťoučký kůň' in done.stdout.decode() and 'Кириллица' in done.stdout.decode(), done.stdout[:300]
+    # G7-24: only the glyphs used are embedded; Chinese, Japanese and Korean from the fallback font; Arabic and Hebrew right to left.
+    assert visual('abc') == 'abc' and visual('שלום world') == 'world םולש', visual('שלום world')
+    assert visual('Total: שלום (2)') == 'Total: םולש (2)', visual('Total: שלום (2)')
+    assert shape('\u0628\u0628\u0628') == '\ufe91\ufe92\ufe90' and shape('\u0644\u0627') == '\ufefb', [hex(ord(c)) for c in shape('\u0644\u0627')]
+    assert shape('\u0627\u0628') == '\ufe8d\ufe8f', 'alef does not join to the left'
+    if _font(b'U1') is not None:
+        small = report('x', [('p', 'Łódź')])
+        assert len(small) < 60000, f'a subset, not the whole DejaVu font: {len(small)} bytes'
+        rtl = report('x', [('p', 'مرحبا بالعالم'), ('p', 'שלום עולם')])
+        assert b'%04x' % _font(b'U1')['cmap'][ord('\ufee3')] in b''.join(page_streams(rtl)), 'meem in its initial form'
+        if shutil.which('qpdf'):
+            for blob in (small, rtl):
+                with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+                    f.write(blob)
+                    f.flush()
+                    done = subprocess.run(['qpdf', '--check', f.name], capture_output=True)
+                assert done.returncode == 0, done.stdout[-300:]
+    if _font(b'U1') is not None and _font(FALLBACK) is not None:
+        cjk = report('报告', [('p', '中文测试 日本語のテスト 한국어 시험 and Latin')])
+        text = b''.join(page_streams(cjk))
+        assert b'/U3 10 Tf <' in text and b'/U1 10 Tf <' in text and len(cjk) < 200000, len(cjk)
+        if shutil.which('pdftotext'):
+            with tempfile.NamedTemporaryFile(suffix='.pdf') as f:
+                f.write(cjk)
+                f.flush()
+                done = subprocess.run(['pdftotext', f.name, '-'], capture_output=True)
+            assert '中文测试' in done.stdout.decode() and '한국어' in done.stdout.decode(), done.stdout[:300]
     print('self-test ok')
 
 

@@ -13,7 +13,7 @@
 Name:           eFa-next-base
 # Epoch 1 as in eFa-base 1:6.0.0.2: without it, 6.0.0.3 counts as a downgrade.
 Epoch:          1
-Version:        6.0.0.6.8
+Version:        6.0.0.7
 Release:        1%{?dist}
 Summary:        eFa-next base: service configuration for the mail filter
 License:        AGPL-3.0-or-later
@@ -172,6 +172,9 @@ fi
 %dir %attr(0750,root,root) /var/lib/eFa
 
 %changelog
+* Wed Nov 25 2026 Markus Lorber - 6.0.0.7-1
+- 6.0.0.7: with eFa-next 6.0.0.7; the platform layer knows the uplink watch and reads whole journal windows for the delivery statistics; see CHANGELOG.md.
+
 * Mon Nov 23 2026 Markus Lorber - 6.0.0.6.8-1
 - 6.0.0.6.8: rspamd 4.3.1 is the minimum (DMARC reject bypass, hidden DKIM results, virus scan without a verdict, worker crashes); see CHANGELOG.md.
 

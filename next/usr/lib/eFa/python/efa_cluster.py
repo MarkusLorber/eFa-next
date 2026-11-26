@@ -7,6 +7,7 @@ import ast
 import base64
 import fcntl
 import hashlib
+import hmac
 import http.client
 import io
 import ipaddress
@@ -816,8 +817,178 @@ def snapshot_value_local(value, local_type, supported):
         return None, f"table type {', '.join(sorted(set(missing)))} is not in this Postfix (postconf -m)"
     return changed, ''
 
+# 6.0.0.7 (P7-7): the shared store of the cluster. A rule writes its keys into the local Redis (the check reads only there, it
+# never waits for the network) and puts them into a list SHARED_LISTS names; every half minute efa-cluster hands that list to
+# the master over the cluster connection (mTLS), the master keeps the new keys of all nodes in a numbered ring and gives each
+# node those of the others since the number it saw last. Master down: each node goes on with its own keys (the local fallback).
+# Kinds so far: G7-10 the reply hashes (efa:thr:<40 hex>); G7-15 the accounts held as taken over (efa:held:<40 hex>, the value
+# is the time of the hold, so a release given later wins).
+SHARED_LISTS = {'efa:share:thr': re.compile(r'^efa:thr:[0-9a-f]{40}$'), 'efa:share:held': re.compile(r'^efa:held:[0-9a-f]{40}$')}
+# P7-8: while the master does not answer, a node counts only its own mail; the send limits then count at 1/N on each node.
+CLUSTER_ALONE = 'efa:cluster:alone'
+CLUSTER_SIZE = 'efa:cluster:size'
+SHARED_BATCH = 2000
+SHARED_RING = 50000
+SHARED_TTL_MAX = 366 * 86400
+
+
+def shared_clean(entries):
+    """[[key, ttl]] or [[key, ttl, value]] (value a whole number, such as a time) of known kinds only, ttl 1 s to a year."""
+    clean = []
+    for item in entries if isinstance(entries, list) else []:
+        if not (isinstance(item, list) and len(item) in (2, 3) and isinstance(item[0], str) and isinstance(item[1], int)):
+            continue
+        if len(item) == 3 and not (isinstance(item[2], int) and 0 <= item[2] < 10 ** 12):
+            continue
+        if 0 < item[1] <= SHARED_TTL_MAX and any(pattern.match(item[0]) for pattern in SHARED_LISTS.values()):
+            clean.append(list(item))
+    return clean[:SHARED_BATCH * len(SHARED_LISTS)]
+
+
+def shared_take(call):
+    """The new keys of this node ([[key, ttl]]) and how many lines of each list they took."""
+    names = sorted(SHARED_LISTS)
+    answers = call([('LRANGE', name, 0, SHARED_BATCH - 1) for name in names])
+    entries, taken = [], {}
+    for name, lines in zip(names, answers):
+        lines = lines or []
+        taken[name] = len(lines)
+        for line in lines:
+            parts = str(line).split(' ')
+            if len(parts) < 2:
+                continue
+            key, ttl, *value = parts
+            if ttl.isdigit() and (not value or (len(value) == 1 and value[0].isdigit())):
+                entries.append([key, int(ttl)] + [int(item) for item in value])
+    return shared_clean(entries), taken
+
+
+def shared_drop(call, taken):
+    """The lines handed on leave the lists (new ones that came meanwhile stay)."""
+    commands = [('LTRIM', name, count, -1) for name, count in sorted(taken.items()) if count]
+    if commands:
+        call(commands)
+
+
+def shared_merge(ring, seq, origin, entries):
+    """The ring of the master with the new keys of one node: (ring, last number)."""
+    for item in shared_clean(entries):
+        seq += 1
+        ring.append((seq, origin, item))
+    del ring[:max(0, len(ring) - SHARED_RING)]
+    return ring, seq
+
+
+def shared_since(ring, after, node, seq):
+    """The keys of the other nodes after the number a node saw last, and the number to ask with next time. A number above the
+    newest (the master started again) begins anew."""
+    if after > seq:
+        after = 0
+    found = [item for number, origin, item in ring if number > after and origin != node]
+    return found[-SHARED_BATCH * 5:], seq
+
+
+THREAD_SALT = '/etc/eFa/content-thread.salt'
+
+
+def thread_salt(path=THREAD_SALT):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ''
+
+
+def thread_key(inner, salt):
+    """F10: the key of a shared reply hash in this host's Redis: salted with its own secret, as the rule of rspamd does."""
+    return 'efa:thr:' + hashlib.sha256(f'{salt}|{inner[len("efa:thr:"):]}'.encode()).hexdigest()[:40]
+
+
+def shared_apply(call, entries, salt=None):
+    """The keys of the other nodes into the local Redis; reply hashes salted with the secret of this host (F10)."""
+    salt = thread_salt() if salt is None else salt
+    commands = [('SET', thread_key(item[0], salt) if item[0].startswith('efa:thr:') else item[0], item[2] if len(item) == 3 else '1', 'EX', item[1])
+                for item in shared_clean(entries)]
+    if commands:
+        call(commands)
+    return len(commands)
+
+
+def alone_mark(call, size=None, alone=False):
+    """P7-8: the node count of the cluster (from the master) and, while the master does not answer, the mark efa-outbound
+    divides the send limits by."""
+    commands = [('SET', CLUSTER_SIZE, int(size), 'EX', 86400)] if size else []
+    commands += [('SET', CLUSTER_ALONE, 1, 'EX', 90)] if alone else [('DEL', CLUSTER_ALONE)]
+    call(commands)
+
+
+# Security review 2026-11-24 (F4): a node may act for a login in the held mail of the cluster only with a ticket of the master:
+# the master checked the password of that login itself (efactl user-verify) and signed login, node and expiry with a key only it
+# holds. Without a ticket a node gets only what a link token allows. A ticket lives TICKET_SECONDS.
+TICKET_SECONDS = 3600
+
+
+def ticket_make(key, login, node, now=None):
+    now = int(time.time() if now is None else now)
+    payload = base64.urlsafe_b64encode(json.dumps({'u': login.lower(), 'n': node, 'e': now + TICKET_SECONDS}, separators=(',', ':')).encode()).decode().rstrip('=')
+    return payload + '.' + hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()
+
+
+def ticket_ok(key, ticket, login, node, now=None):
+    """True when the ticket was signed with this key for this login and this node and has not expired."""
+    if not key or not isinstance(ticket, str) or ticket.count('.') != 1 or len(ticket) > 600:
+        return False
+    payload, mac = ticket.split('.')
+    if not hmac.compare_digest(mac, hmac.new(key, payload.encode(), hashlib.sha256).hexdigest()):
+        return False
+    try:
+        data = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+    except ValueError:
+        return False
+    now = time.time() if now is None else now
+    return (isinstance(data, dict) and data.get('u') == (login or '').lower() and data.get('n') == node and isinstance(data.get('e'), int)
+            and now < data['e'] <= now + TICKET_SECONDS)
+
 
 def self_test():
+    # P7-7: the shared store: only known kinds, the ring gives each node the keys of the others, a restarted master begins anew.
+    key = 'efa:thr:' + 'a' * 40
+    assert shared_clean([[key, 60], ['efa:rate:x', 60], [key, 0], [key, 10 ** 9], 'x']) == [[key, 60]]
+    held = 'efa:held:' + 'c' * 40
+    assert shared_clean([[held, 60, 1700000000], [held, 60, -1], [held, 60, 'x']]) == [[held, 60, 1700000000]], 'G7-15: a held account with its time'
+    marks = []
+    alone_mark(marks.append, 3, True)
+    alone_mark(marks.append, None, False)
+    assert marks == [[('SET', CLUSTER_SIZE, 3, 'EX', 86400), ('SET', CLUSTER_ALONE, 1, 'EX', 90)], [('DEL', CLUSTER_ALONE)]]
+    ring, seq = shared_merge([], 0, 'mx-2', [[key, 60]])
+    ring, seq = shared_merge(ring, seq, 'mx-3', [['efa:thr:' + 'b' * 40, 30]])
+    assert shared_since(ring, 0, 'mx-2', seq) == ([['efa:thr:' + 'b' * 40, 30]], 2) and shared_since(ring, 2, 'mx-3', seq) == ([], 2)
+    assert shared_since(ring, 99, 'mx-4', seq)[0] == [[key, 60], ['efa:thr:' + 'b' * 40, 30]], 'a master that started again'
+    calls = []
+
+    def fake(commands):
+        calls.append(commands)
+        return [([f'{key} 60', 'junk', 'efa:x 5'] if command[1] == 'efa:share:thr' else [f'{held} 60 1700000000']) if command[0] == 'LRANGE' else 'OK'
+                for command in commands]
+    assert shared_take(fake) == ([[held, 60, 1700000000], [key, 60]], {'efa:share:held': 1, 'efa:share:thr': 3})
+    shared_drop(fake, {'efa:share:thr': 3})
+    assert calls[-1] == [('LTRIM', 'efa:share:thr', 3, -1)]
+    assert shared_apply(fake, [[held, 60, 1700000000]], salt='s') == 1 and calls[-1] == [('SET', held, 1700000000, 'EX', 60)]
+    assert shared_apply(fake, [[key, 60]], salt='s') == 1
+    # F10: the inner hash from another node is stored salted with this host's secret, the same key its rspamd rule looks up.
+    assert calls[-1] == [('SET', thread_key(key, 's'), '1', 'EX', 60)] and thread_key(key, 's') != key and thread_key(key, 't') != thread_key(key, 's')
+    assert thread_key(key, 's') == 'efa:thr:' + hashlib.sha256(('s|' + 'a' * 40).encode()).hexdigest()[:40]
+    # F4 (security review 2026-11-24): a ticket holds only for its login, its node, its key and its time.
+    key = b'k' * 32
+    ticket = ticket_make(key, 'Anna@Own.example', 'mx-2', now=1000)
+    assert ticket_ok(key, ticket, 'anna@own.example', 'mx-2', now=1001)
+    assert not ticket_ok(key, ticket, 'bob@own.example', 'mx-2', now=1001), 'another login'
+    assert not ticket_ok(key, ticket, 'anna@own.example', 'mx-3', now=1001), 'another node'
+    assert not ticket_ok(b'x' * 32, ticket, 'anna@own.example', 'mx-2', now=1001), 'another key'
+    assert not ticket_ok(key, ticket, 'anna@own.example', 'mx-2', now=1000 + TICKET_SECONDS), 'expired'
+    payload, mac = ticket.split('.')
+    forged = base64.urlsafe_b64encode(b'{"u":"boss@own.example","n":"mx-2","e":99999}').decode().rstrip('=') + '.' + mac
+    assert not ticket_ok(key, forged, 'boss@own.example', 'mx-2', now=1001) and not ticket_ok(key, '', 'a', 'mx-2') and not ticket_ok(b'', ticket, 'anna@own.example', 'mx-2', now=1001)
     # 8g: the counts of the other nodes, cleaned, of the same hour and fresh only.
     table = merge_rates({}, 'mx-2', 5, {'who:a': [3, ['x.example']], 'evil': [1, []]}, now=1000)
     table = merge_rates(table, 'mx-3', 5, {'who:a': [2, ['x.example', 'y.example']]}, now=1010)

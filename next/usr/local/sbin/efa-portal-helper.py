@@ -32,7 +32,7 @@ SESSION_SECONDS = 8 * 3600
 USER_COMMANDS = {'schema', 'settings', 'whoami', 'my-settings', 'my-settings-set', 'totp-status', 'totp-setup', 'totp-confirm', 'totp-disable', 'passkey-status', 'passkey-register-options', 'passkey-register', 'passkey-remove', 'graymail-status', 'graymail-mine-set', 'user-spam-status', 'user-spam-mine-set', 'uq-list', 'uq-show', 'uq-release', 'uq-request',
                  'uq-sender', 'uq-delete', 'train-request', 'audit-note', 'recall-list', 'recall-withdraw', 'emergency-list', 'emergency-show', 'emergency-file'}
 # Before a login: the password check, the links of the digests, whether SSO is on.
-OPEN_COMMANDS = {'user-verify', 'uq-link-view', 'uq-link-use', 'oidc-status', 'passkey-login-options', 'passkey-login', 'oidc-start', 'oidc-finish'}
+OPEN_COMMANDS = {'user-verify', 'totp-email-send', 'uq-link-view', 'uq-link-use', 'oidc-status', 'passkey-login-options', 'passkey-login', 'oidc-start', 'oidc-finish'}
 # Single sign-on through the portal is always a login of the portal: its redirect address, users of the role user only.
 PORTAL_SSO = {'oidc-start', 'oidc-finish'}
 # The portal never sets who acts: these come from the helper only.

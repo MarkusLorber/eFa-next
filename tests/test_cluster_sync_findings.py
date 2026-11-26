@@ -114,7 +114,7 @@ class SyncFindings(unittest.TestCase):
                 mock.patch.object(self.efactl, '_write', lambda path, text, *a: None), mock.patch.object(self.efactl, '_cluster_service', lambda on: None), \
                 mock.patch.object(self.efactl, 'cluster_resync', lambda args: {}), mock.patch.object(self.efactl, 'cluster_status', lambda args: {}), \
                 mock.patch.object(self.efactl, '_own_names', lambda: ['mx2.example.org']), mock.patch.object(self.efactl.os, 'makedirs', lambda *a, **k: None), \
-                mock.patch.object(self.efactl, '_efa_version', lambda: '6.0.0.6.6'):  # not the version installed here
+                mock.patch.object(self.efactl, '_efa_version', lambda: '6.0.0.6.6'),                 mock.patch.object(self.efactl, '_cluster_port_open', lambda state, rules: None):  # never the firewall of this host
             self.efactl.cluster_join(args)
         self.assertEqual(written[-1]['mode'], 'ha', 'the mode of the answer, not master-client until the first poll')
         self.assertEqual(written[-1]['master']['platform'], 'el10')

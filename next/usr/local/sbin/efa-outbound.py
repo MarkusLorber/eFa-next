@@ -227,6 +227,52 @@ def bulk_wanted(sender, message, bulk):
     return bool(bulk.get('auto')) and (bool(BULK_PRECEDENCE_RE.match(str(message.get('Precedence', '')))) or message.get('List-Unsubscribe') is not None)
 
 
+# G7-18: the provider of the recipients of a bulk mail, for its own transport and its warm-up. Domains of the big providers,
+# no lookup: a mail to domains of several providers or to other domains is "other".
+BULK_PROVIDERS = {
+    'google': ('gmail.com', 'googlemail.com'),
+    'microsoft': ('outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'outlook.de', 'hotmail.de', 'live.de', 'hotmail.co.uk', 'outlook.at'),
+    'yahoo': ('yahoo.com', 'yahoo.de', 'yahoo.co.uk', 'ymail.com', 'aol.com', 'aol.de', 'rocketmail.com'),
+}
+
+
+def bulk_provider(rcpts):
+    found = set()
+    for rcpt in rcpts:
+        domain = rcpt.rpartition('@')[2].lower()
+        found.add(next((name for name, domains in BULK_PROVIDERS.items() if domain in domains), 'other'))
+    return found.pop() if len(found) == 1 else 'other'
+
+
+def suppressed(call, rcpts):
+    """The recipients that complained about bulk mail before (their hash in efa:arf:suppress); none when Redis does not answer."""
+    try:
+        answers = call([('SISMEMBER', 'efa:arf:suppress', hashlib.sha256(rcpt.lower().encode()).hexdigest()) for rcpt in rcpts])
+    except OSError:
+        return []
+    return [rcpt for rcpt, hit in zip(rcpts, answers) if int(hit or 0)]
+
+
+def warmup_limit(days, start=50):
+    """Recipients a day for one provider on day <days> of the warm-up: 50, doubled each day; no limit from day 15 (P7-10)."""
+    return None if days >= 15 else start * 2 ** max(0, days)
+
+
+def warmup_over(call, provider, count, warmup, now=None):
+    """True when these recipients would go over the warm-up limit of today for this provider (counted in the local Redis)."""
+    now = time.time() if now is None else now
+    started = now if warmup.get('start') is None else float(warmup['start'])
+    limit = warmup_limit(int((now - started) // 86400))
+    if limit is None:
+        return False
+    key = f"efa:bulk:{time.strftime('%Y%m%d', time.gmtime(now))}:{provider}"
+    total = call([('INCRBY', key, count), ('EXPIRE', key, 172800)])[0]
+    if int(total) > limit:
+        call([('INCRBY', key, -count)])
+        return True
+    return False
+
+
 def bulk_missing(sender, message, bulk):
     """What the big providers ask of bulk senders and this mail lacks: one-click unsubscribe (RFC 8058), DKIM, SPF, DMARC."""
     missing = []
@@ -493,9 +539,12 @@ class RedisCounts:
         if domains:
             commands += [('SADD', base + ':d', *sorted(domains)), ('EXPIRE', base + ':d', self.TTL)]
         # The union of the own and the others' target domains: one domain reached from two nodes counts once.
-        commands += [('GET', base + ':pr'), ('SUNIONSTORE', base + ':u', base + ':d', base + ':pd'), ('EXPIRE', base + ':u', 60)]
+        commands += [('GET', base + ':pr'), ('SUNIONSTORE', base + ':u', base + ':d', base + ':pd'), ('EXPIRE', base + ':u', 60),
+                     ('GET', 'efa:cluster:alone'), ('GET', 'efa:cluster:size')]
         answers = self.call(commands)
-        return answers[0] + int(answers[-3] or 0), answers[-2]
+        # P7-8: the master away, the counts of the others are old: the limits hold at 1/N on this node.
+        divisor = max(1, int(answers[-1] or 1)) if answers[-2] else 1
+        return answers[0] + int(answers[-5] or 0), answers[-4], divisor
 
     def once(self, key):
         """True the first time for this key (SET NX): one notice per sender and hour, also after a restart."""
@@ -533,7 +582,7 @@ class RateWatch:
                     continue
                 stored = self._stored(key, recipients, now)
                 if stored is not None:
-                    if stored[0] > limit and over is None:
+                    if stored[0] > max(1, limit // stored[2]) and over is None:
                         over = name
                     continue
                 window = self.windows.get(key)
@@ -546,9 +595,9 @@ class RateWatch:
                 return over
             stored = self._stored('who:' + who, recipients, now)
             if stored is not None:
-                if limits.get('recipients_hour') and stored[0] > limits['recipients_hour']:
+                if limits.get('recipients_hour') and stored[0] > max(1, limits['recipients_hour'] // stored[2]):
                     return 'recipients'
-                if limits.get('domains_hour') and stored[1] > limits['domains_hour']:
+                if limits.get('domains_hour') and stored[1] > max(1, limits['domains_hour'] // stored[2]):
                     return 'domains'
                 return None
             window = self.windows.get(who)
@@ -585,8 +634,13 @@ HELD_FILE = os.environ.get('EFA_HELD_FILE', '/var/lib/efa-outbound/held-senders.
 
 
 class HeldSenders:
-    def __init__(self, path=HELD_FILE):
-        self.path, self.lock = path, threading.Lock()
+    """G7-15: a hold reaches every node of a cluster: it is written into the local Redis (efa:held:<hash>, the value the time of the
+    hold) and handed on by efa-cluster through the master; a node that finds it there holds the account too. A release
+    (released in the settings, the same on every node) newer than the hold wins everywhere."""
+    TTL = 30 * 86400
+
+    def __init__(self, path=HELD_FILE, call=None):
+        self.path, self.lock, self.call = path, threading.Lock(), call
         try:
             with open(path) as f:
                 self.held = json.load(f)
@@ -599,14 +653,41 @@ class HeldSenders:
                 return False
             self.held[who] = {'since': time.time() if now is None else now, 'reason': reason}
             self._save()
+            if self.call:
+                key, since = self.key(who), int(self.held[who]['since'])
+                try:
+                    self.call([('SET', key, since, 'EX', self.TTL), ('RPUSH', 'efa:share:held', f'{key} {self.TTL} {since}'),
+                               ('LTRIM', 'efa:share:held', -20000, -1)])
+                except OSError as err:  # the hold here stands; the other nodes learn it when Redis answers again
+                    syslog.syslog(syslog.LOG_WARNING, f'efa-outbound: hold of an account not shared: {err}')
             return True
+
+    @staticmethod
+    def key(who):
+        return 'efa:held:' + hashlib.sha1(who.lower().encode()).hexdigest()
+
+    def _elsewhere(self, who, released):
+        """The time another node held this account, when no release came after it; None otherwise or without Redis."""
+        if not self.call:
+            return None
+        try:
+            since = self.call([('GET', self.key(who))])[0]
+        except OSError:
+            return None
+        if since is None or not str(since).isdigit() or float(released.get(who, 0)) >= int(since):
+            return None
+        return int(since)
 
     def is_held(self, who, released):
         """Held, unless an admin released it after it was held; a release takes it off the list."""
         with self.lock:
             item = self.held.get(who)
             if item is None:
-                return False
+                since = self._elsewhere(who, released)
+                if since is None:
+                    return False
+                item = self.held[who] = {'since': since, 'reason': 'held on another node of the cluster'}
+                self._save()
             if float(released.get(who, 0)) >= item['since']:
                 del self.held[who]
                 self._save()
@@ -765,7 +846,23 @@ def run_milter():
                 # Only when all recipients are outside: the bulk transport sends every recipient of the mail to its own domain.
                 is_bulk = all(rcpt.rpartition('@')[2] not in local for rcpt in self.rcpts) and bulk_wanted(self.sender, message, bulk)
                 if is_bulk:
-                    self.addheader('X-eFa-Bulk', 'yes')
+                    provider = bulk_provider(self.rcpts)
+                    warmup = bulk.get('warmup') or {}
+                    if warmup.get('enabled'):
+                        try:
+                            over = warmup_over(redis_call, provider, len(self.rcpts), warmup)
+                        except OSError:
+                            over = True  # P7-10: without its count the warm-up holds, it never sends more than planned
+                        if over:
+                            syslog.syslog(syslog.LOG_WARNING, f'efa-outbound bulk warm-up limit {provider} from={self.sender} id={queue_id}')
+                            self.setreply('451', '4.7.1', f'Bulk warm-up: the limit of today for {provider} is reached, try again later')
+                            return Milter.TEMPFAIL
+                    # G7-18: the mark names the provider; Postfix sends each over its own transport and pace.
+                    self.addheader('X-eFa-Bulk', f'yes {provider}')
+                    # Recipients who complained (ARF, efa-arf) get no more bulk mail.
+                    for rcpt in suppressed(redis_call, self.rcpts):
+                        self.delrcpt(f'<{rcpt}>')
+                        syslog.syslog(syslog.LOG_INFO, f'efa-outbound bulk recipient left out after a complaint id={queue_id}')
                     missing = bulk_missing(self.sender, message, bulk)
                     if missing:
                         syslog.syslog(syslog.LOG_WARNING, f'efa-outbound bulk missing={",".join(missing)} from={self.sender} id={queue_id}')
@@ -876,9 +973,9 @@ def run_milter():
 
     watch = RateWatch(RedisCounts())
     Outbound.watch = watch
-    Outbound.held = HeldSenders()
+    Outbound.held = HeldSenders(call=redis_call)
     Milter.factory = Outbound
-    Milter.set_flags(Milter.ADDHDRS | Milter.CHGHDRS | Milter.CHGBODY | Milter.QUARANTINE)
+    Milter.set_flags(Milter.ADDHDRS | Milter.CHGHDRS | Milter.CHGBODY | Milter.QUARANTINE | Milter.DELRCPT)
     Milter.runmilter('efa-outbound', f'inet:{PORT}@127.0.0.1', timeout=120)
     # A connection that comes in while Python shuts down crashes pymilter: end without the shutdown.
     os._exit(0)
@@ -945,6 +1042,18 @@ def self_test():
         assert held.is_held('anna', {}) and held.is_held('anna', {'anna': 50})
         assert HeldSenders(folder + '/held.json').is_held('anna', {}), 'kept over a restart'
         assert not held.is_held('anna', {'anna': 100}) and not held.is_held('anna', {})
+    # G7-15: a hold of another node comes through Redis; a release given after it wins.
+    store = efa_redis.Memory()
+    other, here = HeldSenders(folder + '/other.json', store), HeldSenders(folder + '/here.json', store)
+    assert other.hold('bert@own.example', 'over the limit recipients', now=200)
+    assert store([('LRANGE', 'efa:share:held', 0, -1)])[0] == [f'{HeldSenders.key("bert@own.example")} {HeldSenders.TTL} 200']
+    assert here.is_held('bert@own.example', {}) and here.held['bert@own.example']['reason'] == 'held on another node of the cluster'
+    assert not HeldSenders(folder + '/third.json', store).is_held('bert@own.example', {'bert@own.example': 300}), 'released later'
+    # P7-8: the master away: the limit of 6 counts at 6/3 = 2 on this node.
+    alone = efa_redis.Memory()
+    alone([('SET', 'efa:cluster:alone', 1), ('SET', 'efa:cluster:size', 3)])
+    assert RateWatch(RedisCounts(alone)).add('cara', ['a@x.example', 'b@x.example', 'c@x.example'], {'recipients_hour': 6}, 0) == 'recipients'
+    assert RateWatch(RedisCounts(efa_redis.Memory())).add('cara', ['a@x.example'] * 3, {'recipients_hour': 6}, 0) is None
     # 9j: limits per sender domain and per tenant over all their senders.
     watch, limits = RateWatch(), {'domain_recipients_hour': 3, 'tenant_recipients_hour': 6}
     assert watch.add('a', ['x@1', 'y@2'], limits, now=0, domain='own.example', tenant='3') is None
@@ -990,6 +1099,14 @@ def self_test():
     assert not bulk_wanted('a@own.example', email.message.EmailMessage(), bulk) and not bulk_wanted('a@own.example', news, {**bulk, 'enabled': False})
     assert not bulk_wanted('a@own.example', news, {**bulk, 'auto': False})
     assert bulk_missing('a@own.example', news, bulk) == ['one-click-unsubscribe']
+    # G7-18: the provider of the recipients, the warm-up doubled each day, no limit from day 15, the count given back when over.
+    assert bulk_provider(['a@gmail.com', 'b@googlemail.com']) == 'google' and bulk_provider(['a@gmail.com', 'b@hotmail.com']) == 'other'
+    assert bulk_provider(['x@own-partner.example']) == 'other' and warmup_limit(0) == 50 and warmup_limit(3) == 400 and warmup_limit(15) is None
+    store = efa_redis.Memory()
+    assert not warmup_over(store, 'google', 40, {'start': 0}, now=3600) and warmup_over(store, 'google', 20, {'start': 0}, now=3600)
+    assert store([('GET', 'efa:bulk:19700101:google')]) == ['40'] and not warmup_over(store, 'google', 60, {'start': 0}, now=86400 + 10)
+    store([('SADD', 'efa:arf:suppress', hashlib.sha256(b'reader@gmail.com').hexdigest())])
+    assert suppressed(store, ['Reader@gmail.com', 'other@gmail.com']) == ['Reader@gmail.com']
     news['List-Unsubscribe'], news['List-Unsubscribe-Post'] = '<https://own.example/u/1>', 'List-Unsubscribe=One-Click'
     assert bulk_missing('a@own.example', news, bulk) == [] and bulk_missing('x@news.example', news, bulk) == ['dmarc']
     assert bulk_missing('x@other.example', news, bulk) == ['not-checked']

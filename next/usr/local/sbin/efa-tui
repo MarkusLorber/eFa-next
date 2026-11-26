@@ -17,7 +17,7 @@ import time
 
 # The source tree first, so a self test there uses its own libraries, not the installed ones.
 sys.path[:0] = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../lib/eFa/python'), '/usr/lib/eFa/python']
-from efa_nav import ADMIN_NAV as NAV, FORM_SOURCE, form_value  # noqa: E402  every card once (the portal cards are not for the console)
+from efa_nav import ADMIN_NAV as NAV, FORM_SOURCE, REAUTH_COMMANDS, form_value  # noqa: E402  every card once (the portal cards are not for the console)
 
 EFACTL = os.environ.get('EFA_TUI_EFACTL', '/usr/sbin/efactl')
 # Destructive: a second question before efactl runs them, besides the confirmation field of the command.
@@ -30,12 +30,29 @@ TEXT = {'title': 'eFa-next', 'keys': 'Arrows move  Enter choose  Tab next  / sea
 
 
 class Efactl:
-    """Runs efactl as root, or for an eFa-next user with --as: the same rights as in the web interface."""
+    """Runs efactl as root, or for an eFa-next user with --as: the same rights as in the web interface. G7-22 (P7-14): a change
+    the web interface confirms with the password and 2FA code again asks for them here too (every 5 minutes, through efactl
+    user-verify); four eyes and the audit log are efactl's own."""
 
-    def __init__(self, user=None):
-        self.user = user
+    def __init__(self, user=None, ask_again=None):
+        self.user, self.ask_again, self.confirmed = user, ask_again, 0
+
+    def reauth(self, name):
+        """True when the change may run: root, a command that needs no confirmation, or the password and code given again."""
+        if not self.user or name not in REAUTH_COMMANDS or time.time() - self.confirmed < REAUTH_SECONDS:
+            return True
+        answer = self.ask_again() if self.ask_again else None
+        if not answer:
+            return False
+        password, code = answer
+        ok, _who = Efactl().run('user-verify', f'--username={self.user}', '--strict=yes', secrets=[password, code])
+        if ok:
+            self.confirmed = time.time()
+        return ok
 
     def run(self, *args, secrets=()):
+        if args and not self.reauth(args[0]):
+            return False, {'error': 'Password or 2FA code wrong, nothing changed.'}
         command = [EFACTL, *(['--as', self.user] if self.user else []), *args]
         try:
             done = subprocess.run(command, capture_output=True, text=True, timeout=300, input=''.join(line + '\n' for line in secrets))
@@ -407,6 +424,44 @@ def quarantine(screen, efactl, schema, held):
         view(screen, possible[choice][1], show_text(result) if ok else [str(result.get('error'))])
 
 
+REAUTH_SECONDS = 300
+# G7-22: the mail search of the console. The fields of efactl message-search, the result as a list, a mail opens its details
+# (efactl mail-show, with a reason where one is asked). Nothing of the search is written anywhere by efa-tui.
+SEARCH_SKIP = {'limit', 'format', 'after_id'}
+
+
+def mail_search(screen, efactl, schema):
+    """The message search: a form of its filters, then the mails found; Enter shows a mail."""
+    cmd = schema['message-search']
+    search = {**cmd, 'args': [arg for arg in cmd['args'] if arg['name'] not in SEARCH_SKIP and arg.get('web') is not False]}
+    while True:
+        result = form(screen, efactl, 'message-search', search)
+        if result is None:
+            return
+        ok, data = result
+        if not ok:
+            view(screen, cmd['title'], [str(data.get('error'))])
+            continue
+        mails = data.get('mails', [])
+        while True:
+            lines = [f"{str(mail.get('ts', ''))[:16]:16} {str(mail.get('sender', ''))[:24]:24} {str(mail.get('rcpt', ''))[:20]:20} "
+                     f"{str(mail.get('action', ''))[:11]:11} {mail.get('subject') or ''}" for mail in mails] or ['(no mail matches)']
+            index = pick(screen, f"{cmd['title']}: {len(mails)}", lines)
+            if index in (None, 'quit') or not mails:
+                break
+            if 'mail-show' not in schema:
+                continue
+            mail_id = str(mails[index].get('id', ''))
+            ok, shown = efactl.run('mail-show', f'--id={mail_id}')
+            if not ok and 'reason' in str(shown.get('error', '')).lower():
+                reason = ask(screen, 'Reason (kept in the audit log)', '')
+                if not reason:
+                    continue
+                ok, shown = efactl.run('mail-show', f'--id={mail_id}', f'--reason={reason}')
+            view(screen, f'Mail {mail_id}', show_text({key: value for key, value in shown.items() if key not in ('headers', 'evidence')})
+                 if ok else [str(shown.get('error'))])
+
+
 def admin_password(screen, efactl):
     first = ask(screen, 'New web admin password, at least 12 characters', '', True)
     second = ask(screen, 'Repeat the password', '', True) if first else None
@@ -423,7 +478,9 @@ def login(screen):
         return None
     forced = sys.argv[sys.argv.index('--as') + 1] if '--as' in sys.argv[:-1] else None
     if forced:
-        return Efactl(forced)
+        efactl = Efactl(forced)
+        efactl.ask_again = lambda: _ask_again(screen)
+        return efactl
     choice = pick(screen, TEXT['login'], [TEXT['root'], TEXT['user']])
     if choice in (None, 'quit'):
         return None
@@ -437,7 +494,17 @@ def login(screen):
     if not ok:
         view(screen, TEXT['login'], [str(who.get('error'))])
         return None
-    return Efactl(who['username'])
+    efactl = Efactl(who['username'])
+    efactl.ask_again = lambda: _ask_again(screen)
+    return efactl
+
+
+def _ask_again(screen):
+    """The password and the 2FA code again, for a change that needs them (as in the web interface)."""
+    password = ask(screen, 'Your password, to confirm', '', True)
+    if not password:
+        return None
+    return password, ask(screen, 'Code of your 2FA app', '', False) or ''
 
 
 def main_menu(screen, efactl):
@@ -451,8 +518,8 @@ def main_menu(screen, efactl):
             entries.append((f'{TEXT["emergency"]}: {label}', ('command', name)))
     if efactl.user is None:
         entries.append((f'{TEXT["emergency"]}: Web admin password', ('password', None)))
-    for label, kind in (('Dashboard', 'status'), ('Live log', 'live'), ('Held mail', 'held'), ('Quarantine', 'quar')):
-        if {'status': 'status', 'live': 'maillog-live', 'held': 'uq-list', 'quar': 'quarantine-list'}[kind] in schema:
+    for label, kind in (('Dashboard', 'status'), ('Live log', 'live'), ('Mail search', 'search'), ('Held mail', 'held'), ('Quarantine', 'quar')):
+        if {'status': 'status', 'live': 'maillog-live', 'search': 'message-search', 'held': 'uq-list', 'quar': 'quarantine-list'}[kind] in schema:
             entries.append((f'{TEXT["views"]}: {label}', ('view', kind)))
     for group, pages in tree:
         entries.append((f'{group}', ('group', pages)))
@@ -470,6 +537,8 @@ def main_menu(screen, efactl):
                 run_command(screen, efactl, 'status', schema['status'])
             elif value == 'live':
                 live_log(screen, efactl)
+            elif value == 'search':
+                mail_search(screen, efactl, schema)
             else:
                 quarantine(screen, efactl, schema, value == 'held')
         else:
@@ -507,6 +576,27 @@ def self_test():
     assert args == ['--user=a b', '--mode=on', '--proto=tcp', '--confirm=yes'] and secrets == ['s3cret'], (args, secrets)
     assert [field_kind(arg) for arg in sample['args']] == ['text', 'secret', 'text', 'switch', 'choice', 'confirm'] and field_label(sample['args'][3]) == 'Active'
     assert show_text({'a': 1, 'b': [1, 2], 'c': {'d': None}}) == ['a: 1', 'b:', '  1', '  2', 'c:', '  d: ']
+    # G7-22: a change of the reauth list asks again (every 5 minutes), root never; a wrong answer runs nothing.
+    asked, ran = [], []
+    probe = Efactl('anna', ask_again=lambda: asked.append(1) or ('pw', '123456'))
+    probe_run = Efactl.run
+
+    def fake_run(self, *args, secrets=()):
+        if args and args[0] == 'user-verify':
+            ran.append(args)
+            return secrets[0] == 'pw', {}
+        if args and not self.reauth(args[0]):
+            return False, {'error': 'Password or 2FA code wrong, nothing changed.'}
+        return True, {}
+    Efactl.run = fake_run
+    try:
+        assert 'firewall-set' in REAUTH_COMMANDS and probe.run('firewall-set')[0] and probe.run('firewall-set')[0] and len(asked) == 1
+        assert ran and '--strict=yes' in ran[0] and probe.run('status')[0] and len(asked) == 1
+        wrong = Efactl('bert', ask_again=lambda: ('nope', ''))
+        assert not wrong.run('user-set')[0] and Efactl().reauth('user-set'), 'a wrong password runs nothing; root needs none'
+    finally:
+        Efactl.run = probe_run
+    assert SEARCH_SKIP == {'limit', 'format', 'after_id'}
     tree = menu_tree({'status': {}, 'reboot': {}, 'brand-new': {}})
     assert tree[0][0] == 'Daily' and tree[-1] == (TEXT['other'], [(TEXT['other'], ['brand-new'])])
     if os.geteuid() == 0:

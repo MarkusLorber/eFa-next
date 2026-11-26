@@ -179,6 +179,9 @@ if [ -f /etc/dnf/dnf.conf ] && ! grep -q 'clamav-\[2-9\]' /etc/dnf/dnf.conf; the
 fi
 # efa-cdr loads the ARC keys of this folder (M1-1); efactl fills it when ARC sealing is on.
 [ -d /etc/eFa/arc-seal ] || step install -d -m 0700 /etc/eFa/arc-seal
+# G7-25: and the DKIM keys of this folder, only while CDR outbound is on.
+[ -d /etc/eFa/dkim-sign ] || step install -d -m 0700 /etc/eFa/dkim-sign
+[ -d /etc/eFa/dkim-hsm ] || step install -d -m 0700 /etc/eFa/dkim-hsm
 step /usr/sbin/efactl redis-tune
 # 5v (h), D-1: the sandbox of the tested mail services on a new install and a migration (default: rspamd, ClamAV, unbound; redis
 # and nginx only when the admin chooses on); an upgrade keeps what the admin chose (off unless switched on)

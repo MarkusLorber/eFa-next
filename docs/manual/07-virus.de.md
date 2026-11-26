@@ -6,8 +6,9 @@ Alles unter *Schutz › Viren, Anhänge & Links*, jeweils als eigene Karte.
 
 Jede Mail prüft ClamAV. *Prüfgrenzen* begrenzen eine Prüfung: die Sekunden, die clamd brauchen darf (5 bis 20), die größte Mail,
 die es prüft (10 bis 64 MB), und die Sekunden aller Prüfungen von rspamd (8 bis 60). Scheitert die Prüfung (clamd aus, zu langsam,
-eine Grenze erreicht, eine Antwort ohne Befund), geht die Mail entweder ungeprüft durch (*offen*) oder wird mit `451` aufgeschoben, sodass der Absender es
-erneut versucht (*geschlossen*); eine zu große Mail wird dann abgewiesen. Eine Neuinstallation ist geschlossen; der Modus kann je
+eine Grenze erreicht), geht die Mail entweder ungeprüft durch (*offen*) oder wird mit `451` aufgeschoben, sodass der Absender es
+erneut versucht (*geschlossen*); eine zu große Mail wird dann abgewiesen. Eine Antwort von clamd ohne Befund schiebt die Mail in jedem Modus mit `451`
+auf. Eine Neuinstallation ist geschlossen; der Modus kann je
 Mandant abweichen (`efactl scan-fail-set --tenant <Name> --fail closed`).
 
 *Weitere Virenscanner* und *Sandbox* fügen weitere Engines und einen Analysedienst hinzu, wo sie installiert sind; siehe
@@ -48,6 +49,14 @@ sudo efactl clam-securiteinfo-set --tier basic
 
 Im Cluster lädt jeder Knoten selbst und zählt gegen die Grenze des Kontos.
 
+### YARA-Regeln der Community (6.0.0.7)
+
+`efactl yara-community-set --mode on --accept yes` nimmt die YARA-Regeln hinzu, die das eFa-next-Projekt bündelt: einmal am
+Tag, signiert mit dem eFa-next-Schlüssel, vor dem Laden mit ClamAV getestet und gemessen, und sie dürfen in einer Reihe
+sauberer Mails nichts finden. Ein abgelaufenes oder älteres Bündel wird abgewiesen, die geladenen Regeln bleiben. Ein Treffer
+zählt als Virus. Standardmäßig aus; die Regeln stehen unter den Lizenzen ihrer Autoren. Einzelheiten:
+[own-blocks.de.md](../own-blocks.de.md).
+
 ## Anhänge
 
 *Anhänge* sperrt oder hält nach dem echten Dateityp (Inhalt, nicht Endung) und nach dem Inhalt von Archiven. Programme werden
@@ -60,9 +69,14 @@ bewertet Autostart und verdächtige Aufrufe.
 *Entschärfung von Inhalten* entfernt die aktiven Teile aus Office- und PDF-Dateien: Makros gehen (aus `.docm` wird `.docx`),
 PDF-Dateien verlieren JavaScript, Öffnen- und Start-Aktionen und eingebettete Dateien. Eine Datei, die sich nicht reinigen lässt,
 wird durch einen kurzen Hinweis ersetzt; eine unlesbare Datei lässt die Mail warten. Das Original bleibt für den Admin
-(`efactl cdr-list`, `cdr-release`; aktive Inhalte freizugeben braucht das Recht, Schadsoftware freizugeben). *Aktives HTML*
+(`efactl cdr-list`, `cdr-release`; aktive Inhalte freizugeben braucht das Recht, Schadsoftware freizugeben). Ausgehende Mail bleibt unverändert, außer
+*CDR ausgehend* ist an (`efactl cdr-outbound-set`); dann werden ihre DKIM-Signaturen nach der Entschärfung neu erstellt. *Aktives HTML*
 entfernt Skripte, Formulare und Ereignis-Handler aus HTML-Mail. Signierte oder verschlüsselte Mail bleibt unverändert. Details:
 [attachments-and-cdr.md](../attachments-and-cdr.md).
+
+Ausgehende Mail wird standardmäßig nie verändert. `efactl cdr-outbound-set --mode on` entschärft auch sie (6.0.0.7) und
+erstellt danach jede DKIM-Signatur dieses Servers über die geänderte Mail neu; eine Mail, deren Signatur sich nicht neu
+erstellen lässt, geht unverändert weiter.
 
 ## Linkprüfung beim Klick
 

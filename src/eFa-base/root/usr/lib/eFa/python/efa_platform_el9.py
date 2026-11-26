@@ -115,7 +115,7 @@ class EL9(Platform):
                     "efa-post-boot.service", "efa-sanesecurity.service",
                     "efa-events.service", "efa-cve-watch.service", "efa-outbound-hold.service",
                     "efa-time-sync.service", "efa-release-upgrade.service", "efa-release-upgrade-finish.service",
-                    "efa-os-check.service", "efa-geoip.service")
+                    "efa-os-check.service", "efa-geoip.service", "efa-uplink-watch.service")
     # Pyzor (G7-5) is off by default and needs its settings as a credential: enabled by the setup it failed again and again.
     EFA_OPT_IN = ("efa-pyzor.service",)
     ACCOUNTS = {
@@ -528,11 +528,12 @@ class EL9(Platform):
         res = c.run(["rpm", "-Vf", path], check=False)
         return (res.stdout + res.stderr).strip()[:2000]
 
-    def journal_window(self, since, until, idents):
+    def journal_window(self, since, until, idents, last=200):
         cmd = ["journalctl", "--no-pager", "-o", "short-iso", "--since", "@%d" % int(since), "--until", "@%d" % int(until)]
         for ident in idents:
             cmd += ["-t", ident]
-        return c.run(cmd, check=False).stdout.splitlines()[-200:]
+        lines = c.run(cmd, check=False).stdout.splitlines()
+        return lines[-last:] if last else lines
 
     def process_counts(self, groups):
         counts = dict.fromkeys(groups, 0)

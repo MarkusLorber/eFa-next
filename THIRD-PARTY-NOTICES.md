@@ -29,7 +29,9 @@ package metadata of that host, unless marked "check".
 | BIND utilities (dig) | 9.16.23 | MPL-2.0 | https://www.isc.org | OS package, called as a program |
 | OpenSSL | 3.5.8 | Apache-2.0 | https://www.openssl.org | OS package |
 | qpdf | 10.3.1 | (Artistic-2.0 OR Apache-2.0) AND MIT | https://qpdf.sourceforge.io | OS package, called as a program: content disarm of PDF files and the PDF encryption |
+| BIMI roots (DigiCert Verified Mark Root CA, GlobalSign Verified Mark Root R42) | as published | public certificates | https://www.digicert.com, https://www.globalsign.com | shipped in /usr/share/eFa/bimi/vmc-roots.pem as trust anchors of the BIMI check |
 | dejavu-sans-fonts | 2.37 | Bitstream-Vera AND LicenseRef-Public-Domain | https://dejavu-fonts.github.io | OS package, the font of the PDF reports for letters outside Western European ones |
+| google-droid-sans-fonts | 20200215 | Apache-2.0 | https://android.googlesource.com/platform/frameworks/base/+/master/data/fonts | OS package (recommended), Droid Sans Fallback: Chinese, Japanese and Korean in PDF reports; only the glyphs used are embedded |
 | OpenSSH | 9.9p1 | BSD (check exact text) | https://www.openssh.com | OS package |
 | Certbot | 3.1.0 | Apache-2.0 | https://certbot.eff.org | package |
 | dnf-automatic, yum-utils | 4.14.0, 4.3.0 | GPL-2.0-or-later | https://github.com/rpm-software-management | OS package |

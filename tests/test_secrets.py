@@ -13,7 +13,8 @@ for folder in (os.path.join(TOP, 'next', 'usr', 'local', 'sbin'), os.path.join(T
                os.path.join(TOP, 'src', 'eFa', 'root', 'usr', 'lib', 'eFa', 'python'), os.path.join(TOP, 'src', 'eFa-base', 'root', 'usr', 'lib', 'eFa', 'python')):
     SOURCES += [os.path.join(folder, name) for name in sorted(os.listdir(folder)) if name.endswith('.py')]
 # Arguments named like these are switches, not secrets.
-NOT_SECRET = {'new_token'}
+# token of dkim-hsm-set: the label of a PKCS#11 token (slot), not a secret; its PIN is the secret argument.
+NOT_SECRET = {'new_token', 'token'}
 
 
 class SecretsTest(unittest.TestCase):

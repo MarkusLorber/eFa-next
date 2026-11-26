@@ -59,7 +59,7 @@
      "title": "Right of access",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "gdpr-export of everything about one mail address.",
+     "scope": "gdpr-export of everything about one mail address. 6.0.0.7 (G7-24): the PDF reports and exports show every script (CJK, right-to-left), with only the used glyphs embedded.",
      "limits": "Accounts and sender lists are named, not exported in full.",
      "evidence": [
       {
@@ -73,6 +73,10 @@
       {
        "type": "file",
        "ref": "docs/gdpr-requests.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_pdf.py"
       }
      ]
     },
@@ -471,7 +475,7 @@
      "title": "Limit attack surfaces",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Dedicated server, systemd sandboxes, SELinux, firewall with guard.",
+     "scope": "Dedicated server, systemd sandboxes, SELinux, firewall with guard. 6.0.0.7 (G7-16): the BIMI logo and the certificate of the mark are fetched over https only, from public addresses checked after DNS, without redirects (security review F9).",
      "limits": "",
      "evidence": [
       {
@@ -495,6 +499,10 @@
       {
        "type": "hardening",
        "ref": "The firewall runs"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/lib/eFa/python/efa_bimi.py"
       }
      ]
     },
@@ -1938,7 +1946,7 @@
      "title": "Account management",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Users, groups, roles, locking, sessions ended at once.",
+     "scope": "Users, groups, roles, locking, sessions ended at once. 6.0.0.7 (G7-15): a taken-over account is limited on every node of a cluster at once.",
      "limits": "",
      "evidence": [
       {
@@ -1964,6 +1972,10 @@
       {
        "type": "test",
        "ref": "test_tenant_groups.TenantGroups.test_limits_inside_usage"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cluster.py"
       }
      ]
     },
@@ -1972,7 +1984,7 @@
      "title": "Access enforcement",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Every efactl command checks the right of the login; the portal is a separate program.",
+     "scope": "Every efactl command checks the right of the login; the portal is a separate program. 6.0.0.7: the held mail of a cluster; the node that holds a mail checks the rights of the login itself, and the master acts for a login a node names only with a ticket it signed after its own password check (security review F4).",
      "limits": "",
      "evidence": [
       {
@@ -1994,6 +2006,14 @@
       {
        "type": "wazuh-rule",
        "ref": "108080"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_quarantine.Daemon.test_login_of_a_node_needs_a_ticket_of_the_master"
+      },
+      {
+       "type": "test",
+       "ref": "test_cluster_quarantine.Daemon.test_ticket_only_after_the_masters_own_password_check"
       }
      ]
     },
@@ -2594,11 +2614,28 @@
     {
      "id": "IA-7",
      "title": "Cryptographic module authentication",
-     "status": "not-covered",
+     "status": "partial",
      "owner": "os",
-     "scope": "FIPS 140 mode is not supported or tested by eFa-next.",
-     "limits": "Ed25519, ChaCha20 and X25519MLKEM768 are used.",
-     "evidence": []
+     "scope": "FIPS 140 mode is not supported or tested by eFa-next. 6.0.0.7 (G7-17): DKIM keys of a domain can stay in a PKCS#11 module (efa-cdr signs through OpenSSL 3 and pkcs11-provider); the PIN is kept in a 0400 file and given to OpenSSL as pin-source=file:, never on a command line (security review F2), like the PIN of the backup signature and of S/MIME in a module; a mail that cannot be signed in the module is deferred or refused, never sent unsigned (F3).",
+     "limits": "Ed25519, ChaCha20 and X25519MLKEM768 are used. Tested with SoftHSM only; no real device was tested. ARC keys stay software keys.",
+     "evidence": [
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cdr.py"
+      },
+      {
+       "type": "file",
+       "ref": "docs/hsm-bare-metal.md"
+      },
+      {
+       "type": "test",
+       "ref": "test_secrets.SecretsTest.test_no_password_on_a_command_line"
+      },
+      {
+       "type": "test",
+       "ref": "test_secrets.SecretsTest.test_secret_arguments_go_over_stdin"
+      }
+     ]
     },
     {
      "id": "IR-4",
@@ -2779,8 +2816,8 @@
      "title": "Protection of information at rest",
      "status": "partial",
      "owner": "shared",
-     "scope": "Held mail encrypted per tenant, encrypted backups.",
-     "limits": "Mail log, queue and database not encrypted by eFa-next.",
+     "scope": "Held mail encrypted per tenant, encrypted backups. 6.0.0.7 (G7-20, security review F11): the emergency copies and their subjects are sealed with the key of the tenant; a mailbox export is made in memory when fetched, once.",
+     "limits": "Mail log, queue and database not encrypted by eFa-next. Sender, recipient, size and time of an emergency copy stay in clear text in the database (the list and the rights need them).",
      "evidence": [
       {
        "type": "selftest",
@@ -2797,6 +2834,10 @@
       {
        "type": "file",
        "ref": "docs/install.md"
+      },
+      {
+       "type": "command",
+       "ref": "emergency-status"
       }
      ]
     },
@@ -2837,7 +2878,7 @@
      "title": "Malicious code protection",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "ClamAV, rspamd, CDR.",
+     "scope": "ClamAV, rspamd, CDR. 6.0.0.7 (G7-23): signed YARA rules of the community, loaded only after a test load, a timed load of the final set and a scan of built-in clean mails with no hit; an older or expired bundle is refused (security review F6).",
      "limits": "",
      "evidence": [
       {
@@ -2861,6 +2902,10 @@
       {
        "type": "file",
        "ref": "docs/attachments-and-cdr.md"
+      },
+      {
+       "type": "command",
+       "ref": "yara-community-status"
       }
      ]
     },
@@ -2869,7 +2914,7 @@
      "title": "System monitoring",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Attack alert, service monitor, events.",
+     "scope": "Attack alert, service monitor, events. 6.0.0.7 (G7-21): the dashboard shows the mail flow with its stages, optional stages that are off drawn dashed, counts from the own statistics only.",
      "limits": "",
      "evidence": [
       {
@@ -2883,6 +2928,10 @@
       {
        "type": "test",
        "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-web.py"
       }
      ]
     },
@@ -2939,7 +2988,7 @@
      "title": "Spam protection",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "The core function of eFa-next.",
+     "scope": "The core function of eFa-next. 6.0.0.7 (G7-10 to G7-13): content rules for replies to own mail, marketing mail, the language (as rspamd finds it; FastText is planned for 6.0.0.8) and hidden characters, each off by default; the reply hashes are salted with a secret of the host and handed to a cluster only (security review F10).",
      "limits": "",
      "evidence": [
       {
@@ -2955,6 +3004,10 @@
       {
        "type": "selftest",
        "ref": "next/usr/lib/eFa/python/efa_links.py"
+      },
+      {
+       "type": "command",
+       "ref": "content-rules-status"
       }
      ]
     },
@@ -3177,7 +3230,7 @@
      "title": "Logical access security",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Roles, scopes, 2FA, admin allowlist.",
+     "scope": "Roles, scopes, 2FA, admin allowlist. 6.0.0.7 (security review F5): a node that joined and waits for its admin gets 403 on every request of the cluster but the preview, the comparison, activate and leave (one check for all routes).",
      "limits": "",
      "evidence": [
       {
@@ -3203,6 +3256,10 @@
       {
        "type": "test",
        "ref": "test_cluster_sync_2fa.Sync2fa.test_undecryptable_row_denies_the_login"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cluster.py"
       }
      ]
     },
@@ -3211,7 +3268,7 @@
      "title": "Boundary protection",
      "status": "covered",
      "owner": "shared",
-     "scope": "Firewall with guard, allowlists, lockout.",
+     "scope": "Firewall with guard, allowlists, lockout. 6.0.0.7 (G7-14): the shared fuzzy store of a cluster takes writes only from the master itself (loopback, encrypted only); the nodes read it and teach it over mutual TLS, never by their source address (security review F1).",
      "limits": "",
      "evidence": [
       {
@@ -3235,6 +3292,14 @@
        "ref": "login-lockout-status",
        "key": "mode",
        "equals": "on"
+      },
+      {
+       "type": "command",
+       "ref": "fuzzy-status"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-cluster.py"
       }
      ]
     },
@@ -3289,7 +3354,7 @@
      "title": "Malicious software",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "ClamAV, rspamd, CDR, signed updates.",
+     "scope": "ClamAV, rspamd, CDR, signed updates. 6.0.0.7 (G7-25): content disarm also for outgoing mail (opt-in); every DKIM signature of the host is made again over the changed mail, a mail whose signature cannot be made again leaves unchanged.",
      "limits": "",
      "evidence": [
       {
@@ -3359,7 +3424,7 @@
      "title": "Monitoring of components",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "Events with compliance groups, attack alert.",
+     "scope": "Events with compliance groups, attack alert. 6.0.0.7 (G7-18): complaints of the providers (ARF) count only when this host checked DKIM or DMARC as passed for a known feedback loop; an unreadable report is dropped without a bounce; the statistics are bounded (security review F7).",
      "limits": "",
      "evidence": [
       {
@@ -3369,6 +3434,14 @@
       {
        "type": "test",
        "ref": "test_wazuh_rules.WazuhRules.test_events_exist"
+      },
+      {
+       "type": "command",
+       "ref": "bulk-status"
+      },
+      {
+       "type": "file",
+       "ref": "docs/bulk.md"
       }
      ]
     },
@@ -3498,7 +3571,7 @@
      "title": "Secure authentication",
      "status": "covered",
      "owner": "shared",
-     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider.",
+     "scope": "Every admin login has a second factor (TOTP or passkey), set up at the first login; the console admin at its first SSH login; OIDC logins use the factor of their provider. 6.0.0.7 (G7-22): the console tool efa-tui asks again for the password and the 2FA code before it searches mail.",
      "limits": "Not on a development host (the dev flag of efa-init); upgraded hosts after a notice of 7 days.",
      "evidence": [
       {
@@ -3542,6 +3615,10 @@
       {
        "type": "file",
        "ref": "docs/two-factor.md"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/local/sbin/efa-tui"
       }
      ]
     },
@@ -3770,7 +3847,7 @@
      "title": "Use of cryptography",
      "status": "partial",
      "owner": "efa-next",
-     "scope": "TLS profiles, key lengths after BSI TR-02102-1; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest).",
+     "scope": "TLS profiles, key lengths after BSI TR-02102-1; TLS required per partner, suggested for every partner that publishes DANE or MTA-STS (tls-partner-suggest). 6.0.0.7: the PIN of a key in a PKCS#11 module (backup signature, S/MIME) is kept in a 0400 file and given to OpenSSL as pin-source=file:, never on a command line.",
      "limits": "Port 25 opportunistic.",
      "evidence": [
       {
@@ -3800,6 +3877,14 @@
       {
        "type": "hardening",
        "ref": "Incoming mail on port 25 without TLS: under 5 % (7 days)"
+      },
+      {
+       "type": "selftest",
+       "ref": "next/usr/sbin/efactl"
+      },
+      {
+       "type": "file",
+       "ref": "docs/hsm.md"
       }
      ]
     },
@@ -4526,12 +4611,16 @@
      "title": "No telemetry",
      "status": "covered",
      "owner": "efa-next",
-     "scope": "No analytics or telemetry; outgoing connections are the ones an admin turns on.",
+     "scope": "No analytics or telemetry; outgoing connections are the ones an admin turns on. 6.0.0.7 (G7-19): the failover watch of the uplinks asks no third party by default (the gateway of the main uplink, or probes the admin chose; security review F8).",
      "limits": "A check of known names, not a proof of absence.",
      "evidence": [
       {
        "type": "test",
        "ref": "test_no_telemetry.NoTelemetry.test_no_known_telemetry_endpoint"
+      },
+      {
+       "type": "command",
+       "ref": "uplink-failover-status"
       }
      ]
     },

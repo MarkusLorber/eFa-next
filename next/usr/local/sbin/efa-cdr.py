@@ -32,6 +32,8 @@ from efa_links import link_target, link_token  # noqa: E402
 import efa_arc  # noqa: E402
 import efa_bimi  # noqa: E402
 import efa_clamd  # noqa: E402
+import efa_dkim  # noqa: E402
+import efa_pkcs11  # noqa: E402
 import efa_host  # noqa: E402
 from efa_mime import BROKEN, Unwritable, hand_back, mime_header_changes, to_bytes  # noqa: E402
 
@@ -70,6 +72,87 @@ def arc_reseal_headers(headers, changed, keys=ARC_KEYS, host=None, now=None):
                     if name.lower() == 'authentication-results' and value.strip().split(';', 1)[0].strip() == host and ';' in value), '')
     body = changed.split(b'\r\n\r\n', 1)[1] if b'\r\n\r\n' in changed else changed.split(b'\n\n', 1)[1]
     return efa_arc.seal(headers, body, domain, selector, key, host, results, now)
+
+
+def dkim_key(domain, selector, keys=ARC_KEYS):
+    """G7-25: the DKIM key rspamd signs with for this domain and selector (credential dkim-sign_<domain>.<selector>.key), or None."""
+    if not efa_dkim.DOMAIN_RE.match(domain) or not efa_dkim.SELECTOR_RE.match(selector):
+        return None
+    try:
+        with open(os.path.join(keys, f'dkim-sign_{domain}.{selector}.key'), 'rb') as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+# G7-17: the keys of a hardware module (credential dkim-hsm, domains.json: {domain: {module, uri, selector, algorithm}}) and the
+# last state of the module for the dashboard (written only when it changes).
+HSM_STATE = os.path.join(STORE, 'hsm-state.json')
+
+
+def hsm_keys(keys=ARC_KEYS, cache={}):
+    path = os.path.join(keys, 'dkim-hsm_domains.json')
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        return {}
+    if cache.get('stamp') != stamp:
+        with open(path) as f:
+            cache.update(stamp=stamp, value=json.load(f))
+    return cache['value']
+
+
+def hsm_note(ok, error='', path=None, seen={}):
+    """The state of the module for the dashboard; written only when it changes."""
+    path = path or HSM_STATE
+    if seen.get('ok') == ok and seen.get('path') == path:
+        return
+    seen.update(ok=ok, path=path)
+    try:
+        with open(path + '.tmp', 'w') as f:
+            json.dump({'ok': ok, 'since': time.strftime('%Y-%m-%d %H:%M'), 'error': error[:200]}, f)
+        os.replace(path + '.tmp', path)
+    except OSError:
+        pass
+
+
+def hsm_signature(raw, headers, keys=None):
+    """(header value or None, error): a DKIM-Signature of the domain of From through its module; (None, '') for another domain."""
+    found = hsm_keys(keys or ARC_KEYS)
+    sender = next((value for name, value in headers if name.lower() == 'from'), '')
+    domain = email.utils.parseaddr(sender)[1].rpartition('@')[2].lower()
+    spec = found.get(domain)
+    if not spec:
+        return None, ''
+    # F2: the PIN comes from the credential dkim-hsm_pin_<domain>; openssl gets only the path of that file.
+    spec = {**spec, 'pin_file': os.path.join(keys or ARC_KEYS, f'dkim-hsm_pin_{domain}')}
+    try:
+        return efa_dkim.hsm_header(raw, domain, spec['selector'], efa_pkcs11.signer(spec), spec['algorithm'])[1], ''
+    except (OSError, ValueError, subprocess.SubprocessError) as err:
+        return None, str(err) or 'the module did not answer'
+
+
+def hsm_domain_of(headers, keys=None):
+    """F3: the domain of From when its DKIM key is in a hardware module, else ''."""
+    sender = next((value for name, value in headers if name.lower() == 'from'), '')
+    domain = email.utils.parseaddr(sender)[1].rpartition('@')[2].lower()
+    return domain if domain and domain in hsm_keys(keys or ARC_KEYS) else ''
+
+
+def from_inside(address, networks):
+    """G7-25: whether the connecting server is one of the own networks (loopback and the relay networks): it sends out."""
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address((address or '').split('%', 1)[0])
+    except ValueError:
+        return False
+    for item in networks:
+        try:
+            if ip in ipaddress.ip_network(item, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 # Macro-enabled OOXML: the parts and content types to drop or turn into those of the plain format.
 VBA_PARTS = re.compile(r'(^|/)(vbaProject\.bin|vbaData\.xml|_rels/vbaProject\.bin\.rels)$', re.I)
 MACRO_TYPES = {
@@ -548,14 +631,76 @@ def run_milter():
     class Disarm(Milter.Base):
         def __init__(self):
             self.chunks, self.headers, self.sender, self.rcpts, self.skip, self.too_big = [], [], '', [], False, False
+            self.client, self.outgoing, self.changed = '', False, None
+
+        def connect(self, hostname, family, hostaddr):
+            self.client = hostaddr[0] if isinstance(hostaddr, tuple) and hostaddr else ''
+            return Milter.CONTINUE
 
         def envfrom(self, sender, *args):
-            self.chunks, self.headers, self.rcpts, self.too_big = [], [], [], False
+            self.chunks, self.headers, self.rcpts, self.too_big, self.size = [], [], [], False, 0
             self.sender = sender.strip('<>')
-            # Own users and internal servers send out: nothing to disarm. The journal (6/8h) still needs their mail.
-            self.skip = bool(self.getsymval('{auth_authen}'))
-            self.collect = not self.skip or bool(settings().get('journal'))
+            wanted = settings()
+            # Own users and internal servers send out (G7-25: the relay networks too, rspamd signed their mail already): nothing
+            # changes it, unless CDR outbound is on; then only the disarm, with the DKIM signatures made again. The journal
+            # (6/8h) still needs their mail.
+            self.outgoing = bool(self.getsymval('{auth_authen}')) or from_inside(self.client, wanted.get('internal', ['127.0.0.0/8', '::1/128']))
+            # G7-17: a domain whose DKIM key is in a hardware module is signed here, last: its outgoing mail is read too.
+            self.skip = self.outgoing and not (wanted.get('outbound') and wanted.get('cdr')) and not hsm_keys()
+            self.collect = not self.skip or bool(wanted.get('journal'))
             return Milter.CONTINUE
+
+        def hsm_eom(self, raw):
+            """G7-17: CDR outbound first when it is on, then the DKIM signature of a domain in a hardware module, last. The module
+            does not answer: the mail waits (4xx) and is never sent unsigned (P7-6)."""
+            if settings().get('outbound') and settings().get('cdr'):
+                answer = self.outgoing_eom(raw)
+                if answer != Milter.ACCEPT:
+                    return answer
+                if self.changed is not None:
+                    raw = self.changed
+            if self.too_big:
+                return Milter.ACCEPT
+            value, error = hsm_signature(raw, efa_dkim.split(raw)[0])
+            if value is None and error:
+                hsm_note(False, error)
+                syslog.syslog(syslog.LOG_ERR, f'DKIM of <{self.sender}> through the hardware module failed, the mail waits: {error}')
+                self.setreply('451', '4.7.0', 'The signing module does not answer at the moment, try again later')
+                return Milter.TEMPFAIL
+            if value is not None:
+                hsm_note(True)
+                self.addheader('DKIM-Signature', value, 0)
+            return Milter.ACCEPT
+
+        def outgoing_eom(self, raw):
+            """G7-25, CDR outbound: the disarm of an outgoing mail, then each DKIM signature of this host made again over the
+            changed mail. A signature that cannot be made again (no key here, one of another server) leaves the mail unchanged."""
+            try:
+                clean, done = disarm(raw)
+            except Exception:  # with content disarm on, a mail it cannot check never passes as it is
+                syslog.syslog(syslog.LOG_ERR, f'outgoing mail of <{self.sender}> rejected: it cannot be read or the disarmed one written')
+                self.setreply('550', '5.7.1', 'The attachments of this mail could not be checked or cleaned')
+                return Milter.REJECT
+            if clean is None:
+                return Milter.ACCEPT
+            try:
+                signatures = efa_dkim.resign(self.headers, clean, dkim_key)
+            except (OSError, ValueError) as err:
+                signatures = None
+                syslog.syslog(syslog.LOG_ERR, f'DKIM of <{self.sender}> not made again: {err}')
+            if signatures is None:
+                syslog.syslog(syslog.LOG_WARNING, f'outgoing mail of <{self.sender}> left unchanged: a DKIM signature here cannot be made again')
+                return Milter.ACCEPT
+            key = store_original(raw, self.sender, self.rcpts, done)
+            self.changed = clean
+            hand_back(self, self.headers, clean)
+            for index, value in reversed(signatures):
+                self.chgheader('DKIM-Signature', index, '')
+            for _index, value in signatures:
+                self.addheader('DKIM-Signature', value, 0)
+            self.addheader(HEADER, '; '.join(done) + f'; original {key}')
+            syslog.syslog(syslog.LOG_INFO, f'outgoing changed from <{self.sender}>: {"; ".join(done)}, {len(signatures)} DKIM signatures made again (original {key})')
+            return Milter.ACCEPT
 
         def envrcpt(self, rcpt, *args):
             self.rcpts.append(rcpt.strip('<>'))
@@ -568,7 +713,9 @@ def run_milter():
         def body(self, chunk):
             if self.collect and not self.too_big:
                 self.chunks.append(chunk)
-                if sum(len(item) for item in self.chunks) > MAX_MAIL:
+                self.size = getattr(self, 'size', 0) + len(chunk)
+                if self.size > MAX_MAIL:
+                    # The memory of one mail stays below MAX_MAIL: what came is dropped, the rest is not kept.
                     self.skip, self.too_big, self.chunks = True, True, []
             return Milter.CONTINUE
 
@@ -587,8 +734,22 @@ def run_milter():
                     syslog.syslog(syslog.LOG_ERR, f'journal report of {queue_id} not sent: {err}')
                     self.setreply('451', '4.7.1', 'The mail could not be archived at the moment, try again later')
                     return Milter.TEMPFAIL
+            if self.too_big and self.outgoing and hsm_domain_of(self.headers):
+                # F3 (security review 2026-11-24): rspamd does not sign this domain (its key is in the module), and the module
+                # signs only what efa-cdr holds: a larger mail would leave unsigned. It is refused, never sent without DKIM.
+                syslog.syslog(syslog.LOG_WARNING, f'outgoing mail of <{self.sender}> refused: larger than {MAX_MAIL // 1048576} MB, its domain signs in a hardware module')
+                self.setreply('552', '5.3.4', f'Mail of this domain may be at most {MAX_MAIL // 1048576} MB (it is signed in a hardware module)')
+                return Milter.REJECT
             if self.skip:
                 return Milter.ACCEPT
+            if self.outgoing:
+                if hsm_keys():
+                    return self.hsm_eom(raw)
+                try:
+                    return self.outgoing_eom(raw)
+                except Exception as err:  # mail flow first: a mail it cannot handle goes on unchanged
+                    syslog.syslog(syslog.LOG_ERR, f'left unchanged: {err}')
+                    return Milter.ACCEPT
             try:
                 wanted = settings()
                 clean, done, key = None, [], None
@@ -693,7 +854,8 @@ def run_milter():
         result, reason, headers = efa_bimi.check(domain, selector, results)
         for name, value in headers:
             self.addheader(name, value)
-        note = f'bimi={result} header.d={domain} header.selector={selector or "default"}' + (' policy.authority=none' if result == 'pass' else f' ({reason})')
+        authority = 'pass' if reason == 'authority=pass' else 'none'
+        note = f'bimi={result} header.d={domain} header.selector={selector or "default"}' + (f' policy.authority={authority}' if result == 'pass' else f' ({reason})')
         self.addheader('Authentication-Results', f'{efa_host.own_hostname()}; {note}')
     Disarm.bimi_headers = bimi_headers
     Milter.factory = Disarm
@@ -755,6 +917,43 @@ def self_test():
     assert efa_arc.tag(new[0][1], 'i') == '2' and 'spf=pass smtp.mailfrom=far.example' in new[2][1]
     assert efa_arc.verify(new + headers, b'Hello http://t.example/\r\n', public)
     assert arc_reseal_headers(base, changed, keys, 'mx.own.example') == [], 'rspamd did not seal: nothing'
+    # G7-25: the relay networks send out, the internet does not; the DKIM key comes only for a clean domain and selector.
+    inside = ['127.0.0.0/8', '::1/128', '10.1.0.0/16']
+    assert from_inside('10.1.2.3', inside) and from_inside('127.0.0.1', inside) and from_inside('::1', inside)
+    assert not from_inside('192.0.2.7', inside) and not from_inside('', inside) and not from_inside('unknown', inside)
+    with open(os.path.join(keys, 'dkim-sign_own.example.s1.key'), 'wb') as f:
+        f.write(private)
+    assert dkim_key('own.example', 's1', keys) == private and dkim_key('own.example', 's2', keys) is None
+    assert dkim_key('../x', 's1', keys) is None and dkim_key('own.example', '../../k', keys) is None
+    efa_dkim.self_test()
+    # G7-17: the keys of the module come from the credential; a mail of another domain is not touched; the state changes once.
+    with open(os.path.join(keys, 'dkim-hsm_domains.json'), 'w') as f:
+        json.dump({'own.example': {'module': '/x.so', 'uri': 'pkcs11:x', 'selector': 'hsm', 'algorithm': 'rsa-sha256'}}, f)
+    assert hsm_keys(keys)['own.example']['selector'] == 'hsm'
+    assert hsm_signature(b'From: a@far.example\r\n\r\nx', [('From', 'a@far.example')], keys) == (None, '')
+    # F3: the domain of From decides whether a too large outgoing mail is refused.
+    assert hsm_domain_of([('From', 'A <a@Own.Example>')], keys) == 'own.example' and hsm_domain_of([('From', 'a@far.example')], keys) == ''
+    assert hsm_domain_of([], keys) == ''
+    # F2: the signer gets the path of the PIN credential, never a PIN.
+    seen_specs = []
+    kept_signer = efa_pkcs11.signer
+    efa_pkcs11.signer = lambda spec: seen_specs.append(spec) or (lambda data: (_ for _ in ()).throw(OSError('stop')))
+    try:
+        hsm_signature(b'From: a@own.example\r\n\r\nx', [('From', 'a@own.example')], keys)
+    finally:
+        efa_pkcs11.signer = kept_signer
+    assert seen_specs[0]['pin_file'] == os.path.join(keys, 'dkim-hsm_pin_own.example') and 'pin' not in seen_specs[0]['uri']
+    kept_signer = efa_pkcs11.signer
+    efa_pkcs11.signer = lambda spec: (lambda data: (_ for _ in ()).throw(OSError('no token')))
+    try:
+        assert hsm_signature(b'From: a@own.example\r\n\r\nx', [('From', 'A <a@own.example>')], keys) == (None, 'no token')
+    finally:
+        efa_pkcs11.signer = kept_signer
+    note = os.path.join(keys, 'hsm-state.json')
+    hsm_note(False, 'no token', note)
+    first = open(note).read()
+    hsm_note(False, 'again', note)
+    assert open(note).read() == first and json.loads(first)['ok'] is False
     # 6/8h: the journal names the envelope with the BCC recipients and holds the mail; in by the recipients, out by the sender.
     journal = {'in': {'own.example': 'in@archive.example'}, 'out': {'own.example': 'out@archive.example'}}
     assert journal_targets(journal, 'a@far.example', ['b@own.example', 'c@far.example']) == ['in@archive.example']

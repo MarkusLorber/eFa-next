@@ -134,8 +134,11 @@ class Confirmation(unittest.TestCase):
     def test_web_asks_password_and_2fa(self):
         with open(os.path.join(ROOT, 'next', 'usr', 'local', 'sbin', 'efa-web.py'), encoding='utf-8') as f:
             text = f.read()
-        reauth = re.search(r"^REAUTH_COMMANDS = \{(.*?)\}", text, re.M | re.S).group(1)
+        # G7-22: the list lives in efa_nav, shared with efa-tui; efa-web takes it from there.
+        with open(os.path.join(ROOT, 'next', 'usr', 'lib', 'eFa', 'python', 'efa_nav.py'), encoding='utf-8') as f:
+            reauth = re.search(r"^REAUTH_COMMANDS = \{(.*?)\}", f.read(), re.M | re.S).group(1)
         self.assertIn("'release-upgrade'", reauth)
+        self.assertIn('REAUTH_COMMANDS = set(NAV_REAUTH)', text)
         self.assertIn("'release-upgrade'", re.search(r"^DANGER = \{(.*?)\}", text, re.M).group(1))
         # 403, not 404, for logins and tokens without super admin rights.
         self.assertRegex(text, r"if name in SUPER_COMMANDS and name not in commands:\n\s+return jsonify\(error=[^)]*\), 403")

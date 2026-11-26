@@ -29,6 +29,7 @@ import urllib.parse
 import urllib.request
 
 from flask import Flask, Response, abort, g, has_request_context, jsonify, redirect, render_template_string, request, session, url_for
+from markupsafe import Markup
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from waitress import serve
 from werkzeug.security import check_password_hash
@@ -110,6 +111,7 @@ FLAG_EU = """<svg viewBox="0 0 30 20" role="img" aria-label="European Union"><re
 # The sidebar. Each page offers the listed efactl commands: read commands without arguments show their output,
 # all others a form. 'load' only fetches data for the page, 'show' lists current values from `efactl settings`.
 from efa_nav import ADMIN_NAV, ADMIN_PAGES, FORM_NEW, FORM_SOURCE, MOVED, MOVED_CARDS, NOTE_SHORT, STATUS_OF, form_value  # noqa: E402  the menu, shared with efa-tui
+from efa_nav import REAUTH_COMMANDS as NAV_REAUTH  # noqa: E402  G7-22: the same list in efa-tui
 from efa_nav import NAV as PORTAL_NAV, PAGES as PORTAL_PAGES  # noqa: E402
 # 6.0.0.6.x (Hans): every card once in the admin interface; the cards of the user portal only in the portal.
 NAV, PAGES = (PORTAL_NAV, PORTAL_PAGES) if PORTAL else (ADMIN_NAV, ADMIN_PAGES)
@@ -120,6 +122,7 @@ import efa_setup  # noqa: E402
 import efa_wizard  # noqa: E402  the guided wizards of some pages
 import efa_harden  # noqa: E402  what the security standards ask of the system and of eFa-next
 import efa_links  # noqa: E402
+import efa_flow  # noqa: E402  G7-21: the mail flow picture
 import efa_release_upgrade  # noqa: E402  the steps and states of the release upgrade (only constants are read here)
 # Also the start page of the role user, who has no dashboard.
 USER_PAGE = 'held'
@@ -186,9 +189,9 @@ CURRENT = {
     'smtpd_milters': ('Current milter order',),
 }
 # 9l start page picture: off until a better drawing exists; only this switch turns it back on, there is no option in the UI.
-FLOW_PICTURE = False
+FLOW_PICTURE = True
 # These run from buttons or popups of another card; subject-get only fills a form.
-HIDDEN_CARDS = {'notice-ack', 'clam-source-set', 'clam-securiteinfo-set', 'sender-action', 'sender-action-check', 'admin-2fa-verify', 'resetup', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'mail-check', 'disclaimer-import', 'disclaimer-export', 'flow-status', 'flow-set', 'threat-run', 'neural-settings', 'ml-settings', 'dkim-generate', 'dkim-generate-ed25519', 'audit-note', 'refusal-note', 'mail-show', 'uq-content', 'quarantine-content', 'session-open', 'session-check', 'events-run', 'uq-link-view', 'uq-link-use', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'oidc-start', 'oidc-finish', 'user-verify', 'token-check', 'audit-purge', 'metrics', 'subject-get', 'dmarc-record-history', 'maillog-live', 'relay-networks-set', 'relay-networks-remove',
+HIDDEN_CARDS = {'notice-ack', 'totp-email-send', 'clam-source-set', 'clam-securiteinfo-set', 'sender-action', 'sender-action-check', 'admin-2fa-verify', 'resetup', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'mail-check', 'disclaimer-import', 'disclaimer-export', 'flow-status', 'threat-run', 'neural-settings', 'ml-settings', 'dkim-generate', 'dkim-generate-ed25519', 'audit-note', 'refusal-note', 'mail-show', 'uq-content', 'quarantine-content', 'session-open', 'session-check', 'events-run', 'uq-link-view', 'uq-link-use', 'uq-show', 'uq-release', 'uq-request', 'uq-sender', 'oidc-start', 'oidc-finish', 'user-verify', 'token-check', 'audit-purge', 'metrics', 'subject-get', 'dmarc-record-history', 'maillog-live', 'relay-networks-set', 'relay-networks-remove',
                 'relay-networks-apply', 'relay-networks-discard', 'load-notify', 'firewall-revert', 'firewall-guard-run', 'web-harden', 'audit-rspamd', 'update-system-run', 'update-post-boot', 'update-now', 'backup-download', 'backup-read', 'backup-import', 'update-run', 'sender-add', 'sender-remove', 'sender-move', 'sender-list-set', 'sanesecurity-run', 'rbl-apply', 'mailreport-run', 'update-progress'}
 DANGER = {'gdpr-delete', 'dkim-remove', 'reboot', 'halt', 'restore', 'release-upgrade', 'update-rollback', 'quarantine-delete', 'quarantine-purge', 'maillog-purge'}
 
@@ -1592,13 +1595,15 @@ FAILED = PAGE.replace(BLOCK, SOLO + """<div class="card"><p class="err" role="al
 LOGIN = PAGE.replace(BLOCK, SOLO + """<div class="card">{{ lang_pill(ui_lang(), _('Language'))|safe }}<h1>{{ _('Log in') }}</h1>
 {% if portal %}<p class="err" role="alert">{{ _('This account logs in at the user portal.') }} <a class="btn s" href="/portal/login">{{ _('To the user portal') }}</a></p>{% endif %}
 {% if login_banner and not portal_mode %}<div class="note login-banner" role="note">{% for line in login_banner.splitlines() %}{{ line }}<br>{% endfor %}</div>{% endif %}
-{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}<form method="post">
+{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}{% if note %}<p class="pending" role="status">{{ note }}</p>{% endif %}<form method="post">
 <input type="hidden" name="csrf" value="{{ csrf }}"><div class="row"><label for="username">{{ _('Mail address') if portal_mode else _('User name, empty for the main admin') }}</label>
 <input type="text" id="username" name="username" autocomplete="username" value="{{ username or '' }}"></div><div class="row"><label for="password">{{ _('Password') }}</label>
 <input type="password" id="password" name="password" autofocus></div>
 <div class="row"><label for="code">{{ _('2FA code, if you set one up') }}</label><input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>
 <input type="hidden" name="assertion" value="">
 <div class="btns"><button class="p">{{ _('Log in') }}</button><button type="button" id="passkey-login" hidden>{{ _('Use a passkey') }}</button></div>
+<details class="h"><summary>{{ _('App lost?') }}</summary><p class="h">{{ _('Type user name and password, then get a code by mail to your confirmed address. It is valid for 10 minutes and only lets you set up a new app; the old app and its recovery codes stop. Or use a recovery code.') }}</p>
+<div class="btns"><button name="email_code" value="1">{{ _('Send me a code by mail') }}</button></div></details>
 <p class="err" id="passkey-error" hidden>{{ _('The passkey did not work. Log in with password and code.') }}</p></form><script src="/passkey.js"></script>{% if sso or tenant_sso %}<form method="get" action="{{ url_for('oidc_login') }}">
 {% if tenant_sso %}<div class="row"><label for="sso-domain">Single sign-on: your mail domain</label><input type="text" id="sso-domain" name="domain" autocomplete="off"></div>{% endif %}
 <div class="btns"><button>Log in with single sign-on</button></div></form>{% endif %}
@@ -1703,7 +1708,7 @@ FLOW_VIEW = """{%- macro flow_text(cname, argname, value) -%}{% set found = [] %
 <form method="post" action="{{ url_for('run', name=cname) }}"><input type="hidden" name="csrf" value="{{ csrf }}">{% for k, v in fixed.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
 {% if page.notes and cname in page.notes %}<p class="h">{{ page.notes[cname]|t }}</p>{% endif %}
 {% for arg in commands[cname].args if arg.web is not sameas false and arg.name not in fixed and arg.name not in skip %}{{ field(cname, arg) }}{% endfor %}
-{% if cname in reauth_commands and reauth_left() < 60 %}<div class="row"><label for="{{ cname }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ cname }}-reauth" name="reauth" autocomplete="current-password"></div>
+{% if cname in reauth_commands and reauth_left() < 60 and session.get('sso') %}{{ sso_stepup() }}{% elif cname in reauth_commands and reauth_left() < 60 %}<div class="row"><label for="{{ cname }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ cname }}-reauth" name="reauth" autocomplete="current-password"></div>
 <div class="row"><label for="{{ cname }}-reauth-code">{{ _('2FA code') }}</label><input type="text" id="{{ cname }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
 <div class="btns"><button class="p">{{ _('Apply') }}</button></div></form></details>{% endif %}{%- endmacro -%}
 {%- macro flow_x(cname, label, fields) -%}<form method="post" action="{{ url_for('run', name=cname) }}" class="fx"><input type="hidden" name="csrf" value="{{ csrf }}">{% for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
@@ -2129,7 +2134,7 @@ data-texts='{{ {'groups': {'mail': _('Mail search'), 'page': _('Pages'), 'action
 {#- A tick box confirms what stands above it (the warnings), so it comes after the blocks of the step. -#}
 {% for f in w.fields if f.kind == 'tick' %}{% set id = 'wz-' ~ f.name %}<div class="row"><label><input type="checkbox" id="{{ id }}" name="{{ f.name }}" value="yes"{% if f.value == 'yes' %} checked{% endif %} required> {{ f.label|t }}</label>{{ info(id, f.help) }}</div>{% endfor %}
 {% if w.last and w.reauth %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
-{% else %}<div class="row"><label for="wz-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="wz-reauth" name="reauth" autocomplete="current-password"></div>
+{% elif session.get('sso') %}{{ sso_stepup() }}{% else %}<div class="row"><label for="wz-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="wz-reauth" name="reauth" autocomplete="current-password"></div>
 <div class="row"><label for="wz-reauth-code">{{ _('2FA code') }}</label><input type="text" id="wz-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endif %}
 {% if w.step.preview is sameas true %}<div class="row"><span class="lb">{{ _('Text version') }}</span><pre class="wizpre">{{ w.draft.text }}</pre></div>
 {% if w.draft.format == 'html' %}<div class="row"><span class="lb">{{ _('HTML version') }}</span><iframe sandbox="" srcdoc="{{ w.draft.html }}" title="{{ _('HTML version') }}"></iframe></div>{% endif %}
@@ -2271,7 +2276,7 @@ time left (UPDATE_LIVE, renewed by copy.js), afterwards its result. The form is 
     first), the card then says whether it can run and if not why, the start asks the same confirmations as before (efactl
     checks them again), and a bar follows the steps, over the restarts. Every form asks for the password like the command. -#}
 {% macro ru_reauth(id) %}{% if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
-{% else %}<div class="row"><label for="{{ id }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ id }}-reauth" name="reauth" autocomplete="current-password" required></div>
+{% elif session.get('sso') %}{{ sso_stepup() }}{% else %}<div class="row"><label for="{{ id }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ id }}-reauth" name="reauth" autocomplete="current-password" required></div>
 <div class="row"><label for="{{ id }}-code">{{ _('2FA code') }}</label><input type="text" id="{{ id }}-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}{% endmacro %}
 {% macro ru_form(id, action, label, cls='p', confirm='') %}<form method="post" action="{{ url_for('run', name='release-upgrade') }}" class="ruform"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ action }}">
 {{ caller() if caller else '' }}{{ ru_reauth(id) }}<div class="btns"><button class="{{ cls }}"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>{{ label }}</button></div></form>{% endmacro %}
@@ -2412,7 +2417,7 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
   <tr><th>{{ _('Last message') }}</th><td>{{ (output.log or [_('none')])[-1] }}</td></tr></table>
   {% if output.error %}<p class="err" role="alert">{{ output.error }}</p>{% endif %}{% for text in output.warnings or [] %}<p class="warnbox" role="alert">{{ text }}</p>{% endfor %}
   <details class="help"><summary>{{ _('Details') }}</summary>{{ show(output) }}</details>
-  {% elif name == 'uq-list' %}{% if output.mails %}<div class="tablewrap"><table class="log quar"><thead><tr><th>{{ _('Time') }}</th><th>{{ _('Sender') }}</th><th>{{ _('Recipient') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Score') }}</th><th><span class="sr">{{ _('Actions') }}</span></th></tr></thead><tbody>
+  {% elif name == 'uq-list' %}{% for node in output.unreachable or [] %}<p class="warnbox" role="status">{{ _('Not reachable now, so its held mail is missing here:') }} {{ node }}</p>{% endfor %}{% if output.mails %}<div class="tablewrap"><table class="log quar"><thead><tr><th>{{ _('Time') }}</th><th>{{ _('Sender') }}</th><th>{{ _('Recipient') }}</th><th>{{ _('Subject') }}</th><th>{{ _('Score') }}</th><th><span class="sr">{{ _('Actions') }}</span></th></tr></thead><tbody>
     {% for row in output.mails %}{% set may_release = not row.malware or session.get('role', 'super') == 'super' %}<tr><td class="nw" data-label="{{ _('Time') }}"><time title="{{ row.ts }}">{{ row.ts|ago }}</time></td>
     <td class="cut" data-label="{{ _('Sender') }}" title="{{ row.sender }}">{{ row.sender }}</td><td class="cut" data-label="{{ _('Recipient') }}" title="{{ row.rcpt }}">{{ row.rcpt }}</td>
     <td class="cut subj" data-label="{{ _('Subject') }}" title="{{ row.subject }}">{{ row.subject }}</td>
@@ -2454,6 +2459,7 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
     <textarea id="clam-si-urls" name="urls" rows="4" autocomplete="off" spellcheck="false" placeholder="{{ _('replace: paste all lines; empty keeps them') if row.urls else 'DatabaseCustomURL https://www.securiteinfo.com/...' }}"></textarea>
     {%- if row.urls %}<label class="tick"><input type="checkbox" name="delete_urls" value="yes"> {{ _('Delete the stored URLs') }}</label>{% endif %}
     {%- if reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
+    {%- elif session.get('sso') %}{{ sso_stepup() }}
     {%- else %}<label>{{ _('Your password, to confirm') }} <input type="password" name="reauth" autocomplete="current-password"></label>
     <label>{{ _('2FA code') }} <input type="text" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></label>{% endif %}
     <button>{{ _('Save') }}</button></form>{% endif %}{% endif %}</td>
@@ -2518,6 +2524,7 @@ Authorization: Bearer &lt;token&gt;. The token belongs to a user who may read th
   {% if name == 'passkey-register' %}<div class="btns"><button type="button" id="passkey-add" hidden>{{ _('Make the passkey now') }}</button></div>
   <p class="err" id="passkey-error" hidden>{{ _('The passkey did not work. Log in with password and code.') }}</p><script src="/passkey.js"></script>{% endif %}
   {% if name in reauth_commands and reauth_left() >= 60 %}<p class="h reauth-ok">{{ _('Your password still counts for {} minutes: no new entry needed.').format((reauth_left() // 60)|int) }}</p>
+  {% elif name in reauth_commands and session.get('sso') %}{{ sso_stepup() }}
   {% elif name in reauth_commands %}<div class="row"><label for="{{ name }}-reauth">{{ _('Your password, to confirm') }}</label><input type="password" id="{{ name }}-reauth" name="reauth" autocomplete="current-password"></div>
   <div class="row"><label for="{{ name }}-reauth-code">{{ _('2FA code') }}</label><input type="text" id="{{ name }}-reauth-code" name="reauth_code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" class="otp"></div>{% endif %}
   <div class="btns"><button class="{{ 'd' if name in danger else 'p' }}"{% if name in danger %} data-confirm="{{ cmd.title|t }}?"{% endif %}>{{ (_('Run') if not cmd.args else _('Apply')) if cmd.writes else _('Show') }}</button>{% if name == 'hardening-report' %} <button class="p" formaction="{{ url_for('hardening_pdf') }}">{{ _('Download PDF') }}</button>{% endif %}{% if name == 'compliance-verify' %} <button class="p" formaction="{{ url_for('compliance_zip') }}">{{ _('Download verification result') }}</button>{% endif %}</div></form>
@@ -2639,7 +2646,7 @@ content disarm. One line of state each, the switch in the head; the full cards i
 <p><a class="btn s" href="{{ expert_url }}#links-set">{{ _('Settings') }} &rsaquo;</a> <a class="btn s" href="{{ expert_url }}#banner-set">{{ _('Warning banner') }} &rsaquo;</a></p></div>
 <div class="card task" id="files-cdr"><h2>{{ _('Content disarm') }}{% if 'cdr-set' in commands %}{{ toggle('cdr-set', commands['cdr-set'], cdr.enabled) }}{% endif %}</h2>
 <p class="h">{{ _('Removes active content (macros, scripts) from Office and PDF files; the original stays here.') }}</p>
-{% if cdr.enabled %}{{ sec_line(_('Originals kept'), cdr.originals or 0) }}{% if cdr.service is sameas false %}{{ sec_line(_('Service'), _('not running'), 'b') }}{% endif %}{% endif %}
+{% if cdr.enabled %}{{ sec_line(_('Originals kept'), cdr.originals or 0) }}{{ sec_line(_('Outgoing mail'), _('disarmed too') if cdr.outbound else _('never changed')) }}{% if cdr.service is sameas false %}{{ sec_line(_('Service'), _('not running'), 'b') }}{% endif %}{% endif %}
 <p><a class="btn s" href="{{ expert_url }}#cdr-list">{{ _('Originals') }} &rsaquo;</a></p></div></div>{% endmacro %}
 {#- Spam filter by task (Hans 2026-11-17): when mail counts as spam, greylisting, how the filter learns, the extra checks.
 One line of state each, the switch in the head; the full cards in Expert. -#}
@@ -2659,6 +2666,10 @@ One line of state each, the switch in the head; the full cards in Expert. -#}
 {{ sec_line(_('Bayes'), (_('active') if bay.active else _('learning')) ~ ', ' ~ _('{} spam, {} ham').format(bay.spam_learned or 0, bay.ham_learned or 0), '' if bay.active else 'w') }}
 {{ sec_line(_('Own model'), _('on') if ml.enabled else _('off')) }}{{ sec_line(_('Neural network'), _('on') if nn.enabled is sameas true else (_('off') if nn.enabled is sameas false else _('rspamd default'))) }}
 <p><a class="btn s" href="{{ expert_url }}#ml-set">{{ _('Settings') }} &rsaquo;</a></p></div>
+{#- G7-10 to G7-13 (P7-19): the content rules on one card, one sentence each. -#}
+{% set cr = loaded['content-rules-status'][1] if loaded.get('content-rules-status', [false])[0] else {} %}{% if cr.rules %}<div class="card task" id="spam-content"><h2>{{ _('Content rules') }}</h2>
+{% for item in cr.rules %}{{ sec_line({'thread': _('Replies to own mail'), 'marketing': _('Marketing mail'), 'language': _('Language'), 'obfuscation': _('Hidden characters')}[item.rule], (_('on') ~ ', ' ~ _('score') ~ ' ' ~ item.score) if item.enabled else _('off')) }}<p class="h">{{ item.text|t }}</p>{% endfor %}
+<p><a class="btn s" href="{{ expert_url }}#content-rules-set">{{ _('Settings') }} &rsaquo;</a></p></div>{% endif %}
 <div class="card task" id="spam-extra"><h2>{{ _('Extra checks') }}</h2>
 {% for label, on in [(_('Newsletters (graymail)'), gm.enabled), (_('Outbreak filter'), ob.enabled), (_('Pyzor'), pz.enabled), (_('Own fuzzy store'), fz.enabled), (_('Community fuzzy store'), cm.enabled)] %}{{ sec_line(label, _('on') if on else _('off')) }}{% endfor %}
 <p><a class="btn s" href="{{ expert_url }}#outbreak-set">{{ _('All checks') }} &rsaquo;</a></p></div></div>{% endmacro %}
@@ -2952,7 +2963,7 @@ def acting_as():
 STRICT_FILE = os.environ.get('EFA_ETC', '/etc') + '/eFa/audit-strict.json'
 strict_cache = {'mtime': None, 'on': False}
 # Polled by the pages themselves, or files without a meaning of their own.
-STRICT_SKIP = {'dash_js', 'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'update_live', 'ru_live', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon', 'stay_js'}
+STRICT_SKIP = {'flow_icon', 'dash_js', 'copy_js', 'live_js', 'advanced_js', 'advanced_search_live', 'wizard_js', 'dialog_js', 'wizard_test', 'load_card', 'update_live', 'ru_live', 'threat_banner', 'status_board', 'static', 'logo', 'brand_logo', 'favicon', 'icon', 'stay_js'}
 
 
 def reader_language():
@@ -3268,7 +3279,7 @@ def stream_reply(sock):
 
 
 # Jobs and checks that work or take seconds: they run from their button, never just by opening a page.
-ON_BUTTON = {'security-check', 'standards-check', 'form-check', 'cluster-dkim-apply', 'cluster-content-apply',
+ON_BUTTON = {'security-check', 'standards-check', 'form-check', 'cluster-dkim-apply', 'cluster-content-apply', 'fuzzy-cluster-apply',
              'cluster-join-preview'}  # asks the master for its snapshot: only on the button of the cluster wizard
 
 
@@ -3278,7 +3289,7 @@ def on_button_only(name):
 
 # Reads that are slow or change seldom, kept this many seconds per login. An older answer is shown at once and renewed in the
 # background; every change made through this web interface empties the cache. Strict audit mode reads every time.
-READ_CACHE_SECONDS = {'schema': 300, 'bayes-status': 600, 'ssh-root-status': 300, 'rotation-status': 300, 'dkim-check': 300, 'rbl-show': 300,
+READ_CACHE_SECONDS = {'flow-status': 30, 'schema': 300, 'bayes-status': 600, 'ssh-root-status': 300, 'rotation-status': 300, 'dkim-check': 300, 'rbl-show': 300,
                       'security-status': 60, 'backup-list': 60, 'dash-stats': 20, 'update-pending': 300, 'neural-status': 60,
                       'firewall-show': 30, 'settings': 10, 'status': 10, 'switches-status': 10, 'harvest-status': 30, 'tenant-list': 30, 'group-list': 30,
                       'dane-status': 60, 'ml-status': 60, 'audit-strict-status': 60, 'audit-verify': 60, 'user-list': 10, 'session-list': 10,
@@ -3297,10 +3308,18 @@ READ_CACHE_SECONDS = {'schema': 300, 'bayes-status': 600, 'ssh-root-status': 300
                       'incident-list': 30,
                       # The held mail page: 8 reads, up to 172 ms (budget 100 ms). A form of this interface clears the cache at once.
                       'uq-status': 30, 'graymail-status': 30, 'user-spam-status': 30, 'recall-list': 30,
+                      # R7-3: in a cluster the held mail of all nodes (master, then every node, up to 3 s each); per login, a form clears it.
+                      'uq-list': 30,
                       # Network, DNS & certificate (6.0.0.6.4, with the resolver for other networks on it): nmcli, unbound-control, the
                       # TLSA and MTA-STS reads, 80 to 140 ms each; read in parallel the page took 93 to 118 ms (budget 100 ms).
                       'network-show': 30, 'interfaces-list': 30, 'dns-zone-list': 30, 'dns-forward-status': 30, 'dns-share-list': 30, 'hosts-list': 30,
-                      'tlsa-show': 60, 'mta-sts-show': 60}
+                      'tlsa-show': 60, 'mta-sts-show': 60,
+                      # Maintenance & update (6.0.0.7): it shows the cards of every command without a page of its own, 21 reads,
+                      # 13 of them uncached at 12 to 40 ms each; the page took 66 to 101 ms (budget 100 ms). Not update-status,
+                      # update-progress and release-upgrade-status (they follow a running update), not search-saved (a search does not
+                      # empty the cache).
+                      'autoupdate-status': 30, 'environment-status': 30, 'os-check-status': 30, 'web-http2-status': 30, 'legal-status': 30,
+                      'email-recovery-status': 30, 'cluster-snapshot': 30, 'outbound-hold-status': 30}
 read_cache = {}
 read_cache_lock = threading.Lock()
 
@@ -3343,6 +3362,23 @@ def efactl_read(name, who=None, cached_only=False):
     if cached:
         return cached[1]
     return _read_store(key, efactl(name, who=who))
+
+
+# R7-3: the portal keeps the held mail list of a session for this long (each view asked all nodes); a form of the portal clears it.
+PORTAL_READ_SECONDS = {'uq-list': 30}
+
+
+def portal_read(name, who):
+    """A portal read, from the cache of its session while fresh (PORTAL_READ_SECONDS), else through efa-portal-helper."""
+    seconds = PORTAL_READ_SECONDS.get(name)
+    if not seconds or not who[1] or strict_on():
+        return portal_call([name], None, who)
+    key = (('portal', who[1]), name)
+    with read_cache_lock:
+        cached = read_cache.get(key)
+    if cached and time.time() - cached[0] < seconds:
+        return cached[1]
+    return _read_store(key, portal_call([name], None, who))
 
 
 def _read_store(key, answer):
@@ -3608,38 +3644,23 @@ def session_start(user=None, role='super', sid=None):
 # entry here fails the self test.
 ROUTE_RIGHTS = {
     'login': 'open', 'logout': 'efactl', 'post_only': 'open', 'oidc_login': 'open', 'oidc_callback': 'open', 'quarantine_link': 'open',
-    'passkey_js': 'open', 'passkey_options': 'open', 'passkey_register_options': 'efactl',
+    'passkey_js': 'open', 'passkey_options': 'open', 'passkey_register_options': 'efactl', 'oidc_confirmed': 'efactl',
     'link_check': 'open', 'api': 'open', 'api_schema': 'open', 'metrics': 'open', 'copy_js': 'open', 'stay_js': 'open', 'favicon': 'open', 'live_js': 'open', 'senders_js': 'open', 'mailui_js': 'open', 'advanced_js': 'open', 'senders_check': 'efactl',
     'index': 'efactl', 'show_page': 'efactl', 'search': 'efactl', 'search_suggest': 'efactl', 'set_view': 'efactl', 'set_lang': 'efactl', 'mail_check': 'efactl', 'disclaimer_import': 'efactl', 'disclaimer_export': 'efactl', 'legal': 'open', 'legal_file': 'open', 'legal_accept': 'efactl', 'hardening_pdf': 'efactl', 'compliance_zip': 'efactl', 'run': 'efactl', 'mail_page': 'efactl', 'mail_headers': 'efactl', 'mail_evidence': 'efactl',
-    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'ru_live': 'super', 'cluster_join_live': 'super', 'cluster_harden_live': 'super', 'threat_banner': 'efactl', 'status_board': 'efactl',
+    'export_file': 'efactl', 'brand_logo': 'efactl', 'brand_upload': 'efactl', 'maillog_live': 'efactl', 'advanced_search': 'efactl', 'advanced_search_live': 'efactl', 'load_card': 'efactl', 'update_live': 'efactl', 'ru_live': 'super', 'cluster_join_live': 'super', 'cluster_harden_live': 'super', 'threat_banner': 'efactl', 'status_board': 'efactl', 'flow_icon': 'efactl',
     'backup_download': 'super', 'backup_upload': 'super', 'rspamd_auth': 'super', 'rspamd_open': 'super', 'export_dkim': 'super',
     'senders_data': 'super', 'resetup_view': 'super', 'static': 'open',
     'wizard_step': 'efactl', 'wizard_test': 'efactl', 'wizard_mode': 'efactl', 'wizard_js': 'open', 'dialog_js': 'open',
     'dash_js': 'open', 'dashboard_layout': 'efactl'}
 SUPER_ONLY = {name for name, right in ROUTE_RIGHTS.items() if right == 'super'}
 # 5q: changes that need the password of the admin again, at most every 5 minutes.
-REAUTH_COMMANDS = {'user-set', 'user-2fa-reset', 'user-state', 'group-set', 'group-map-set', 'tenant-group-map-set', 'token-create', 'firewall-set', 'firewall-guard-set',
-                   'ssh-root-set', 'web-allowlist-set', 'restore', 'dkim-remove', 'dkim-import', 'backup-password-set', 'admin-password', 'audit-mode',
-                   'cluster-init', 'cluster-token', 'cluster-leave', 'oidc-set', 'ldap-set', 'api-set', 'resetup', 'console-2fa-set', 'release-upgrade',
-                   'dns-share-add', 'dns-share-edit', 'dns-share-del', 'dns-share-secondary-set', 'standards-set', 'standards-rollback', 'os-harden-set', 'clam-securiteinfo-set'}
+# 5q: the changes that need the password again come from efa_nav (shared with efa-tui, G7-22).
+REAUTH_COMMANDS = set(NAV_REAUTH)
 REAUTH_SECONDS = 300
 REAUTH_FAILED = 'Password or 2FA code wrong, nothing changed.'
 # The two answers of efactl when an admin confirms without the code of its 2FA app (Hans 2026-11-22), as efactl words them.
 CONFIRM_SETUP = 'Set up your 2FA app first (My account, Two-factor login): every confirmation of an admin asks for its code.'
 CONFIRM_CODE = 'Enter the code of your 2FA app: every confirmation of an admin asks for it.'
-# What ends a control or a record: four eyes, the audit rules and the days of the logs, a whole tenant, a file taken back.
-REAUTH_COMMANDS |= {'four-eyes-set', 'audit-rules-set', 'retention-set', 'tenant-delete', 'history-undo'}
-# G7-9: settings into or out of this host only with the password and 2FA again.
-REAUTH_COMMANDS |= {'settings-export', 'settings-import', 'pyzor-set'}
-# 2026-11-18 (cluster wizard): every change of the cluster with the password and 2FA again, joining too.
-REAUTH_COMMANDS |= {'cluster-join', 'cluster-mode-set', 'cluster-promote', 'cluster-node-remove', 'cluster-activate'}
-# 2026-11-19: an own host name sends the mail of Postfix and the checks of rspamd to the address it names: password and 2FA again.
-REAUTH_COMMANDS |= {'hosts-set', 'hosts-local-set'}
-REAUTH_COMMANDS |= {'breakglass-issue', 'breakglass-remove'}  # the break-glass admin (2026-11-18)
-REAUTH_COMMANDS |= {'cluster-harden'}  # hardening of the cluster
-# Hans 2026-11-22 (step-up as recommended): what weakens TLS, removes passkeys of another login, sends backups elsewhere,
-# erases a person's data or takes an update back: password and 2FA code too (login-lockout-set and admin-idle-set ask in efactl).
-REAUTH_COMMANDS |= {'passkey-reset', 'tls-profile-set', 'tls-min-set', 'backup-target-set', 'gdpr-delete', 'update-rollback'}
 def account_view():
     """6.0.0.6: who works, for the menu at the top right: the login name and its role. The main admin has no user entry."""
     user = session.get('user')
@@ -3669,6 +3690,23 @@ SUPER_COMMANDS |= {'breakglass-status', 'breakglass-issue', 'breakglass-remove'}
 SUPER_COMMANDS |= {'cluster-harden', 'cluster-harden-status'}
 
 
+# Hans 2026-11-22 (6.0.0.7): an admin of single sign-on confirms a critical change with a new login at its provider (max_age=0),
+# then has the same five minutes as a password confirmation. The session cookie (SameSite=Strict) does not come back from the
+# provider: the callback hands a signed, short-lived proof to /login/oidc/confirmed, where the session takes it.
+SSO_STEPUP_TEXT = 'Confirm at your single sign-on provider first (Confirm at the provider), then send the change again.'
+SSO_STEPUP_SECONDS = 120
+
+
+def sso_stepup():
+    back = request.path if request.path.startswith(('/p/', '/wizard/')) else '/'
+    return Markup('<p class="h sso-stepup">{} <a class="btn" href="{}">{}</a></p>').format(
+        _('Your login is of single sign-on: this change is confirmed at your provider, with a new login there.'),
+        url_for('oidc_login', stepup=1, back=back), _('Confirm at the provider'))
+
+
+app.jinja_env.globals['sso_stepup'] = sso_stepup
+
+
 def reauth_left():
     """M4: seconds the last password confirmation still holds; the forms ask for the password only when it is under a minute."""
     return max(0, int(REAUTH_SECONDS - (time.time() - session.get('reauth', 0))))
@@ -3681,6 +3719,9 @@ def reauth_ok(form):
     """The password of the logged-in admin, again, for a critical change; good for five minutes."""
     if time.time() - session.get('reauth', 0) < REAUTH_SECONDS:
         return True
+    if session.get('sso'):
+        g.reauth_error = SSO_STEPUP_TEXT
+        return False
     password = form.get('reauth', '')
     if not password:
         return False
@@ -4066,6 +4107,19 @@ def login():
                     app.logger.warning('efa-web login ok break-glass admin %s from %s', username, client)
                     g.audit_action = 'login_ok'
                     return redirect(url_for('index'))
+            elif username and request.form.get('email_code') == '1':
+                # 6.0.0.7: a code by mail instead of the lost app; only the right password gets an answer, and every mail
+                # counts like a failed login of this address (at most a few, then the lockout).
+                ok, _sent = efactl('totp-email-send', f'--username={username[:100]}', secrets_in=[request.form.get('password', '')])
+                login_failures[client] = (count + 1, time.time())
+                if ok:
+                    g.audit_action, g.audit_object = 'totp_email_send', 'user ' + username[:100]
+                    ok_sso, sso = efactl('oidc-status')
+                    return render_template_string(LOGIN, csrf=csrf_token(), error=None, note=_('If this login may use a code by mail, it went to its confirmed address now. It is valid for 10 minutes, and it only lets you set up a new 2FA app: type it as the 2FA code.'),
+                                                  sso=ok_sso and sso.get('portal' if PORTAL else 'oidc'),
+                                                  tenant_sso=ok_sso and sso.get('tenant_portal_sso' if PORTAL else 'tenant_sso'),
+                                                  portal=False, username=username, lang=reader_language())
+                # A wrong password: the failed login below (log line for Fail2Ban, the lockout, the audit).
             elif username:
                 ok, who = efactl('user-verify', f'--username={username}', secrets_in=[request.form.get('password', ''), code, assertion])
                 if ok and not PORTAL and who['role'] == 'user':
@@ -4242,12 +4296,20 @@ def quarantine_link(token):
 @app.route('/login/oidc')
 def oidc_login():
     domain = request.args.get('domain', '').strip()[:253]
-    ok, output = efactl('oidc-start', f'--domain={domain}')
+    stepup = []
+    if request.args.get('stepup') == '1' and not PORTAL and session.get('sso') and session.get('user') and session.get('sid'):
+        back = request.args.get('back', '/')
+        back = back if re.fullmatch(r'/(p|wizard)/[a-z0-9/-]{1,80}', back) else '/'
+        stepup = ['stepup', session['user'], session_sha(session['sid']), back]
+        ok, output = efactl('oidc-start', f"--tenant={session.get('sso_tenant', '')}", '--stepup=yes')
+    else:
+        ok, output = efactl('oidc-start', f'--domain={domain}')
     if not ok:
         session['sso_error'] = output.get('error')
         return redirect(url_for('login'))
     response = redirect(output['url'])
-    response.set_cookie(OIDC_COOKIE, oidc_signer().dumps([output['state'], output['nonce'], output['verifier'], output.get('tenant', '')]), max_age=OIDC_SECONDS,
+    response.set_cookie(OIDC_COOKIE, oidc_signer().dumps([output['state'], output['nonce'], output['verifier'], output.get('tenant', ''),
+                                                          str(output.get('started', ''))] + stepup), max_age=OIDC_SECONDS,
                         path=OIDC_PATH, secure=True, httponly=True, samesite='Lax')
     return response
 
@@ -4256,13 +4318,24 @@ def oidc_login():
 def oidc_callback():
     """The state ties this answer to the browser that started the login."""
     try:
-        expected, nonce, verifier, tenant = (oidc_signer().loads(request.cookies.get(OIDC_COOKIE, ''), max_age=OIDC_SECONDS) + [''])[:4]
+        expected, nonce, verifier, tenant, started, *stepup = oidc_signer().loads(request.cookies.get(OIDC_COOKIE, ''), max_age=OIDC_SECONDS) + ['', '']
     except (BadSignature, ValueError, TypeError):
-        expected, nonce, verifier, tenant = '', '', '', ''
+        expected, nonce, verifier, tenant, started, stepup = '', '', '', '', '', []
     code = request.args.get('code', '')
     if not expected or not code or not hmac.compare_digest(request.args.get('state', ''), expected):
         session['sso_error'] = 'The login could not be finished, please try again.'
         return move_on('login')
+    if stepup[:1] == ['stepup'] and len(stepup) >= 4:
+        user, sid_hash, back = stepup[1:4]
+        ok, who = efactl('oidc-finish', f'--code={code}', f'--nonce={nonce}', f'--verifier={verifier}', f'--tenant={tenant}', '--stepup=yes',
+                         f'--started={started}', f'--expect={user}')
+        proof = oidc_signer().dumps(['confirmed', user, sid_hash, back, time.time()]) if ok and who.get('stepup') and who.get('username') == user else ''
+        if not proof:
+            app.logger.warning('efa-web single sign-on confirmation failed for %s from %s', user, client_address())
+        response = Response(MOVE_ON.format(url=url_for('oidc_confirmed', proof=proof, error='' if proof else (who.get('error') or 'not confirmed')[:200])),
+                            mimetype='text/html')
+        response.delete_cookie(OIDC_COOKIE, path=OIDC_PATH)
+        return response
     ok, who = efactl('oidc-finish', f'--code={code}', f'--nonce={nonce}', f'--verifier={verifier}', f'--tenant={tenant}')
     if not ok:
         app.logger.warning('efa-web login failed from %s', client_address())
@@ -4274,7 +4347,24 @@ def oidc_callback():
         return move_on('login')
     # In the portal the helper gives the session id (it binds the login to it).
     session_start(who['username'], who['role'], sid=who.get('sid'))
+    if not PORTAL:
+        session.update(sso=True, sso_tenant=tenant)  # its critical changes are confirmed at the provider
     return move_on('index')
+
+
+@app.route('/login/oidc/confirmed')
+def oidc_confirmed():
+    """The way back from a confirmation at the provider, now with the session cookie: the proof counts only for this login and
+    this session, within two minutes."""
+    try:
+        kind, user, sid_hash, back, _when = oidc_signer().loads(request.args.get('proof', ''), max_age=SSO_STEPUP_SECONDS)
+    except (BadSignature, ValueError, TypeError):
+        kind = user = sid_hash = back = ''
+    if kind != 'confirmed' or not session.get('sso') or session.get('user') != user or not session.get('sid') \
+            or not hmac.compare_digest(session_sha(session['sid']), sid_hash):
+        return result_store(page_of(''), error=request.args.get('error', '')[:200] or SSO_STEPUP_TEXT) if session.get('admin') else redirect(url_for('login'))
+    session['reauth'] = time.time()
+    return redirect(back)
 
 
 @app.route('/logout', methods=['POST'])
@@ -4588,160 +4678,44 @@ def dashboard_parts(loaded):
     attention = [Notice((runtime_text(item[0]), item[1] if len(item) > 1 else 'dash', item[2] if len(item) > 2 else 'status', item[3] if len(item) > 3 else {}),
                         item[0]) for item in attention if item]
     flow = loaded.get('flow-status', (False, None))
-    picture = flow_svg(flow[1], (stats or {}).get('last_hour')) if flow[0] else None
+    picture = flow_svg(flow[1], stats) if flow[0] else None
     return tiles, attention, minute_chart(stats['last_hour']) if stats else None, picture
 
 
-# 9l: the setup as a picture on the start page. Own flat drawings, eFa-next in the colours of the logo, the rest neutral. Text only in
-# the tooltips (title). The letters run at one slow pace; only how many run follows the mail of the last 10 minutes.
-FLOW_STYLE = """<style>
-.flow{--fl-ink:#3b3d3a;--fl-soft:#eef0ec;--fl-mid:#c9ccc4;--fl-efa:#646563;--fl-green:#c0cf48;--fl-ok:#7f8a3a;--fl-q:#d39a2c;--fl-x:#c2553f;--fl-path:#b9bcb4}
-@media (prefers-color-scheme: dark){.flow{--fl-ink:#e6e7e3;--fl-soft:#2e302d;--fl-mid:#50534d;--fl-efa:#8d8f8b;--fl-ok:#c0cf48;--fl-path:#5c5f58}}
-.flow .ink{stroke:var(--fl-ink);stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
-.flow .soft{fill:var(--fl-soft)}.flow .mid{fill:var(--fl-mid)}.flow .efa{fill:var(--fl-efa)}.flow .green{fill:var(--fl-green)}
-.flow .route{fill:none;stroke:var(--fl-path);stroke-width:4;stroke-linecap:round}.flow .route.out{stroke-dasharray:2 9}
-.flow .ghost{opacity:.35}.flow .led.ok{fill:var(--fl-green)}.flow .led.bad{fill:var(--fl-x)}
-.flow .mail{color:var(--fl-ok)}.flow .mail.q{color:var(--fl-q)}.flow .mail.x{color:var(--fl-x)}.flow .lock.ok{fill:var(--fl-ok)}.flow .lock.warn{fill:var(--fl-q)}.flow .lock.bad{fill:var(--fl-x)}
-.flow .here{fill:var(--fl-green);stroke:var(--fl-ink);stroke-width:2}
-@media (prefers-reduced-motion: reduce){.flow .mail,.flow .shield{display:none}}
-</style>"""
+# G7-21: the mail flow picture of the start page (efa_flow: stages as data, layout from it, icons of a theme folder). Each stage
+# with a search opens the mail log with that filter; the admin hold opens the queue.
+def flow_svg(flow, stats):
+    def page(slug, **query):
+        # Outside a request (the self-test calls dashboard() directly) url_for has no server to build on.
+        if has_request_context():
+            return url_for('show_page', slug=slug, **query)
+        return f'/p/{slug}' + ('?' + '&'.join(f'{key}={value}' for key, value in query.items()) if query else '')
 
-FLOW_DEFS = """<defs>
-<g id="fl-env"><g transform="rotate(-14)"><rect x="-13" y="-9" width="26" height="18" rx="3" fill="#fff" stroke="currentColor" stroke-width="2.5"/>
-<path d="M-12-8 0 1 12-8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></g></g>
-<g id="fl-lock"><rect x="-6" y="-2" width="12" height="9" rx="2"/><path d="M-3.5-2v-3a3.5 3.5 0 0 1 7 0v3" fill="none" stroke="currentColor" stroke-width="2"/></g>
-<g id="fl-key"><circle cx="-5" r="4" fill="none" stroke-width="2.5"/><path d="M-1 0h9m-3 0v3m-3-3v2" fill="none" stroke-width="2.5"/></g>
-</defs>"""
+    def link(item):
+        if item.get('page') and item['page'] in PAGES:
+            return page(item['page'])
+        if 'search' in item and 'log' in PAGES:
+            return page('log', **({'text': item['search']} if item['search'] else {})) + '#maillog-search'
+        return ''
+    return efa_flow.render(flow, stats, reader_language() if has_request_context() else 'en', link, (flow or {}).get('theme') or 'default')
 
 
-def _flow_cloud(x, y):
-    return (f'<g transform="translate({x} {y})" tabindex="0"><title>Internet</title>'
-            '<path class="soft ink" d="M-58 22a24 24 0 0 1 4-46a32 32 0 0 1 58-10a26 26 0 0 1 44 16a22 22 0 0 1 2 40z"/></g>')
+@app.route('/flow-icon/<theme>/<name>.svg')
+def flow_icon(theme, name):
+    """G7-21: an icon of a theme of the mail flow picture: only the folder names and icons the picture knows, as an image (no
+    script runs in an SVG shown by <image>, and its own policy allows none)."""
+    if not efa_flow.THEME_RE.match(theme) or name not in efa_flow.ICONS:
+        abort(404)
+    for folder in (theme, 'default'):
+        path = os.path.join(efa_flow.THEME_DIR, folder, name + '.svg')
+        if os.path.isfile(path):
+            with open(path, 'rb') as f:
+                data = f.read(65536)
+            response = Response(data, mimetype='image/svg+xml')
+            response.headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'"
+            return response
+    abort(404)
 
-
-def _flow_server(down=False):
-    """The eFa-next server as drawn by the project: dark frame with a lighter ring, white panel with the word mark."""
-    frame = '#c2553f' if down else '#4b4d4c'
-    return (f'<rect x="-52" y="-19" width="104" height="38" rx="9" fill="{frame}"/>'
-            '<rect x="-49.5" y="-16.5" width="99" height="33" rx="7" fill="#6b6d6c"/>'
-            '<rect x="-47.5" y="-14.5" width="95" height="29" rx="5.5" fill="#3e403f"/>'
-            '<rect x="-46" y="-13" width="92" height="26" rx="4" fill="#fff"/>'
-            '<text x="0" y="3.5" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#646563">'
-            '<tspan font-weight="800" letter-spacing="-.5">e<tspan fill="#c0cf48">F</tspan>a</tspan><tspan font-weight="300" dx="2">next</tspan></text>'
-            '<text x="0" y="10" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="4.6" letter-spacing=".4" fill="#646563">'
-            'email <tspan font-weight="700">FILTER</tspan> appliance</text>')
-
-
-def _flow_node(x, y, node, ghost=0):
-    """An eFa-next server in the colours of the logo, with its own key and a status light; the own one with a green marker."""
-    if ghost:
-        return (f'<g class="ghost" transform="translate({x} {y})" tabindex="0"><title>{ghost} more eFa-next nodes</title>{_flow_server()}'
-                f'<text x="0" y="-26" text-anchor="middle" font-size="20" fill="currentColor">…</text>'
-                f'<text x="0" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">+{ghost}</text></g>')
-    tip = f"{node['name']} ({node['role']}, {node['state']})"
-    if node.get('fingerprint'):
-        tip += f"; own key {node['fingerprint']}…" + (f", until {node['until']}" if node.get('until') else '')
-    here = ('<path class="here" d="M0-36l9 11h-18z"/>' if node.get('self') else '')
-    return (f'<g class="node" transform="translate({x} {y})" tabindex="0"><title>{html_escape(tip)}'
-            f'{" – you are here" if node.get("self") else ""}</title>{here}{_flow_server(node["state"] == "down")}'
-            '<g class="green" transform="translate(44 -28) scale(.8)" stroke="var(--fl-ink)"><use href="#fl-key"/></g></g>')
-
-
-def _flow_target(x, y, target):
-    if target['kind'] == 'cloud':
-        shape = ('<path class="soft ink" d="M-34 14a15 15 0 0 1 3-29a20 20 0 0 1 36-6a16 16 0 0 1 27 10a14 14 0 0 1 1 25z"/>'
-                 '<rect class="mid ink" x="-10" y="-4" width="20" height="18" rx="2"/>')
-    else:
-        shape = ('<rect class="soft ink" x="-24" y="-30" width="48" height="60" rx="6"/>'
-                 '<path class="ink" d="M-14-16h28M-14-6h28M-14 4h18" fill="none"/>')
-    return f'<g transform="translate({x} {y})" tabindex="0"><title>{html_escape(target["name"])}</title>{shape}</g>'
-
-
-def _flow_printer(x, y, count):
-    return (f'<g transform="translate({x} {y})" tabindex="0"><title>Relay senders: {count} network{"s" if count != 1 else ""} '
-            '(scanners, printers, applications)</title><rect class="soft ink" x="-26" y="-10" width="52" height="26" rx="5"/>'
-            '<rect class="mid ink" x="-16" y="-24" width="32" height="14" rx="2"/><rect class="soft ink" x="-14" y="10" width="28" height="14"/></g>')
-
-
-def flow_svg(flow, minutes):
-    """The picture of the setup with the mail of the last 10 minutes: never a sender, subject or address."""
-    recent = (minutes or [])[-10:]
-    mails, spam, virus = (sum(item.get(key, 0) for item in recent) for key in ('mails', 'spam', 'virus'))
-    shown = sorted(flow['nodes'], key=lambda n: not n.get('self'))
-    visible, rest = shown[:3], max(0, len(shown) - 3)
-    columns = visible + ([{'ghost': rest}] if rest else [])
-    # 64 between the centres: about 26 px free between two servers.
-    step = 64
-    width, height = 960, max(300, step * len(columns) + 140)
-    first = height / 2 - step * (len(columns) - 1) / 2
-    node_at = [(470, round(first + step * i)) for i in range(len(columns))]
-    targets = flow['targets'][:4] or [{'name': 'internal mail server', 'kind': 'server'}]
-    tgap = (height - 70) / (len(targets) + 1)
-    target_at = [(830, round(tgap * (i + 1))) for i in range(len(targets))]
-    cloud = (120, height // 2)
-    # Two junctions keep the picture calm: the internet meets the nodes at one point, the nodes the targets at another.
-    hub_in, hub_out = (290, height // 2), (650, height // 2)
-    parts, routes = [], []
-    for i, (nx, ny) in enumerate(node_at):
-        routes.append((f'in{i}', f'M{cloud[0] + 52} {cloud[1]} L{hub_in[0]} {hub_in[1]} C{hub_in[0] + 90} {hub_in[1]} {nx - 110} {ny} {nx - 52} {ny}', ''))
-        for j, (tx, ty) in enumerate(target_at):
-            routes.append((f'd{i}_{j}', f'M{nx + 52} {ny} C{nx + 110} {ny} {hub_out[0] - 90} {hub_out[1]} {hub_out[0]} {hub_out[1]} '
-                                        f'C{hub_out[0] + 80} {hub_out[1]} {tx - 110} {ty} {tx - 30} {ty}', ''))
-    # Outgoing mail of the internal servers: through the own node back to the internet.
-    routes.append(('out', f'M{node_at[0][0] - 52} {node_at[0][1] + 10} C{node_at[0][0] - 110} {node_at[0][1] + 14} {hub_in[0] + 90} {hub_in[1] + 14} '
-                          f'{hub_in[0]} {hub_in[1] + 14} L{cloud[0] + 52} {cloud[1] + 14}', 'out'))
-    if flow.get('relay_networks'):
-        px, py = 830, height - 30
-        nx, ny = node_at[0]
-        routes.append(('r0', f'M{px - 28} {py} C{px - 160} {py} {nx + 160} {ny + 22} {nx + 52} {ny + 12}', 'out'))
-    parts += [f'<path id="fl-{name}" class="route {kind}" d="{d}"/>' for name, d, kind in routes]
-    # mTLS between the nodes: a lock on the line, its colour from the own certificate.
-    own = next((n for n in flow['nodes'] if n.get('self')), {})
-    for (ax, ay), (bx, by) in zip(node_at, node_at[1:]):
-        parts.append(f'<path class="route" d="M{ax} {ay + 19}L{bx} {by - 19}"/>')
-        state = 'bad' if any(n['state'] == 'down' for n in visible) else 'warn' if own.get('expiring') else 'ok'
-        parts.append(f'<g class="lock {state}" transform="translate({ax + 14} {(ay + by) // 2})" color="var(--fl-ink)"><title>Mutual TLS 1.3 between the nodes'
-                     f'{": a node is not reached" if state == "bad" else ": own certificate ends soon" if state == "warn" else ""}</title><use href="#fl-lock"/></g>')
-    parts.append(_flow_cloud(*cloud))
-    for (x, y), node in zip(node_at, columns):
-        parts.append(_flow_node(x, y, node, node.get('ghost', 0)))
-    for (x, y), target in zip(target_at, targets):
-        parts.append(_flow_target(x, y, target))
-        parts.append(f'<g class="lock ok" transform="translate({x - 60} {y - 14})" color="var(--fl-ink)"><title>Delivery with TLS where the server offers it</title>'
-                     '<use href="#fl-lock"/></g>')
-    if flow.get('relay_networks'):
-        parts.append(_flow_printer(830, height - 30, flow['relay_networks']))
-    if flow.get('animation', 'on') == 'on' and mails:
-        letters = min(6, 1 + mails // 20)
-        kinds = (['x'] * min(letters, round(letters * virus / mails)) + ['q'] * round(letters * spam / mails))[:letters]
-        kinds += ['ok'] * (letters - len(kinds))
-        ins = [name for name, _d, _kind in routes if name.startswith('in')]
-        outs = [name for name, _d, _kind in routes if name.startswith('d')]
-        good = ins + outs
-        for k, css in enumerate(kinds):
-            begin = f'-{k * 9 / letters:.1f}s'
-            if css == 'ok':
-                # Always the same slow pace, staggered so they never bunch up.
-                parts.append(f'<g class="mail ok"><use href="#fl-env"/><animateMotion dur="9s" begin="{begin}" repeatCount="indefinite">'
-                             f'<mpath href="#fl-{good[k % len(good)]}"/></animateMotion></g>')
-                continue
-            # Spam and viruses: up to the server, where a shield rises; the letter bounces off and fades, the shield goes down.
-            index = k % len(ins)
-            nx, ny = node_at[index]
-            parts.append(f'<g class="shield" transform="translate({nx - 68} {ny})" opacity="0"><title>Held off by eFa-next</title>'
-                         '<path d="M0-15 11-10v10c0 8-5 12-11 15-6-3-11-7-11-15v-10z" fill="#646563" stroke="#c0cf48" stroke-width="3" stroke-linejoin="round"/>'
-                         '<path d="M-5 0l4 4 7-8" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-                         f'<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.62;.7;.9;1" dur="9s" begin="{begin}" repeatCount="indefinite"/>'
-                         f'<animateTransform attributeName="transform" type="translate" additive="sum" values="0 14;0 14;0 0;0 0;0 14" '
-                         f'keyTimes="0;.62;.7;.9;1" dur="9s" begin="{begin}" repeatCount="indefinite"/></g>')
-            parts.append(f'<g class="mail {css}"><use href="#fl-env"/>'
-                         f'<animateMotion dur="9s" begin="{begin}" repeatCount="indefinite" keyPoints="0;.88;.78" keyTimes="0;.72;1" calcMode="linear">'
-                         f'<mpath href="#fl-{ins[index]}"/></animateMotion>'
-                         f'<animate attributeName="opacity" values="1;1;0" keyTimes="0;.74;1" dur="9s" begin="{begin}" repeatCount="indefinite"/></g>')
-    label = (f"Mail flow: {len(shown)} eFa-next node{'s' if len(shown) != 1 else ''} ({flow['mode']}), {len(flow['targets'])} delivery target"
-             f"{'s' if len(flow['targets']) != 1 else ''}; last 10 minutes {mails} mails, {spam} spam, {virus} viruses.")
-    return (f'<svg class="flow" viewBox="0 0 {width} {height}" role="img" aria-label="{html_escape(label)}">{FLOW_STYLE}{FLOW_DEFS}'
-            f'{"".join(parts)}</svg>')
 
 def minute_chart(minutes):
     """The last hour per minute as a small SVG: mails as bars, spam and viruses on top. No script, the numbers are also in the text."""
@@ -4915,7 +4889,7 @@ def page_view(slug, result=None, result_title=None, error=None, result_name=None
     if PORTAL:
         who = portal_who()
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            loaded = dict(zip(wanted, pool.map(lambda name: portal_call([name], None, who), wanted)))
+            loaded = dict(zip(wanted, pool.map(lambda name: portal_read(name, who), wanted)))
     else:
         who = acting_as()
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -5882,7 +5856,7 @@ def call_command(command, values):
 
 
 # Binary streams with their own route and password check. The others are for the web interface itself.
-NOT_CALLABLE = ('cluster-alarm', 'cluster-activate-run', 'cluster-user-exists', 'breakglass-alarm', 'breakglass-login', 'cluster-harden-run', 'cluster-harden-apply', 'audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check')
+NOT_CALLABLE = ('cluster-alarm', 'cluster-activate-run', 'cluster-user-exists', 'breakglass-alarm', 'breakglass-login', 'cluster-harden-run', 'cluster-harden-apply', 'audit-note', 'refusal-note', 'threat-run', 'backup-read', 'backup-import', 'user-verify', 'admin-2fa-verify', 'setup-variant-apply', 'totp-import', 'console-2fa-verify', 'passkey-login', 'passkey-login-options', 'passkey-register-options', 'token-check', 'oidc-start', 'oidc-finish', 'uq-link-view', 'uq-link-use', 'session-open', 'session-check', 'totp-email-send')
 # A command the web interface refuses is never shown as a card either (6.0.0.6.7: the jobs and hooks of break-glass and the cluster).
 HIDDEN_CARDS |= set(NOT_CALLABLE)
 
@@ -6016,7 +5990,7 @@ assert not JSON_RUN & STAY_RUN, 'one way to stay per command'
 # Commands whose output can be a PDF to download.
 PDF_COMMANDS = {'incident-report', 'privacy-evidence', 'report-show', 'breakglass-issue'}
 # Commands whose output is a file to save (5n): always as a download, never shown in the browser.
-FILE_COMMANDS = {'emergency-file'}
+FILE_COMMANDS = {'emergency-file', 'emergency-export-fetch'}
 # 6.0.0.6.6 (Hans 2026-11-18): the QR code with what to do, and the first code asked right here; no going back to another card.
 TOTP_PAGE = ('<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title}</title>'
              '<style>body{{font:15px/1.5 system-ui,sans-serif;max-width:34rem;margin:2rem auto;padding:0 1rem;background:#fff;color:#1d1d1b}}'
@@ -6711,6 +6685,11 @@ def portal_self_test():
         assert sess['sid'] == 'helper-sid' and sess['role'] == 'user', 'the helper names the session'
     held_page = client.get('/portal/p/held', **https)
     assert held_page.status_code == 200 and ['uq-list'] in calls
+    # R7-3: the next view of the session comes from the cache; another session asks again.
+    asked = calls.count(['uq-list'])
+    client.get('/portal/p/held', **https)
+    assert calls.count(['uq-list']) == asked, 'the held mail list of a session is kept 30 s'
+    assert portal_read('uq-list', ('', 'other-sid')) and calls.count(['uq-list']) == asked + 1
     assert efa_a11y.page_problems(held_page.get_data(as_text=True)) == [], efa_a11y.page_problems(held_page.get_data(as_text=True))
     held_text = held_page.get_data(as_text=True)
     assert 'class="usermenu"' in held_text and 'action="/portal/logout"' in held_text, 'the portal shows who is logged in, with Log out, at the top right'
@@ -7012,6 +6991,18 @@ def self_test():
     token = re.search(r'name="csrf" value="([^"]+)"', client.get('/login', **https).get_data(as_text=True)).group(1)
     tried = client.post('/login', data={'csrf': token, 'password': 'wrong'}, **https).get_data(as_text=True)
     assert 'open too long' not in tried and 'Wrong password' in tried
+    # 6.0.0.7: "App lost?": a code by mail with user name and password; the same neutral answer, counted like a failed login.
+    assert 'name="email_code"' in client.get('/login', **https).get_data(as_text=True)
+    login_failures.clear()
+    calls.clear()
+    stdin_seen.clear()
+    sent = client.post('/login', data={'csrf': token, 'username': 'eva', 'password': 'Eva-pw', 'email_code': '1'}, **https).get_data(as_text=True)
+    assert calls[0] == ('totp-email-send', '--username=eva') and stdin_seen[-1] == 'Eva-pw\n'
+    assert 'only lets you set up a new 2FA app' in sent and 'value="eva"' in sent and 'Eva-pw' not in sent
+    assert list(login_failures.values())[0][0] == 1, 'every mail counts against the lockout'
+    failing.append('totp-email-send')
+    assert 'Wrong password' in client.post('/login', data={'csrf': token, 'username': 'eva', 'password': 'bad', 'email_code': '1'}, **https).get_data(as_text=True)
+    failing.remove('totp-email-send')
     login_failures.clear()
     login_failures.update(failures)
     # The language switch of the login page, and German error pages in the look of the interface.
@@ -7220,10 +7211,15 @@ def self_test():
             'nodes': [{'name': f'mx-{n}', 'self': n == 2, 'role': 'client', 'state': 'down' if n == 4 else 'ok', 'fingerprint': 'AA:BB'} for n in range(1, 6)]}
     tiles_all, attention_all, chart, picture = dashboard({**{name: (True, outputs.get(name, {})) for name in ('status', 'settings', 'quarantine-list', 'backup-list', 'dkim-check')},
                                                           'dash-stats': (True, stats), 'flow-status': (True, flow)})
-    # 9l: three nodes and a shadow with +2, the own node shown and marked, letters for the mail of the last minutes, no address.
-    assert picture.count('class="node') == 3 and '+2' in picture and 'mx-2' in picture and 'you are here' in picture and 'animateMotion' in picture
-    assert 'mx-5' not in picture and 'x.mail.protection.outlook.com' in picture and 'Relay senders: 2 networks' in picture and '<script' not in picture
-    assert 'animateMotion' not in flow_svg({**flow, 'animation': 'off'}, stats['last_hour']) and 'animateMotion' not in flow_svg(flow, [])
+    # G7-21: the stages with today's numbers, the optional ones dashed while off, a click opens the mail log with the filter.
+    assert picture.count('<svg') == 2 and '>10<' in picture and '<script' not in picture and 'mx.example.org' not in picture
+    assert re_test.search(r'/p/log\?text=result(:|%3A)reject#maillog-search', picture) and picture.count('class="fl-box fl-off"') == 8, 'nothing switched on: 4 dashed, twice'
+    lit = flow_svg({**flow, 'flags': {'cdr': True, 'outbound': True, 'uq': True, 'hold': True}, 'theme': 'default'}, stats)
+    assert lit.count('class="fl-box fl-off"') == 0 and '/flow-icon/default/rspamd.svg' in lit
+    assert client.get('/flow-icon/default/x.svg', **https).status_code == 404
+    # A path out of the theme folder never gives a file: 404, or the redirect of Werkzeug that merges the slashes (newer Werkzeug).
+    escape = client.get('/flow-icon/..%2F/rspamd.svg', **https)
+    assert escape.status_code in (404, 308) and b'<svg' not in escape.get_data(), escape.status_code
     assert all(t['slug'] in PAGES and t['anchor'] in PAGES[t['slug']]['commands'] for t in tiles_all if t['slug'])
     assert [(t['value'], t['note']) for t in tiles_all if t['label'] == 'Queues'] == [('0 active, 3 deferred', '0 held')] and 'Postfix 9 · rspamd 4' in tiles_all[0]['note']
     assert 'top virus Eicar' in [t['note'] for t in tiles_all if t['label'] == 'Today'][0] and ('Many mails wait in the queues', 'dash', 'status', {}) in attention_all

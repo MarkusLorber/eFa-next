@@ -27,6 +27,9 @@ sudo efactl report-set --daily on --weekly on --pdf on
 
 Das PDF erzeugt eFa-next selbst (A4, Seitenzahlen), ohne zusätzliche Bibliothek.
 
+PDF-Berichte zeigen Chinesisch, Japanisch und Koreanisch (Paket google-droid-sans-fonts, standardmäßig installiert) sowie
+Arabisch und Hebräisch von rechts nach links (6.0.0.7); eingebettet werden nur die Buchstaben, die ein Bericht braucht.
+
 ## GeoIP: Land und Netz
 
 *Überwachung & Berichte › Mail-Bericht › GeoIP* (Expertenansicht) zeigt Land und Netz (ASN) der Server, die Mail senden, aus

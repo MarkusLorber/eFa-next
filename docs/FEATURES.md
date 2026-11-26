@@ -23,6 +23,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md). How to use them, chapter b
 - **Outbreak filter**: a new wave of the same attachment or text is held back for 15 to 60 minutes, then checked again. Off by default.
 - **Check after delivery**: hashes of delivered mail compared with each feed update; hits reported. Off by default.
 - **Spam traps**: trap addresses teach Bayes and the fuzzy store and score the sending servers. Off by default.
+- **Content rules** (6.0.0.7): replies to own mail, marketing mail, the language of a mail (as rspamd finds it; FastText planned for 6.0.0.8), hidden characters; each off by default, one card. [Spam](manual/06-spam.md)
 - **Newsletters (graymail)**: detected by their list headers, per user delivered, marked or held. Off by default.
 - **Own spam limits** per user within the limits of the admin. Off by default.
 - **Young domains** score higher; the days as a choice.
@@ -39,7 +40,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md). How to use them, chapter b
 - **QR codes** in pictures and PDF files are read and their links checked. Off by default.
 - **Phishing reports and warning banner**: a report address per domain, a banner in suspicious mail. [Phishing & banner](phishing-and-banner.md)
 - **Outlook add-in** to report a mail with one click. [Protection](protection.md)
-- **BIMI**: the logo of a sender with a strict DMARC policy, checked as SVG Tiny PS. Off by default.
+- **BIMI**: the logo of a sender with a strict DMARC policy, checked as SVG Tiny PS, and its certificate of the mark (VMC or CMC) against the roots of the mark verifying authorities. Fetched in the background, public HTTPS addresses only. Off by default.
 - **Taken-over accounts**: a sender over its sending limit is held until an admin releases it. Off by default. [Taken-over accounts](hijacked-accounts.md)
 
 ## Attachments and sandbox
@@ -50,6 +51,7 @@ audit log. Deutsch: [FEATURES.de.md](FEATURES.de.md). How to use them, chapter b
 - **Encrypted ZIP archives** opened with a password found in the mail and scanned. Off by default.
 - **Sandbox**: suspicious attachments to the own CAPEv2 sandbox; the mail waits for the verdict. Off by default.
 - **Own blocks**: SHA-256 of attachments and YARA rules, per tenant or for all. [Own blocks](own-blocks.md)
+- **YARA rules of the community** (6.0.0.7): signed by the eFa-next project, fetched daily, tested with ClamAV before they load; a hit counts as a virus. Off by default. [Own blocks](own-blocks.md)
 - **Virus scan limits**: time and size per mail, fail open or closed, per tenant.
 
 ## Quarantine, portal and mail handling
@@ -161,17 +163,14 @@ system. It never stops or removes them.
 
 ## Known limits
 
-- The own fuzzy store works per node; a store shared by the nodes of a cluster is not built (planned for 6.0.0.7).
-- In a cluster, held mail and the mail queue stay on the node that took the mail. Admins see and act on all nodes through the master; users see in the portal only the held mail of the node the portal runs on, and get one digest per node. A quarantine shared by all nodes follows in 6.0.0.7.
-- BIMI checks the logo, not the VMC/CMC certificates (planned for 6.0.0.7).
-- Search only in the web interface, not in the text interface efa-tui (planned for 6.0.0.7).
-- Emergency access without a ZIP/MBOX export per mailbox (planned for 6.0.0.7).
-- DKIM and ARC keys stay software keys; the hardware module holds the backup signature and S/MIME keys only (planned for 6.0.0.7).
+- In a cluster, held mail and the mail queue stay on the node that took the mail; the users' quarantine shows and handles the held mail of all nodes (6.0.0.7). While the master is away, the digests wait. [Cluster](cluster.md#held-mail-of-the-users-on-all-nodes-6007)
+- BIMI knows the roots of DigiCert and GlobalSign; others an admin puts into /etc/eFa/bimi-roots.pem.
+- DKIM keys in a hardware module (PKCS#11): tested with SoftHSM only; no real device was tested yet. ARC keys stay software keys. [HSM on bare metal](hsm-bare-metal.md)
 - On EL10 fresh installs on AlmaLinux 10, Rocky Linux 10 and RHEL 10; Rocky Linux and RHEL 10 are not yet tested on a real host and have no OVAL security advisories yet (the CVE watch says so). The release upgrade from AlmaLinux 9 to 10 runs with the signed EL10 repository since 6.0.0.6 (AlmaLinux only). [Release upgrade](release-upgrade.md)
-- Sending limits of taken-over accounts count per node, not across a cluster.
+- In a cluster, the send limits count across the nodes with up to half a minute of delay; while the master is away each node holds them at 1/N.
 - Single sign-on (OIDC) is not yet tested against a live provider; the ARC seal after content disarm not yet against an outside ARC checker.
-- Extra uplinks per sender domain without failover.
-- PDF files (reports, hardening report) show only Western European letters; others become `?`.
+- Uplink failover for outgoing mail only; incoming mail follows the MX records.
+- PDF files (reports, hardening report): Chinese, Japanese and Korean need the package google-droid-sans-fonts (recommended, installed by default), else they become `?`. Arabic and Hebrew run right to left with a short form of the bidirectional algorithm (no explicit direction marks, no nested embeddings) and the joined Arabic forms of Unicode (no ligatures beyond lam-alef, no vowel placement); complex scripts such as Devanagari or Thai are not shaped.
 - Perl comes at runtime only with MariaDB and rspamd, which need it themselves.
 
 Changes and known limits per release: [CHANGELOG.md](../CHANGELOG.md).

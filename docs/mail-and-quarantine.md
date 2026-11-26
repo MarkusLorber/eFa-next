@@ -157,7 +157,9 @@ When the mail servers behind eFa-next are down, users and admins can still read 
 
        efactl emergency-set --level domain --target example.com --days 7
 
-   The copies are sealed with the key of the tenant (the key of the encrypted quarantine, D3); only root can open them. They go
+   The copies and their subjects are sealed with the key of the tenant (the key of the encrypted quarantine, D3); only root can
+   open them. Sender, recipient, size and time stay in clear text in the database: the list and the rights of the readers need
+   them. They go
    after their days, daily. Setting the days to 0 switches the copy off and deletes the copies. When the copies take more than a
    quarter of the free disk, the dashboard says so. A mail larger than 15 MB gets no copy.
 
@@ -169,4 +171,15 @@ When the mail servers behind eFa-next are down, users and admins can still read 
 **How it is shown:** a mail is shown as text only, never as HTML, and nothing is loaded from outside. Attachments and the whole
 mail (`.eml`) are only saved as files. A file of a kind that can run code needs a typed `yes`. There are no replies: this is no
 webmail.
+
+**Export of a whole mailbox (6.0.0.7):** *Export a mailbox* asks for all mail of one address as a ZIP (one `.eml` per mail,
+named 0001.eml ...) or as mbox (mboxrd); an admin needs the right and a reason, a user only gets the own address. While four
+eyes are on, a second admin confirms an export of an admin. It gets a number; *Download the export* fetches it **once, within
+15 minutes, by the same login**. The file is made in memory when it is fetched and never lies on the disk; its name is
+`emergency-<date>-<number>.zip` or `.mbox`. At most 2000 mails and 200 MB per export. *Tell this address* sends a short note
+(who, which mailbox, the reason; no content) to an address of your choice, such as the data protection contact. Asking and
+fetching are in the audit log.
+
+    efactl emergency-export --address anna@example.com --format mbox --reason "Ticket 4711, server down"
+    efactl emergency-export-fetch --export 261124001
 

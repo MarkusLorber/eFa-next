@@ -20,4 +20,12 @@ Office and PDF files. Both off by default, under Protection.
 - The original is kept for the admin, who can still deliver it: see *Content disarm* in the mail pages (`efactl cdr-list`,
   `cdr-release`). Releasing a file with active content needs the permission to release malware.
 
-Content disarm runs before the DKIM signature. Signed or encrypted mail is left unchanged.
+Content disarm works on incoming mail. Signed or encrypted mail is left unchanged.
+
+### Outgoing mail (CDR outbound)
+
+Outgoing mail (from logins on port 587 and from the relay networks) is **never changed** by default: rspamd signs it with
+DKIM before content disarm runs, and a change afterwards would break the signature. `efactl cdr-outbound-set --mode on`
+disarms outgoing mail too (with content disarm on): the disarm runs, then efa-cdr makes each DKIM signature of this host again
+over the changed mail, with the same key, selector and signed headers (RSA and ED25519). A mail whose signature cannot be made
+again (no key of this host for it, a signature of another server) goes on unchanged. Off by default, also after an update.

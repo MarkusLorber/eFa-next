@@ -11,7 +11,7 @@
 %global __brp_python_bytecompile %{nil}
 
 Name:           eFa-next
-Version:        6.0.0.6.8
+Version:        6.0.0.7
 Release:        1%{?dist}
 Summary:        eFa-next email filter appliance
 License:        AGPL-3.0-or-later
@@ -38,6 +38,8 @@ Requires:       tar
 Requires:       openldap-clients
 # PDF-1: letters outside Western European ones in the PDF reports.
 Requires:       dejavu-sans-fonts
+# G7-24: Chinese, Japanese and Korean in PDF reports; without it such letters become '?'.
+Recommends:     google-droid-sans-fonts
 Obsoletes:      clamav-unofficial-sigs
 Requires:       python3
 # Content disarm and the PDF encryption. A dependency since 2026-11-17: installed later by efactl, it waited for the package
@@ -151,6 +153,9 @@ fi
 %config(noreplace) /etc/cron.d/eFa-Backup.cron
 
 %changelog
+* Wed Nov 25 2026 Markus Lorber - 6.0.0.7-1
+- 6.0.0.7: content rules, shared cluster fuzzy store and quarantine, DKIM keys in a PKCS#11 module, uplink failover, mail flow picture, community YARA rules, outbound CDR; see CHANGELOG.md.
+
 * Mon Nov 23 2026 Markus Lorber - 6.0.0.6.8-1
 - 6.0.0.6.8: with eFa-next-base 6.0.0.6.8 (rspamd 4.3.1); the CI checks that a virus scan without a verdict fails the scan; see CHANGELOG.md.
 

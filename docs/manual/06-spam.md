@@ -27,8 +27,10 @@ the spam marking, mail in between gets no action at all: the dashboard names tha
 The same page has the other content checks of rspamd, each a card of its own: QR codes, encrypted archives, Office macros,
 tracking protection, lookalike watch, check after delivery, outbreak filter, own and community fuzzy store, newsletters and own
 spam limits, neural network, symbol scores, an own model. Each is described by its (i) and in [protection.md](../protection.md).
-Viruses, attachments and links: chapter 7. Planned for 6.0.0.7: the own fuzzy store works per node, not yet shared in a
-cluster; BIMI checks the logo, not yet the VMC/CMC certificates.
+Viruses, attachments and links: chapter 7. BIMI checks the logo and the certificate of the mark (VMC or CMC); fetching them
+tells the sender's server that its mail arrived here, so it is off by default.
+Shared fuzzy store of a cluster (6.0.0.7): the nodes only read it; what they learn goes to the master over the mutual TLS of the
+cluster, and only the master writes to it.
 
 **Pyzor** (6.0.0.6.4, card *Pyzor*, off by default): Pyzor compares a checksum of the text of each incoming mail with the spam
 reports of other operators. The local service efa-pyzor makes the checksum here; only the checksum and the address of this
@@ -86,6 +88,30 @@ domain, a recipient, a domain, a tenant or a directory group. The highest priori
 
 ```bash
 sudo efactl rule-set --name partner-mail --action set --kind recipient --value partner@example.com --quarantine on
+```
+
+## Content rules
+
+*Protection › Spam filter › Content rules* holds four rules on one card. Each is off by default, also after an update; switched
+on, a rule only counts and marks until you give it a score (``efactl content-rules-set --rule <rule> --mode on --score <n>``).
+While one rule is on, every ``X-eFa-*`` header of incoming mail is removed first: a sender cannot bring its own.
+
+- **Replies to own mail (thread):** for each mail sent from here, a hash of its Message-ID with each recipient domain, salted with a secret of this host, is kept
+  (90 days, nothing else). A reply that names such a Message-ID, comes from one of those domains, passes DMARC and has no
+  lookalike or BEC hit gets the bonus (default -2). A reply to a Message-ID never sent from here can get points of its own
+  (``--unknown``; only while the store answers). In a cluster the hashes are shared through the master (each node salts them
+  with its own secret); when it is down each node goes on with its own. Without a cluster nothing is kept for sharing.
+- **Marketing mail:** newsletters and campaigns, by two or more signs (list headers, one-click unsubscribe, the headers of
+  sending services); the mail gets ``X-eFa-Marketing``. The per-user handling of newsletters stays with *Newsletters (graymail)*.
+- **Language:** the language rspamd finds in the text goes into ``X-eFa-Language``; languages you do not expect
+  (``--languages "ru zh"``) can add points. A FastText model for better detection is planned for 6.0.0.8.
+- **Hidden characters:** invisible characters inside Latin words, soft hyphens after nearly every letter, and words that mix
+  Latin with Cyrillic or Greek letters. Characters a script needs (ZWNJ and ZWJ in Persian, Arabic, Indic writing, ZWJ in
+  emoji) never count.
+
+```bash
+sudo efactl content-rules-set --rule thread --mode on --score -2
+sudo efactl content-rules-status
 ```
 
 ## Impersonation & BEC

@@ -5,9 +5,9 @@ All on *Protection › Viruses, attachments & links*, each a card of its own.
 ## Virus scan (ClamAV)
 
 Every mail is scanned by ClamAV. *Scan limits* bound one scan: the seconds clamd may take (5 to 20), the largest mail it scans
-(10 to 64 MB) and the seconds of all checks of rspamd (8 to 60). When the scan fails (clamd down, too slow, a limit hit, a reply without a verdict), the
+(10 to 64 MB) and the seconds of all checks of rspamd (8 to 60). When the scan fails (clamd down, too slow, a limit hit), the
 mail either passes unscanned (*fail open*) or is deferred with `451` so the sender tries again (*fail closed*); a mail too
-large to scan is then rejected. A new install fails closed; the mode can differ per tenant
+large to scan is then rejected. A reply of clamd without a verdict defers the mail with `451` in every mode. A new install fails closed; the mode can differ per tenant
 (`efactl scan-fail-set --tenant <name> --fail closed`).
 
 *Extra virus scanners* and *Sandbox* add further engines and a detonation service where they are installed; see
@@ -47,6 +47,13 @@ sudo efactl clam-securiteinfo-set --tier basic
 
 In a cluster each node downloads by itself and counts against the limit of the account.
 
+### YARA rules of the community (6.0.0.7)
+
+`efactl yara-community-set --mode on --accept yes` adds the YARA rules the eFa-next project bundles: once a day, signed with
+the eFa-next key, tested with ClamAV and timed before they load, and they must find nothing in a set of clean mails. An
+expired or older bundle is refused and the rules in use stay. A hit counts as a virus. Off by default; the rules are under the
+licences of their authors. Details: [own-blocks.md](../own-blocks.md).
+
 ## Attachments
 
 *Attachments* blocks or holds by the real file type (the content, not the ending) and by what is inside an archive. Executables
@@ -59,8 +66,12 @@ autostart and suspicious calls.
 *Content disarm* strips the active parts out of Office and PDF files: macros go (a `.docm` becomes a `.docx`), PDF files lose
 JavaScript, open and launch actions and embedded files. A file that cannot be cleaned is replaced by a short note; a file that
 cannot be read makes the mail wait. The original is kept for the admin (`efactl cdr-list`, `cdr-release`; releasing active
-content needs the right to release malware). *Active HTML* removes scripts, forms and event handlers from HTML mail. Signed or
+content needs the right to release malware). Outgoing mail is not changed unless *CDR outbound* is on
+(`efactl cdr-outbound-set`); then its DKIM signatures are made again after the disarm. *Active HTML* removes scripts, forms and event handlers from HTML mail. Signed or
 encrypted mail is left unchanged. Details: [attachments-and-cdr.md](../attachments-and-cdr.md).
+
+Outgoing mail is never changed by default. `efactl cdr-outbound-set --mode on` disarms it too (6.0.0.7) and then makes each
+DKIM signature of this host again over the changed mail; a mail whose signature cannot be made again goes on unchanged.
 
 ## Link check on click
 

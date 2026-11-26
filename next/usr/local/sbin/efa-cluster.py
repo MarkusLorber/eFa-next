@@ -34,6 +34,11 @@ ETC = os.environ.get('EFA_ETC', '/etc')
 BASE = efa_cluster.folder(ETC)
 MAX_BODY = 64 * 1024
 RATES_BODY = 4 * 1024 * 1024
+# F1: mails for the shared fuzzy store, a few per request (each at most 1 MB, base64).
+FUZZY_BATCH = 4
+FUZZY_BODY = 6 * 1024 * 1024
+FUZZY_TEACH_LIST = 'efa:share:fuzzy'
+FUZZY_SHARED_FLAG = 13
 JOIN_TRIES = 10  # per address and minute
 CONTACT_SECONDS = 300  # how often a client notes that its master answered, for the line on every page
 HEALTH_SECONDS = 60  # how often the master asks its nodes, for its dashboard (the page itself never calls a node)
@@ -49,6 +54,13 @@ MASTER_RUNS = {'maillog-search', 'quarantine-list', 'quarantine-show', 'quaranti
                'ssh-profile-status'}  # read only: whether a node confirmed its SSH profile after the hardening of the cluster
 ARG_CHARS = set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@._-:+ ')
 JOURNAL_PAGE = 200
+# 6.0.0.7: the quarantine of the users over all nodes. Any member may ask about held mail; the login comes along, and efactl
+# loads it here and checks its rights itself. Only the master collects the lines of the digests.
+UQ_RUNS = {'uq-list', 'uq-show', 'uq-content', 'uq-release', 'uq-request', 'uq-delete', 'uq-sender', 'uq-link-view', 'uq-link-use'}
+UQ_MASTER_ONLY = {'uq-digest-claim'}
+UQ_LINKS = {'uq-link-view', 'uq-link-use'}
+UQ_LOGIN = re.compile(r'[A-Za-z0-9@._+][A-Za-z0-9@._+-]{0,99}')
+UQ_TOKEN = re.compile(r'[a-z0-9-]{1,40}\.[A-Za-z0-9_-]{20,100}')
 EFACTL = os.environ.get('EFA_EFACTL', '/usr/sbin/efactl')
 
 
@@ -71,6 +83,21 @@ def member(state, fingerprint):
         return next((name for name, node in state.get('nodes', {}).items() if node.get('fingerprint') == fingerprint), None)
     master = state.get('master', {})
     return 'master' if master.get('fingerprint') == fingerprint else None
+
+
+# Security review 2026-11-24 (F5): a node that joined and waits for its admin (pending) may only look at what it would take and
+# then take part or go: the preview (GET), the comparison of its own hashes (POST /v1/preview), activate and leave. Every other
+# request of a pending node gets 403, in one place for all routes (also those added later, such as /v1/shared and /v1/uq).
+PENDING_ALLOWED = {('GET', '/v1/ca'), ('GET', '/v1/preview'), ('POST', '/v1/preview'), ('POST', '/v1/activate'), ('POST', '/v1/leave')}
+
+
+def pending_refused(state, who, method, path):
+    """True when the peer is a pending node of this master and the request is not one PENDING_ALLOWED lets through."""
+    if state.get('role') != 'master' or not who or who == 'master':
+        return False
+    if not (state.get('nodes', {}).get(who) or {}).get('pending'):
+        return False
+    return (method, path.split('?', 1)[0]) not in PENDING_ALLOWED
 
 
 def join(state, body, now=None):
@@ -295,12 +322,80 @@ def share_rates(state, call=None, now=None):
         with Handler.lock:
             Handler.rates = efa_cluster.merge_rates(Handler.rates, state['name'], hour, own, now)
             peers = efa_cluster.peer_rates(Handler.rates, state['name'], hour, now)
+        size = len(efa_cluster.active_nodes(state)) + 1
     elif state.get('role') == 'client':
         master = state['master']
-        peers = efa_cluster.call(BASE, master['host'], master['port'], '/v1/rates', {'hour': hour, 'rates': own}, timeout=30).get('rates', {})
+        try:
+            answer = efa_cluster.call(BASE, master['host'], master['port'], '/v1/rates', {'hour': hour, 'rates': own}, timeout=30)
+        except (OSError, ValueError):
+            # P7-8: the master away, each node counts its own mail only: the limits then hold at 1/N here.
+            efa_cluster.alone_mark(call, alone=True)
+            raise
+        peers, size = answer.get('rates', {}), answer.get('nodes')
     else:
         return 0
+    efa_cluster.alone_mark(call, size if isinstance(size, int) and 0 < size < 1000 else None)
     return efa_cluster.rate_apply(call, hour, peers)
+
+
+def fuzzy_mails(body):
+    """F1: the mails a node sent for the shared fuzzy store: bytes, each at most 1 MB, at most FUZZY_BATCH; [] for anything else."""
+    found = []
+    for item in (body.get('mails') if isinstance(body, dict) and isinstance(body.get('mails'), list) else [])[:FUZZY_BATCH]:
+        try:
+            raw = base64.b64decode(item, validate=True) if isinstance(item, str) else b''
+        except ValueError:
+            continue
+        if 0 < len(raw) <= 1024 * 1024:
+            found.append(raw)
+    return found
+
+
+def fuzzy_add_local(mails, run=subprocess.run):
+    """F1, on the master: each mail into the shared store through the own rspamd (loopback, encrypted); how many it took."""
+    taken = 0
+    for raw in mails:
+        done = run(['rspamc', '-f', str(FUZZY_SHARED_FLAG), '-w', '10', 'fuzzy_add'], input=raw, capture_output=True, timeout=60)
+        taken += done.returncode == 0
+    return taken
+
+
+def share_fuzzy(state, call=None, run=subprocess.run, ask=None):
+    """F1, every half minute: what this host taught the shared fuzzy store: on the master added here, on a node handed to the
+    master over mutual TLS. A failure keeps them for the next round."""
+    if state.get('role') not in ('master', 'client') or state.get('pending'):
+        return 0
+    call = call or efa_redis.call
+    lines = call([('LRANGE', FUZZY_TEACH_LIST, 0, FUZZY_BATCH - 1)])[0] or []
+    if not lines:
+        return 0
+    if state['role'] == 'master':
+        taken = fuzzy_add_local(fuzzy_mails({'mails': [str(line) for line in lines]}), run)
+    else:
+        master = state['master']
+        ask = ask or (lambda body: efa_cluster.call(BASE, master['host'], master['port'], '/v1/fuzzy', body, timeout=60))
+        taken = int(ask({'mails': [str(line) for line in lines]}).get('taken', 0))
+    call([('LTRIM', FUZZY_TEACH_LIST, len(lines), -1)])
+    return taken
+
+
+def share_keys(state, memo, call=None):
+    """P7-7, every half minute: the new keys of the shared store of this node to the master, those of the other nodes back.
+    Master down: the keys stay in the list and go with the next round; each node works with its own meanwhile."""
+    call = call or efa_redis.call
+    own, taken = efa_cluster.shared_take(call)
+    if state.get('role') == 'master':
+        with Handler.lock:
+            Handler.shared, Handler.shared_seq = efa_cluster.shared_merge(Handler.shared, Handler.shared_seq, state['name'], own)
+        efa_cluster.shared_drop(call, taken)
+        return 0
+    if state.get('role') != 'client':
+        return 0
+    master = state['master']
+    answer = efa_cluster.call(BASE, master['host'], master['port'], '/v1/shared', {'after': memo.get('shared_after', 0), 'keys': own}, timeout=30)
+    efa_cluster.shared_drop(call, taken)
+    memo['shared_after'] = int(answer.get('seq', 0))
+    return efa_cluster.shared_apply(call, answer.get('keys', []))
 
 
 def live_unbans(state):
@@ -383,6 +478,15 @@ def follow_step(memo):
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
         # Each node then counts its own mail only, as without a cluster.
         syslog.syslog(syslog.LOG_WARNING, f'efa-cluster send counts not shared: {err}')
+    try:
+        share_fuzzy(state)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
+        syslog.syslog(syslog.LOG_WARNING, f'efa-cluster shared fuzzy store not taught: {err}')
+    try:
+        share_keys(state, memo)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as err:
+        # P7-7: each node works with its own keys meanwhile (the reply hashes of G7-10).
+        syslog.syslog(syslog.LOG_WARNING, f'efa-cluster shared store not reached: {err}')
     if state.get('role') != 'client':
         return
     master = state['master']
@@ -501,6 +605,82 @@ def forwarded_line(body, who):
 def run_forwarded(body, who, run=subprocess.run):
     done = run(forwarded_line(body, who), input=body.get('stdin', ''), capture_output=True, text=True, timeout=170,
                env={**os.environ, 'EFA_ETC': ETC, 'EFA_CLUSTER_FORWARDED': who})
+    try:
+        return json.loads(done.stdout)
+    except ValueError:
+        return {'error': (done.stderr or done.stdout).strip()[-300:] or 'no answer'}
+
+
+UQ_TICKET_KEY = os.path.join(BASE, 'uq-ticket.key')
+
+
+def uq_ticket_key(path=None):
+    """The key of the tickets, made once on the master (0600 root); b'' where there is none and none can be made."""
+    path = path or UQ_TICKET_KEY
+    try:
+        with open(path, 'rb') as f:
+            key = f.read()
+        if len(key) == 32:
+            return key
+    except OSError:
+        pass
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except OSError:
+        return b''
+    key = os.urandom(32)
+    with os.fdopen(fd, 'wb') as f:
+        f.write(key)
+    return key
+
+
+def uq_ticket(body, who, run=subprocess.run, key=None):
+    """F4, on the master: a ticket for a login whose password (and 2FA code) the master checked itself; PermissionError otherwise."""
+    login, password, code = str(body.get('login', '')), body.get('password', ''), body.get('code', '')
+    if not UQ_LOGIN.fullmatch(login) or not isinstance(password, str) or not isinstance(code, str) or not password or len(password) > 1000 \
+            or len(code) > 20 or '\n' in password + code:
+        raise ValueError('bad request')
+    done = run([EFACTL, f'--client=cluster-{who}', 'user-verify', f'--username={login}'], input=f'{password}\n{code}\n\n',
+               capture_output=True, text=True, timeout=60, env={**os.environ, 'EFA_ETC': ETC})
+    try:
+        answer = json.loads(done.stdout) if done.returncode == 0 else {}
+    except ValueError:
+        answer = {}
+    if str(answer.get('username', '')).lower() != login.lower():
+        raise PermissionError('login not confirmed by the master')
+    return {'ticket': efa_cluster.ticket_make(key if key is not None else uq_ticket_key(), login, who), 'seconds': efa_cluster.TICKET_SECONDS}
+
+
+def uq_line(body, who, state, key=None, now=None):
+    """The efactl call for held mail of the cluster, and its environment. 'cluster' (only on the master, asked by a node) also
+    asks the other nodes; 'local' only this one."""
+    command, args, mode = str(body.get('command', '')), body.get('args', {}), body.get('mode')
+    login, limit, token = str(body.get('as', '')), str(body.get('limit_tenant', '')), body.get('token', '')
+    if command not in UQ_RUNS | UQ_MASTER_ONLY or (command in UQ_MASTER_ONLY and who != 'master'):
+        raise PermissionError('not a command of the quarantine of the cluster')
+    if mode not in ('local', 'cluster') or (mode == 'cluster' and (state.get('role') != 'master' or who == 'master' or command in UQ_MASTER_ONLY)):
+        raise PermissionError('only the master asks the other nodes')
+    if not isinstance(args, dict) or (login and not UQ_LOGIN.fullmatch(login)) or (limit and not limit.isdigit()) or \
+            not isinstance(token, str) or (token and not UQ_TOKEN.fullmatch(token)):
+        raise ValueError('bad request')
+    line = [EFACTL, *([f'--as={login}'] if login else []), *([f'--limit-tenant={limit}'] if limit else []), f'--client=cluster-{who}', command]
+    for name, value in sorted(args.items()):
+        value = str(value)
+        if not name.isidentifier() or len(value) > 400 or '\x00' in value or '\n' in value:
+            raise ValueError(f'argument {name} not allowed')
+        line.append(f'--{name}={value}')
+    if not login and command not in UQ_MASTER_ONLY and not (command in UQ_LINKS and token):
+        raise PermissionError('a login is needed')  # R7-2: without --as efactl would act as root; a link has its token
+    if login and who != 'master' and not efa_cluster.ticket_ok(uq_ticket_key() if key is None else key, body.get('ticket'), login, who, now):
+        # F4: the master does not take the login a node names on its word; a link (token, no login) needs no ticket.
+        raise PermissionError('a ticket of the master is needed for this login (log in with the password again)')
+    return line, {'EFA_CLUSTER_UQ': who, **({'EFA_UQ_LOCAL': '1'} if mode == 'local' else {})}
+
+
+def run_uq(body, who, run=subprocess.run):
+    line, extra = uq_line(body, who, efa_cluster.read_state(ETC))
+    token = body.get('token', '')
+    done = run(line, input=token + '\n' if token else '', capture_output=True, text=True, timeout=60, env={**os.environ, 'EFA_ETC': ETC, **extra})
     try:
         return json.loads(done.stdout)
     except ValueError:
@@ -626,6 +806,9 @@ class Handler(BaseHTTPRequestHandler):
     lock = threading.Lock()
     precheck_refused = 0
     rates = {}
+    # P7-7: the ring of the shared store (in memory: the nodes hand their keys on again after a restart of the master).
+    shared = []
+    shared_seq = 0
     server_version = 'efa-cluster'
 
     def log_message(self, fmt, *args):
@@ -648,6 +831,8 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(BASE, 'ca.crt')) as f:
                 return self.answer(200, {'ca': f.read()})
         who = self.peer()
+        if pending_refused(efa_cluster.read_state(ETC), who, 'GET', self.path):
+            return self.answer(403, {'error': 'a waiting node gets the preview only, the rest after its confirmation'})
         if self.path == '/v1/busy':
             # 6.0.0.6.7: whether this node updates now, for a peer without its master; only that one answer, nothing else.
             der = self.connection.getpeercert(binary_form=True)
@@ -696,13 +881,18 @@ class Handler(BaseHTTPRequestHandler):
         return None
 
     def do_POST(self):
+        if pending_refused(efa_cluster.read_state(ETC), self.peer(), 'POST', self.path):
+            return self.answer(403, {'error': 'a waiting node may only compare, take part or leave'})
         value = (self.headers.get('Content-Length') or '0').strip()
         # -1 would read to the end: the join is open without a certificate.
         if not (value.isascii() and value.isdigit()):
             return self.answer(400, {'error': 'bad Content-Length'})
         length = int(value)
         # 8g: the send counts of a node are larger than the other requests; only a member may send that much.
-        if length > (RATES_BODY if self.path == '/v1/rates' and self.peer() not in (None, 'master') else MAX_BODY):
+        limit = MAX_BODY
+        if self.path in ('/v1/rates', '/v1/shared', '/v1/fuzzy') and self.peer() not in (None, 'master'):
+            limit = FUZZY_BODY if self.path == '/v1/fuzzy' else RATES_BODY
+        if length > limit:
             return self.answer(413, {'error': 'too large'})
         try:
             body = json.loads(self.rfile.read(length) or b'{}')
@@ -717,6 +907,30 @@ class Handler(BaseHTTPRequestHandler):
                 return self.answer(403, {'error': str(err)})
             except ValueError as err:
                 return self.answer(400, {'error': str(err)})
+        if self.path == '/v1/uq-ticket':
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master'):
+                return self.answer(403, {'error': 'only nodes of this master ask for tickets'})
+            if not self.throttle.allow('ticket ' + who, most=30):
+                return self.answer(429, {'error': 'too many tries'})
+            try:
+                return self.answer(200, uq_ticket(body, who))
+            except PermissionError as err:
+                return self.answer(403, {'error': str(err)})
+            except ValueError as err:
+                return self.answer(400, {'error': str(err)})
+        if self.path == '/v1/uq':
+            who = self.peer()
+            if who is None:
+                return self.answer(403, {'error': 'a certificate of a cluster member is needed'})
+            try:
+                return self.answer(200, run_uq(body, who))
+            except PermissionError as err:
+                return self.answer(403, {'error': str(err)})
+            except ValueError as err:
+                return self.answer(400, {'error': str(err)})
+            except subprocess.TimeoutExpired:
+                return self.answer(504, {'error': 'no answer in time'})
         if self.path == '/v1/forward':
             who, state = self.peer(), efa_cluster.read_state(ETC)
             if state.get('role') != 'master' or who in (None, 'master') or state.get('mode') != 'ha':
@@ -753,7 +967,27 @@ class Handler(BaseHTTPRequestHandler):
             with self.lock:
                 Handler.rates = efa_cluster.merge_rates(Handler.rates, who, body['hour'], body.get('rates'))
                 peers = efa_cluster.peer_rates(Handler.rates, who, body['hour'])
-            return self.answer(200, {'rates': peers})
+            return self.answer(200, {'rates': peers, 'nodes': len(efa_cluster.active_nodes(state)) + 1})
+        if self.path == '/v1/fuzzy':
+            # F1: only a node of this master (its certificate), never over UDP by its address.
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master'):
+                return self.answer(403, {'error': 'only nodes teach the shared fuzzy store of their master'})
+            mails = fuzzy_mails(body)
+            return self.answer(200, {'taken': fuzzy_add_local(mails)})
+        if self.path == '/v1/shared':
+            who, state = self.peer(), efa_cluster.read_state(ETC)
+            if state.get('role') != 'master' or who in (None, 'master') or not isinstance(body.get('after'), int):
+                return self.answer(403, {'error': 'only nodes share keys with their master'})
+            keys = efa_cluster.shared_clean(body.get('keys'))
+            with self.lock:
+                Handler.shared, Handler.shared_seq = efa_cluster.shared_merge(Handler.shared, Handler.shared_seq, who, keys)
+                found, seq = efa_cluster.shared_since(Handler.shared, body['after'], who, Handler.shared_seq)
+            try:
+                efa_cluster.shared_apply(efa_redis.call, keys)
+            except OSError as err:
+                syslog.syslog(syslog.LOG_WARNING, f'efa-cluster keys of {who} not stored on the master: {err}')
+            return self.answer(200, {'keys': found, 'seq': seq})
         if self.path == '/v1/ack':
             who = self.peer()
             state = efa_cluster.read_state(ETC)
@@ -908,10 +1142,36 @@ def main(port):
 
 
 def self_test():
+    # F1 (security review 2026-11-24): the shared fuzzy store learns only over mutual TLS; bad or large mails are dropped.
+    ok_mail = base64.b64encode(b'Subject: x\r\n\r\nspam').decode()
+    assert fuzzy_mails({'mails': [ok_mail, 'not base64!', 7, base64.b64encode(b'x' * (1024 * 1024 + 1)).decode()]}) == [b'Subject: x\r\n\r\nspam']
+    assert fuzzy_mails({'mails': [ok_mail] * 9}) == [b'Subject: x\r\n\r\nspam'] * FUZZY_BATCH and fuzzy_mails('x') == [] and fuzzy_mails({}) == []
+    sent, added, trimmed = [], [], []
+
+    class Done:
+        returncode = 0
+    queue = lambda commands: [[ok_mail] if c[0] == 'LRANGE' else trimmed.append(c) for c in commands]
+    assert share_fuzzy({'role': 'client', 'master': {'host': 'm', 'port': 1}}, queue, ask=lambda body: sent.append(body) or {'taken': 1}) == 1
+    assert sent == [{'mails': [ok_mail]}] and trimmed == [('LTRIM', FUZZY_TEACH_LIST, 1, -1)]
+    assert share_fuzzy({'role': 'master'}, queue, run=lambda *a, **k: added.append(a[0]) or Done()) == 1 and added[0][:3] == ['rspamc', '-f', '13']
+    assert share_fuzzy({'role': 'client', 'pending': True, 'master': {}}, queue) == 0 and share_fuzzy({}, queue) == 0
     throttle = Throttle()
     assert all(throttle.allow('a', 100) for _ in range(JOIN_TRIES)) and not throttle.allow('a', 100) and throttle.allow('a', 200)
     state = {'role': 'master', 'name': 'm1', 'nodes': {'mx-2': {'fingerprint': 'AA'}}, 'tokens': {efa_cluster.token_hash('t1'): 1000}}
     assert member(state, 'AA') == 'mx-2' and member(state, 'BB') is None
+    # F5 (security review 2026-11-24): a pending node gets 403 on everything but preview, compare, activate and leave.
+    waiting = {'role': 'master', 'nodes': {'mx-2': {'fingerprint': 'AA', 'pending': True}, 'mx-3': {'fingerprint': 'CC'}}}
+    for method, path in (('GET', '/v1/status'), ('GET', '/v1/snapshot'), ('GET', '/v1/manifest'), ('GET', '/v1/file?x'), ('GET', '/v1/journal?after=0'),
+                         ('GET', '/v1/busy'), ('POST', '/v1/shared'), ('POST', '/v1/uq'), ('POST', '/v1/rates'), ('POST', '/v1/bans'), ('POST', '/v1/forward'),
+                         ('POST', '/v1/ack'), ('POST', '/v1/lookalike'), ('POST', '/v1/alarm'), ('POST', '/v1/join'), ('POST', '/v1/precheck'), ('POST', '/v1/new')):
+        assert pending_refused(waiting, 'mx-2', method, path), (method, path)
+    for method, path in (('GET', '/v1/preview'), ('POST', '/v1/preview'), ('POST', '/v1/activate'), ('POST', '/v1/leave'), ('GET', '/v1/ca')):
+        assert not pending_refused(waiting, 'mx-2', method, path), (method, path)
+    assert not pending_refused(waiting, 'mx-3', 'POST', '/v1/shared') and not pending_refused(waiting, None, 'POST', '/v1/join')
+    assert not pending_refused({'role': 'client', 'pending': True}, 'master', 'POST', '/v1/run'), 'on a node: its own state rules'
+    src = open(__file__, encoding='utf-8').read()
+    assert src.count("\n        if pending_refused(efa_cluster.read_state(ETC), ") == 2, 'checked at the top of GET and POST'
+
     assert member({'role': 'client', 'master': {'fingerprint': 'CC'}}, 'CC') == 'master'
     for body, error in (({'token': 'nope', 'name': 'mx-3'}, PermissionError), ({'token': 't1', 'name': 'mx-2'}, ValueError),
                         ({'token': 't1', 'name': 'BAD NAME'}, ValueError),

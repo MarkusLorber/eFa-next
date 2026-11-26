@@ -10,8 +10,11 @@ are used as before.
 | Own S/MIME keys (15) | an RSA or EC key in the module with its certificate; `openssl cms` signs and decrypts | `efactl crypto-hsm-set --id @example.com --module ... --cert ...` |
 
 **The URI:** both commands ask for the PKCS#11 URI of the key as a secret, such as
-`pkcs11:token=efa;object=backup;type=private;pin-value=...`. It is stored for root only; efa-outbound gets it as a systemd
-credential.
+`pkcs11:token=efa;object=backup;type=private;pin-value=...`. The PIN leaves the URI at once: it goes into a file of its own
+(mode 0400; `/etc/eFa/backup-hsm.pin`, for S/MIME `pin-smime-own-<id>` in `/etc/eFa/crypto`) and OpenSSL is told only
+`pin-source=file:` with that path, never the PIN, so it does not show in the process list. A URI that already names a
+`pin-source` stays as it is. The URI and the PIN file are for root only; efa-outbound gets them as a systemd credential. A
+backup key set up before 6.0.0.7 with the PIN in its URI is moved to the PIN file the first time it signs.
 
 **The checks:** on setup, the backup key signs a test and the signature is checked with its public key. A module that does not
 answer stops a backup with an error; it never falls back to a software key.

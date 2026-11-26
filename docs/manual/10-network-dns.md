@@ -13,6 +13,15 @@ firewall, an interface change waits for *Confirm* and is taken back without it. 
 
 ![Network, DNS & certificate](../images/manual/net.png)
 
+### Failover of outgoing mail (6.0.0.7)
+
+*Network* › *Uplink failover* (`efactl uplink-failover-set --mode on --backup <interface>`): every minute the watch asks
+whether the main uplink works, by default with a ping to its gateway (no third party is asked), or with three probes of your
+choice, two of which must answer. After three misses outgoing mail leaves over the backup uplink, but only when the backup is
+fit to send: a PTR record that matches the HELO name and points back, and a place in the SPF record of each own domain.
+Otherwise nothing switches and the dashboard names what is missing. Five good answers switch back. Incoming mail follows the
+MX records and is not touched. Details: [network.md](../network.md).
+
 ## DNS: the own resolver
 
 eFa-next resolves names with its own Unbound on `127.0.0.1`, directly from the root servers and with DNSSEC. This is the

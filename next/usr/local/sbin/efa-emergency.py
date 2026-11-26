@@ -3,7 +3,7 @@
 # Author: Markus Lorber, Lukasz Galusinski
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """5n: the emergency copy of delivered mail. Postfix hands a copy for each recipient of a domain with the copy on to this pipe,
-as efa-em+<local>=<domain>@efa-emergency.invalid. It is sealed with the public key of the tenant (only root holds the private
+as efa-em+<local>=<domain>@efa-emergency.invalid. It and its subject are sealed with the public key of the tenant (only root holds the private
 key) and kept in the database for the days of the domain. The pipe may not write files (SELinux), so the database holds it.
 Exit 0 when done or when the domain has no copy any more, 75 so Postfix tries again on any other failure."""
 import json
@@ -57,13 +57,15 @@ def main():
         if not public:
             raise OSError(f'no key for the tenant {tenant}')
         sealed = efa_qcrypt.encrypt(raw, {tenant: public})
+        # F11: the subject is sealed too; sender and recipient stay readable (the list and the rights need them).
+        subject = efa_qcrypt.encrypt(header(raw, 'Subject').encode('utf-8'), {tenant: public})
         with open(MAILLOG_PW) as f:
             password = f.read().strip()
         db = pymysql.connect(unix_socket='/var/lib/mysql/mysql.sock', user='efa_log', password=password, database='efa', autocommit=True)
         try:
             with db.cursor() as cur:
-                cur.execute('INSERT INTO emergency_mail (rcpt, sender, subject, size, until, sealed) VALUES (%s, %s, %s, %s, FROM_UNIXTIME(%s), %s)',
-                            (rcpt[:320], sender[:255], header(raw, 'Subject'), len(raw), int(time.time() + int(days) * 86400), sealed))
+                cur.execute('INSERT INTO emergency_mail (rcpt, sender, subject_sealed, size, until, sealed) VALUES (%s, %s, %s, %s, FROM_UNIXTIME(%s), %s)',
+                            (rcpt[:320], sender[:255], subject, len(raw), int(time.time() + int(days) * 86400), sealed))
         finally:
             db.close()
     except Exception as err:  # never clear text: the copy waits and Postfix tries again

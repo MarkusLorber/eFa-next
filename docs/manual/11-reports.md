@@ -27,6 +27,9 @@ sudo efactl report-set --daily on --weekly on --pdf on
 
 The PDF is made by eFa-next itself (A4, page numbers), without an extra library.
 
+PDF reports show Chinese, Japanese and Korean (package google-droid-sans-fonts, installed by default) and Arabic and Hebrew
+right to left (6.0.0.7); only the letters a report uses are embedded.
+
 ## GeoIP: country and network
 
 *Monitoring & reports › Mail report › GeoIP* (expert view) shows the country and the network (ASN) of the servers that send

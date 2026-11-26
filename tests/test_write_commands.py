@@ -154,6 +154,8 @@ class WriteCommandTests(unittest.TestCase):
 
     def test_flow_backup_maintenance(self):
         self.assertEqual(self.run_cmd('flow-set', '--animation', 'off'), {'animation': 'off'})
+        # G7-21: a theme only when its folder holds every icon.
+        self.refused('flow-set', '--theme', '../etc')
         self.assertEqual(self.run_cmd('backup-set', '--mode', 'off'), {'auto_backup': False})
         self.assertTrue(os.path.exists(efactl.BACKUP_DISABLED))
         self.run_cmd('backup-set', '--mode', 'on')

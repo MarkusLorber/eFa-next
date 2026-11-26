@@ -50,7 +50,8 @@ block their senders; every bulk action asks first.
 
 *Settings* sets what goes to the quarantine and for how many days it is kept (`quarantine-set`, `quarantine-days-set`);
 *Emergency access* lets users and admins read incoming mail while your mail server is down: each mail is shown and its
-attachments are saved one by one; a ZIP or MBOX export of a whole mailbox is planned for 6.0.0.7.
+attachments are saved one by one; a whole mailbox goes out as ZIP or mbox (*Export a mailbox*, fetched once within 15 minutes).
+The copies and their subjects are sealed; sender, recipient, size and time stay in clear text in the database.
 
 ## Mail queue
 

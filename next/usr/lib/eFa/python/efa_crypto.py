@@ -114,7 +114,21 @@ def _own(pem):
     handle = tempfile.NamedTemporaryFile('w', suffix='.pem', delete=False)
     handle.write(spec['cert'])
     handle.close()
-    return ['-inkey', spec['uri'], '-provider', 'pkcs11', '-provider', 'default'], {**os.environ, 'PKCS11_PROVIDER_MODULE': spec['module']}, handle.name
+    return ['-inkey', hsm_uri(spec, pem), '-provider', 'pkcs11', '-provider', 'default'], {**os.environ, 'PKCS11_PROVIDER_MODULE': spec['module']}, handle.name
+
+
+def hsm_uri(spec, path):
+    """The URI openssl gets for a key in a module: its PIN from the file spec names, in the folder of the key file (the
+    credential folder of efa-outbound names it with the same prefix), never the PIN itself."""
+    uri = spec['uri']
+    name = spec.get('pin_name') or ''
+    if not name:
+        return uri
+    if not re.fullmatch(r'pin-(smime|pgp)-own-[a-z0-9._%+@-]{1,200}', name):
+        raise ValueError('bad PIN file name')
+    base = os.path.basename(path)
+    prefix = base[:base.index('smime-own')] if 'smime-own' in base else ''
+    return uri + ('&' if '?' in uri else '?') + 'pin-source=file:' + os.path.join(os.path.dirname(path), prefix + name)
 
 
 # S/MIME with openssl cms. The entity is signed as binary: it is in CRLF already, so it stays byte for byte.
@@ -244,6 +258,15 @@ def outbound_plan(policy, sender, rcpts, keys):
 
 
 def self_test():
+    # The PIN of a key in a module: only the path of its file goes to openssl, in the folder of the key file, with its prefix.
+    spec = {'uri': 'pkcs11:object=k;type=private', 'pin_name': 'pin-smime-own-a@x.example'}
+    assert hsm_uri(spec, '/run/c/crypto_smime-own-a@x.example.json') == 'pkcs11:object=k;type=private?pin-source=file:/run/c/crypto_pin-smime-own-a@x.example'         or os.name == 'nt'
+    assert hsm_uri({'uri': 'pkcs11:x'}, '/p') == 'pkcs11:x'
+    try:
+        hsm_uri({'uri': 'pkcs11:x', 'pin_name': '../../etc/shadow'}, '/p')
+        raise AssertionError('a path in the name')
+    except ValueError:
+        pass
     raw = b'From: a@own.example\nTo: b@far.example\nSubject: Hi\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nHello\nworld\n'
     outer, inner = entity(raw)
     assert outer == [b'From: a@own.example', b'To: b@far.example', b'Subject: Hi'] and inner.startswith(b'Content-Type: text/plain')

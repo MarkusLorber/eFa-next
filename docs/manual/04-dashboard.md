@@ -17,6 +17,14 @@ The gauges show CPU, RAM, swap (amber from 50 %, red from 80 %, grey "No swap" o
 failed logins of the last 10 minutes. The coloured band of each gauge shows where amber and red begin. Board and banner
 renew themselves every 30 seconds while the page is visible.
 
+## Mail flow picture
+
+The dashboard shows how eFa-next handles a mail (6.0.0.7): incoming mail through postscreen, the SMTP rules, the spam and
+virus checks, content disarm and delivery, with the branches rejected, user quarantine and admin hold; outgoing mail through
+the outbound checks and the DKIM signature. A stage that is switched off has a dashed outline. The numbers are those of today;
+a click opens the mail log with the matching filter. On a phone the picture stands upright. Own icons:
+[flow-themes.md](../flow-themes.md).
+
 ## Attack alert on every page
 
 Once a minute eFa-next checks the host for SMTP connection floods, SYN floods, password guessing on SMTP AUTH and the web
@@ -66,7 +74,10 @@ the same checks and rights.
 The search field at the top of the menu (key `/`) suggests while you type: pages, actions and settings with a one-line
 explanation, synonyms in English and German ("whitelist" finds the sender lists), and the mail log with a filter for an
 address, domain, IP or queue ID. Only what your login may open is suggested. Arrow keys, Enter and Esc work as expected.
-The text menu on the console (efa-tui) has no search yet; planned for 6.0.0.7.
+The text menu on the console (efa-tui) has the mail search too (*Views › Mail search*): the same filters as *Advanced search*,
+the mails found as a list, Enter shows a mail (with a reason where one is asked). It runs through efactl with the rights of
+the login; efa-tui writes nothing of the search anywhere. A change the web interface confirms with the password and 2FA code
+asks for them in efa-tui too (every 5 minutes, not for root); four eyes and the audit log work the same.
 
 ![Search with suggestions](../images/manual/search.png)
 

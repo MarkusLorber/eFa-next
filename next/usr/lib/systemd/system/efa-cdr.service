@@ -18,6 +18,10 @@ StateDirectoryMode=0700
 ExecStart=/usr/bin/python3 /usr/local/sbin/efa-cdr.py
 # M1-1: the ARC keys, to seal a mail again after a change (efactl writes the folder; the setup makes it, empty).
 LoadCredential=arc-seal:/etc/eFa/arc-seal
+# G7-25: the DKIM keys, to sign outgoing mail again after a disarm (only while CDR outbound is on; the setup makes it, empty).
+LoadCredential=dkim-sign:/etc/eFa/dkim-sign
+# G7-17: the DKIM keys in a hardware module (module, URI with the PIN), only while a domain has one.
+LoadCredential=dkim-hsm:/etc/eFa/dkim-hsm
 Restart=always
 RestartSec=5
 ProtectSystem=strict

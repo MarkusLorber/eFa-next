@@ -1,5 +1,206 @@
 # Changelog
 
+## 6.0.0.7 (release date: pending)
+
+### Upgrade notes
+- DKIM keys in a hardware module (F2): the PIN is now kept in a file of its own, never in the address of the key. A key set up
+  with a test build of 6.0.0.7 (PIN in the address) has to be set up again with `efactl dkim-hsm-set`; until then its domain is
+  signed by the software key. Hosts without a key in a module are not affected.
+- Cluster quarantine (F4): a user who logs in to the portal of a node with a password sees the held mail of all nodes (the
+  master checks the password and the 2FA code itself). A login with a passkey or single sign-on sees only the mail of its own
+  node; the other nodes follow in a later version. A digest link works as before.
+- Emergency access (F11): the subject of an emergency copy is now sealed like the mail. The update blanks the subjects of
+  copies made before; the copies themselves, sender, recipient, size and time stay.
+
+### One quarantine for the users of a cluster
+- Portal and web interface list the held mail of all nodes of a cluster, on whichever node they run, and release, ask, delete,
+  allow or block on the node that holds the mail. The IDs carry the name of the node (`mx-02:17`).
+- The node that holds a mail checks the rights of the login itself; it gets only the login name, never a filter.
+- Links in a digest carry the name of the node that made them and work on every node.
+- One digest per user: only the master sends, with the held mail of all nodes; each node marks its lines as sent when it hands
+  them over, so no mail is in two digests. While the master is away, the digests wait.
+- A node that does not answer within a few seconds is named above the list; the rest is shown. New cluster request `/v1/uq`
+  (mutual TLS, only commands of the users' quarantine), new internal command `uq-digest-claim` (only for the master).
+  See docs/cluster.md.
+- R7-2: another node only names a login, it is trusted no further: never a request without a login (only digest links carry
+  their token), never a super admin, never the release of a virus. The audit names the asking node and the login.
+- R7-3: the held mail list of a login is kept 30 seconds in the web interface and the portal (a form clears it), so not every
+  view asks all nodes.
+- Security review 2026-11-24 (F4): the master no longer takes the login a node names on its word. At a password login on a node
+  the master checks the same password and 2FA code itself (`/v1/uq-ticket`) and signs a ticket for that login and node (HMAC
+  with a key only the master holds, one hour); `/v1/uq` from a node needs it for every login. Without a ticket only a digest
+  link works (by its token). A login is never made because another node names it (the old fallback of the digest link is gone).
+### Cluster: a waiting node may only look, take part or leave
+- Security review 2026-11-24 (F5): one check at the top of every request of efa-cluster: a node that joined and waits for its
+  admin (pending) gets 403 on everything except the preview, the comparison of its hashes, activate and leave. Routes added
+  later (the shared store `/v1/shared`, held mail `/v1/uq`) are covered by the same check.
+### Cluster: one fuzzy store for all nodes (G7-14)
+- `efactl fuzzy-set --mode on --shared on`: the master keeps a fuzzy store for every node of the cluster. Its fuzzy worker also
+  listens on port 11336, opened only for the nodes (one firewall rule each); the nodes ask it encrypted with the key pair of
+  the master (the private key never leaves it) and count a hit as `EFA_FUZZY_CLUSTER`. Only a super admin's approval and the
+  spam traps teach it; what a tenant admin approves stays in the own store of the node. `fuzzy-shared-purge` deletes its
+  hashes, in the audit log. Off by default.
+- Security review 2026-11-24 (F1): the shared store no longer takes writes by the source address of a node (UDP can be
+  forged). Only the master itself writes (loopback, `encrypted_only = true`, its own rules encrypted too); the nodes read only
+  (`read_only = true`). What a node teaches is queued (Redis `efa:share:fuzzy`, at most 1 MB per mail) and efa-cluster hands it
+  to the master over mutual TLS (`/v1/fuzzy`, nodes of that master only), where it is added.
+### Cluster: taken-over accounts on every node (G7-15)
+- An account efa-outbound holds as taken over (over a send limit, A1) is now held on every node of the cluster: the hold goes
+  through the shared store of efa-cluster to the master and the other nodes (within half a minute); a release newer than the
+  hold wins everywhere. Before, the account could go on sending through another node.
+- While the master is away, each node holds the send limits at 1/N of the setting (N the nodes of the cluster), as it no
+  longer sees the counts of the others (P7-8); the dashboard says so next to the notice of the missing master.
+
+### Content rules (G7-10 to G7-13)
+- One card *Content rules* under Protection › Spam filter, four rules, each off by default (also after an update) and with a
+  score of 0 until set (the thread bonus -2): replies to own mail (`EFA_REPLY_KNOWN`, `EFA_REPLY_UNKNOWN`), marketing mail
+  (`EFA_MARKETING`, header `X-eFa-Marketing`), the language as rspamd finds it (`X-eFa-Language`, `EFA_LANG_UNWANTED`; a
+  FastText model is planned for 6.0.0.8, not part of 6.0.0.7), hidden characters (`EFA_OBFUSC_INVISIBLE`, `EFA_OBFUSC_MIXED`).
+  `efactl content-rules-status`, `content-rules-set`; also in settings-export (part `content`).
+- While one rule is on, every `X-eFa-*` header of incoming mail is removed before eFa-next writes its own.
+- The thread rule keeps only a hash of Message-ID and recipient domain; the bonus needs a reply from one of those domains with
+  DMARC pass and never comes with a lookalike or BEC hit. In a cluster the hashes are shared through the master (new shared
+  store of efa-cluster, `/v1/shared`); with the master down each node goes on with its own.
+- CI: `scripts/content_rules_live.py` (forged headers removed, a recorded thread found, Persian ZWNJ not counted).
+- Security review 2026-11-24 (F10): the reply hashes in Redis are salted with a secret of this host
+  (`/etc/eFa/content-thread.salt`, made once, 0600); the rspamd settings that carry it are readable by rspamd only. The list
+  that hands hashes to the cluster is filled only while the host is in a cluster; each node salts the shared hashes again with
+  its own secret.
+### BIMI: the certificate of the mark is checked (G7-16)
+- With a= in the BIMI record, the VMC or CMC is checked: its chain up to the roots of the mark verifying authorities (DigiCert,
+  GlobalSign; own ones in /etc/eFa/bimi-roots.pem), its time, the key use of BIMI, the domain among its names and the logo in it.
+  Then the logo of the certificate is the one shown, and Authentication-Results names policy.authority=pass.
+- P7-3: every fetch is https only, to public addresses only (checked after DNS; the connection goes to that address), without
+  redirects (a 3xx is an error, its Location is never asked; security review F9), at most 64 KB in 2 seconds, in the
+  background (a mail never waits; the next mail of the domain gets the answer), kept 24 hours. P7-18: switching it on names
+  that the sender's server learns its mail arrived.
+
+### Web interface: the Maintenance & update page stays under 100 ms
+
+The page shows the cards of every command without a page of its own and read 13 values anew on every visit; it took up to
+101 ms right after an update. Eight of these reads (automatic updates, environment, checks after updates, HTTP/2, legal texts,
+recovery by email, cluster snapshot, outbound hold) are now kept 30 seconds like the other slow reads; every change made in the
+web interface empties that cache at once. The update state and its progress are still read on every visit.
+### Keys in a hardware module: the PIN never on a command line
+- `backup-hsm-set` and `crypto-hsm-set` took the PKCS#11 URI with `pin-value` and handed it to openssl as an argument, where
+  every user of the host could read the PIN (process list). The PIN now leaves the URI for a file of its own (0400; the backup
+  key `/etc/eFa/backup-hsm.pin`, S/MIME keys `pin-smime-own-<id>` in the credential folder of efa-outbound), and openssl gets
+  only `pin-source=file:`. A backup key set up before is moved once; `crypto-remove` also removes a key in a module and its PIN
+  file. Same approach as the DKIM keys in a module (security review 2026-11-24, F2).
+
+### DKIM keys in a hardware module (G7-17)
+- For eFa-next on own hardware: `dkim-hsm-set` puts the DKIM key of a domain into a PKCS#11 module (the module from a list of
+  those found here: OpenSC for Nitrokey HSM and SmartCard-HSM, YubiHSM 2, SoftHSM, p11-kit; or a path of your own), with the
+  labels of token and key and the PIN. A test signing (signed in the module, checked with its public key) runs first; then
+  rspamd no longer signs that domain and efa-cdr signs its outgoing mail last, through OpenSSL 3 and its pkcs11 provider.
+- The module does not answer: the mail waits (451) and never leaves unsigned; the dashboard says so (P7-6). `dkim-hsm-fallback`
+  switches to the software key for a while, with password and 2FA code. The PIN stays on the host, never in the cluster journal.
+- Tested with SoftHSM only; no real device was tested yet. ARC keys stay software keys. Guide: docs/hsm-bare-metal.md (DE/EN).
+- Security review 2026-11-24 (F2): the PIN is never on a command line. It is kept in `/etc/eFa/dkim-hsm-pins/<domain>.pin`
+  (0400, root), reaches efa-cdr as a systemd credential, and OpenSSL gets only `pin-source=file:` with its path. A key set up
+  with an older test build (PIN in the address) has to be set up again.
+- Security review 2026-11-24 (F3): an outgoing mail of a domain signed in the module that is larger than the limit of efa-cdr
+  (30 MB) is refused with 552 instead of leaving unsigned; the memory of one mail stays below that limit.
+
+### Content disarm: outgoing mail stays signed (G7-25)
+- efa-cdr no longer changes mail of the relay networks either (before: only logins on 587 were left alone). rspamd signs
+  that mail with DKIM before efa-cdr runs; a disarm, a link rewrite or a cut virus afterwards broke the signature, and DMARC
+  failed at the receiver.
+- New `efactl cdr-outbound-set --mode on` (off by default, also after an update): content disarm for outgoing mail too, then
+  each DKIM signature of this host is made again over the changed mail (same key, selector and headers; RSA and ED25519). A
+  mail whose signature cannot be made again goes on unchanged. The keys reach efa-cdr only while it is on (`/etc/eFa/dkim-sign`).
+### Bulk sending: own address, a pace per provider, warm-up, complaints (G7-18)
+- `bulk-set --address`: bulk mail leaves from an own address (on this server, PTR pointing back, checked), with its PTR name as
+  HELO; an address that is gone makes the mail wait, it never leaves from the main address (P7-10).
+- One transport each for Google, Microsoft and Yahoo with its own pace, and one for the rest (the mark `X-eFa-Bulk: yes <provider>`).
+- `--warmup on`: 50 recipients a day per provider, doubled each day, no limit from day 15; over the limit a 4xx.
+- `--arf <address>`: ARF reports of the providers to an own address are counted (efa-arf, Redis); a recipient who complained
+  gets no more bulk mail (hash only). No cloud interface of a provider (P7-10).
+- `bulk-stats`: sent, deferred, bounced per provider from the delivery log, and the complaints.
+- Security review 2026-11-24 (F7): a complaint counts only when this server's Authentication-Results show DKIM or DMARC pass
+  for a known feedback loop (Microsoft, Yahoo, AOL, Comcast, Mail.ru, Yandex, Fastmail, GMX/Web.de, Zoho, Rackspace); a report
+  that cannot be read is dropped with exit 0 (no backscatter); the sender table of the statistics keeps at most 500 domains.
+### Uplinks: failover of outgoing mail (G7-19)
+- `efactl uplink-failover-set --mode on --backup <device>`: efa-uplink-watch.timer asks every minute whether the main uplink
+  reaches the probe; after three misses outgoing mail leaves over the backup uplink (its own transport bound to its address,
+  its routing table), after five good answers again over the main one. Notice by mail and on the dashboard.
+- P7-9: it switches only when the backup is fit to send: PTR of its address, the HELO name pointing back to it, and the SPF
+  record of each own domain (ip4/ip6, a, mx, include, redirect) letting it send; else nothing switches and the dashboard says
+  what is missing. No firewall change, never a reload. Off by default.
+- Security review 2026-11-24 (F8): no third party is asked by default. The watch pings the gateway of the main uplink, or
+  connects to three host:port probes the admin chose, of which two must answer (`--probe a:443,b:443,c:25`; `-` for the
+  gateway). The default probe 1.1.1.1:443 is gone.
+### Emergency access: a whole mailbox as ZIP or mbox (G7-20)
+- `efactl emergency-export --address --format zip|mbox` asks for an export of one mailbox (an admin with the right and a reason,
+  a user only the own address; four eyes for admins while they are on); `emergency-export-fetch --export <number>` downloads it
+  once, within 15 minutes, by the same login. Made in memory when fetched, never on disk; the name from date and number, the
+  mails as 0001.eml ... or mboxrd. At most 2000 mails and 200 MB. Optional short note to an address such as the data
+  protection contact. Audited.
+- Security review 2026-11-24 (F11): the subject of an emergency copy is sealed with the key of the tenant like the mail
+  (column `subject_sealed`); subjects of older copies are blanked at the update. Sender, recipient, size and time stay in
+  clear text (documented): the list and the rights of the readers need them.
+
+### Dashboard: the mail flow picture (G7-21)
+- The dashboard shows the way of a mail as the code takes it, compact (two lanes): incoming on port 25 through postscreen, the
+  SMTP rules, spam and virus checks, content disarm and delivery, with the branches rejected, user quarantine and admin hold;
+  outgoing from logins and relay networks through the outbound checks and rspamd with the DKIM signature. Optional stages that
+  are off have a dashed outline; numbers only from today's mail log and the queues; a click opens the mail log with the filter
+  (the admin hold: the queue). Upright on a phone. The picture of 6.0.0.5 (nodes and moving letters) is gone.
+- Stages and branches are data (`efa_flow.py`), the layout is computed from them; the icons come from a theme folder
+  (`/usr/share/eFa/flow/<theme>`, shown as images under a policy without script). `efactl flow-set --theme`; a new theme is a
+  new folder, see [docs/flow-themes.md](docs/flow-themes.md).
+### Console: mail search in efa-tui (G7-22)
+- *Views › Mail search* in efa-tui: the filters of the message search, the mails found as a list, a mail with its details
+  (`mail-show`, with a reason where one is asked). Through efactl with the rights of the login; efa-tui logs nothing of it.
+- efa-tui asks for the password and 2FA code again before a change the web interface confirms that way (every 5 minutes, not
+  for root). The list of these changes now lives in `efa_nav.REAUTH_COMMANDS`, one list for both (P7-14).
+### YARA rules of the community through the updater (G7-23)
+- `efactl yara-community-set --mode on --accept yes`: once a day the bundle of YARA rules of the community comes from
+  repo.efa-next.eu/yara, signed with the eFa-next key (checked with the pinned key, as the advisories). Each bundle is loaded in a
+  test with clamscan and measured; rules ClamAV does not take are left out, a bundle that loads too slowly or not at all, or
+  whose signature does not fit, keeps the rules of before (P7-11). A hit counts as a virus (quarantine where it is on).
+- `scripts/yara_bundle.py` makes the bundle for the project (rules named efc_..., tested), the owner signs and uploads it.
+- Security review 2026-11-24 (F6): before the swap the final set must find nothing in a built-in set of clean mails, and its
+  real load time is measured (one timed load of that set); the search for refused rules stops after 48 test loads. A bundle
+  must carry `// expires <date>` in its signed head, be newer than the one in use and not expired (no replay of an old signed
+  bundle); `yara_bundle.py` writes the expiry 45 days ahead.
+- In settings-export as the part `yara` (P7-20). Off by default.
+### PDF: every script (G7-24)
+- PDF reports show Chinese, Japanese and Korean (Droid Sans Fallback, package google-droid-sans-fonts, now recommended) and
+  Arabic and Hebrew right to left, Arabic letters in their joined forms. Only the glyphs a PDF uses are embedded (own TrueType
+  subsetting, standard library): a report with a few Polish letters is now about 50 KB instead of about 700 KB.
+- Limits: a short form of the bidirectional algorithm and the presentation forms of Unicode; see Known limits in FEATURES.md.
+- The licence check (L12) counts recommended packages too.
+
+### Virus scan: a reply without a verdict defers the mail on every host
+- A reply of clamd without a verdict (rspamd 4.3.1 marks it as a failure, `CLAM_VIRUS_FAIL` with "unhandled response", for
+  example while clamd reloads its database) now defers the mail with `451` (`EFA_SCAN_NO_VERDICT`) on every host: also where
+  the scan limits fail open and where they were never switched on (an upgrade from before C7). clamd not running or too slow
+  still follow the scan limits: closed defers, open lets the mail pass marked `EFA_SCAN_FAIL`, without the limits it passes
+  marked `CLAM_VIRUS_FAIL` as before. The update brings the rule to hosts without the limits (`efactl av-apply`).
+- The CI checks every case against a made-up clamd (no verdict, clamd down, too slow, a virus) for closed, open and no limits.
+
+### Cluster: the cluster port only for the partner
+- `cluster-init --node <address>` and `cluster-token --node <address>` open port 8460 of the master for that node only;
+  `cluster-join` opens the port of the node for its master only. One firewalld rich rule per address (a host name: each of
+  its addresses), at runtime and permanent, never a reload. `cluster-node-remove` and `cluster-leave` close what was opened.
+  Without `--node` nothing opens, as before.
+- `cluster-promote` stopped at once ("Type yes ...": it called cluster-init without the confirmation it had); it makes the new master again.
+### Single sign-on: critical changes confirmed at the provider
+- An admin who logged in with OIDC confirms a critical change (the list that asks other admins for password and 2FA code)
+  with a new login at its provider: the button *Confirm at the provider* sends it there with `prompt=login` and `max_age=0`.
+  The answer counts only with a new `auth_time` (not before the button) and the same account (issuer and subject); then the
+  same five minutes as a password confirmation hold, for this session only. Before, such an admin could not make these
+  changes in the dashboard at all. The user portal is unchanged.
+
+### Compliance file: changes against 6.0.0.6.8
+- One status changed: NIST SP 800-53 IA-7 (cryptographic module authentication) not covered -> partial: DKIM keys of a domain
+  can stay in a PKCS#11 module, the PIN in a file of its own (4 pieces of evidence; tested with SoftHSM only).
+- Scope reworded with new evidence: GDPR Art. 15 (3 -> 4), CRA Annex I 1(2)(j) (5 -> 6), NIST SP 800-53 AC-2 (6 -> 7), AC-3
+  (5 -> 7), SC-28 (4 -> 5, limits reworded), SI-3 (5 -> 6), SI-4 (3 -> 4), SI-8 (3 -> 4), SOC 2 CC6.1 (6 -> 7), CC6.6 (5 -> 7),
+  CC7.2 (2 -> 4), ISO/IEC 27001 A.8.5 (10 -> 11), A.8.24 (7 -> 9), EU sovereignty SOV-2 (1 -> 2); SOC 2 CC6.8 scope reworded.
+- No control added or removed. Made with `scripts/compliance_diff.py` against `compliance/eFa-next-6.0.0.6.8.compliance.json`.
+
 ## 6.0.0.6.8 (2026-11-23)
 
 ### rspamd 4.3.1 is the minimum (EFA-2026-009)

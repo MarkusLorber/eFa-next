@@ -11,7 +11,16 @@ abgeschaltet; die Seite zeigt das wirksame IPv6). Eine Adressänderung gilt nach
 Wie bei der Firewall wartet eine Änderung auf *Bestätigen* und wird ohne zurückgenommen. Details: [interfaces.md](../interfaces.md),
 [network.md](../network.md).
 
-![Netzwerk, DNS & Zertifikat](../images/manual/net.png)
+![Netzwerk, DNS & Zertifikat](../images/manual/net.de.png)
+
+### Umschaltung der ausgehenden Mail (6.0.0.7)
+
+*Netzwerk* › *Uplink-Umschaltung* (`efactl uplink-failover-set --mode on --backup <Schnittstelle>`): Jede Minute fragt die
+Überwachung, ob der Haupt-Uplink arbeitet, standardmäßig per Ping an sein Gateway (kein Dritter wird gefragt), oder mit drei
+Proben Ihrer Wahl, von denen zwei antworten müssen. Nach drei Fehlschlägen geht ausgehende Mail über den Ersatz-Uplink, aber
+nur, wenn er zum Senden taugt: ein PTR-Eintrag, der zum HELO-Namen passt und zurückzeigt, und ein Platz im SPF-Eintrag jeder
+eigenen Domain. Sonst schaltet nichts um und das Dashboard nennt, was fehlt. Fünf gute Antworten schalten zurück. Eingehende
+Mail folgt den MX-Einträgen und bleibt unberührt. Einzelheiten: [network.de.md](../network.de.md).
 
 ## DNS: der eigene Resolver
 

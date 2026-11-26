@@ -66,6 +66,25 @@ CARD = {
     'bulk-status': 'Bulk mail settings, and per sender domain what the big mail providers would miss.',
     'cdr-list': 'Originals of disarmed mail, newest first, with sender, recipients and what was changed.',
     'cdr-release': 'Delivers the original of a disarmed mail unchanged. It does not pass the filters again.',
+    'content-rules-status': 'The four content rules with their switch and score: replies to own mail, marketing mail, language, hidden characters.',
+    'content-rules-set': 'Switches one content rule and sets its score; each rule is off by default and only counts until it has a score.',
+    'fuzzy-shared-purge': 'Deletes every hash of the fuzzy store the nodes of the cluster share; the master keeps it. Kept in the audit log.',
+    'fuzzy-cluster-apply': 'On a node: takes the settings of the shared fuzzy store from the master (runs by itself after a change).',
+    'cdr-outbound-set': 'Disarms outgoing mail too and signs it again with the DKIM keys of this server; off by default, outgoing mail is then never changed.',
+    'dkim-hsm-status': 'The domains whose DKIM key is in a hardware module, their module and whether it signed last time.',
+    'dkim-hsm-set': 'Puts the DKIM key of a domain into a hardware module (PKCS#11); a test signing runs first. Tested with SoftHSM only.',
+    'dkim-hsm-test': 'Lets the module sign a test header and checks the signature with its public key.',
+    'dkim-hsm-fallback': 'Emergency mode: the software key signs the domain again while the module does not answer.',
+    'bulk-stats': 'What the bulk transports delivered per provider (sent, deferred, bounced) and the complaints per day and sender domain.',
+    'uplink-failover-status': 'Whether outgoing mail can switch to a backup uplink, which one sends now, and why it would not switch.',
+    'uplink-failover-set': 'Outgoing mail switches to a backup uplink when the main one does not answer, only if the backup is fit to send.',
+    'uplink-watch-run': 'One round of the failover watch (it runs every minute by itself).',
+    'emergency-export': 'A whole mailbox of the emergency access as ZIP or mbox: you get a number, the download works once within 15 minutes.',
+    'emergency-export-fetch': 'Downloads an export you asked for, once and within 15 minutes; then ask for a new one.',
+    'flow-set': 'The icons of the mail flow picture on the dashboard: a theme is a folder under /usr/share/eFa/flow with one SVG per stage.',
+    'yara-community-status': 'The YARA rules of the community: how many loaded, their version, the load time and the last check.',
+    'yara-community-set': 'Signed YARA rules of the community from the eFa-next repository, daily; a hit counts as a virus.',
+    'yara-community-run': 'Fetches and tests the rules now (it runs daily by itself).',
     'cdr-set': 'Disarms attachments: removes active content such as scripts and macros from PDF and Office files, keeps the original for the admins.',
     'cdr-status': 'Whether attachments are disarmed, and the originals kept for the admins.',
     'clam-securiteinfo-set': 'The account tier of SecuriteInfo and the DatabaseCustomURL lines of its setup page. The lines hold the key: stored for root only, never shown.',
@@ -453,6 +472,7 @@ CARD = {
     'totp-confirm': 'Switches 2FA on with the first code of the app and shows ten recovery codes once. Store them safely.',
     'totp-disable': 'Switches your 2FA off. Not possible when your role requires it.',
     'totp-policy-set': 'Whether 2FA is required for a role. Required is strongly recommended for all admin roles.',
+    'email-recovery-set': 'Whether a login of this role with a lost app may get a code by mail to its confirmed address. The code only lets it set up a new app; the old app and its recovery codes stop. Off for super admins by default.',
     'totp-recovery-new': 'Makes ten new recovery codes; the old ones stop working.',
     'totp-setup': 'Starts 2FA for your login: scan the QR code with an authenticator app, then confirm with the first code below.',
     'totp-status': 'Whether your second factor (2FA) is on, how many recovery codes are left, and whether your role requires it.',
@@ -679,6 +699,9 @@ FIELD = {
         'url': 'The https address of the feed; empty for a known feed.',
     },
     'bulk-set': {
+        'address': 'Own sending address of the bulk mail (on this server, with PTR); - for none',
+        'arf': 'Address for the complaints (ARF) of the providers; - for none',
+        'warmup': 'Warm-up of the address: on or off',
         'auto': 'On also detects bulk mail by its headers (Precedence bulk or List-Unsubscribe).',
         'missing': 'What happens when a provider requirement such as a one-click unsubscribe link is missing.',
         'mode': 'On sends bulk mail through the slower transport.',
@@ -688,8 +711,57 @@ FIELD = {
     'cdr-release': {
         'id': 'The ID from the list of originals.',
     },
+    'content-rules-set': {
+        'rule': 'thread: replies to mail sent from here; marketing: newsletters; language: the language of the text; obfuscation: hidden characters.',
+        'mode': 'Each rule is off by default. On, the rule only counts and marks until you give it a score.',
+        'score': 'Points of a hit. For the thread rule a bonus below 0, such as -2.',
+        'languages': 'Language codes you do not expect, such as ru zh ko. A hit adds the score.',
+        'unknown': 'Thread rule only: points of a mail that says it replies to a Message-ID never sent from here. 0 is the default.',
+        'days': 'Thread rule only: how long a sent Message-ID is kept, 7 to 365 days.',
+    },
+    'dkim-hsm-set': {
+        'domain': 'One of your domains.',
+        'mode': 'On: the module signs the mail of this domain; off: the software key again.',
+        'selector': 'A new selector for the key of the module, such as hsm2026; its DNS record is shown afterwards.',
+        'module': 'The PKCS#11 library of your module, found on this server; other for a path of your own.',
+        'module_path': 'Only with other: the path of the .so file, under /usr/lib64, /usr/lib or /opt.',
+        'token': 'The label of the token (the slot) in the module.',
+        'key': 'The label of the private key in the token.',
+        'pin': 'The user PIN of the token; it stays on this server, root only.',
+    },
+    'dkim-hsm-test': {
+        'domain': 'A domain whose key is in a module.',
+    },
+    'dkim-hsm-fallback': {
+        'domain': 'A domain whose key is in a module.',
+        'mode': 'On: the software key signs; off: the module again.',
+    },
+    'uplink-failover-set': {
+        'mode': 'On: the watch asks every minute and switches after 3 misses; off: back to the main uplink.',
+        'backup': 'An interface with the role uplink and a fixed address, with a PTR record and its place in SPF.',
+        'probe': 'Empty: the gateway of the main uplink must answer a ping (no third party is asked). Or three host:port of your own choice, comma separated: two of them must answer.',
+    },
+    'emergency-export': {
+        'address': 'The mailbox: as a user your own address, as an admin one of your domains.',
+        'format': 'ZIP holds one .eml file per mail; mbox (mboxrd) opens in Thunderbird and most mail programs.',
+        'reason': 'Admins only: why you need the mail, at least 5 characters; it goes into the audit log.',
+        'notify': 'Optional: an address that gets a short note (who, which mailbox, the reason; no content).',
+    },
+    'emergency-export-fetch': {
+        'export': 'The number you got when you asked for the export.',
+    },
+    'flow-set': {
+        'theme': 'A folder under /usr/share/eFa/flow with one SVG icon per stage; default comes with eFa-next.',
+    },
+    'yara-community-set': {
+        'mode': 'On: the signed rules come daily, are tested with ClamAV and loaded; off: they are removed.',
+        'accept': 'The rules are under the licences of their authors; yes accepts them.',
+    },
     'cdr-set': {
         'mode': 'On is recommended for offices that get many attachments from outside.',
+    },
+    'cdr-outbound-set': {
+        'mode': 'Off keeps outgoing mail as it was signed. On disarms it too and signs it again; a mail it cannot sign again goes on unchanged.',
     },
     'clam-securiteinfo-set': {
         'delete_urls': 'Yes deletes the stored URLs; then the account ID counts again.',
@@ -706,6 +778,10 @@ FIELD = {
     'cluster-init': {
         'mode': 'Master/client: settings only on the master. HA: settings on every node.',
         'name': 'Name of this node, such as mx-1.',
+        'node': 'The address (or host name) of the first node. The cluster port 8460 opens for it only, at once and after a reboot; empty: open it later with the token of each node.',
+    },
+    'cluster-token': {
+        'node': 'The address (or host name) of the node this token is for. The cluster port 8460 of this master opens for it only; removing the node closes it again.',
     },
     'cluster-join-check': {
         'master': 'The master host, and :port if not 8460.',
@@ -1067,6 +1143,7 @@ FIELD = {
     'fuzzy-set': {
         'mode': 'On learns from your own approved spam reports.',
         'score': 'Score added for a similar mail, 1 to 20.',
+        'shared': 'On: the master keeps one store for all nodes, the nodes ask it encrypted; only super admins and spam traps teach it.',
     },
     'gdpr-delete': {
         'address': 'The mail address whose data is erased.',
@@ -1859,6 +1936,10 @@ FIELD = {
     },
     'totp-disable': {
         'code': 'A current code of the app, or one of your recovery codes.',
+    },
+    'email-recovery-set': {
+        'mode': 'On: a login of this role with a lost app can get a code by mail (10 minutes, once, at most 3 mails in 15 minutes). Every mail and use is in the audit log.',
+        'role': 'The role the rule applies to.',
     },
     'totp-policy-set': {
         'mode': 'Required makes users of this role set up 2FA at their next login.',

@@ -23,7 +23,7 @@ sudo efactl cluster-token
 # auf jedem Knoten, mit Token und CA-Fingerabdruck aus cluster-token
 sudo efactl cluster-join-check --master mx-01.example.com:8460   # zuerst die Prüfungen, der Token bleibt gültig
 sudo efactl cluster-join --master mx-01.example.com:8460 --name mx-02 --address 192.0.2.12 --ca_fingerprint <Fingerabdruck>
-sudo efactl cluster-join-preview        # was die Einstellungen des Masters hier ersetzen
+sudo efactl cluster-join-preview        # was die Einstellungen des Masters hier ersetzen (ein wartender Knoten darf nur schauen, beitreten oder gehen)
 sudo efactl cluster-activate --understood yes --confirm yes   # Sicherung, dann die Einstellungen des Masters
 ```
 
@@ -34,7 +34,12 @@ SSH-Hostschlüssel; Firewall, Netz, Update, Sicherung und Wazuh wirken immer auf
 kommen nach `/etc/eFa/local.d/`.
 
 *Cluster: alle Knoten* zeigt Mail-Log, Quarantäne und Warteschlange aller Knoten und handelt auf einer Mail jedes Knotens.
-Der eigene Fuzzy-Speicher bleibt je Knoten; ein gemeinsamer Speicher im Cluster ist für 6.0.0.7 geplant.
+
+Benutzer sehen im Portal die zurückgehaltene Mail aller Knoten (6.0.0.7), eine Stunde lang nach einer Anmeldung mit Passwort: Der Master prüft dieses Passwort selbst und signiert ein Ticket; mit Passkey, Single Sign-on oder Digest-Link zeigt das Portal die zurückgehaltene Mail des eigenen Knotens, und Digest-Links wirken auf jedem Knoten (Tickets für Passkey und Single Sign-on: eine spätere Version). Ein anderer Knoten fragt nur für einen genannten Login mit diesem Ticket, nie für einen Super-Admin, und gibt nie einen Virus frei; Super-Admins und die Freigabe eines Virus arbeiten auf der Weboberfläche des Knotens, der die Mail hält.
+Der Fuzzy-Speicher ist gemeinsam (6.0.0.7): Die Knoten lesen ihn und schicken, was sie lernen, über das gegenseitige TLS des
+Clusters an den Master; nur der Master schreibt hinein. Ein als übernommen gehaltenes Konto (über einem Sendelimit) wird
+innerhalb einer halben Minute auf jedem Knoten gehalten, eine spätere Freigabe gilt überall. Solange der Master fehlt, zählt
+jeder Knoten nur seine eigene Mail und hält die Sendelimits bei 1/N (N die Knoten des Clusters); das Dashboard sagt es.
 `efactl cluster-status` zeigt jeden Knoten und wie weit er zurückliegt, `cluster-resync` übernimmt alle Einstellungen neu,
 `cluster-mx-check` prüft die MX-Einträge. Ist der Master endgültig weg, macht `cluster-promote` einen Knoten zum Master eines neuen
 Clusters.

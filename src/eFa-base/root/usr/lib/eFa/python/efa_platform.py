@@ -305,8 +305,8 @@ class Platform:
         """Run the upgrade tool with these fixed arguments, its output appended to log_path. The exit code."""
         raise NotImplementedError
 
-    def journal_window(self, since, until, idents):
-        """The log lines of these programs between two times (seconds since 1970): [line]. Reads only."""
+    def journal_window(self, since, until, idents, last=200):
+        """The log lines of these programs between two times (seconds since 1970): [line], the last `last` (None: all). Reads only."""
         raise NotImplementedError
 
     # ------------------------------------------------ network interfaces

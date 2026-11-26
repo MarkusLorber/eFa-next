@@ -83,6 +83,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `emergency-list` | Notfallzugriff: empfangene Mail |
 | `emergency-show` | Notfallzugriff: eine Mail lesen |
 | `emergency-file` | Notfallzugriff: einen Anhang oder die Mail speichern |
+| `emergency-export` | Notfallzugriff: ein Postfach exportieren *(ändert)* |
+| `emergency-export-fetch` | Notfallzugriff: den Export herunterladen *(ändert)* |
 
 ### Quarantäne
 
@@ -166,6 +168,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `ole-set` | Office-Makros: von olevba gelesen und bewertet *(ändert)* |
 | `pyzor-status` | Pyzor |
 | `pyzor-set` | Pyzor: Prüfsummen eingehender Mail von einem Pyzor-Server vergleichen lassen *(ändert)* |
+| `content-rules-status` | Inhaltsregeln |
+| `content-rules-set` | Inhaltsregeln: eine schalten *(ändert)* |
 | `tracking-status` | Tracking-Schutz |
 | `tracking-set` | Tracking-Schutz: Zählpixel und Link-Parameter aus eingehender Mail entfernen *(ändert)* |
 | `tracking-list-set` | Tracking-Schutz: Ausnahmen und eigene Tracking-Hosts *(ändert)* |
@@ -190,6 +194,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `own-block-status` | Eigene Sperren: Datei-Hashes und YARA-Regeln |
 | `own-hash-set` | Eigene Sperren: SHA-256 einer Datei *(ändert)* |
 | `own-yara-set` | Eigene Sperren: eine YARA-Regel *(ändert)* |
+| `yara-community-status` | YARA-Regeln der Community |
+| `yara-community-set` | YARA-Regeln der Community: schalten *(ändert)* |
 | `graymail-set` | Newsletter (Graymail): Einstellungen *(ändert)* |
 | `user-spam-set` | Eigene Spam-Grenzen der Benutzer *(ändert)* |
 | `scan-status` | Virenprüfung: Grenzen je Mail |
@@ -197,6 +203,7 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `scan-fail-set` | Virenprüfung: Prüffehler eines Mandanten *(ändert)* |
 | `cdr-status` | Entschärfung von Inhalten |
 | `cdr-set` | Entschärfung von Inhalten: schalten *(ändert)* |
+| `cdr-outbound-set` | Entschärfung von Inhalten: auch ausgehende Mail *(ändert)* |
 | `cdr-list` | Entschärfung von Inhalten: Originale |
 | `cdr-release` | Entschärfung von Inhalten: das Original zustellen *(ändert)* |
 | `html-disarm-set` | Inhaltsbereinigung: aktives HTML *(ändert)* |
@@ -604,6 +611,8 @@ Befehle mit *ändert* ändern das System, die anderen lesen nur. Titel ohne deut
 | `interface-confirm` | Netzwerkschnittstellen: Änderung behalten *(ändert)* |
 | `interface-revert` | Netzwerkschnittstellen: zurücknehmen *(ändert)* |
 | `uplink-route-set` | Ausgehende Mail einer Domain über einen Uplink *(ändert)* |
+| `uplink-failover-status` | Uplinks: Umschaltung ausgehender Mail |
+| `uplink-failover-set` | Uplinks: Umschaltung ausgehender Mail auf einen Ersatz-Uplink *(ändert)* |
 | `dns-zone-list` | Interne DNS: Server und Domains |
 | `dns-servers-set` | Interne DNS-Server *(ändert)* |
 | `dns-zone-set` | Interne DNS-Domains *(ändert)* |
@@ -729,7 +738,7 @@ Befehle, die keine Seite zeigt: Einige gibt es nur auf der Konsole (etwa `admin-
 | `dkim-generate-ed25519` | Ed25519-Schlüssel: erzeugen |
 | `dkim-provision-apply` | DKIM: ein Aufruf einer Quelle (efa-dkim-api) |
 | `events-run` | Ereignisse: Hintergrundjob |
-| `flow-set` | Bild des Mailflusses: wandernde Briefe |
+| `flow-set` | Bild des Mailflusses: Theme |
 | `flow-status` | Bild des Mailflusses |
 | `form-check` | Formulare: aktuelle Werte (Prüfung) |
 | `legal-accept` | Rechtstexte: bestätigen |
